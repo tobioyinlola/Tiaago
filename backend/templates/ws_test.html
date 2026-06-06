@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<meta charset="utf-8" />
+<title>WS Test</title>
+<pre id="log"></pre>
+<button id="send">Send sample audio chunk</button>
+<script>
+    const log = (...a) => {
+        document.getElementById("log").textContent += a.join(" ") + "\n";
+    };
+
+    // Paste a real JWT here for quick testing, or load from localStorage
+    const token = localStorage.getItem("access") || "PASTE_JWT_HERE";
+
+    const ws = new WebSocket(
+        `ws://${location.host}/ws/pre-screen/?token=${encodeURIComponent(
+            token
+        )}`
+    );
+
+    ws.onopen = () => log("WS open");
+    ws.onclose = (e) => log("WS close", e.code, e.reason || "");
+    ws.onerror = (e) => log("WS error", e.message || e);
+
+    ws.onmessage = (ev) => {
+        try {
+            log("←", JSON.stringify(JSON.parse(ev.data)));
+        } catch {
+            log("← (raw)", ev.data);
+        }
+    };
+
+    // Fake base64 “audio” just to exercise the pipe
+    const fakeB64 = btoa("hello-elevenlabs-audio");
+    document.getElementById("send").onclick = () => {
+        const m = { type: "user_audio_chunk", data: fakeB64 };
+        log("→", JSON.stringify(m));
+        ws.send(JSON.stringify(m));
+    };
+</script>

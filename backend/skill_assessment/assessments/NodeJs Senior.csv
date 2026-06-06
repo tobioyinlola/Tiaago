@@ -1,0 +1,51 @@
+Category,Question,Option A,Option B,Option C,Option D,Answer,Difficulty
+Node.js,Which Node.js module provides zero-copy file transfer over sockets?,fs,streams,net,dgram,C,Senior
+Node.js,Which Node.js built-in module allows advanced performance monitoring hooks?,perf_hooks,profiler,trace_events,monitor,A,Senior
+Node.js,Which tool enables native addons to be written in C++ for Node.js?,nan,napi,node-ffi,node-bindings,A,Senior
+Node.js,Which Node.js technique improves throughput under CPU-bound workloads?,Worker threads,Clustering,Child processes,All of the above,D,Senior
+Node.js,Which library best supports distributed tracing in Node.js microservices?,Zipkin,OpenTelemetry,Jaeger,Tracekit,B,Senior
+Node.js,Which method creates an HTTP/2 server in Node.js?,http2.createServer(),https.createServer(),net.createServer(),tls.createServer(),A,Senior
+Node.js,Which approach scales Node.js apps across servers?,Load balancer,Reverse proxy,Cloud autoscaling,All of the above,D,Senior
+Node.js,Which Node.js tool manages clustering and graceful reload?,pm2,forever,nodemon,strongo,A,Senior
+Node.js,Which Node.js module inspects asynchronous call stacks?,async_hooks,process,debug,trace_events,A,Senior
+Node.js,Which authentication method is most scalable for Node.js APIs?,OAuth2,API Keys,JWT,Session-based,C,Senior
+Node.js,Which database driver supports connection pooling and transactions?,mongodb-native,mysql2,pg,All of the above,D,Senior
+Node.js,Which middleware compresses HTTP responses in Express apps?,zlib,compression,deflate,auto-compress,B,Senior
+Node.js,Which Node.js tool diagnoses event loop delay?,inspector,trace_events,async_hooks,perf_hooks,C,Senior
+Node.js,Which Node.js package is ideal for building GraphQL APIs?,apollo-server,graphql-node,relay,graphql-js,A,Senior
+Node.js,Which file ensures deterministic installs in npm projects?,package-lock.json,yarn.lock,node_modules,cache-lock,A,Senior
+Node.js,Which Node.js strategy enables zero-downtime restarts?,Cluster reload,Sticky sessions,Graceful shutdown,Blue-green deployment,D,Senior
+Node.js,Which tools are used for service discovery in microservices?,Consul,etcd,Zookeeper,All of the above,D,Senior
+Node.js,Which module provides cryptography features in Node.js?,crypto,security,cipher,openssl,A,Senior
+Node.js,Which library integrates OpenAPI/Swagger with Node.js REST APIs?,swagger-ui,swagger-jsdoc,openapi-tools,swaggify,B,Senior
+Node.js,Which approach scales Node.js apps across servers?,Load balancer,Reverse proxy,Cloud autoscaling,All of the above,D,Senior
+Node.js,Which package manages task queues with Redis in Node.js?,agenda,bull,rsmq,kue,B,Senior
+Node.js,Which ORMs are commonly used in Node.js?,Sequelize,TypeORM,Prisma,All of the above,D,Senior
+Node.js,Which Node.js tech supports real-time bidirectional communication?,WebSockets,Socket.IO,Server-Sent Events,All of the above,D,Senior
+Node.js,Which approach secures against NoSQL injection?,Input validation,Sanitization,Query escaping,All of the above,D,Senior
+Node.js,Which event fires when Node.js process exits?,exit,beforeExit,close,end,A,Senior
+Node.js,Which module loads native shared libraries?,node-ffi,node-bindings,napi,module-loader,A,Senior
+Node.js,Which approach scales Node.js apps across servers?,Load balancer,Reverse proxy,Cloud autoscaling,All of the above,D,Senior
+Node.js,Which library provides secure password hashing?,bcrypt,crypto,hashpass,bcryptjs,A,Senior
+Node.js,Which method handles async errors in Express?,try/catch,Promise.catch(),Error-handling middleware,All of the above,D,Senior
+Node.js,Which practice minimizes dependency vulnerabilities?,Minimal dependencies,Regular audits,Using npm audit,All of the above,D,Senior
+Node.js,Which package simplifies Node.js serverless deployments?,claudia.js,serverless,now,lambda-node,B,Senior
+Node.js,Which package runs multiple npm tasks concurrently?,npm-run-all,concurrently,parallel-run,multi-run,A,Senior
+Node.js,Which command loads native Node.js addon?,require('./build/Release/addon'),require('addon'),module.require('addon'),napi.require(),A,Senior
+Node.js,Which API measures event loop delay?,perf_hooks.monitorEventLoopDelay,async_hooks.performance,loopCheck.eventLoopDelay,eventLoopDelayTracker,A,Senior
+Node.js,Which package secures config variables in Node.js?,dotenv,envify,configstore,env-secure,A,Senior
+Node.js,Which method pipes multiple streams efficiently?,stream.pipe(),stream.pipeline(),stream.chain(),stream.merge(),B,Senior
+Node.js,Which package best handles file uploads with streaming?,busboy,multer,formidable,multiparty,A,Senior
+Node.js,Which pattern gracefully shuts down Node.js services?,Signal trapping,Drain connections,Close listeners,All of the above,D,Senior
+Node.js,Which API supports inter-process communication?,child_process.fork(),cluster.fork(),worker.spawn(),process.spawn(),A,Senior
+Node.js,Which library manages distributed task queues?,bull,kue,agenda,All of the above,D,Senior
+Node.js,Which caching strategy reduces DB load?,In-memory cache,Redis cache,CDN cache,All of the above,D,Senior
+Node.js,Which middleware secures CSP headers?,helmet,cors,csrf,secure-headers,A,Senior
+Node.js,Which module supports async context propagation?,async_hooks,trace_context,cls-hooked,async-context,A,Senior
+Node.js,Which API compresses large files with streams?,zlib.createGzip(),stream.compress(),fs.zip(),streamGzip(),A,Senior
+Node.js,Which library simplifies HTTP API testing?,supertest,chai mocha jest,A,Senior,A,Senior
+Node.js,Which Node.js profiler visualizes async stacks and memory?,clinic.js,node --inspect v8-profiler,perf_hooks,node-inspect,A,Senior
+Node.js,Which library enforces declarative schemas and validation?,yup,joi,zod,All of the above,D,Senior
+Node.js,Which library provides distributed locks using Redis?,redlock,lockify,mutex-lock,node-lock,A,Senior
+Node.js,Which Node.js module provides zero-copy file transfer over sockets?,fs,streams,net,dgram,C,Senior
+Node.js,Which Node.js built-in module allows advanced performance monitoring hooks?,perf_hooks,profiler,trace_events,monitor,A,Senior

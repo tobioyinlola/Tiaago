@@ -1,0 +1,93 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Congratulations!</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: 'Inter', Arial, sans-serif; background-color: #f8fafc; line-height: 1.6;">
+    <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+        
+        <!-- Header -->
+        <div style="background: linear-gradient(135deg, #4857DE 0%, #6366f1 100%); padding: 40px 30px; text-align: center;">
+            <div style="display: inline-block; margin-bottom: 20px;">
+                <img src="https://prod-backend-production-4495.up.railway.app/static/emails/assets/Tiaago_logo.png" alt="Tiaago" style="height: 40px; width: auto;">
+            </div>
+            <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: 700;">Congratulations! 🎉</h1>
+        </div>
+
+        <!-- Content -->
+        <div style="padding: 40px 30px;">
+            <div style="text-align: center; margin-bottom: 30px;">
+                <div style="background-color: #10b981; color: white; padding: 8px 20px; border-radius: 20px; display: inline-block; font-weight: 600; margin-bottom: 20px;">
+                    Prescreening Interview Passed
+                </div>
+            </div>
+
+            <p style="color: #374151; font-size: 16px; margin-bottom: 20px;">
+                Dear <strong>{{ talent_name }}</strong>,
+            </p>
+
+            <p style="color: #374151; font-size: 16px; margin-bottom: 20px; text-align: center; font-size: 18px;">
+                🎉
+            </p>
+
+            <p style="color: #374151; font-size: 16px; margin-bottom: 20px;">
+                Fantastic news! You have successfully passed the prescreening interview stage for the <strong>{{ position_name }}</strong> at <strong>{{ company_name }}</strong>!
+            </p>
+
+            <div style="background-color: #ecfdf5; border-left: 4px solid #10b981; border-radius: 8px; padding: 20px; margin: 25px 0;">
+                <p style="color: #065f46; font-size: 16px; margin: 0; font-weight: 600;">
+                    With this status, you are eligible to be recommended directly to recruiters who are actively seeking top-qualified candidates like you.
+                </p>
+            </div>
+
+            <div style="background-color: #eff6ff; border-radius: 8px; padding: 25px; margin: 25px 0;">
+                <p style="color: #1e40af; font-size: 18px; margin: 0 0 15px 0; font-weight: 700;">
+                    📌 What this means for you:
+                </p>
+                <ul style="color: #1e40af; font-size: 16px; margin: 0; padding-left: 20px;">
+                    <li style="margin-bottom: 10px;">Your profile is now highlighted to recruiters on Tiaago.</li>
+                    <li style="margin-bottom: 10px;">You'll be among the first to be considered for matching job opportunities.</li>
+                    <li style="margin-bottom: 10px;">Recruiters may choose to schedule a call with you for a one-on-one meeting. If that happens, you'll receive an email notification.</li>
+                    <li>You can continue applying for roles while enjoying increased visibility as a verified talent.</li>
+                </ul>
+            </div>
+
+            <div style="text-align: center; margin: 30px 0;">
+                <p style="color: #374151; font-size: 16px; margin: 0 0 10px 0;">
+                    We're proud to have you in the Tiaago community and can't wait to see where this journey takes you. Remember, every step you've taken has brought you closer to your career goals and this is just the beginning
+                </p>
+                <p style="font-size: 24px; margin: 10px 0;">🌟</p>
+            </div>
+
+            <p style="color: #374151; font-size: 16px; margin-bottom: 20px; text-align: center;">
+                💙
+            </p>
+
+            <p style="color: #374151; font-size: 16px; margin-bottom: 20px;">
+                Best regards,<br>
+                <strong>Tiaago Team</strong>
+            </p>
+
+            <!-- Community Section -->
+            <div style="background-color: #fef3c7; border-radius: 8px; padding: 20px; margin-top: 30px;">
+                <p style="color: #92400e; font-size: 14px; margin: 0 0 10px 0; font-weight: 600;">
+                    <strong>NB:</strong> Join the community for first-hand updates, opportunities, and straight answers.
+                </p>
+                <a href="https://chat.whatsapp.com/D0zOEwcVUD1HR1K2AxRXtc?mode=ems_copy_h_t" style="color: #4857DE; font-weight: 600; text-decoration: none;">
+                    Join here >>>>
+                </a>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div style="background-color: #f9fafb; padding: 20px 30px; text-align: center; border-top: 1px solid #e5e7eb;">
+            <p style="color: #6b7280; font-size: 12px; margin: 0;">
+                © 2024 Tiaago. All rights reserved.
+            </p>
+        </div>
+    </div>
+</body>
+</html>

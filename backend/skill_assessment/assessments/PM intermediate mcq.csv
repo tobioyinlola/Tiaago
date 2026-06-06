@@ -1,0 +1,51 @@
+Question,A,B,C,D,Answer,Category,Difficulty
+What is the primary goal of a product roadmap?,Guide developers on writing code,Manage HR and budgets,Visualize the strategic direction of a product,Replace the PRD,C,Product Management,Intermediate
+Which tool is ideal for mapping out customer journey?,Asana,Jira,Trello,Miro,D,Product Management,Intermediate
+A North Star Metric should?,Represent long-term product success,Track competitor activity,Focus on churn only,Change every sprint,A,Product Management,Intermediate
+Key principle of Agile methodology?,Big upfront design,Waterfall planning,Iterative delivery,Gantt charts,C,Product Management,Intermediate
+Which method best explains why users behave a certain way?,Click tracking,User interviews,Funnel analysis,A/B testing,B,Product Management,Intermediate
+The Kano Model helps to?,Understand user delight and satisfaction,Track sprint velocity,Plan marketing strategies,Prioritize bugs,A,Product Management,Intermediate
+What is 'feature creep'?,Too many features added,Feature rollback,Feature used by one group only,Unused features,A,Product Management,Intermediate
+Important KPI for SaaS long-term success?,Bounce rate,Number of Users,App load speed,Lifetime Value,D,Product Management,Intermediate
+MoSCoW framework helps in?,Prototyping,Marketing Analysis,Prioritization,Code quality,C,Product Management,Intermediate
+What does MVP stand for?,Market Viability Plan,Minimum Viable Product,Most Valuable Player,Maximum Value Proposition,B,Product Management,Intermediate
+Which research helps discover unmet needs?,A/B Testing,Usability Testing,Ethnographic Research,Unit Testing,C,Product Management,Intermediate
+Net Promoter Score (NPS) is used to?,Measure user satisfaction,Track sessions,Analyze conversion,Identify churn,A,Product Management,Intermediate
+A PM should use OKRs to?,Track hiring performance,Align goals and measure outcomes,Monitor bugs,Speed up release cycles,B,Product Management,Intermediate
+What's a valid reason to kill a feature?,User love is strong,Low usage with high maintenance,Team preference,It’s old and stable,B,Product Management,Intermediate
+Which metric indicates product-market fit?,User growth,App rating,DAU/MAU ratio,Net profit,C,Product Management,Intermediate
+JTBD framework focuses on?,Technical performance,Jobs users want to get done,Revenue generation,Time to market,B,Product Management,Intermediate
+Good PMs should focus on?,Managing dev team,Design systems,Writing code,Setting strategy and understanding users,D,Product Management,Intermediate
+Funnel analysis is mainly used for?,Growth loops,Conversion drop-off points,User interviews,Market sizing,B,Product Management,Intermediate
+Which metric best captures user engagement?,Time on page,Net revenue,Churn rate,Daily Active Users,D,Product Management,Intermediate
+A/B testing is NOT suitable when?,There’s high traffic,You’re testing layout variants,There’s low traffic,You want quick feedback,C,Product Management,Intermediate
+One key use of a product backlog is to?,Track customer service,Manage financials,Prioritize upcoming work,Define team roles,C,Product Management,Intermediate
+How can a PM handle conflicting stakeholder needs?,Pick the highest title,Use frameworks and data to align priorities,Avoid decisions,Side with engineering,B,Product Management,Intermediate
+Which approach is best for pricing strategy?,Value-based pricing,Competitor copy,Gut Feeling,Cost-plus pricing,A,Product Management,Intermediate
+Churn rate measures?,User engagement,User satisfaction,User retention loss,Customer acquisition rate,C,Product Management,Intermediate
+How often should you update a roadmap?,Never,Once a year,Daily,Quarterly or when priorities change,D,Product Management,Intermediate
+What should be in a user persona?,Age and device only,Name and email,Role in compay,Behavioral traits and goals,D,Product Management,Intermediate
+Product discovery phase should include?,Release notes,Prototypes and specs,User research and validation,Funding approval,C,Product Management,Intermediate
+Which is a good metric for retention?,Churn rate,Login frequency,Support tickets,Feature count,B,Product Management,Intermediate
+What is technical debt?,High-performing code,Unfinished work that slows down progress,User backlog,Extra resources,B,Product Management,Intermediate
+Which of these is a North Star Metric for a ride-hailing app?,App downloads,Total installs,Trips completed per active rider,Website visitors,C,Product Management,Intermediate
+A product vision should be?,Measurable and short-term,Technical and rigid,Aspirational and future-oriented,Full of buzzwords,C,Product Management,Intermediate
+Which process aligns dev work with business goals?,Sprint planning,Bug reporting,Daily standup,Product strategy alignment,D,Product Management,Intermediate
+Which is true about product-market fit?,You always have it,It's permanent,It changes with context,It’s a vanity metric,C,Product Management,Intermediate
+TAM in market analysis stands for?,Total Available Market,Technical Asset Model,Time Allocation Management,Tracking and Monetization,A,Product Management,Intermediate
+What's a 'dogfooding' strategy?,Eating during standups,Using competitor product,Using your own product internally,Doing field visits,C,Product Management,Intermediate
+Usability testing helps identify?,Server errors,User pain points,Bug severity,Code efficiency,B,Product Management,Intermediate
+What should a good KPI be?,Easy to change,Subjective,Time-bound and measurable,Always qualitative,C,Product Management,Intermediate
+When should you pivot a product?,When team is bored,Metrics show strong growth,During stable growth,When data shows lack of traction,D,Product Management,Intermediate
+Which technique prioritizes user problems by severity and frequency?,Kano,Opportunity Scoring,RICE,Moscow,B,Product Management,Intermediate
+Retrospective meetings are used to?,Celebrate launches,Plan marketing,Review past sprint performance,Conduct user interviews,C,Product Management,Intermediate
+What makes a feature scalable?,Appeals to only early adopters,Easily maintained and extended,Has many bugs,Only works for one user case,B,Product Management,Intermediate
+What is the HEART framework used for?,Design sprints,Product priotization,Financial projection,UX metrics and evaluation,D,Product Management,Intermediate
+Which is more important for a PM?,Tech knowledge,Customer empathy,Marketing experience,Finance degree,B,Product Management,Intermediate
+Which role does a PM play in cross-functional teams?,Product leadership and alignment,Code Review,UI designing,QA testing,A,Product Management,Intermediate
+How should PMs validate assumptions?,Skip testing,A/B test or user research,Only brainstorm,Ask competitors,B,Product Management,Intermediate
+Why use a customer journey map?,To draft PRDs,To analyze user churn,To visualize user experiences across touchpoints,To write test cases,C,Product Management,Intermediate
+What does the acronym KPI stand for?,Key Performance Indicator,Knowledge Process Integration,Key Product Innovation,Known Product Insight,A,Product Management,Intermediate
+Which diagram best visualizes user stages from awareness to purchase?,Gantt Chart,Funnel Diagram,Scatter Plot,Pie Chart,B,Product Management,Intermediate
+Blue Ocean Strategy focuses on?,Competing in crowded markets,Cutting development costs,Improving internal processes,Creating uncontested market space,D,Product Management,Intermediate
+What is a spike in Agile?,A marketing burst,A bug fix,A user story,A research task to explore solutions,D,Product Management,Intermediate

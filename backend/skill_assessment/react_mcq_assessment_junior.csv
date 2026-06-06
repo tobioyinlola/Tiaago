@@ -1,0 +1,31 @@
+Category,Question,Option A,Option B,Option C,Option D,Answer,Difficulty
+React,What is the primary purpose of React?,To manage state in a database,To build UI components,To handle server-side logic,To define backend APIs,To build UI components,Junior
+React,Which method is used to update the state in a React class component?,setState(),updateState(),modifyState(),changeState(),setState(),Junior
+React,What hook is used to manage state in a functional component?,useEffect,useState,useContext,useReducer,useState,Junior
+React,How do you pass data from a parent component to a child component?,Using Redux,Using props,Using state,Using context,Using props,Junior
+React,Which of the following is true about JSX?,It is a syntax extension of JavaScript,It is mandatory to use in React,It only works with class components,It requires a separate compiler,It is a syntax extension of JavaScript,Junior
+React,What does the useEffect hook do?,Manages state,Performs side effects,Handles event listeners,Modifies the DOM directly,Performs side effects,Junior
+React,Which statement is true about React keys?,They should be unique within an array,They must be globally unique,They are mandatory for all components,They should be numbers,They should be unique within an array,Junior
+React,How do you handle conditional rendering in React?,Using if-else statements,Using ternary operators,Using && operators,All of the above,All of the above,Junior
+React,Which package is used for routing in React?,react-router,react-path,react-navigate,react-router-dom,react-router-dom,Junior
+React,What is the virtual DOM in React?,A direct representation of the real DOM,A lightweight copy of the real DOM,A JSON object storing component states,A state management library,A lightweight copy of the real DOM,Junior
+React,What function is used to create a React component?,createComponent(),React.createElement(),new Component(),generateComponent(),React.createElement(),Junior
+React,Which lifecycle method is called after a component is rendered?,componentWillMount,componentDidMount,componentWillUpdate,componentDidUpdate,componentDidMount,Junior
+React,What does the useState hook return?,A function,A variable and a function,An object,A promise,A variable and a function,Junior
+React,Which of these statements about React fragments is true?,They allow returning multiple elements,They replace the need for divs,They improve performance,All of the above,All of the above,Junior
+React,What is the default behavior of events in React?,They bubble up,They do not bubble up,They are prevented by default,They are synchronous,They bubble up,Junior
+React,What is the correct way to handle forms in React?,Using controlled components,Using uncontrolled components,Using Redux only,Using the DOM directly,Using controlled components,Junior
+React,Which syntax is used to reference props in a function component?,this.props,props,this.getProps(),getProps(),props,Junior
+React,Which React hook is used for fetching data?,useFetch,useEffect,useState,useData,useEffect,Junior
+React,Which command is used to create a new React app?,npx create-react-app my-app,npm start react-app,react-new-app,create-react-app my-app,npx create-react-app my-app,Junior
+React,What does the Context API help with?,Managing application-wide state,Handling component styling,Fetching API data,Improving component speed,Managing application-wide state,Junior
+React,Which statement is true about Redux?,It replaces React state,It is a predictable state container,It is built into React,It only works with hooks,It is a predictable state container,Junior
+React,What is the purpose of a reducer function in React?,To modify component state,To handle actions and update state,To update the UI,To fetch data,To handle actions and update state,Junior
+React,What does the useReducer hook do?,Creates a new component,Manages complex state logic,Fetches API data,Handles event listeners,Manages complex state logic,Junior
+React,How do you optimize performance in a React application?,Using memoization,Using inline styles,By avoiding hooks,By using only class components,Using memoization,Junior
+React,Which function is used to render a component?,ReactDOM.render(),renderComponent(),React.create(),component.render(),ReactDOM.render(),Junior
+React,What is the main advantage of using React?,It is faster than vanilla JS,It allows for component reusability,It runs on the backend,It has built-in CSS,It allows for component reusability,Junior
+React,What is React.memo used for?,Optimizing functional components,Handling API calls,Storing component state,Logging errors,Optimizing functional components,Junior
+React,Which syntax is used to create a React component?,function Component() {},const Component = () => {},class Component extends React.Component {},All of the above,All of the above,Junior
+React,Which tool is used for debugging React applications?,React DevTools,Redux Inspector,Chrome Console,Node.js Debugger,React DevTools,Junior
+React,What is JSX?,A JavaScript extension,A templating language,A CSS preprocessor,A build tool,A JavaScript extension,Junior

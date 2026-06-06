@@ -1,0 +1,51 @@
+Category,Question,Option A,Option B,Option C,Option D,Answer,Difficulty
+Django,Which Django ORM method locks selected rows until the end of the transaction?,select_related(),prefetch_related(),select_for_update(),lock_rows(),C,Intermediate
+Django,Which caching strategy is best for fragment-level template caching?,Per-view caching,Template fragment caching,Database caching,Object-level caching,B,Intermediate
+Django,Which method is used to create custom database functions within Django ORM?,Func(),Aggregate(),CustomFunction(),ExpressionWrapper(),A,Intermediate
+Django,Which Django middleware prevents clickjacking by setting X-Frame-Options header?,SecurityMiddleware,XFrameOptionsMiddleware,CommonMiddleware,SessionMiddleware,B,Intermediate
+Django,Which ORM tool allows defining conditional annotations?,Case(),When(),Coalesce(),Conditional(),A,Intermediate
+Django,Which Django signal is triggered before a model object is deleted?,pre_delete,post_delete,delete_signal,before_delete,A,Intermediate
+Django,Which Django field option enforces a one-to-one relationship with cascading delete?,ForeignKey with unique=True,OneToOneField,ForeignKey with on_delete=models.CASCADE,UniqueForeignKey,B,Intermediate
+Django,Which database index option speeds up lookups for fields that are queried often?,db_index=True,index=True,search_index=True,optimize_index=True,A,Intermediate
+Django,Which method on a Django model manager allows defining a reusable queryset?,custom_queryset(),get_queryset(),set_queryset(),override_queryset(),B,Intermediate
+Django,Which DRF class-based view provides full CRUD operations automatically?,APIView,ModelViewSet,GenericAPIView,ViewSet,B,Intermediate
+Django,Which security feature in Django defends against SQL injection?,Prepared statements,ORM parameter binding,Input sanitization,All of the above,D,Intermediate
+Django,Which Django feature supports atomic updates to model fields without race conditions?,F() expressions,AtomicUpdate(),Transaction.savepoint(),LockUpdate(),A,Intermediate
+Django,Which Django REST Framework feature allows versioning of API endpoints?,VersionRouter,Versioning,NamespaceVersioning,APIVersioning,C,Intermediate
+Django,Which deployment approach allows scaling Django apps horizontally with no shared state?,Shared filesystem,Stateless app architecture,Session stickiness,Monolithic deployment,B,Intermediate
+Django,"Which Django model field supports storing files in cloud storage (S3, GCS)?",CharField,FileField,CloudField,StorageField,B,Intermediate
+Django,Which ORM method retrieves related objects with minimal queries using JOINs?,select_related(),prefetch_related(),related_query(),join_related(),A,Intermediate
+Django,Which Django security middleware enforces HTTPS for all requests?,SSLRedirectMiddleware,SecurityMiddleware,StrictTransportMiddleware,HttpsMiddleware,B,Intermediate
+Django,Which Django REST Framework permission class allows authenticated read but admin write?,IsAuthenticatedOrReadOnly,IsAdminUser,ReadOnlyAdmin,CustomPermission,A,Intermediate
+Django,Which Django model Meta option allows creating complex constraints?,constraints,unique_together,options,field_constraints,A,Intermediate
+Django,Which database backend option in Django supports JSONB fields natively?,MySQL,PostgreSQL,SQLite,Oracle,B,Intermediate
+Django,Which Django ORM method updates or creates a model instance in one call?,create_or_update(),update_or_create(),get_or_create(),create_update(),B,Intermediate
+Django,Which testing tool helps ensure code coverage in Django projects?,pytest,django-coverage,django-test-coverage,coverage.py,D,Intermediate
+Django,Which admin method defines custom display in list display columns?,custom_column(),display_field(),__str__(),custom_display(),B,Intermediate
+Django,Which DRF serializer field is best suited for nested object representation?,PrimaryKeyRelatedField,HyperlinkedRelatedField,NestedSerializer,ObjectField,B,Intermediate
+Django,Which ORM expression allows updating a field based on its current value?,Case(),F(),When(),Subquery(),B,Intermediate
+Django,Which decorator is used to register a custom template filter?,@template_filter,@register.filter,@filter_template,@custom_filter,B,Intermediate
+Django,Which Django management command runs migrations on production?,migrate makemigrations,makemigrations migrate,python manage.py migrate,python manage.py runmigrations,C,Intermediate
+Django,Which tool allows async handling of long-running tasks in Django?,AsyncTask,Celery,TaskQueue,RedisWorker,B,Intermediate
+Django,Which DRF serializer option enforces strict validation on nested relationships?,required=True,validated_data,enforce_nested=True,depth > 1,D,Intermediate
+Django,Which database migration operation is best for large data transformations?,RunSQL(),RunPython(),DataMigration(),RawSQL(),B,Intermediate
+Django,Which Django ORM tool allows subqueries within annotations?,Subquery(),SelectRelated(),Aggregate(),NestedQuery(),A,Intermediate
+Django,Which admin option supports export functionality in Django Admin?,exportable_fields,list_export,export_list,custom_export,A,Intermediate
+Django,Which DRF class adds throttling to API views?,ThrottleAPIView,APIView with throttle_classes,APIThrottling,ViewThrottle,B,Intermediate
+Django,Which Django setting prevents host header attacks?,SECURE_PROXY_SSL_HEADER,ALLOWED_HOSTS,SECURE_REDIRECT_HOSTS,TRUSTED_HOSTS,B,Intermediate
+Django,Which ORM field option auto-generates slug from another field?,auto_slug,populate_from,sluggify,prepopulated_fields,D,Intermediate
+Django,Which method can override default form validation logic?,clean(),validate(),cleaned_data(),pre_validate(),A,Intermediate
+Django,Which Django model method defines custom permissions?,get_permissions(),meta_permissions,permissions(),default_permissions,C,Intermediate
+Django,Which caching backend provides persistent key-value store across multiple servers?,Memcached,FileBasedCache,LocMemCache,Redis,D,Intermediate
+Django,Which DRF authentication method uses JWT tokens?,JWTAuthentication,JSONWebTokenAuthentication,JWTAuth,TokenAuthentication,B,Intermediate
+Django,Which template filter allows safe rendering of HTML content?,|safe,|escape,|html_safe,|allow_html,A,Intermediate
+Django,Which database constraint prevents deletion if related objects exist?,on_delete=models.PROTECT,on_delete=models.CASCADE,on_delete=models.DO_NOTHING,on_delete=models.SET_NULL,A,Intermediate
+Django,Which ORM lookup checks for NULL values?,isnull=null__is,isnull=True,exists=False,null=True,B,Intermediate
+Django,Which Django admin customization allows sorting columns?,ordering,list_order,order_by,sortable,A,Intermediate
+Django,Which Django middleware ensures session expiry on browser close?,SessionMiddleware,SessionExpiryMiddleware,CloseSessionMiddleware,SessionAutoCloseMiddleware,A,Intermediate
+Django,Which DRF renderer outputs API responses in browsable format?,JSONRenderer,BrowsableAPIRenderer,WebRenderer,APIRenderer,B,Intermediate
+Django,Which Django deployment strategy enables zero downtime deployments?,Blue-Green Deployment,Rolling Restart,Hot Swapping,Cluster Sharding,A,Intermediate
+Django,Which Django field option enforces a one-to-one relationship with cascading delete?,ForeignKey with unique=True,OneToOneField,ForeignKey with on_delete=models.CASCADE,UniqueForeignKey,B,Intermediate
+Django,Which database index option speeds up lookups for fields that are queried often?,db_index=True,index=True,search_index=True,optimize_index=True,A,Intermediate
+Django,Which method on a Django model manager allows defining a reusable queryset?,custom_queryset(),get_queryset(),set_queryset(),override_queryset(),B,Intermediate
+Django,Which Django ORM method locks selected rows until the end of the transaction?,select_related(),prefetch_related(),select_for_update(),lock_rows(),C,Intermediate

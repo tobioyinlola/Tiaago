@@ -1,0 +1,181 @@
+"use client";
+
+import Link from "next/link";
+import { toast } from "sonner";
+import { Formik } from "formik";
+import { useState } from "react";
+import { Button } from "react-daisyui";
+import { GroupBase } from "react-select";
+import { useRouter } from "next/navigation";
+
+import {
+  startupSignUpV3ValidationSchema,
+  startupSignUpV3InitialFormValues,
+  startupSignUpV3FormFields,
+} from "../constants/form.contants";
+import { useAlert } from "@/app/common/store/useAlert";
+import { handleFormSubmissionError } from "@/app/common/utils";
+import FormikField from "@/app/common/components/Forms/FormikField";
+import { trackSignup } from "@/app/common/services/mixpanel.services";
+import { publicAxiosInstance } from "@/app/common/utils/axios.instance";
+import CountrySelect from "@/app/common/components/Forms/CountrySelect";
+import { CountryField, TalentRole as StartupRole } from "@/app/common/types";
+
+const SignUpFormV3 = ({
+  startupRoles,
+  groupedCountries,
+  next,
+  referral_code,
+}: {
+  startupRoles: StartupRole[];
+  groupedCountries: GroupBase<CountryField>[];
+  next?: string;
+  referral_code?: string;
+}) => {
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const router = useRouter();
+  const setAlert = useAlert(state => state.setAlert);
+  const urlSearchParams = new URLSearchParams();
+  if (referral_code) urlSearchParams.set("referral_code", referral_code);
+  if (next) urlSearchParams.set("next", next);
+  return (
+    <Formik
+      initialValues={startupSignUpV3InitialFormValues}
+      onSubmit={(values, { setSubmitting, resetForm, setFieldError }) => {
+        const input = {
+          ...values,
+          password2: values.password1,
+          referral_code,
+          // add https:// to company website if it doesn't exist
+          website: values.website.startsWith("http")
+            ? values.website
+            : `https://${values.website}`,
+        };
+        toast.dismiss();
+        new Promise(async (resolve, reject) => {
+          if (!acceptedTerms)
+            reject({ message: "Please accept the terms and conditions" });
+          try {
+            const { data } = await publicAxiosInstance.post(
+              "/auth/register/",
+              input,
+              { params: { user_type: "company" } }
+            );
+            const [first_name = "", last_name = ""] =
+              input.full_name.split(" ");
+            try {
+              if (process.env.NODE_ENV === "production")
+                await trackSignup({
+                  user_type: "startup",
+                  role: input.role,
+                  email: input.email,
+                  first_name,
+                  last_name,
+                  size: input.size,
+                  website: input.website,
+                  country: input.country,
+                });
+            } catch (error) {
+              if (process.env.NODE_ENV === "development") console.error(error);
+            }
+            resolve(data);
+          } catch (err) {
+            reject(err);
+          }
+        })
+          .then(() => {
+            toast.success("Account created successfully");
+            resetForm();
+            if (next) {
+              router.push(next);
+            } else {
+              router.push(`/verify-email?email=${input.email}`);
+            }
+          })
+          .catch(err => handleFormSubmissionError(err, setFieldError, setAlert))
+          .finally(() => setSubmitting(false));
+      }}
+      validationSchema={startupSignUpV3ValidationSchema}
+    >
+      {({ handleSubmit, isSubmitting, errors, touched, values }) => (
+        <form onSubmit={handleSubmit} className='mt-8 mb-3'>
+          {startupSignUpV3FormFields.map(({ name, label, ...props }, i) => {
+            if (name === "country")
+              return (
+                <CountrySelect
+                  key={name}
+                  value={null}
+                  {...{ name, label, ...props }}
+                  options={groupedCountries}
+                  error={errors[name]}
+                  touched={touched[name]}
+                />
+              );
+            return (
+              <FormikField
+                key={name}
+                {...{ name, label, ...props }}
+                autoFocus={i === 0}
+                value={values[name]}
+                error={errors[name]}
+                touched={touched[name]}
+                disablePasswordHelpers
+                inputContainerClassName='min-h-10 h-10'
+                {...(name === "role" && {
+                  selectFieldProps: {
+                    options: startupRoles.map(({ title, slug }) => ({
+                      label: title,
+                      value: slug,
+                    })),
+                  },
+                })}
+              />
+            );
+          })}
+          <label className='flex gap-3 text-sm w-fit cursor-pointer mx-auto'>
+            <input
+              type='checkbox'
+              name='acceptance'
+              checked={acceptedTerms}
+              onChange={e => setAcceptedTerms(e.target.checked)}
+              className='checkbox checkbox-primary checkbox-xs rounded-[2px]'
+            />
+            <span>
+              I accept Tiaago&apos;s{" "}
+              <Link href='/terms' className='text-primary'>
+                Terms of Service
+              </Link>{" "}
+              and{" "}
+              <Link href='/privacy' className='text-primary'>
+                Privacy Policy.
+              </Link>
+            </span>
+          </label>
+          <Button
+            loading={isSubmitting}
+            color='primary'
+            className='text-white w-full mt-6 mb-4'
+            type='submit'
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? "Creating account..." : "Create account"}
+          </Button>
+          <p className='text-[#343A40] text-base text-center'>
+            Click{" "}
+            <Link
+              className='text-primary hover:underline'
+              href={`/talents/signup${
+                urlSearchParams.size ? "?" + urlSearchParams.toString() : ""
+              }`}
+            >
+              here
+            </Link>{" "}
+            to Sign Up as a Talent instead
+          </p>
+        </form>
+      )}
+    </Formik>
+  );
+};
+
+export default SignUpFormV3;

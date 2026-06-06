@@ -1,0 +1,51 @@
+Category,Question,Option A,Option B,Option C,Option D,Answer,Difficulty
+Product Management,Which of the following best defines a Minimum Viable Product (MVP)?,A fully-featured product with all use cases,A product with enough features to test assumptions,A prototype only for internal testing,A concept with no real users,B,Junior
+Product Management,What is the primary purpose of a product roadmap?,To communicate vision to investors,To align internal stakeholders,To document engineering deliverables,To prioritize features based on customer needs,B,Junior
+Product Management,"Which framework helps identify customer jobs, pains, and gains?",SWOT Analysis,Value Proposition Canvas,Business Model Canvas,Customer Journey Map,B,Junior
+Product Management,"When conducting a competitive analysis, which factor is LEAST important?",Product packaging design,Customer demographics,Market share trends,Customer acquisition cost,D,Junior
+Product Management,A PM notices low retention in the first week. What is the FIRST step to take?,Analyze retention cohorts,Interview churned users,Conduct user surveys,Review feature usage logs,A,Junior
+Product Management,Which of the following is an example of a leading indicator?,Customer churn rate,Customer satisfaction score,Net Promoter Score (NPS),Feature adoption rate,D,Junior
+Product Management,What is a common pitfall when defining a product vision?,Having no clear customer problem,Too many broad goals,Focusing too much on internal KPIs,Lack of stakeholder buy-in,A,Junior
+Product Management,Which metric best measures user engagement?,Retention rate,Churn rate,Net Promoter Score (NPS),Feature adoption rate,A,Junior
+Product Management,What is the North Star Metric primarily used for?,Track short-term sales spikes,Align the team around long-term value,Measure product quality perception,Set quarterly OKRs,B,Junior
+Product Management,Churn rate measures what aspect of a product?,User growth rate,Retention rate,Revenue churn,Daily active users,C,Junior
+Product Management,Which of the following is a lagging indicator?,Net Promoter Score (NPS),Churn rate,ARPU (Average Revenue per User),Feature adoption rate,A,Junior
+Product Management,"If retention is high but revenue is stagnant, what metric should be analyzed?",Conversion rate,ARPU (Average Revenue per User),LTV (Lifetime Value),Retention rate,D,Junior
+Product Management,Which metric is most useful to evaluate product-market fit?,DAU (Daily Active Users),Churn Rate,LTV (Lifetime Value),Revenue growth,D,Junior
+Product Management,What does DAU/MAU ratio typically indicate?,Frequency of user sessions,Breadth of user base,User satisfaction score,Retention rate,A,Junior
+Product Management,What is the primary goal of a user persona?,To segment users by spending habits,To guide product design decisions,To attract early adopters,To drive marketing messaging,B,Junior
+Product Management,Which research method best captures qualitative insights?,Surveys,Focus groups,A/B testing,Interviews,B,Junior
+Product Management,Which technique is best for validating early hypotheses quickly?,Usability testing,Prototyping,Landing page MVP,Customer advisory board,C,Junior
+Product Management,What does 'triangulation' in user research refer to?,Using multiple methods to validate data,Asking users the same question repeatedly,Confirming with management,Ignoring outliers,A,Junior
+Product Management,What is the risk of relying solely on surveys?,Low sample size,Bias in question design,Unclear causal relationships,Limited actionable insights,B,Junior
+Product Management,Which sampling method ensures diverse user input?,Random sampling,Convenience sampling,Stratified sampling,Snowball sampling,C,Junior
+Product Management,When is ethnographic research most useful?,For understanding daily workflows,When studying cultural influences,When observing non-verbal behaviors,For identifying product pain points,D,Junior
+Product Management,What is the FIRST step in a go-to-market strategy?,Define the target market,Define product pricing,Define marketing channels,Define key partnerships,A,Junior
+Product Management,Which channel is typically best for early-stage B2B SaaS customer acquisition?,Outbound sales,Content marketing,Partnerships,Events,B,Junior
+Product Management,Which pricing strategy involves setting a low initial price to gain market share?,Penetration pricing,Skimming pricing,Value-based pricing,Freemium pricing,A,Junior
+Product Management,What is the purpose of a value proposition statement?,To communicate key benefits to users,To guide product design decisions,To outline technical requirements,To prioritize backlog items,B,Junior
+Product Management,Which role owns the P&L responsibility in most organizations?,Product Manager,Marketing Manager,Finance Manager,Operations Manager,A,Junior
+Product Management,"Which GTM strategy focuses on targeting a small, specific audience first?",Niche targeting,Mass marketing,Broad market blitz,Account-based marketing,A,Junior
+Product Management,What is an advantage of a freemium model?,Lower barrier to entry,Upselling opportunities,Faster adoption,Higher user volume,A,Junior
+Product Management,"In Scrum, who is responsible for maximizing product value?",Product Owner,Scrum Master,Developers,Stakeholders,A,Junior
+Product Management,Which ceremony ensures continuous improvement after each sprint?,Sprint retrospective,Sprint planning,Daily stand-up,Sprint demo,A,Junior
+Product Management,What is the main purpose of a backlog refinement session?,To estimate delivery timelines,To groom user stories,To reduce technical debt,To re-prioritize backlog,B,Junior
+Product Management,Which Agile metric measures the amount of work completed in a sprint?,Velocity,Cycle time,Lead time,Throughput,A,Junior
+Product Management,Which practice improves cross-functional collaboration most?,Siloed workflows,Pair programming,Daily stand-ups,Workshops,B,Junior
+Product Management,What is a key benefit of using story points instead of hours?,Reduces estimation bias,Enables relative complexity estimation,Fosters team consensus,Decouples team capacity from time,A,Junior
+Product Management,Who facilitates communication between stakeholders and the dev team?,Scrum Master,Product Owner,Product Manager,Agile Coach,B,Junior
+Product Management,Which prioritization framework uses Impact vs. Effort?,Impact/Effort Matrix,RICE framework,ICE framework,MoSCoW Method,A,Junior
+Product Management,Which method ranks features by potential customer value and feasibility?,Kano Model,MoSCoW Method,Value vs. Risk Matrix,Kano Model,B,Junior
+Product Management,What is the key drawback of HiPPO-based decision making?,Subjectivity,Bias towards authority opinions,Faster but inaccurate choices,Data-driven,C,Junior
+Product Management,Which approach helps prioritize features when data is limited?,Expert interviews,A/B testing,Heuristic analysis,User testing,D,Junior
+Product Management,What does RICE stand for in the RICE framework?,"Reach, Impact, Confidence, Effort","Reach, Interest, Complexity, Ease","Reach, Influence, Cost, Effort","Reach, Importance, Clarity, Ease",A,Junior
+Product Management,Which factor is NOT part of the Kano Model?,Must-have,Performance quality,Exciters,Delighters,A,Junior
+Product Management,What is a quick prioritization method when time is constrained?,Dot voting,"ICE (Impact, Confidence, Ease)",Stack ranking,Buy-a-feature,C,Junior
+Product Management,What is a key leadership trait for early-stage PMs?,Vision-setting,Resilience,Adaptability,Confidence building,A,Junior
+Product Management,Which skill is most crucial when managing up to executives?,Concise communication,Data synthesis,Influence mapping,Presentation skills,B,Junior
+Product Management,What is a major risk of premature scaling?,Inefficient resource allocation,Wasted cash burn,Loss of focus on core users,Overbuilt infrastructure,C,Junior
+Product Management,Which is an effective tactic for aligning a cross-functional startup team?,Bi-weekly check-ins,Clear OKRs,Shared product vision,Transparent decision making,D,Junior
+Product Management,Which leadership style best fits high uncertainty environments?,Authoritative,Transformational,Situational,Democratic,B,Junior
+Product Management,What is a sign of product-market fit?,Viral growth,Repeat purchases,Organic referrals,Exponential demand,B,Junior
+Product Management,"When leading a small startup team, what is most important?",Clear communication,Empathy,Decision ownership,Strategic thinking,A,Junior
+Product Management,Which factor matters most when building a v1.0 product?,Customer problem,Differentiation,Customer experience,Revenue potential,A,Junior

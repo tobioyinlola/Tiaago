@@ -1,0 +1,100 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap"
+      rel="stylesheet"
+    />
+    <title>Email template</title>
+    <style>
+      .content {
+        padding: 50px;
+      }
+
+      h1 {
+        font-size: 35px;
+        color: #333333;
+        margin-bottom: 20px;
+        font-weight: 800;
+      }
+
+      p {
+        font-size: 16px;
+        color: #384860;
+        line-height: 1.5;
+        margin-bottom: 10px;
+      }
+
+      @media screen and (max-width: 750px) {
+        h1 {
+          font-size: 25px;
+        }
+        .content {
+          padding: 20px;
+        }
+        p {
+          font-size: 14px;
+        }
+      }
+    </style>
+  </head>
+  <body
+    style="
+      margin: 0;
+      padding: 0;
+      background-color: f5f5f5;
+      font-family: Inter, sans-serif;
+    "
+  >
+    <div class="content">
+      <div style="margin-bottom: 30px">
+        <img style="max-width: 200px; margin-bottom: 20px"
+        src='{{ logo_url }}' alt="TalentSync Logo" />
+        <hr style="border: 1.5px #cbd5e1 solid" />
+      </div>
+      <div>
+      
+        <p>Dear {{ company_name }},</p>
+
+        <p>
+          We hope this email finds you well. We wanted to inform you that
+          {{ name }} has responded to your interview invitation.
+        </p>
+
+        <p>
+          {{ name }} has Accepted the invitation. To join the call, kindly
+          login it to your account on the scheduled date and time, you will see
+          the meeting link to join the call.
+        </p>
+
+        <p>Best regards,<br />Tiaago Team</p>
+
+        <a 
+          href="{{ TIAAGO_TALENT_LOGIN_URL }}"
+          style="
+            background-color: #2969ff;
+            padding: 15px 10px;
+            color: #ffffff;
+            font-size: 16px;
+            border: none;
+            cursor: pointer;
+          "
+        >
+          View Calendar
+      </a>
+      </div>
+      <div style="margin-top: 20px">
+        <p></p>
+          17, Oterubi Ogidan Street, Owode onirin, Ikorodu road, Lagos<br />&copy;
+          2024 Tiaago
+        </p>
+      </div>
+    </div>
+  </body>
+</html>

@@ -1,0 +1,51 @@
+Category,Question,Option A,Option B,Option C,Option D,Answer,Difficulty
+FastAPI,Which FastAPI dependency allows for custom reusable logic injection?,Depends(),Dependency(),Provide(),Inject(),A,Advanced
+FastAPI,Which FastAPI middleware compresses responses?,GzipMiddleware,CORSMiddleware,CompressionMiddleware,ResponseMiddleware,A,Advanced
+FastAPI,Which FastAPI tool is recommended for managing app settings and secrets?,Pydantic Settings,python-dotenv,Decouple,Environs,A,Advanced
+FastAPI,"Which status code best represents ""Conflict""?",400,401,409,422,C,Advanced
+FastAPI,Which is the correct way to define multiple query parameters with same key?,List[str],Set[str],Dict[str],Tuple[str],A,Advanced
+FastAPI,Which database adapter allows asynchronous PostgreSQL operations?,aiopg,asyncpg,aiomysql,asyncorm,B,Advanced
+FastAPI,Which option best describes FastAPI’s dependency injection system?,Declarative,Explicit,Callable-based,Annotation-based,C,Advanced
+FastAPI,Which library allows async-compatible ORMs for FastAPI?,Tortoise ORM,Peewee,SQLAlchemy ORM,MongoEngine,A,Advanced
+FastAPI,Which FastAPI class supports custom exception handlers?,APIRouter,HTTPException,RequestValidationError,ExceptionMiddleware,D,Advanced
+FastAPI,Which HTTP status code is appropriate for resource creation with location header?,200,201,202,204,B,Advanced
+FastAPI,Which FastAPI class enables streaming large responses in chunks?,StreamingResponse,FileResponse,BackgroundResponse,LargeFileResponse,A,Advanced
+FastAPI,Which FastAPI utility allows dependency override in unit testing?,dependency_override,dependency_override_map,Depends.override,app.dependency_overrides,B,Advanced
+FastAPI,Which OAuth2 flow is typically used in FastAPI single-page apps?,Authorization Code,Password Grant,Client Credentials,Implicit Flow,D,Advanced
+FastAPI,Which decorator enables routing of a WebSocket connection?,@app.websocket,@app.ws,@app.socket,@app.stream,A,Advanced
+FastAPI,Which FastAPI middleware securely sets session cookies?,SessionMiddleware,SecureCookieMiddleware,CSRFMiddleware,AuthSessionMiddleware,A,Advanced
+FastAPI,Which FastAPI feature optimizes OpenAPI schema generation for large projects?,Tags,Routers,Include_router(),Schema_cache(),B,Advanced
+FastAPI,Which feature in Pydantic allows ORM mode parsing?,Config.orm_mode = True,BaseModel.orm_mode = True,Schema.orm_mode = True,EnableORM(True),A,Advanced
+FastAPI,Which option returns custom response headers in FastAPI?,Response.headers.append(),response.set_header(),"Response().headers[""key""] = value",Response.headers.add(),C,Advanced
+FastAPI,Which is a valid way to mount static files in FastAPI?,"app.mount(""/static"", StaticFiles(directory=""static""))","app.static(""/static"", dir=""static"")","app.router.static(""/static"", path=""static"")","app.serve_static(""/static"")",A,Advanced
+FastAPI,Which tool best integrates SQLAlchemy async sessions with FastAPI?,Databases library,SQLAlchemy async engine,FastAPI-SQLAlchemy,Alembic,C,Advanced
+FastAPI,Which status code should be returned for a request that is accepted but processing is not complete?,201,202,204,409,B,Advanced
+FastAPI,Which FastAPI feature allows injecting the same dependency multiple times with different scopes?,SubDependency,Depends(reuse=True),Depends() with override,"Depends(..., use_cache=False)",D,Advanced
+FastAPI,Which of the following ensures data integrity in FastAPI-Pydantic models?,Validators,Serializers,Normalizers,Cleaners,A,Advanced
+FastAPI,Which option is a correct async database driver compatible with FastAPI?,SQLAlchemy asyncio,Databases,libsql,SQLDriverAsync,A,Advanced
+FastAPI,Which decorator is used to document custom exceptions in OpenAPI schema?,@app.exception_handler,@app.openapi_exception,@openapi.exception,@exception_openapi,A,Advanced
+FastAPI,Which CORS setting allows credentials like cookies to be sent?,allow_credentials=True,enable_cookies=True,cors_cookies=True,send_credentials=True,A,Advanced
+FastAPI,Which security scheme is natively supported in FastAPI's OpenAPI schema?,OAuth2,BasicAuth,JWT,BearerToken,A,Advanced
+FastAPI,Which is the correct way to include routers in FastAPI?,app.include_router(router),router.mount(app),app.router.include(router),app.use(router),A,Advanced
+FastAPI,Which HTTPException status code best indicates unprocessable entity?,409,422,404,403,B,Advanced
+FastAPI,Which SQLAlchemy extension supports async ORM in FastAPI?,sqlalchemy.ext.asyncio,sqlalchemy.ext.async,sqlalchemy_async,sqlalchemy.orm.asyncio,A,Advanced
+FastAPI,Which FastAPI tool enables advanced custom OpenAPI documentation?,get_openapi(),openapi_configure(),schema_builder(),swagger_editor(),A,Advanced
+FastAPI,Which SQLAlchemy object best handles scoped sessions with FastAPI?,sessionmaker,SessionFactory,AsyncSession,LocalSession,C,Advanced
+FastAPI,Which FastAPI feature allows grouping endpoints by logical modules?,Tags,Routers,Namespaces,Collections,B,Advanced
+FastAPI,Which response class efficiently serves large video files?,StreamingResponse,FileResponse,VideoStreamResponse,MediaResponse,A,Advanced
+FastAPI,Which tool helps with pagination in FastAPI REST APIs?,FastAPI Pagination,FastAPI Paginate,PaginationMiddleware,Pydantic Pagination,A,Advanced
+FastAPI,Which HTTP status code indicates forbidden action?,401,403,404,405,B,Advanced
+FastAPI,Which Pydantic class config option allows extra fields but ignores them?,extra = ignore,extra = allow,extra = forbid,extra = skip,B,Advanced
+FastAPI,Which is the correct way to hash and verify passwords securely in FastAPI apps?,passlib.context,bcrypt.verify,hashlib.compare,crypt.checkpw,A,Advanced
+FastAPI,Which approach is best for securing APIs with OAuth2 scopes in FastAPI?,"Depends(OAuth2PasswordBearer(scopes=[""...""]))","Depends(OAuth2(scope=""...""))","AuthDepends(scope=[""...""])","TokenDepends(scopes=[""...""])",A,Advanced
+FastAPI,Which FastAPI class allows custom route prefix and tags?,APIRouter,RouteGroup,RouterPrefix,TaggedRouter,A,Advanced
+FastAPI,Which async library supports transactions with PostgreSQL in FastAPI?,asyncpg transactions,Databases transactions,TortoiseORM transactions,SQLAlchemy async transaction,B,Advanced
+FastAPI,Which of the following best optimizes FastAPI for production deployment?,Gunicorn + Uvicorn workers,Plain Uvicorn,Uvicorn + Hypercorn,Asyncio runserver,A,Advanced
+FastAPI,Which FastAPI utility returns custom error responses with content type?,JSONResponse,CustomErrorResponse,ResponseError,TypedResponse,A,Advanced
+FastAPI,"Which advanced feature allows dependency scopes like per-request, per-session?",Depends(scope=...),"Depends(..., use_cache=False)",ScopedDepends,Depends.cache,B,Advanced
+FastAPI,Which tool helps validate OpenAPI schema correctness in FastAPI projects?,openapi-schema-validator,openapi-generator,openapi-linter,openapi-checker,A,Advanced
+FastAPI,Which FastAPI extension integrates Redis caching?,FastAPI-Cache,FastAPI-Redis,FastAPI-Cache2,CacheFastAPI,A,Advanced
+FastAPI,Which option lets FastAPI serve custom OpenAPI schema URLs?,"openapi_url=""/custom-openapi.json""","openapi_schema=""custom.json""","openapi_route=""/schema""","openapi_path=""/api-docs""",A,Advanced
+FastAPI,Which FastAPI dependency allows for custom reusable logic injection?,Depends(),Dependency(),Provide(),Inject(),A,Advanced
+FastAPI,Which FastAPI middleware compresses responses?,GzipMiddleware,CORSMiddleware,CompressionMiddleware,ResponseMiddleware,A,Advanced
+FastAPI,Which SQLAlchemy object best handles scoped sessions with FastAPI?,sessionmaker,SessionFactory,AsyncSession,LocalSession,C,Advanced

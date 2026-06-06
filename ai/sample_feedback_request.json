@@ -1,0 +1,75 @@
+{
+  "candidate_id": "candidate-001",
+  "assessment_id": "assessment-2024-001",
+  "resume_analysis": {
+    "total_score": 82,
+    "role_match_status": "Strong Match",
+    "recommendation": "Proceed to Technical Assessment",
+    "strengths": [
+      "8+ years of Python development experience",
+      "Strong AWS and cloud architecture skills",
+      "Proven track record with microservices",
+      "Experience with CI/CD pipelines"
+    ],
+    "areas_for_improvement": [
+      "Limited experience with Kubernetes",
+      "No formal leadership roles",
+      "Could strengthen frontend skills"
+    ],
+    "scores": {
+      "skills_match": 85,
+      "experience_relevance": 80,
+      "education_certifications": 75,
+      "overall_fit": 82
+    }
+  },
+  "culture_fit_results": {
+    "score": 78,
+    "values_assessed": [
+      "Innovation",
+      "Collaboration",
+      "Customer Focus",
+      "Continuous Learning",
+      "Ownership"
+    ],
+    "alignment_level": "High",
+    "detailed_scores": {
+      "innovation": 85,
+      "collaboration": 75,
+      "customer_focus": 80,
+      "continuous_learning": 90,
+      "ownership": 70
+    },
+    "responses_summary": "Candidate demonstrates strong alignment with company values, particularly in innovation and continuous learning"
+  },
+  "skills_assessment_results": {
+    "overall_score": 85,
+    "technical_score": 88,
+    "problem_solving_score": 82,
+    "stage_performances": {
+      "mcq_stage": {
+        "score": 90,
+        "questions_answered": 10,
+        "correct_answers": 9,
+        "topics_tested": ["Python", "System Design", "Databases", "API Design"]
+      },
+      "coding_stage": {
+        "score": 85,
+        "problems_solved": 3,
+        "average_completion_time": "25 minutes",
+        "code_quality": "Excellent",
+        "test_cases_passed": "28/30"
+      }
+    },
+    "strengths_identified": [
+      "Strong algorithmic thinking",
+      "Clean code practices",
+      "Good error handling",
+      "Efficient solutions"
+    ],
+    "weaknesses_identified": [
+      "Edge case handling could be improved",
+      "Limited comments in complex sections"
+    ]
+  }
+}

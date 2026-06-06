@@ -1,0 +1,49 @@
+Category,Question,Option A,Option B,Option C,Option D,Answer,Difficulty
+Product Management,Which strategic framework best guides a company expanding from single-product to multi-product portfolio?,GE-McKinsey Matrix,Ansoff Matrix,Porter’s Five Forces,Balanced Scorecard,A,Senior
+Product Management,What is the primary benefit of adopting a platform strategy over a product strategy?,Faster revenue capture,Broader ecosystem leverage,Lower product cost,Improved unit economics,B,Senior
+Product Management,"Which financial metric best indicates sustainable, profitable growth for a SaaS product?",Gross Margin,Rule of 40,EBITDA,Churn Rate,B,Senior
+Product Management,Which organizational model fosters the highest innovation velocity in cross-functional teams?,Functional silos,Agile squads,Centralized command,Spotify model,D,Senior
+Product Management,Which metric best evaluates product scalability across diverse customer segments?,Customer segmentation accuracy,Feature adoption rate,Market penetration rate,Revenue per user,C,Senior
+Product Management,What is the most effective leadership approach when aligning multiple product teams to a unified vision?,Top-down mandates,Consensus-building,Servant leadership,Situational leadership,B,Senior
+Product Management,Which pricing strategy optimally captures value in a two-sided marketplace?,Subscription pricing,Transaction fee,Dynamic pricing,Price discrimination,B,Senior
+Product Management,Which risk is most acute when launching a global product without regional adaptation?,Overestimated global demand,Regulatory misalignment,Cultural disconnect,Technical incompatibility,C,Senior
+Product Management,Which tool is most effective for visualizing dependencies across multiple product roadmaps?,Dependency map,Gantt chart,Swimlane diagram,PERT chart,A,Senior
+Product Management,Which PM practice best mitigates technical debt accumulation at scale?,Strict coding standards,Continuous refactoring,Feature freezes,Code rewrites,B,Senior
+Product Management,Which customer metric best signals early product-market fit?,Net Promoter Score (NPS),Retention rate,Conversion rate,Monthly Active Users (MAU),B,Senior
+Product Management,Which stakeholder management technique reduces resistance during transformational product changes?,Stakeholder mapping,Influence diagrams,Change champion networks,Escalation paths,C,Senior
+Product Management,What is the optimal approach to prioritize between incremental innovation and disruptive innovation?,Balance short-term and long-term bets,Focus only on high NPV ideas,Allocate equal budgets,Prioritize market share growth,A,Senior
+Product Management,Which user research method is best for uncovering latent user needs?,Usability testing,Focus groups,Ethnographic studies,A/B testing,C,Senior
+Product Management,Which go-to-market model maximizes speed for B2B SaaS expansion?,Direct sales,Channel partnerships,Product-led growth,Freemium,C,Senior
+Product Management,What is the key benefit of a dual-track agile process?,Clearer backlog grooming,Faster feature releases,Parallel discovery and delivery,Reduced development cost,C,Senior
+Product Management,Which leadership style best supports scaling cross-functional product teams globally?,Transformational,Transactional,Laissez-faire,Bureaucratic,A,Senior
+Product Management,Which retention metric is most relevant for a usage-based SaaS product?,Churn rate,Net Dollar Retention,DAU/MAU ratio,NPS,B,Senior
+Product Management,Which analytics model predicts future customer behaviors based on current data?,Descriptive analytics,Diagnostic analytics,Predictive analytics,Prescriptive analytics,C,Senior
+Product Management,Which prioritization framework balances customer impact and engineering effort?,MoSCoW,RICE,Kano,Eisenhower Matrix,B,Senior
+Product Management,Which metric best reflects engagement in a freemium product?,Session duration,Conversion to paid,Monthly Active Users (MAU),Bounce rate,B,Senior
+Product Management,What is the primary advantage of outcome-driven roadmaps?,Stakeholder alignment,Faster delivery,Increased predictability,Focus on customer value,D,Senior
+Product Management,Which customer development approach reduces risk of building unwanted products?,Concierge MVP,Smoke test,Beta testing,Pretotyping,A,Senior
+Product Management,"Which competitive strategy focuses on unique customer value, not lowest price?",Cost leadership,Differentiation,Market penetration,Price skimming,B,Senior
+Product Management,Which team topology best supports autonomous product squads?,Functional,Stream-aligned,Platform-centric,Complicated subsystem,B,Senior
+Product Management,Which market analysis tool uncovers unmet customer jobs and pain points?,SWOT,JTBD framework,Porter’s Five Forces,PESTEL,B,Senior
+Product Management,Which method enhances alignment between engineering and product teams in scaled agile?,SAFe PI Planning,Scrum of Scrums,OKRs,Product demos,A,Senior
+Product Management,What is the best approach to balance qualitative and quantitative user insights?,Use interviews only,Triangulate methods,Prioritize surveys,Ignore outliers,B,Senior
+Product Management,Which acquisition metric predicts long-term revenue more accurately?,CAC,CLTV,NPS,MRR,B,Senior
+Product Management,Which stakeholder alignment tool clarifies decision rights and accountability?,RACI matrix,Power-interest grid,Stakeholder map,MoSCoW chart,A,Senior
+Product Management,Which KPI best measures product-led growth traction?,Lead velocity rate,Expansion revenue,Daily Active Users (DAU),Viral coefficient,D,Senior
+Product Management,Which innovation model emphasizes co-creation with customers?,Disruptive innovation,Open innovation,Lean startup,Blue Ocean Strategy,B,Senior
+Product Management,Which leadership competency is most critical when scaling early-stage startups?,Risk aversion,Vision communication,Operational efficiency,Cost control,B,Senior
+Product Management,Which financial metric indicates whether a product can sustain its customer acquisition cost?,Payback period,Profit margin,CLTV/CAC ratio,Revenue growth rate,C,Senior
+Product Management,Which research method best validates pricing sensitivity?,Focus groups,Van Westendorp Price Sensitivity Meter,Usability tests,A/B pricing tests,B,Senior
+Product Management,Which agile practice supports continuous integration of customer feedback?,Sprint planning,Sprint reviews,Retrospectives,Backlog grooming,B,Senior
+Product Management,"Which decision-making model is optimal for high-stakes, ambiguous product bets?",RAPID,DACI,OODA Loop,Eisenhower Matrix,C,Senior
+Product Management,Which roadmap format is best suited for communicating strategic initiatives?,Feature roadmap,Theme-based roadmap,Gantt chart,Release plan,B,Senior
+Product Management,Which North Star metric best reflects a network effects product?,Daily messages sent,Revenue per user,MAU growth,Network density,D,Senior
+Product Management,Which data governance principle is most important in global SaaS products?,Data minimization,Data sovereignty,Data normalization,Data deduplication,B,Senior
+Product Management,Which business model innovation most aligns with ecosystem expansion?,Freemium,Subscription,API platform strategy,Direct sales,C,Senior
+Product Management,Which customer journey metric best captures product activation success?,Time-to-value,Retention rate,Churn rate,CLTV,A,Senior
+Product Management,Which stakeholder engagement model best reduces cross-functional misalignment?,Stakeholder empathy mapping,Governance councils,Business model canvas,Escalation matrix,B,Senior
+Product Management,Which agile artifact provides visibility into team capacity and velocity?,Product backlog,Sprint backlog,Burndown chart,Kanban board,C,Senior
+Product Management,Which user experience metric best reflects feature usability?,Task success rate,Session duration,Bounce rate,Retention rate,A,Senior
+Product Management,Which product growth strategy leverages existing customer base most effectively?,Upselling,SEO acquisition,Paid advertising,Content marketing,A,Senior
+Product Management,Which KPI most effectively measures customer advocacy?,CSAT,CES,NPS,DAU,C,Senior
+Product Management,Which strategic KPI best signals successful alignment between product innovation and long-term business strategy?,Strategic Fit Index,Innovation Adoption Rate,Strategic Impact Score,Balanced Scorecard Alignment,C,Senior

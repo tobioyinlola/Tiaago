@@ -1,0 +1,51 @@
+Category,Question,Option A,Option B,Option C,Option D,Answer,Difficulty
+Node.js,Which module is used to create a web server in Node.js?,http,url,net,stream,A,Junior
+Node.js,Which command initializes a new Node.js project?,node init,npm install,npm init,node create,C,Junior
+Node.js,Which of the following is a core module in Node.js?,fs,express,axios,socket.io,A,Junior
+Node.js,Which keyword is used to handle asynchronous errors in promises?,catch,then,finally,throw,A,Junior
+Node.js,What does `res.json()` do in an Express.js route handler?,Parses JSON,Returns JSON response,Validates JSON,Converts object to string,B,Junior
+Node.js,Which package is commonly used to manage environment variables?,dotenv,env-config,node-env,.ENV,A,Junior
+Node.js,Which statement is used to export functions in a Node.js module?,module.export,module.exports,export default,require.exports,B,Junior
+Node.js,Which event is emitted when a stream ends?,close,end,finish,complete,B,Junior
+Node.js,"Which HTTP status code means ""Created""?",200,201,202,204,B,Junior
+Node.js,Which method reads the content of a file asynchronously?,fs.read,fs.readFile,fs.readFileSync,fs.open,B,Junior
+Node.js,Which middleware is commonly used for parsing JSON request bodies in Express?,express.json(),bodyParser.urlencoded,bodyParser.json(),app.useJSON(),A,Junior
+Node.js,Which package is used to create RESTful APIs in Node.js easily?,Express,Koa,Hapi,All of the above,D,Junior
+Node.js,Which of these can be used to hash passwords securely?,md5,sha1,bcrypt,crypto,C,Junior
+Node.js,Which Node.js module handles file paths?,fs,http,path,url,C,Junior
+Node.js,Which command installs a package globally?,npm install -g,npm global install,npm -g install,npm ginstall,A,Junior
+Node.js,Which object in Node.js handles unhandled exceptions?,process,event,emitter,global,A,Junior
+Node.js,Which built-in Node.js object provides information about the current process?,process,system,env,context,A,Junior
+Node.js,Which Express method is used to define middleware for all HTTP verbs?,app.route(),app.all(),app.use(),app.middleware(),B,Junior
+Node.js,Which library is commonly used for input validation in Node.js apps?,express-validator,node-validate,joi,validator.js,D,Junior
+Node.js,Which of the following is an event-driven architecture library?,EventEmitter,AsyncEvent,EventDriven,EventStream,A,Junior
+Node.js,Which option is true about Node.js?,It is single-threaded,It uses non-blocking I/O,It is event-driven,All of the above,D,Junior
+Node.js,Which protocol is natively supported for real-time communication in Node.js?,HTTP,HTTPS,WebSocket,TCP,C,Junior
+Node.js,Which command updates all npm packages in a project?,npm update,npm upgrade,npm install -u,npm refresh,A,Junior
+Node.js,Which module handles data compression in Node.js?,compress,zlib,gzip,deflate,B,Junior
+Node.js,Which method can be used to create child processes?,process.spawn(),child_process.spawn(),process.create(),subprocess.spawn(),B,Junior
+Node.js,Which npm command lists all globally installed packages?,npm ls -g,npm global ls,npm list --global,npm list -g,D,Junior
+Node.js,Which header indicates that the server supports JSON responses?,Content-Type: text/html,Content-Type: application/json,Content-Format: json,Accept: application/json,B,Junior
+Node.js,Which module allows working with buffers in Node.js?,buffer,fs,stream,binary,A,Junior
+Node.js,Which Express.js middleware is useful for securing HTTP headers?,cors,helmet,secure,headers B,B,Junior
+Node.js,Which npm command uninstalls a package?,npm delete npm,npm uninstall npm remove npm forget,npm install,npm install-n,B,Junior
+Node.js,Which template engine is commonly used with Express.js?,EJS,Mustache,Handlebars,All of the above,D,Junior
+Node.js,Which Node.js feature allows file system watchers?,fs.watch(),fs.filewatch(),fs.monitor(),fs.listen(),A,Junior
+Node.js,Which of the following is true about `require()`?,It loads modules synchronously,It caches loaded modules,It resolves modules relative to file,All of the above,D,Junior
+Node.js,Which module can be used to implement HTTPS servers?,http,https,tls,crypto,B,Junior
+Node.js,Which testing framework is popular for Node.js apps?,Mocha,Jest,AVA,All of the above,D,Junior
+Node.js,Which method returns the current working directory?,process.cwd(),__dirname,process.cwd(__dirname),fs.getCWD(),A,Junior
+Node.js,Which method appends data to a file asynchronously?,fs.appendFile(),fs.writeAppend(),fs.addFile(),fs.fileAppend(),A,Junior
+Node.js,Which npm command shows outdated packages?,npm outdated,npm check,npm status,npm diff,A,Junior
+Node.js,Which Node.js version manager is popular?,nvm,nodevm,node-manager,node-switcher,A,Junior
+Node.js,Which npm script runs tests?,npm run tests,npm test,npm exec test,npm run test,B,Junior
+Node.js,Which Express object holds route parameters?,req.params,req.query,req.body,req.routes,A,Junior
+Node.js,Which npm file specifies dependencies?,package.json,package-lock.json,node_modules/npm.json,package.config.json,A,Junior
+Node.js,Which Node.js API schedules code execution after a delay?,setTimeout(),setInterval(),process.delay(),timer(),A,Junior
+Node.js,Which Node.js module provides cryptographic functionality?,crypto,secure,encrypt,security,A,Junior
+Node.js,Which object handles HTTP response in Express?,req,res,next,app,B,Junior
+Node.js,Which library is commonly used for logging in Node.js apps?,log4js,winston,morgan,All of the above,D,Junior
+Node.js,Which method stops a running timer created with setInterval()?,clearTimeout(),clearInterval(),stopInterval(),timer.clear(),B,Junior
+Node.js,Which of the following is a core module in Node.js?,fs,express,axios,socket.io,A,Junior
+Node.js,Which keyword is used to handle asynchronous errors in promises?,catch,then,finally,throw,A,Junior
+Node.js,Which npm script runs tests?,npm run tests,npm test,npm exec test,npm run test,B,Junior

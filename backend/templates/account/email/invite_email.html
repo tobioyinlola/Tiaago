@@ -1,0 +1,77 @@
+{% load static %}
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Invite to Tiaago</title>
+        <style>
+            @import url("https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap");
+            * {
+                padding: 0;
+                margin: 0;
+                box-sizing: border-box;
+            }
+            body {
+                padding: 35px;
+                font-family: "Inter", sans-serif;
+                background: #fff;
+            }
+            .email-container .content h1 {
+                font-size: 35px;
+                font-weight: 800;
+                color: #121a26;
+                margin-top: 20px;
+            }
+            p {
+                line-height: 28px;
+                font-size: 16px;
+                color: #384860;
+                margin: 20px 0;
+            }
+            a.button {
+                display: inline-block;
+                padding: 15px 50px;
+                font-size: 16px;
+                font-weight: 700;
+                color: #fff;
+                background: #2969ff;
+                text-decoration: none;
+                border-radius: 5px;
+            }
+            @media screen and (max-width: 800px) {
+                .email-container .content h1 {
+                    font-size: 25px;
+                }
+                a.button {
+                    padding: 12px 40px;
+                    font-size: 15px;
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <div class="email-container">
+            <div class="content">
+                <div class="img">
+                    <img
+                        src="{{ welcome_image_url }}"
+                        alt="welcome_onboard_img"
+                    />
+                </div>
+
+                <h1></h1>
+
+                <p>Hi,<br/>
+                    You’ve been invited to join Tiaago! Create your account and set up your profile to get started right away.
+                    Click the button below to accept your invite:
+                    <a href="{{ invite_link }}" class="button">Join Tiaago</a>
+                </p>
+
+                <p>Looking forward to welcoming you!</p>
+
+                <p>Best regards,<br />The Tiaago Team</p>
+            </div>
+        </div>
+    </body>
+</html>

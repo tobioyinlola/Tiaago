@@ -1,0 +1,46 @@
+{% load account %}{% user_display user as user_display %}{% load i18n %}
+
+<div class="email-container">
+  <div class="content">
+    <div class="img">
+      <img
+        src="{{ welcome_image_url }}"
+        alt="welcome_onboard_img"
+      />
+    </div>
+
+    <h1>Hi from Tiaago!</h1>
+    <p>Dear {{user.first_name}},</p>
+
+    <p>
+      Welcome to Tiaago, the private marketplace connecting talents with
+      startups and businesses globally. We're excited to have you!
+      Congratulations on joining Tiaago! Showcase your skills, explore
+      opportunities, and connect with innovative companies. Your journey to
+      success begins now.
+    </p>
+
+    <p>
+      You received this email because user {{ user_display }} provided your
+      email to connect their account. Complete your profile by adding your
+      portfolio and achievements to attract potential clients and collaborators.
+      Browse projects and collaborations that match your career goals, from
+      short-term gigs to long-term contracts.
+    </p>
+
+    <p>
+      For any questions, reach out to our support team. We're here to help you
+      every step of the way.
+    </p>
+  </div>
+
+  <div class="last">
+    <!-- <p>This email was sent to <a href="mailto:angel@notable.com">angel@notable.com</a>. If you'd rather not receive this kind of email, <a href="#">Unsubscribe</a>.</p> -->
+
+    <p>
+      17, Oterubi Ogidan street, Owode onirin, Ikorodu road, Lagos. <br />
+      &copy; Tiaago 2024
+    </p>
+  </div>
+</div>
+{% endautoescape %}

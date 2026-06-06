@@ -1,0 +1,51 @@
+Category,Question,Option A,Option B,Option C,Option D,Answer,Difficulty
+Product Design,Which of the following best defines a design system?,A collection of marketing materials,"A shared set of reusable components, patterns, and guidelines",A documentation of product requirements,A list of color palettes,B,Intermediate
+Product Design,Which accessibility guideline ensures interactive elements are operable with keyboard only?,ARIA roles,WCAG 2.1 Principle: Operable,HTML5 Accessibility API,CSS Media Queries,B,Intermediate
+Product Design,Which metric best evaluates usability improvements after iterative releases?,Net Promoter Score,Success rate of tasks,Monthly active users,Engagement rate,B,Intermediate
+Product Design,Which prototyping technique allows realistic testing of animations and microinteractions?,Low-fidelity wireframes,Clickable prototype,High-fidelity interactive prototype,Paper prototype,C,Intermediate
+Product Design,Which of the following is critical for inclusive design?,Responsive design,Color contrast ratios,Keyboard navigation,All of the above,D,Intermediate
+Product Design,Which method helps prioritize features based on user value and business value?,Moscow method,Value vs. Complexity matrix,Kano model,Opportunity solution tree,C,Intermediate
+Product Design,"Which Figma feature helps manage multiple component states (like hover, active)?",Variants,Constraints,Auto layout,Interactive components,A,Intermediate
+Product Design,Which tool is best suited to map user journeys with multiple touchpoints?,Figma,Axure,Miro,Adobe XD,C,Intermediate
+Product Design,"Which UX law states ""the time to acquire a target is a function of distance and size""?",Hick’s Law,Gestalt’s Law of Proximity,Fitts’ Law,Pareto Principle,C,Intermediate
+Product Design,Which of these design strategies best reduces cognitive load?,Minimalist design,Responsive layout,Consistent branding,Animations,A,Intermediate
+Product Design,Which principle suggests interfaces should reflect users' real-world experiences?,Feedback,Mapping,Match between system and real world,Affordance,C,Intermediate
+Product Design,Which method gathers both qualitative and quantitative data simultaneously?,Diary study,Surveys,Usability testing with SUS scale,Field observation,C,Intermediate
+Product Design,Which accessibility consideration improves screen reader navigation?,Semantic HTML,ARIA landmarks,Descriptive link texts,All of the above,D,Intermediate
+Product Design,Which principle ensures all UI elements adjust based on user input or device?,Responsiveness,Adaptability,Fluid grid,Progressive disclosure,A,Intermediate
+Product Design,Which role is most responsible for defining the problem space before ideation?,Product designer,UX researcher,Product manager,Interaction designer,C,Intermediate
+Product Design,Which tool helps ensure design token consistency across platforms?,Storybook,Zeplin,Design Tokens plugin,Style Dictionary,D,Intermediate
+Product Design,Which Figma plugin helps check color contrast ratios for accessibility?,Stark,Autoflow,Content Reel,Angle,A,Intermediate
+Product Design,"Which model breaks down user motivations into triggers, actions, rewards?",Lean UX model,Fogg Behavior Model,Customer Journey Map,Kano Model,B,Intermediate
+Product Design,Which interaction pattern improves mobile accessibility for visually impaired users?,VoiceOver,Sticky navigation,Swipe gestures,Infinite scroll,A,Intermediate
+Product Design,Which deliverable communicates both layout and user interactions?,Wireframe,Interactive prototype,User journey map,Design system documentation,B,Intermediate
+Product Design,"Which approach advocates for testing small, rapid design iterations?",Waterfall,Lean UX,DesignOps,Double diamond,B,Intermediate
+Product Design,Which heuristic suggests user interfaces should support undo and redo?,Error prevention,"Help users recognize, diagnose, and recover",Recognition rather than recall,User control and freedom,D,Intermediate
+Product Design,Which visual element hierarchy guides users to primary actions first?,Color contrast,Typography size,Visual hierarchy,Proximity,C,Intermediate
+Product Design,Which tool integrates both design and code documentation for developers?,Zeplin,Storybook,InVision DSM,Figma Inspect,B,Intermediate
+Product Design,"Which law suggests ""the simpler the system, the less error-prone it is""?",Occam's Razor,Fitts’ Law,Hick’s Law,Pareto Principle,A,Intermediate
+Product Design,Which accessibility principle requires text alternatives for non-text content?,Perceivable,Operable,Understandable,Robust,A,Intermediate
+Product Design,Which of the following best describes “progressive disclosure”?,Showing all information upfront,Revealing Intermediate features as needed,Hiding non-essential actions,Minimizing input fields,B,Intermediate
+Product Design,Which prototyping tool provides Intermediate animation capabilities?,Figma Smart Animate,Axure,Principle,Framer,D,Intermediate
+Product Design,Which card sorting method allows users to create their own categories?,Open card sorting,Closed card sorting,Reverse sorting,Hybrid sorting,A,Intermediate
+Product Design,Which term describes combining quantitative analytics with qualitative research?,Mixed-methods research,Contextual inquiry,Heuristic evaluation,Data triangulation,D,Intermediate
+Product Design,Which interaction model defines tasks as sequences of user actions and system feedback?,State diagram,Task flow diagram,Activity diagram,Sequence diagram,B,Intermediate
+Product Design,Which term describes reusable patterns for solving common UI problems?,Component,Design token,Design pattern,Variant,C,Intermediate
+Product Design,Which accessibility guideline ensures form fields are labeled correctly?,WCAG Labeling,ARIA Labeling,HTML Label tag,Accessible Rich Internet Application (ARIA),C,Intermediate
+Product Design,Which technique helps prioritize fixes after a usability test?,Affinity mapping,Severity rating,Heuristic mapping,Journey mapping,B,Intermediate
+Product Design,Which grid layout provides equal-width columns regardless of content?,CSS Grid,Bootstrap Grid,Flexbox,Column Grid,A,Intermediate
+Product Design,Which law emphasizes reducing friction by limiting steps to achieve a goal?,Hick’s Law,Fitts’ Law,Occam’s Razor,Pareto Principle,A,Intermediate
+Product Design,Which of these aids in documenting and aligning design decisions?,Design journal,Decision log,Design rationale,Stakeholder matrix,C,Intermediate
+Product Design,Which measure evaluates if users return to a feature repeatedly?,Adoption rate,Retention rate,Task success rate,Churn rate,B,Intermediate
+Product Design,Which of these encourages team alignment during early design phases?,Design sprint,Design critique,Heuristic evaluation,Affinity diagramming,A,Intermediate
+Product Design,Which plugin helps automate creation of dummy content in Figma?,Content Reel,Autoflow,Stark,Unsplash,A,Intermediate
+Product Design,Which design approach integrates data and experimentation into decision-making?,Data-driven design,Behavioral design,Agile UX,Contextual design,A,Intermediate
+Product Design,Which mobile-first breakpoint is most common in responsive design?,320px,480px,768px,1024px,B,Intermediate
+Product Design,Which factor is critical when creating dark mode themes?,Contrast ratios,Typography sizes,Button shapes,Border radii,A,Intermediate
+Product Design,Which of these aids in presenting design decisions to stakeholders clearly?,Annotated wireframes,User journeys,High-fidelity mockups,Design rationale,A,Intermediate
+Product Design,"Which design deliverable outlines system flows, error states, and user decisions?",Task flow diagram,User journey map,Information architecture,Process flowchart,A,Intermediate
+Product Design,Which technique helps mitigate bias during user research?,Leading questions,Triangulation,Confirmation bias,Framing bias,B,Intermediate
+Product Design,Which of the following best defines a design system?,A collection of marketing materials,"A shared set of reusable components, patterns, and guidelines",A documentation of product requirements,A list of color palettes,B,Intermediate
+Product Design,Which accessibility guideline ensures interactive elements are operable with keyboard only?,ARIA roles,WCAG 2.1 Principle: Operable,HTML5 Accessibility API,CSS Media Queries,B,Intermediate
+Product Design,Which metric best evaluates usability improvements after iterative releases?,Net Promoter Score,Success rate of tasks,Monthly active users,Engagement rate,B,Intermediate
+Product Design,"Which approach advocates for testing small, rapid design iterations?",Waterfall,Lean UX,DesignOps,Double diamond,B,Intermediate

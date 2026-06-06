@@ -1,0 +1,22 @@
+
+> talentsync-v2-frontend@0.1.0 lint /Users/mac/Desktop/tiaago-v2-frontend
+> eslint .
+
+
+/Users/mac/Desktop/tiaago-v2-frontend/app/(home)/jobs/[job_id]/application-complete/page.tsx
+  49:22  error  `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+
+/Users/mac/Desktop/tiaago-v2-frontend/app/(home)/page.tsx
+  162:49  error  `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+
+/Users/mac/Desktop/tiaago-v2-frontend/app/companies/[id]/_components/PublicCompanyProfileJobList.tsx
+  178:19  error  `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+  178:61  error  `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+
+/Users/mac/Desktop/tiaago-v2-frontend/app/jobs/[job_id]/assessment/[assessment_id]/page.tsx
+  177:18  error  `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+  327:42  error  `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+
+✖ 6 problems (6 errors, 0 warnings)
+
+ ELIFECYCLE  Command failed with exit code 1.

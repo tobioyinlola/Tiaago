@@ -1,0 +1,9 @@
+{
+  "resume_analysis": {
+    "total_score": 75,
+    "role_match_status": "Good Match",
+    "recommendation": "Proceed to Assessment",
+    "strengths": ["Python experience", "Cloud knowledge"],
+    "areas_for_improvement": ["Frontend skills"]
+  }
+}

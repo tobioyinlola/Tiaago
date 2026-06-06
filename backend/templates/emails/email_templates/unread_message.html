@@ -1,0 +1,82 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap"
+      rel="stylesheet"
+    />
+    <title>Email template</title>
+    <style>
+      .content {
+        padding: 50px;
+      }
+
+      h1 {
+        font-size: 35px;
+        color: #333333;
+        margin-bottom: 20px;
+        font-weight: 800;
+      }
+
+      p {
+        font-size: 16px;
+        color: #384860;
+        line-height: 1.5;
+        margin-bottom: 10px;
+      }
+
+      @media screen and (max-width: 750px) {
+        h1 {
+          font-size: 25px;
+        }
+        .content {
+          padding: 20px;
+        }
+        p {
+          font-size: 14px;
+        }
+      }
+    </style>
+  </head>
+  <body
+    style="
+      margin: 0;
+      padding: 0;
+      background-color: f5f5f5;
+      font-family: Inter, sans-serif;
+    "
+  >
+    <div class="content">
+      <div style="margin-bottom: 30px">
+        <img style="max-width: 200px; margin-bottom: 20px;"
+        src="{{ logo_url }}" alt="Tiaago Logo" />
+        <hr style="border: 1.5px #cbd5e1 solid" />
+      </div>
+      <div>
+       
+        <p>Dear {{ name }},</p>
+        <p>
+          We hope this message finds you well. You have [unread messages/unread
+          message] waiting for you on Tiaago.
+        </p>
+        <p>
+          Please log in to your account to view and respond to your messages. If
+          you have any questions or need assistance, feel free to reach out to
+          our support team.
+        </p>
+        <p>Best regards,<br />{{ name }}<br />Tiaago Team</p>
+      </div>
+      <div style="margin-top: 20px">
+        <p></p>
+          17, Oterubi Ogidan Street, Owode onirin, Ikorodu road, Lagos<br />&copy;
+          2024 Tiaago
+        </p>
+      </div>
+    </div>
+  </body>
+</html>

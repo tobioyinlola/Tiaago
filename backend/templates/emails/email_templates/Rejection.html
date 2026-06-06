@@ -1,0 +1,104 @@
+{% load static %}
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Email Tiaago</title>
+<style>
+
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+
+*{
+    padding: 0;
+    margin: 0;
+    box-sizing: border-box;
+}
+
+
+body {
+    margin: 0;
+    padding: 35px;
+    box-sizing: border-box;
+    background: rgba(255, 255, 255, 1);
+    font-family: 'Inter', sans-serif;
+}
+
+.email-container .header{
+    padding-bottom: 35px;
+    border-bottom: rgba(203, 213, 225, 1) solid 2px;
+}
+
+.email-container .content h1{
+    font-size: 35px;
+    font-weight: 800;
+    margin-top: 20px;
+    color: rgba(18, 26, 38, 1);
+}
+
+a{
+    color: rgba(41, 105, 255, 1);
+}
+
+p{
+    line-height: 28px;
+    font-weight: 400;
+    font-size: 16px;
+    letter-spacing: 0.2px;
+    margin: 20px 0;
+    color: rgba(56, 72, 96, 1);
+}
+
+
+@media screen and (max-width: 800px) {
+    .email-container .content h1{
+        font-size: 25px;
+    }
+}
+</style>
+
+
+</head>
+<body>
+
+    <div class="email-container">
+        <div class="header">
+            <img src="{% static 'emails/assets/Tiaago_logo.png' %}" alt="Tiaago Logo">
+        </div>
+
+        <div class="content">
+            <h1>Account Approval Update: Your Tiaago Account</h1>
+            <p>Dear {{ name }}, </p>
+
+            <p>
+                Thank you for your interest in joining Tiaago. We have carefully reviewed your application, and unfortunately, we are unable to approve your account at this time.
+            </p>
+
+            <p>
+                While we understand this news may be disappointing, we want to assure you that our decision was made with the best interests of our community in mind. 
+                We strive to maintain a high standard of quality and professionalism within our platform, and unfortunately, we may not be the right fit for every business.
+            </p>
+
+            <p>
+                If you have any further questions or would like additional feedback regarding your application, 
+                please don't hesitate to reach out to our support team. 
+                We're here to assist you in any way we can and wish you the best of luck in your future endeavors.
+            </p>
+            
+            <p>We encourage you to join our community here (https://t.me/+32wPhWJHFpxlMmE8), where you can receive proper guidance and support to improve your chances of success, especially if you'd like to reapply and get accepted on the platform</p>
+
+            <p>
+                Kind Regards, <br>
+                Tiaago team
+            </p>
+        </div>
+
+
+        <div class="last">
+            <p>17, Oterubi Ogidan street, Owode onirin, Ikorodu road, Lagos. <br>
+                &copy; Tiaago 2024</p>
+        </div>
+    </div>
+</body>
+</html>

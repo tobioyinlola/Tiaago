@@ -1,0 +1,51 @@
+Category,Question,Option A,Option B,Option C,Option D,Answer,Difficulty
+Node.js,Which method is used to read the contents of a directory in Node.js?,fs.readFile(),fs.readdir(),fs.readDirSync(),fs.open(),B,Intermediate
+Node.js,Which method allows asynchronous execution of functions in Node.js?,process.nextTick(),setImmediate(),setTimeout(),All of the above,D,Intermediate
+Node.js,Which core module provides HTTP server capabilities?,net,http,https,tls,B,Intermediate
+Node.js,Which of the following modules provides utilities for handling file paths?,url,querystring,path,fs,C,Intermediate
+Node.js,Which stream type allows reading chunks of data from a source?,Writable stream,Readable stream,Duplex stream,Transform stream,B,Intermediate
+Node.js,Which npm command updates all dependencies to their latest versions?,npm install,npm update,npm upgrade,npm refresh,B,Intermediate
+Node.js,Which statement describes middleware in Express.js?,It handles requests and responses,It terminates server,It secures data,It connects databases,A,Intermediate
+Node.js,Which environment variable sets the Node.js environment mode?,NODE_MODE,NODE_ENV,ENV_MODE,APP_ENV,B,Intermediate
+Node.js,Which global object provides information about the current process?,global,process,module,require,B,Intermediate
+Node.js,"Which HTTP status code means ""Created""?",200,201,202,204,B,Intermediate
+Node.js,Which database integrates best with Mongoose ODM?,MySQL,MongoDB,PostgreSQL,Redis,B,Intermediate
+Node.js,Which option allows setting up a default route in Express.js?,app.get('*'),app.route('/'),app.default(),app.catchAll(),A,Intermediate
+Node.js,Which Node.js package handles CORS in Express apps?,cors,helmet,express-cors,protect-cors,A,Intermediate
+Node.js,Which Node.js function writes data to stdout?,console.log(),process.stdout.write(),process.write(),fs.write(),B,Intermediate
+Node.js,Which HTTP method is idempotent?,POST,GET,PUT,DELETE,C,Intermediate
+Node.js,Which Node.js core module handles URL parsing?,url,path,net,querystring,A,Intermediate
+Node.js,Which module is useful for handling JSON Web Tokens (JWT)?,passport,jsonwebtoken,jwt-auth,jwt-core,B,Intermediate
+Node.js,Which is a valid way to handle exceptions globally in Node.js?,process.on('uncaughtException'),app.on('error'),global.catch(),process.catch(),A,Intermediate
+Node.js,Which database is document-based and schema-less?,MySQL,PostgreSQL,MongoDB,Redis,C,Intermediate
+Node.js,Which method ensures clean server shutdown?,server.close(),server.destroy(),process.end(),server.stop(),A,Intermediate
+Node.js,Which tool automatically restarts Node.js apps on file changes?,nodemon,pm2,forever,supervisor,A,Intermediate
+Node.js,Which package is commonly used for input validation?,joi,express-validator,validatejs,validator,A,Intermediate
+Node.js,Which Node.js feature allows communication between parent and child processes?,stdin/stdout,process.send(),child.send(),cluster IPC,B,Intermediate
+Node.js,Which option describes a benefit of using environment variables?,Improve security,Support config separation,Enable flexible deployment,All of the above,D,Intermediate
+Node.js,Which is true about event-driven architecture in Node.js?,Single-threaded,Non-blocking I/O,Scalable,All of the above,D,Intermediate
+Node.js,Which command initializes a new Node.js project?,npm init,node init,package init,npx init,A,Intermediate
+Node.js,Which method returns system uptime in Node.js?,process.uptime(),os.uptime(),system.uptime(),process.getUptime(),B,Intermediate
+Node.js,Which package supports authentication strategies in Node.js?,passport,security-auth,auth-node,oauth-node,A,Intermediate
+Node.js,Which template engine is widely used with Express.js?,pug,ejs,handlebars,All of the above,D,Intermediate
+Node.js,Which database driver supports transactions natively?,mysql2,mongodb-native,pg,All of the above,D,Intermediate
+Node.js,Which package is used for schema migrations in Sequelize?,sequelize-cli,sequelize-migrate,sequelize-tools,sequelize-admin,A,Intermediate
+Node.js,Which library allows chaining promises elegantly?,q,bluebird,axios,promise-chain,B,Intermediate
+Node.js,Which practice improves Node.js app performance?,Caching,Clustering,Using streams,All of the above,D,Intermediate
+Node.js,Which module compresses HTTP responses?,compression,zlib,express-compress,server-gzip,A,Intermediate
+Node.js,Which library helps to write unit tests in Node.js?,mocha,jest,chai,All of the above,D,Intermediate
+Node.js,Which Node.js function schedules execution after delay?,setTimeout(),setImmediate(),setInterval(),nextTick(),A,Intermediate
+Node.js,Which library simplifies creating REST APIs?,express,koa,hapi,All of the above,D,Intermediate
+Node.js,Which is true about buffers in Node.js?,Fixed size,Used for binary data,Part of global API,All of the above,D,Intermediate
+Node.js,Which package helps document Node.js APIs?,swagger-jsdoc,openapi-express,api-docs,node-docs,A,Intermediate
+Node.js,Which module compresses HTTP responses?,compression,zlib,express-compress,server-gzip,A,Intermediate
+Node.js,Which library is useful for unit and integration tests?,supertest,jest,mocha,All of the above,D,Intermediate
+Node.js,Which Node.js module provides OS-related utilities?,os,sys,process,util,A,Intermediate
+Node.js,Which file stores metadata and dependencies?,package.json,package-lock.json,node_modules,config.json,A,Intermediate
+Node.js,Which package handles real-time communication?,socket.io,ws,sse,All of the above,D,Intermediate
+Node.js,Which approach prevents callback hell?,Async/Await,Promises,Modular code,All of the above,D,Intermediate
+Node.js,Which tool runs tasks in parallel?,concurrently,npm-run-all,parallel-run,all-tasks-run,A,Intermediate
+Node.js,Which stream can both read and write?,Readable stream,Writable stream,Duplex stream,Transform stream,C,Intermediate
+Node.js,Which Node.js module manipulates file systems?,fs,os,path,stream,A,Intermediate
+Node.js,Which Node.js option allows scheduling recurring tasks in production?,setInterval(),cron,pm2-cron,scheduler,B,Intermediate
+Node.js,Which method is used to read the contents of a directory in Node.js?,fs.readFile(),fs.readdir(),fs.readDirSync(),fs.open(),B,Intermediate

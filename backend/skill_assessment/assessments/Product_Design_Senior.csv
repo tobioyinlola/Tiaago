@@ -1,0 +1,51 @@
+Category,Question,Option A,Option B,Option C,Option D,Answer,Difficulty
+Product Design,Which of the following best defines DesignOps?,Operations for development teams,Processes and practices that optimize design workflows,Design sprint management,Agile UX ceremonies,B,Senior
+Product Design,Which method ensures cross-functional alignment on product vision early in the process?,Usability testing,Design sprint,Stakeholder workshop,Journey mapping,C,Senior
+Product Design,Which framework helps product designers connect user needs with business goals?,Lean UX,Business Model Canvas,Value Proposition Canvas,Double Diamond,C,Senior
+Product Design,Which accessibility guideline mandates all functionality is operable by keyboard?,ARIA landmarks,WCAG 2.1 - Operable,HTML5 Specification,ARIA Live Regions,B,Senior
+Product Design,Which tool helps maintain consistency in a multi-platform design system?,Design tokens,Component libraries,Pattern library,All of the above,D,Senior
+Product Design,Which of these strategies best supports leading design critiques effectively?,Limit participation to designers,"Encourage constructive, structured feedback",Focus only on aesthetics,Present only finished work,B,Senior
+Product Design,Which prototyping technique simulates data-driven user flows at scale?,Static wireframes,Live-data prototypes,Interactive slides,High-fidelity mocks,B,Senior
+Product Design,Which of these techniques best supports stakeholder buy-in for complex UX initiatives?,Heuristic evaluation,Design storytelling,Design sprint,Benchmark testing,B,Senior
+Product Design,Which leadership trait is critical when mentoring junior designers?,Micro-managing,Giving direct answers,Coaching mindset,Delegating feedback,C,Senior
+Product Design,Which KPI best measures long-term product adoption after launch?,Task success rate,Retention rate,User satisfaction,Feature completion,B,Senior
+Product Design,Which diagram helps communicate dependencies between features and user workflows?,Process flow,Task flow diagram,Customer journey map,User story map,D,Senior
+Product Design,"Which design methodology emphasizes continuous delivery of small, testable increments?",Agile UX,Double Diamond,Lean UX,Waterfall,C,Senior
+Product Design,Which model helps align design system governance with organization structure?,Atomic Design,Distributed vs Centralized governance,Heuristic model,DesignOps model,B,Senior
+Product Design,Which advanced accessibility consideration applies to complex web applications?,Keyboard shortcuts,ARIA live regions,Skip navigation links,Alt text,B,Senior
+Product Design,Which of these best describes the role of product designer in OKR planning?,Own product-level OKRs,Support team OKRs and align design impact,Define engineering OKRs,Lead sprint velocity measurement,B,Senior
+Product Design,Which metric best captures design quality in enterprise applications?,Net Promoter Score,Task completion rate,Usability defect rate,Time on task,C,Senior
+Product Design,Which workshop method helps prioritize user problems based on effort and impact?,Rapid prototyping,Impact-effort matrix,Affinity mapping,Design critique,B,Senior
+Product Design,Which Figma feature helps scale design systems across multiple teams?,Components,Variants,Team libraries,Auto layout,C,Senior
+Product Design,Which of these most effectively bridges design and engineering collaboration?,Annotated prototypes,High-fidelity mockups,Developer handoff tool,Design system documentation,A,Senior
+Product Design,Which leadership practice helps resolve conflicting stakeholder interests?,Active listening,Consensus seeking,Design rationale framing,All of the above,D,Senior
+Product Design,Which principle emphasizes transparency of system status to users?,Visibility of system status,Consistency and standards,Recognition over recall,Match with real world,A,Senior
+Product Design,Which qualitative method uncovers unmet user needs in complex workflows?,Contextual inquiry,Surveys,Heuristic evaluation,Card sorting,A,Senior
+Product Design,Which of the following best supports global design system scalability?,Design governance guidelines,Component naming conventions,Shared typography styles,Usage documentation,A,Senior
+Product Design,Which KPI helps assess success of cross-channel user experience?,Task success rate,Customer satisfaction score (CSAT),Customer journey completion,Retention rate,C,Senior
+Product Design,Which principle helps manage cognitive load in complex enterprise UIs?,Progressive disclosure,Flat navigation,Deep hierarchy,Auto-saving forms,A,Senior
+Product Design,Which prototyping tool offers interaction design at production-level fidelity?,Framer,Principle,Figma Smart Animate,InVision Studio,A,Senior
+Product Design,Which of these is critical in maintaining accessibility compliance at scale?,Regular accessibility audits,ARIA attributes,Automated testing only,Skip links,A,Senior
+Product Design,Which activity improves cross-functional understanding of technical constraints?,Pair design sessions,Developer handoff,Design QA,Engineering demo observation,A,Senior
+Product Design,"Which framework supports balancing desirability, feasibility, and viability?",Double Diamond,Lean UX,Design Thinking,Value Proposition Canvas,C,Senior
+Product Design,Which advanced usability testing technique captures longitudinal user behavior?,Remote moderated tests,Diary studies,Think aloud testing,Guerilla testing,B,Senior
+Product Design,Which UX law suggests users transfer expectations from familiar products?,Hick’s Law,Fitts’ Law,Jakob’s Law,Pareto Principle,C,Senior
+Product Design,Which tool is most effective for documenting large-scale service blueprints?,Miro,Whimsical,Axure,Overflow,A,Senior
+Product Design,Which workshop technique fosters alignment on complex problem spaces?,Design sprint,Lightning Decision Jam,Design critique,Story mapping,B,Senior
+Product Design,Which advanced data visualization tool aids in presenting UX research insights?,Tableau,Dovetail,Airtable,Google Analytics,A,Senior
+Product Design,Which measure best evaluates long-term product usability improvements?,System Usability Scale (SUS),Task completion rate,Retention curve,UX maturity model,D,Senior
+Product Design,Which deliverable aligns business goals with customer experience across touchpoints?,Service blueprint,Value proposition canvas,User journey map,Process diagram,A,Senior
+Product Design,Which strategic activity ensures design contributions align to company OKRs?,Design roadmap planning,Wireframing,Prototyping,Heuristic review,A,Senior
+Product Design,Which approach best ensures continuous accessibility compliance post-launch?,Accessibility testing only,Integrated accessibility in design system,Screen reader testing only,Color contrast audits,B,Senior
+Product Design,Which KPI helps measure adoption of a new design system?,Component reuse rate,Feature velocity,Retention rate,Task success rate,A,Senior
+Product Design,Which advanced facilitation technique manages large stakeholder groups?,Affinity mapping,Co-design workshop,Stakeholder mapping,Design critique,C,Senior
+Product Design,Which model best describes cross-functional collaboration for complex systems?,RACI model,Double Diamond,Spotify Squad model,DesignOps model,A,Senior
+Product Design,Which advanced prototyping approach helps validate highly interactive flows?,Code prototype,Interactive slides,High-fidelity static mocks,Low-fidelity wireframes,A,Senior
+Product Design,Which of these best supports enterprise-level accessibility documentation?,Accessibility conformance report (VPAT),ARIA roles guide,WCAG cheat sheet,Skip link document,A,Senior
+Product Design,Which KPI helps evaluate product designer’s contribution to product impact?,Task completion rate,User adoption rate,Retention rate,All of the above,D,Senior
+Product Design,Which of the following best defines DesignOps?,Operations for development teams,Processes and practices that optimize design workflows,Design sprint management,Agile UX ceremonies,B,Senior
+Product Design,Which method ensures cross-functional alignment on product vision early in the process?,Usability testing,Design sprint,Stakeholder workshop,Journey mapping,C,Senior
+Product Design,Which framework helps product designers connect user needs with business goals?,Lean UX,Business Model Canvas,Value Proposition Canvas,Double Diamond,C,Senior
+Product Design,Which accessibility guideline mandates all functionality is operable by keyboard?,ARIA landmarks,WCAG 2.1 - Operable,HTML5 Specification,ARIA Live Regions,B,Senior
+Product Design,"Which design methodology emphasizes continuous delivery of small, testable increments?",Agile UX,Double Diamond,Lean UX,Waterfall,C,Senior
+Product Design,Which model helps align design system governance with organization structure?,Atomic Design,Distributed vs Centralized governance,Heuristic model,DesignOps model,B,Senior

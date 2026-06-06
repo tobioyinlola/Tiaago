@@ -1,0 +1,51 @@
+Category,Question,Option A,Option B,Option C,Option D,Answer,Difficulty
+FastAPI,Which FastAPI utility allows dynamic OpenAPI schema customization at runtime?,get_openapi(),custom_openapi(),override_schema(),openapi_dynamic(),A,Senior
+FastAPI,Which HTTP header best supports conditional GET requests for caching in FastAPI?,If-Modified-Since,If-None-Match,Cache-Control,ETag,B,Senior
+FastAPI,Which advanced dependency scope ensures thread-safety in highly concurrent FastAPI apps?,SessionScoped,RequestScoped,"Depends(..., use_cache=False)",AsyncScoped,C,Senior
+FastAPI,Which library provides an async task queue that integrates well with FastAPI?,Celery,Dramatiq,RQ,Arq,A,Senior
+FastAPI,Which status code is most appropriate for signaling a request has been rate limited?,408,413,429,431,C,Senior
+FastAPI,Which tool allows zero-downtime FastAPI deployments with reloadable workers?,Gunicorn + Uvicorn --reload,Hypercorn --reload,uvicorn-gunicorn-fastapi-docker,ASGI Reload,D,Senior
+FastAPI,Which FastAPI feature best supports multi-tenancy?,SubApplications,Include_router(),APIRouter with prefix,Depends(inject_tenant),A,Senior
+FastAPI,Which advanced response method supports server-sent events (SSE) in FastAPI?,StreamingResponse,EventStreamResponse,SSEResponse,ServerSentEventResponse,B,Senior
+FastAPI,Which async library optimizes WebSocket broadcast handling in FastAPI?,starlette.endpoints.WebSocketEndpoint,websockets,wsproto,fastapi-websocket-pubsub,D,Senior
+FastAPI,Which FastAPI middleware mitigates XSS vulnerabilities by setting headers?,SecurityMiddleware,TrustedHostMiddleware,CSRFMiddleware,HTTPSRedirectMiddleware,A,Senior
+FastAPI,Which advanced Pydantic feature supports conditional field validation?,root_validator(),field_validator(),Config.conditional_validator,"validator(pre=True, always=True)",A,Senior
+FastAPI,Which database migration tool integrates best with SQLAlchemy async models?,Alembic,PyMigrate,SQLModel,MigrateX,A,Senior
+FastAPI,Which is the most secure method to store FastAPI API tokens?,Environment variable,Encrypted Vault,Database (plaintext),Config file,B,Senior
+FastAPI,Which async ORM feature enables bulk updates efficiently with FastAPI?,bulk_update_objects(),exec_many(),bulk_update_many(),bulk_save_objects(),D,Senior
+FastAPI,Which HTTP status code signals client request header fields are too large?,413,414,431,417,C,Senior
+FastAPI,Which FastAPI testing utility simulates authenticated user sessions?,Depends(override_user),"TestClient.headers={""Authorization"": ""...""}",app.dependency_overrides,TestAuthClient,B,Senior
+FastAPI,Which FastAPI integration supports advanced JWT features such as token rotation?,FastAPI-JWT-Auth,PyJWT,SimpleJWT,FastAPI-OAuth,A,Senior
+FastAPI,Which tool optimizes large Pydantic models using schema caching?,Config.schema_cache = True,schema_cache = True,EnableSchemaCache(True),BaseModel.Config.cache_schema = True,D,Senior
+FastAPI,Which Redis-backed session library is highly scalable with FastAPI?,FastAPI-Session,FastAPI-Session-Redis,FastAPI-RedisSession,FastAPI-CachedSession,B,Senior
+FastAPI,Which deployment option improves FastAPI performance under high concurrency?,Gunicorn + Uvicorn workers,Uvicorn with --http h11,Hypercorn with uvloop,Uvicorn --reload,A,Senior
+FastAPI,Which FastAPI feature enables per-router dependency injection?,APIRouter(dependencies=[...]),Depends(router=...),router.include_dependency(),RouterDepends(),A,Senior
+FastAPI,Which tool allows integration of FastAPI with GraphQL APIs?,FastAPI-Graphene,FastAPI-GraphQL,Graphene-FastAPI,GraphQL-FastAPI,C,Senior
+FastAPI,Which logging approach best suits distributed FastAPI microservices?,Loguru with JSON output,Structured logging with StdLib,LoggerMiddleware,AsyncLogger,A,Senior
+FastAPI,Which FastAPI feature enables runtime path parameter validation beyond type hints?,"Path(..., regex=""..."")",Depends(PathValidator),"Route(..., validator=...)","Path(..., pattern=...)",A,Senior
+FastAPI,Which tool optimizes FastAPI SQL queries via SQL caching?,SQLAlchemy baked queries,TortoiseORM caching,QueryCache,FastAPI-SQLCache,A,Senior
+FastAPI,Which tool allows advanced rate limiting in FastAPI?,SlowAPI,FastAPI-Limiter,FastAPI-RateLimit,LimitFastAPI,A,Senior
+FastAPI,Which advanced API gateway integrates seamlessly with FastAPI for scalability?,Envoy,Tyk,Kong,Zuul,C,Senior
+FastAPI,Which distributed tracing tool integrates well with FastAPI apps?,OpenTelemetry,Jaeger,Zipkin,FastAPI-Tracer,A,Senior
+FastAPI,Which FastAPI response class supports dynamic multipart/form-data creation?,MultipartResponse,FormDataResponse,StreamingResponse,FileResponse,A,Senior
+FastAPI,Which async adapter supports MySQL fully with SQLAlchemy ORM?,aiomysql,asyncmy,asyncpg,sqlalchemy_asyncmy,B,Senior
+FastAPI,Which tool enables GraphQL subscriptions in FastAPI?,GraphQLWS-Starlette,FastAPI-GraphQL-WS,GrapheneSub,StarletteGraphQLWebSocket,A,Senior
+FastAPI,Which API documentation tool improves OpenAPI visualization over Swagger UI?,Redoc,ReSpect API,AsyncAPI,DocAPI,A,Senior
+FastAPI,Which FastAPI class enables custom OpenAPI security schemes?,openapi_security_scheme(),APIRouter.security,FastAPI.security_schemes,Depends(security=...),A,Senior
+FastAPI,Which is the correct method to enforce JSON-only response format?,"Response(content, media_type=""application/json"")",Response(json=...),Response.jsonify(),"JSONResponse(content, ...)",D,Senior
+FastAPI,Which WebSocket library supports distributed systems with FastAPI?,websockets,wsproto,fastapi-websocket-pubsub,starlette_ws_pubsub,C,Senior
+FastAPI,Which Postgres adapter optimizes connection pooling in async FastAPI apps?,asyncpg.pool.AsyncPool,SQLAlchemy async engine,aiopg.pool.AsyncConnectionPool,Databases.async_pool,A,Senior
+FastAPI,Which approach secures FastAPI APIs with fine-grained RBAC?,Depends(UserRolesChecker),OAuth2 scopes middleware,PydanticRoleBasedAccess,RBACMiddleware,A,Senior
+FastAPI,Which tool allows for FastAPI telemetry and performance monitoring?,Prometheus,FastAPI-Metrics,FastAPI-Exporter,OpenMetrics,A,Senior
+FastAPI,Which advanced configuration optimizes FastAPI's JSON encoding performance?,orjson with ORJSONResponse,ujson with UJSONResponse,rapidjson encoder,FastJSON,A,Senior
+FastAPI,Which FastAPI extension supports OIDC authentication flow?,FastAPI-OIDC,FastAPI-OAuth2,FastAPI-OIDC-Client,FastAPI-SSO,A,Senior
+FastAPI,Which status code signals server unable to process due to overload?,429,500,503,504,C,Senior
+FastAPI,Which advanced method allows reusable dependencies across routers with config?,APIRouter(dependencies=[Depends(configure)]),Depends.with_config(),router.bind_dependency(),Depends(config=...),A,Senior
+FastAPI,Which advanced option supports schema generation with polymorphic models?,Pydantic discriminators,OneOf schema,ModelUnion polymorphic,SchemaInheritModel,A,Senior
+FastAPI,Which async task library supports periodic background tasks in FastAPI?,APScheduler,Celery,Dramatiq,FastBackgroundTasks,A,Senior
+FastAPI,Which caching backend scales best for FastAPI across multiple regions?,Redis,Memcached,LocalMemory,Cachetools,A,Senior
+FastAPI,Which async-compatible Graph database integrates with FastAPI?,Neo4j + Neo4jAsync,ArangoDB,TigerGraph,GraphDB,A,Senior
+FastAPI,Which FastAPI deployment strategy minimizes cold-start time in serverless?,FastAPI + Mangum,FastAPI + LambdaProxy,FastAPI + Serverless Handler,FastAPI + CloudRunner,A,Senior
+FastAPI,Which HTTP header best supports conditional GET requests for caching in FastAPI?,If-Modified-Since,If-None-Match,Cache-Control,ETag,B,Senior
+FastAPI,Which advanced dependency scope ensures thread-safety in highly concurrent FastAPI apps?,SessionScoped,RequestScoped,"Depends(..., use_cache=False)",AsyncScoped,C,Senior
+FastAPI,Which library provides an async task queue that integrates well with FastAPI?,Celery,Dramatiq,RQ,Arq,A,Senior

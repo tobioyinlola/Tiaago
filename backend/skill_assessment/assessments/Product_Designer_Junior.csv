@@ -1,0 +1,51 @@
+Category,Question,Option A,Option B,Option C,Option D,Answer,Difficulty
+Product Design,Which of the following is a primary goal of user research?,Validate design aesthetics,Understand user needs,Increase marketing reach,Optimize backend performance,B,Junior
+Product Design,"Which design process emphasizes empathy, ideation, prototyping, and testing?",Agile methodology,Lean startup,Design thinking,Double diamond,C,Junior
+Product Design,Which tool is commonly used for UI prototyping in modern product design?,Photoshop,Illustrator,Figma,AutoCAD,C,Junior
+Product Design,Which principle refers to maintaining consistency in design elements across a product?,Affordance,Heuristics,Design system,Accessibility,C,Junior
+Product Design,"Which usability heuristic states ""the system should keep users informed with feedback""?",Match between system and real world,Visibility of system status,User control and freedom,Consistency and standards,B,Junior
+Product Design,Which file format is best suited for vector graphics?,PNG,SVG,JPEG,GIF,B,Junior
+Product Design,Which of these is a common low-fidelity design deliverable?,Wireframe,Mockup,Prototype,Final UI,A,Junior
+Product Design,"Which alignment type provides clean, predictable layouts in interfaces?",Center alignment,Justified alignment,Grid alignment,Diagonal alignment,C,Junior
+Product Design,Which Figma feature allows designers to reuse consistent UI elements?,Auto Layout,Components,Frames,Grids,B,Junior
+Product Design,Which of these tools supports real-time collaboration for product designers?,Figma,Sketch,Adobe XD,Axure,A,Junior
+Product Design,Which typography term refers to space between individual characters?,Line height,Tracking,Leading,Kerning,D,Junior
+Product Design,Which is a key advantage of responsive design?,Faster load times,Consistent appearance on all devices,Improved SEO,Reduced server costs,B,Junior
+Product Design,Which research method gathers qualitative feedback from observing users?,Surveys,Focus groups,Usability testing,Analytics tracking,C,Junior
+Product Design,Which term describes giving users clear cues about how elements function?,Affordance,Feedback,Accessibility,Consistency,A,Junior
+Product Design,Which accessibility guideline ensures color contrast is sufficient?,WCAG 2.1,ARIA roles,HTML5 standards,UX guidelines,A,Junior
+Product Design,Which file format is ideal for transparent images?,PNG,JPEG,GIF,SVG,A,Junior
+Product Design,Which term refers to arranging content in order of importance?,Flow,Alignment,Visual hierarchy,Proximity,C,Junior
+Product Design,Which grid system divides a page into 12 columns for responsive layouts?,Bootstrap grid,CSS grid,Material grid,Atomic grid,A,Junior
+Product Design,Which of these is a primary benefit of user personas?,Define brand identity,Clarify user goals and behaviors,Organize code architecture,Optimize server load,B,Junior
+Product Design,Which law states that elements close together are perceived as related?,Hick’s Law,Gestalt Law of Proximity,Fitts’ Law,Pareto Principle,B,Junior
+Product Design,Which design pattern helps users recover from mistakes easily?,Undo/Redo,Confirmation dialog,Progress indicator,Tooltip,A,Junior
+Product Design,Which term refers to simplifying tasks by removing unnecessary steps?,Task flow,Progressive disclosure,Minimalist UI,Information architecture,B,Junior
+Product Design,Which UX metric measures how easily users can complete tasks?,Usability,Accessibility,Engagement,Conversion rate,A,Junior
+Product Design,Which Figma feature allows sharing interactive prototypes?,Inspect mode,Presentation mode,Prototype mode,Live collaboration,C,Junior
+Product Design,Which handoff tool is embedded into Figma for developer collaboration?,Inspect,Redlines,Design Tokens,Hand-off Kit,A,Junior
+Product Design,Which color model is most used for digital screens?,CMYK,RGB,HEX,PMS,B,Junior
+Product Design,Which prototyping method is best for testing interactions quickly?,High-fidelity prototype,Static wireframe,Clickable prototype,Design mockup,C,Junior
+Product Design,Which principle emphasizes user control by allowing undo options?,Error prevention,Flexibility,Reversibility,Undo/Redo,D,Junior
+Product Design,Which approach helps create scalable and maintainable UI components?,Atomic Design,Lean UX,Agile UX,DesignOps,A,Junior
+Product Design,Which gesture is commonly used for refreshing content on mobile?,Double tap,Swipe up,Pinch,Swipe down,D,Junior
+Product Design,"Which UX law states ""the time to make a decision increases with number of choices""?",Pareto Principle,Hick’s Law,Fitts’ Law,Proximity Principle,B,Junior
+Product Design,"Which layout technique provides flexible, proportional space distribution?",CSS Grid,Flexbox,Table layout,Float layout,B,Junior
+Product Design,Which research method gathers insights from a large audience quickly?,Focus group,Surveys,Usability testing,Card sorting,B,Junior
+Product Design,Which element improves usability by showing user’s location in a site?,Progress bar,Tooltip,Breadcrumb,Modal,C,Junior
+Product Design,Which Figma feature automatically aligns and spaces elements?,Smart selection,Auto layout,Frame constraints,Component variants,B,Junior
+Product Design,Which design tool allows shared component libraries?,Figma design system,Adobe XD libraries,Sketch libraries,All of the above,D,Junior
+Product Design,Which color theory principle refers to opposite colors on the wheel?,Analogous,Complementary,Triadic,Monochromatic,B,Junior
+Product Design,Which interaction reduces cognitive load by showing options only when needed?,Progressive disclosure,Modal dialog,Dropdown,Menu overlay,A,Junior
+Product Design,Which design file format preserves vector scalability and transparency?,JPEG,PNG,SVG,GIF,C,Junior
+Product Design,Which key deliverable communicates page layouts and content priorities?,Prototype,User flow,Wireframe,Sitemap,C,Junior
+Product Design,Which is the most common unit of measurement for web typography?,px,em,pt,rem,A,Junior
+Product Design,Which of the following improves mobile UX significantly?,Responsive layout,Infinite scroll,Fixed headers,Parallax effects,A,Junior
+Product Design,Which principle promotes reusing patterns to reduce cognitive load?,Consistency,Aesthetic usability,Familiarity,Accessibility,A,Junior
+Product Design,Which of these describes how easily a user can interact with a system?,Affordance,Usability,Accessibility,Flexibility,B,Junior
+Product Design,Which tool is typically used to create sitemaps and user flows?,Figma,Miro,Illustrator,Axure,B,Junior
+Product Design,Which file format best preserves high-quality images for the web?,JPEG,SVG,WebP,PNG,C,Junior
+Product Design,Which metric measures user drop-off during a process flow?,Retention rate,Conversion rate,Churn rate,Drop-off rate,D,Junior
+Product Design,Which principle advises aligning interactive elements for intuitive use?,Grid layout,Touch target optimization,Visual hierarchy,Alignment,A,Junior
+Product Design,"Which alignment type provides clean, predictable layouts in interfaces?",Center alignment,Justified alignment,Grid alignment,Diagonal alignment,C,Junior
+Product Design,Which Figma feature allows designers to reuse consistent UI elements?,Auto Layout,Components,Frames,Grids,B,Junior

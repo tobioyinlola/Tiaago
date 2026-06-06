@@ -1,0 +1,1367 @@
+from pathlib import Path
+from loguru import logger
+from django.utils.text import slugify
+import openpyxl
+import csv
+import uuid
+from rest_framework import serializers
+from create_user.api.serializers import CompanyDetailSerializer
+from create_user.models import TalentProfile
+from roles.serializers import RoleSerializer
+from .models import (
+    CandidateAssessmentCodingAnswer,
+    CandidateAssessmentSectionSubmission,
+    Certificate,
+    GeneralSkillAssessmentSectionMCQ,
+    MCQToCodingLink,
+    SkillAssessment,
+    GeneralSkillAssessment,
+    GeneralSkillAssessmentSection,
+    GeneralSkillAssessmentSection,
+    QuestionBankQuestion,
+    CodingTask,
+    GeneralSkillAssessmentMCQQuestion,
+    TestCase,
+    CandidateAssessmentSubmission,
+    PreScreeningInterviewSession,
+    PreScreeningInterviewQuestionResponse,
+    CandidateAssessmentMCQAnswer,
+    TechStack,
+    TalentQuestionBank,
+    AssessmentCooldown,
+)
+from .tasks import create_talent_coding_assessment_task_v2
+from roles.models import Role
+from jobs.models import Job
+from skill_assessment.constants import SkillAssessmentTypes
+from .constants import QuestionBankDifficultyLevels, SkillAssessmentDifficultyLevels
+import os
+from utils.ai_service import AIService
+from django.db import transaction
+from django.db.models import Prefetch
+class SkillAssessmentSerializer(serializers.ModelSerializer):
+    quiz_id = serializers.SerializerMethodField()
+    project_id = serializers.SerializerMethodField()
+    quiz_name = serializers.SerializerMethodField()
+    project_name = serializers.SerializerMethodField()
+    talent_name = serializers.SerializerMethodField()
+    has_passed = serializers.ReadOnlyField()
+    has_expired = serializers.ReadOnlyField()
+
+    class Meta:
+        model = SkillAssessment
+        fields = (
+            "id",
+            "quiz_id",
+            "project_id",
+            "quiz_name",
+            "project_name",
+            "has_passed",
+            "has_expired",
+            "talent_name",
+            "created",
+            "updated",
+            "expired",
+        )
+
+    def get_quiz_id(self, obj):
+        if obj.quiz_taken:
+            return obj.quiz_taken.id
+
+        return None
+
+    def get_project_id(self, obj):
+        if obj.project_taken:
+            return obj.project_taken.id
+
+        return None
+
+    def get_quiz_name(self, obj):
+        if obj.quiz_taken:
+            return obj.quiz_taken.quiz.name
+
+        return None
+
+    def get_project_name(self, obj):
+        if obj.project_taken:
+            return obj.project_taken.project.title
+
+        return None
+
+    def get_talent_name(self, obj):
+        if obj.talent:
+            return obj.talent.user.get_full_name()
+
+
+class GeneralSkillAssessmentOptionSerializer(serializers.Serializer):
+    value = serializers.CharField()
+    index = serializers.IntegerField()
+
+
+class GeneralSkillAssessmentMCQSerializer(serializers.Serializer):
+    """Use 1 based indexing for options"""
+
+    question = serializers.CharField()
+    options = serializers.ListField(child=GeneralSkillAssessmentOptionSerializer())
+    correct_option_index = serializers.IntegerField()
+    is_ai_generated = serializers.BooleanField(required=False)
+
+    def validate(self, attrs):
+        correct_option_index = attrs.get("correct_option_index")
+        options = attrs.get("options")
+        matching_option = filter(
+            lambda x: x.get("index") == correct_option_index, options
+        )
+        if not list(matching_option):
+            raise serializers.ValidationError(
+                "Correct option index is not found in the options"
+            )
+        option_indexes = map(lambda x: x.get("index"), options)
+        if 0 in option_indexes:
+            raise serializers.ValidationError("0 is not a valid index")
+        option_indexes_list = list(option_indexes)
+        option_indexes_set = set(option_indexes_list)
+        if len(option_indexes_list) != len(list(option_indexes_set)):
+            raise serializers.ValidationError(
+                "Please ensure you do not duplicate option indexes"
+            )
+        invalid_index = filter(
+            lambda x: x > len(option_indexes_list) or x < 0, option_indexes_list
+        )
+        if list(invalid_index):
+            raise serializers.ValidationError("Please use valid indexes")
+        return attrs
+
+
+class GeneralSkillAssessmentMCQListSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = GeneralSkillAssessmentMCQQuestion
+        fields = [
+            "id",
+            "is_ai_generated",
+            "question",
+            "options",
+            "correct_option_index",
+        ]
+
+
+class TestCaseSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = TestCase
+        fields = ("id", "input_data", "expected_output", "is_sample")
+
+class TechStackSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TechStack
+        fields = ("id", "difficulty", "slug", "icon", "tech_stack")
+
+class GeneralSkillAssessmentCodingTaskSerializer(serializers.ModelSerializer):
+    test_cases = TestCaseSerializer(many=True, required=False)
+
+    class Meta:
+        model = CodingTask
+        fields = [
+            "id",
+            "title",
+            "description",
+            "input_format",
+            "output_format",
+            "constraints",
+            "sample_input",
+            "sample_output",
+            "difficulty_level",
+            "max_score",
+            "time_limit",
+            "test_cases",
+        ]
+
+
+class GeneralSkillAssessmentSectionCreateSerializer(serializers.ModelSerializer):
+    mcq_questions = GeneralSkillAssessmentMCQSerializer(many=True, required=False)
+    coding_tasks = GeneralSkillAssessmentCodingTaskSerializer(many=True, required=False)
+
+    class Meta:
+        model = GeneralSkillAssessmentSection
+        fields = ["name", "type", "mcq_questions", "id", "coding_tasks"]
+
+    def validate(self, attrs):
+        type = attrs.get("type")
+        mcq_questions = attrs.get("mcq_questions", [])
+        coding_tasks = attrs.get("coding_tasks", [])
+        if type == SkillAssessmentTypes.MCQ and not len(mcq_questions):
+            raise serializers.ValidationError(
+                "Please include at least one question for MCQ"
+            )
+        if type == SkillAssessmentTypes.CODING_TASK and not len(coding_tasks):
+            raise serializers.ValidationError("Please input a coding task")
+        return attrs
+
+
+class GeneralSkillAssessmentSectionPreviewSerializer(serializers.ModelSerializer):
+    question_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = GeneralSkillAssessmentSection
+        fields = ["name", "type", "id", "question_count"]
+
+    def get_question_count(self, section):
+        if section.type == SkillAssessmentTypes.MCQ:
+            return section.mcq_questions.all().count()
+        if section.type == SkillAssessmentTypes.CODING_TASK:
+            return section.coding_tasks.all().count()
+
+
+class GeneralSkillAssessmentSectionListSerializer(
+    GeneralSkillAssessmentSectionCreateSerializer
+):
+    mcq_questions = GeneralSkillAssessmentMCQListSerializer(many=True)
+    coding_tasks = GeneralSkillAssessmentCodingTaskSerializer(many=True)
+
+
+class GeneralSkillAssessmentCreateSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = GeneralSkillAssessment
+        fields = [
+            "title",
+            "difficulty_level",
+            "skillsets",
+            "description",
+            "duration_minutes",
+            "passing_grade",
+            "display_review_and_approve_responses",
+            "display_feedback",
+            "shuffle_questions",
+            "use_public_link",
+            "use_start_and_end_time",
+            "assessment_type",
+        ]
+
+
+
+class GeneralSkillAssessmentSectionSerializer(serializers.ModelSerializer):
+    sections = GeneralSkillAssessmentSectionCreateSerializer(
+        many=True, allow_empty=False
+    )
+
+    class Meta:
+        model = GeneralSkillAssessment
+        fields = ["sections"]
+
+    def validate(self, attrs):
+        assessment_type = getattr(self.instance, "assessment_type", None)
+        sections = attrs.get("sections")
+
+        # Single-type assessments (MCQ or CODING_TASK)
+        if assessment_type in [SkillAssessmentTypes.CODING_TASK, SkillAssessmentTypes.MCQ]:
+            if len(sections) > 1:
+                raise serializers.ValidationError(
+                    "Multiple sections are only available for custom skill assessments"
+                )
+            section_type = sections[0].get("type")
+            if section_type != assessment_type:
+                message = f"Section is of type {section_type} but assessment is of type {assessment_type}"
+                raise serializers.ValidationError(f"Invalid assessment section. {message}")
+            return attrs
+
+        # Custom assessments
+        if assessment_type == SkillAssessmentTypes.CUSTOM:
+            if len(sections) != 2:
+                raise serializers.ValidationError(
+                    "Custom skill assessments require both coding tasks and MCQ questions to be included"
+                )
+            section_types = {section.get("type") for section in sections}
+            required_types = {SkillAssessmentTypes.MCQ, SkillAssessmentTypes.CODING_TASK}
+            if section_types != required_types:
+                raise serializers.ValidationError(
+                    "Custom assessments must have exactly one MCQ section and one Coding Task section"
+                )
+            return attrs
+
+        return attrs
+
+
+class GeneralSkillAssessmentListSerializer(GeneralSkillAssessmentCreateSerializer):
+
+    class ShortenedRoleSerializer(RoleSerializer):
+        class Meta(RoleSerializer.Meta):
+            fields = ["id", "title"]
+
+    skillsets = ShortenedRoleSerializer(many=True)
+
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+        include_section_questions = self.context.get("include_section_questions")
+        if not include_section_questions:
+            sections = GeneralSkillAssessmentSectionPreviewSerializer(
+                instance.sections.all(), many=True
+            ).data
+            representation["sections"] = sections
+        else:
+            sections = GeneralSkillAssessmentSectionListSerializer(
+                instance.sections.all(), many=True
+            ).data
+            representation["sections"] = sections
+        return representation
+
+    class Meta:
+        model = GeneralSkillAssessment
+        fields = GeneralSkillAssessmentCreateSerializer.Meta.fields + ["id"]
+
+
+class QuestionBankQuestionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = QuestionBankQuestion
+        fields = ["id", "question", "options", "correct_option_index"]
+
+
+class QuestionBankSerializer(serializers.Serializer):
+    role = serializers.IntegerField()
+    job_description = serializers.CharField()
+    mcq_questions = serializers.IntegerField(max_value=10)
+    difficulty_level = serializers.CharField()
+    exclusions = serializers.ListField(child=serializers.IntegerField(), required=False)
+
+    def validate_role(self, role):
+        role_obj = Role.objects.filter(id=role).first()
+        if not role_obj:
+            raise serializers.ValidationError("Role does not exist")
+        return role_obj
+    
+    def validate_job(self, job):
+        job_obj = Job.objects.filter(id=job).first()
+        if not job_obj:
+            raise serializers.ValidationError("Job does not exist")
+        return job_obj
+
+    def validate_difficulty_level(self, difficulty_level):
+        valid_difficulty_levels = [
+            QuestionBankDifficultyLevels.BEGINNER,
+            QuestionBankDifficultyLevels.INTERMEDIATE,
+            QuestionBankDifficultyLevels.ADVANCED,
+        ]
+        if difficulty_level not in valid_difficulty_levels:
+            raise serializers.ValidationError(
+                f'Valid difficulty levels are {",".join(valid_difficulty_levels)}'
+            )
+        return difficulty_level
+
+
+class MCQAnswerSerializer(serializers.Serializer):
+    mcq_id = serializers.IntegerField()
+    selected_option_index = serializers.IntegerField()  # 1-based
+
+    def validate(self, attrs):
+        mcq_id = attrs.get("mcq_id")
+        selected_option_index = attrs.get("selected_option_index")
+
+        mcq_obj = GeneralSkillAssessmentMCQQuestion.objects.filter(id=mcq_id).first()
+        if not mcq_obj:
+            raise serializers.ValidationError(f"Matching MCQ for {mcq_id} does not exist")
+
+        # MCQ.options are [{"value": "...", "index": 1..4}, ...]
+        options = mcq_obj.options or []
+        indexes = {opt.get("index") for opt in options if isinstance(opt, dict)}
+        if selected_option_index not in indexes:
+            raise serializers.ValidationError(f"Invalid option selected for MCQ {mcq_id}")
+
+        return attrs
+
+
+class CodingAnswerSerializer(serializers.Serializer):
+    coding_task_id = serializers.IntegerField()
+    user_answer = serializers.CharField()
+
+    def validate(self, attrs):
+        coding_task_id = attrs.get("coding_task_id")
+        coding_task = CodingTask.objects.filter(id=coding_task_id).first()
+        if not coding_task:
+            raise serializers.ValidationError(
+                f"Matching Coding Task for {coding_task_id} does not exist"
+            )
+        return super().validate(attrs)
+
+class GeneralSkillAssessmentSectionAnswerSerializer(serializers.Serializer):
+    """
+    Answers for a single section.
+    Now PERMITS partial component submission:
+      - You may submit only MCQs, only Coding, or both for this section.
+    """
+    section_id = serializers.IntegerField()
+    mcq_answers = serializers.ListField(
+        child=MCQAnswerSerializer(), required=False, allow_empty=False
+    )
+    coding_task_answers = serializers.ListField(
+        child=CodingAnswerSerializer(), required=False, allow_empty=False
+    )
+    # legacy free-text (optional)
+    coding_task_answer = serializers.CharField(required=False, allow_blank=True)
+
+    def validate(self, attrs):
+        assessment = self.context.get("assessment")
+        section_id = attrs.get("section_id")
+        mcq_answers = attrs.get("mcq_answers") or []
+        coding_task_answers = attrs.get("coding_task_answers") or []
+        legacy_free = (attrs.get("coding_task_answer") or "").strip()
+
+        if not assessment.sections.filter(id=section_id).exists():
+            raise serializers.ValidationError(f"Section {section_id} does not belong to this assessment")
+
+        if not mcq_answers and not coding_task_answers and not legacy_free:
+            raise serializers.ValidationError(f"No answers provided for section {section_id}")
+
+        if mcq_answers:
+            mcq_ids = [item.get("mcq_id") for item in mcq_answers]
+            if len(set(mcq_ids)) != len(mcq_ids):
+                raise serializers.ValidationError("Duplicate MCQ answers detected")
+
+            valid_mcq_ids = set(
+                GeneralSkillAssessmentSectionMCQ.objects
+                .filter(section_id=section_id, mcq_id__in=mcq_ids)
+                .values_list("mcq_id", flat=True)  # already constrained; no need for DISTINCT usually
+            )
+            extra_mcqs = set(mcq_ids) - valid_mcq_ids
+            if extra_mcqs:
+                raise serializers.ValidationError(
+                    f"{', '.join(map(str, sorted(extra_mcqs)))} are not valid MCQs for section {section_id}"
+                )
+
+
+        if coding_task_answers:
+            task_ids = [item.get("coding_task_id") for item in coding_task_answers]
+            if len(set(task_ids)) != len(task_ids):
+                raise serializers.ValidationError("Duplicate coding task answers detected")
+
+            # constrain by both section and the provided ids to reduce rows
+            valid_task_ids = set(
+                GeneralSkillAssessmentSection.objects
+                .filter(id=section_id, coding_tasks__id__in=task_ids)
+                .values_list("coding_tasks__id", flat=True)
+                .distinct()
+            )
+            extra_tasks = set(task_ids) - valid_task_ids
+            if extra_tasks:
+                raise serializers.ValidationError(
+                    f"{', '.join(map(str, sorted(extra_tasks)))} are not valid coding tasks for section {section_id}"
+                )
+
+        return attrs
+
+
+
+class GeneralSkillAssessmentAnswerSerializer(serializers.Serializer):
+    """
+    Accepts PARTIAL submissions.
+    Old code required answers for *all* sections — we remove that.
+    """
+    answers = serializers.ListField(
+        child=GeneralSkillAssessmentSectionAnswerSerializer(),
+        required=True,
+        allow_empty=False,
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # pass assessment context down to the section serializer
+        self.fields["answers"].child.context.update(self.context)
+
+    def validate(self, attrs):
+        assessment = self.context.get("assessment")
+        items = attrs.get("answers") or []
+
+        # Provided sections must all belong to this assessment (subset allowed)
+        provided_ids = {s.get("section_id") for s in items}
+        valid_ids = set(assessment.sections.values_list("id", flat=True))
+        invalid = provided_ids - valid_ids
+        if invalid:
+            raise serializers.ValidationError(
+                f"Invalid section ids provided: {', '.join(map(str, sorted(invalid)))}"
+            )
+
+        # No “please provide answers for every section” check anymore.
+        # Partial/staged submission is now valid.
+
+        return attrs
+
+
+class QuestionResponseSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PreScreeningInterviewQuestionResponse
+        fields = [
+            "id",
+            "question",
+            "answer",
+            "follow_up_asked",
+            "follow_up_question",
+            "follow_up_response",
+            "value_alignment",
+            "strengths",
+            "concerns",
+            "bias_check",
+            "relevance",
+            "alignment",
+            "self_awareness",
+            "adjustments",
+            "total",
+        ]
+
+
+class PreScreeningInterviewResultSerializer(serializers.ModelSerializer):
+    responses = serializers.SerializerMethodField()
+
+    class Meta:
+        model = PreScreeningInterviewSession
+        fields = [
+            "id",
+            "total_points",
+            "final_evaluation",
+            "summary_comment",
+            "created_at",
+            "responses",
+        ]
+
+    def get_responses(self, obj):
+        return QuestionResponseSerializer(
+            obj.pre_screening_response.all(), many=True
+        ).data
+
+
+# submissions
+class SubmissionSerializer(serializers.ModelSerializer):
+    stats = serializers.SerializerMethodField()
+    time_taken_formated = serializers.SerializerMethodField()
+
+    class Meta:
+        model = CandidateAssessmentSubmission
+        fields = [
+            "id",
+            "total_score",
+            "time_taken",
+            "time_taken_formated",
+            "stats",
+        ]
+
+    def get_time_taken_formated(self, instance):
+        if not instance.time_taken:
+            return "0:00"
+        total_minutes = int(instance.time_taken)
+        seconds = int(round((float(instance.time_taken) - total_minutes) * 60))
+        if seconds == 60:
+            total_minutes += 1
+            seconds = 0
+        return f"{total_minutes}:{seconds:02d}"
+
+    def _prefetch_if_needed(self, instance):
+        """Only prefetch here if the view didn't already do it."""
+        if self.context.get("prefetched"):
+            # View has already done the heavy prefetch; just return the cached queryset
+            return instance.skill_assessment_section_submissions.all()
+
+        # Otherwise, do a local prefetch with unique to_attr names to avoid clashes
+        return (
+            instance.skill_assessment_section_submissions
+            .select_related("skill_assessment_section")
+            .prefetch_related(
+                Prefetch(
+                    "coding_task_answers",
+                    queryset=CandidateAssessmentCodingAnswer.objects.only("id", "coding_task_id"),
+                    to_attr="pf_coding_answers",
+                ),
+                Prefetch(
+                    "candidateassessmentmcqanswer_set",
+                    queryset=CandidateAssessmentMCQAnswer.objects
+                        .select_related("question")
+                        .only("id", "selected_answer_index", "question__correct_option_index"),
+                    to_attr="pf_mcq_answers",
+                ),
+                Prefetch(
+                    "skill_assessment_section__mcq_questions_new",
+                    queryset=GeneralSkillAssessmentMCQQuestion.objects.only("id", "correct_option_index"),
+                    to_attr="pf_mcqs",
+                ),
+                Prefetch(
+                    "skill_assessment_section__coding_tasks",
+                    queryset=CodingTask.objects.only("id", "max_score"),
+                    to_attr="pf_coding_tasks",
+                ),
+            )
+        )
+
+    def get_stats(self, instance: CandidateAssessmentSubmission):
+        section_submissions = self._prefetch_if_needed(instance)
+
+        # Accumulators
+        mcq_total = 0
+        mcq_attempted = 0
+        mcq_correct = 0
+
+        coding_total_tasks = 0
+        coding_attempted = 0
+        coding_weighted_sum = 0.0
+        coding_weight_total = 0.0
+
+        for ss in section_submissions:
+            section = ss.skill_assessment_section
+            if not section:
+                continue
+
+            # Resolve attributes (handle both view-prefetched and local-prefetched names)
+            mcq_answers = getattr(ss, "prefetched_mcq_answers", None)
+            if mcq_answers is None:
+                mcq_answers = getattr(ss, "pf_mcq_answers", None)
+            coding_answers = getattr(ss, "prefetched_coding_answers", None)
+            if coding_answers is None:
+                coding_answers = getattr(ss, "pf_coding_answers", None)
+
+            section_mcqs = getattr(section, "prefetched_mcqs", None)
+            if section_mcqs is None:
+                section_mcqs = getattr(section, "pf_mcqs", None)
+
+            section_coding_tasks = getattr(section, "prefetched_coding_tasks", None)
+            if section_coding_tasks is None:
+                section_coding_tasks = getattr(section, "pf_coding_tasks", None)
+
+            # ===== MCQ =====
+            if section.type in ["MCQ", "Custom"] and section_mcqs is not None:
+                total_here = len(section_mcqs)
+                mcq_total += total_here
+
+                answers_list = mcq_answers or []
+                attempted_here = sum(1 for a in answers_list if a.selected_answer_index is not None)
+                mcq_attempted += attempted_here
+
+                mcq_correct += sum(
+                    1 for a in answers_list
+                    if (
+                        a.selected_answer_index is not None
+                        and a.question
+                        and a.selected_answer_index == a.question.correct_option_index
+                    )
+                )
+
+            # ===== CODING =====
+            if section.type in ["Coding Task", "Custom"] and section_coding_tasks is not None:
+                total_tasks_here = len(section_coding_tasks)
+                coding_total_tasks += total_tasks_here
+
+                answers_list = coding_answers or []
+                coding_attempted += len(answers_list)
+
+                # Compute percentage using section points if available
+                section_possible = float(sum((ct.max_score or 0) for ct in section_coding_tasks)) if total_tasks_here else 0.0
+                section_obtained = float(ss.total_score or 0.0)
+
+                section_percent = None
+                weight = 0.0
+
+                if section_possible > 0:
+                    section_percent = (section_obtained / section_possible) * 100.0
+                    weight = section_possible  # weight by points
+
+                # Fallback: completion proxy
+                if section_percent is None:
+                    if total_tasks_here > 0:
+                        section_percent = (len(answers_list) / total_tasks_here) * 100.0
+                        weight = float(total_tasks_here)
+                    else:
+                        section_percent = 0.0
+                        weight = 1.0
+
+                coding_weighted_sum += section_percent * weight
+                coding_weight_total += weight
+
+        mcq_percent = round((mcq_correct / mcq_total) * 100.0, 2) if mcq_total else 0.0
+        coding_percent = round((coding_weighted_sum / coding_weight_total), 2) if coding_weight_total else 0.0
+
+        return {
+            "mcq": {
+                "attempted": mcq_attempted,
+                "correct": mcq_correct,
+                "total": mcq_total,
+                "percent": mcq_percent,
+            },
+            "coding": {
+                "attempted": coding_attempted,
+                "total": coding_total_tasks,
+                "percent": coding_percent,
+            },
+        }
+# serializer for adding mcq questions for talent verification
+class AddMCQAssessmentSerializer(serializers.Serializer):
+    file = serializers.FileField()
+    role = serializers.CharField()  # slug of Role
+    difficulty_level = serializers.CharField()
+    name = serializers.CharField()
+    description = serializers.CharField()
+    duration_minutes = serializers.IntegerField(min_value=1)
+    stack=serializers.IntegerField(required=False)  
+
+    # ----- Headings validation -------------------------------------------------
+    def is_valid_headings(self, headings):
+        h = [str(x).strip().lower() for x in headings]
+        n = len(h)
+        if n == 8:
+            # ['category', 'question', 'option a', 'option b', 'option c', 'option d', 'answer', 'difficulty']
+            return h == ["category", "question", "option a", "option b", "option c", "option d", "answer", "difficulty"]
+        if n == 6:
+            # ['question', 'option a', 'option b', 'option c', 'option d', 'answer']
+            return h == ["question", "option a", "option b", "option c", "option d", "answer"]
+        if n == 5:
+            # ['question', 'option a', 'option b', 'option c', 'answer']
+            return h == ["question", "option a", "option b", "option c", "answer"]
+        return False
+
+    # ----- Row formatting ------------------------------------------------------
+    def format_rows(self, rows, headers):
+        formatted_rows, errors = [], []
+        H = [str(x).strip().lower() for x in headers]
+
+        for row_index, row in enumerate(rows):
+            try:
+                # Normalize row values (keep None as None, but cast strings safely)
+                vals = [("" if v is None else str(v)).strip() for v in row]
+
+                if len(H) == 8:
+                    category, question = vals[0], vals[1]
+                    option_a, option_b, option_c, option_d = vals[2:6]
+                    answer, row_diff = vals[6], vals[7]  # row_diff currently unused
+                elif len(H) == 6:
+                    category, row_diff = None, None
+                    question = vals[0]
+                    option_a, option_b, option_c, option_d = vals[1:5]
+                    answer = vals[5]
+                elif len(H) == 5:
+                    category, row_diff = None, None
+                    question = vals[0]
+                    option_a, option_b, option_c = vals[1:4]
+                    option_d, answer = "", vals[4]
+                else:
+                    errors.append(f"Invalid header format at row {row_index + 2}")
+                    continue
+
+                # Determine correct option index (1-based). Accept letter A-D or exact text match.
+                correct_answer_index = None
+                if len(answer) == 1 and answer.upper() in ("A", "B", "C", "D"):
+                    correct_answer_index = ord(answer.upper()) - ord("A") + 1
+                else:
+                    opts = [option_a.lower(), option_b.lower(), option_c.lower(), option_d.lower()]
+                    target = answer.lower()
+                    for idx, opt in enumerate(opts, start=1):
+                        if opt and target == opt:
+                            correct_answer_index = idx
+                            break
+
+                formatted_row = {
+                    "question": question,
+                    "option_a": option_a,
+                    "option_b": option_b,
+                    "option_c": option_c,
+                    "option_d": option_d,
+                    "correct_answer_index": correct_answer_index,
+                }
+                if category:
+                    formatted_row["category"] = category
+
+                formatted_rows.append(formatted_row)
+
+                if not correct_answer_index:
+                    present_opts = [o for o in [option_a, option_b, option_c, option_d] if o]
+                    errors.append(
+                        f"Answer for row {row_index + 2} was not found in the provided options. Options: {present_opts}"
+                    )
+            except Exception as e:
+                errors.append(f"Error processing row {row_index + 2}: {str(e)}")
+
+        return formatted_rows, errors
+
+    # ----- File validation -----------------------------------------------------
+    def validate_file(self, value):
+        ext = os.path.splitext(value.name)[1].lower()
+        if ext not in (".xlsx", ".csv"):
+            raise serializers.ValidationError("File must be a .xlsx or .csv file.")
+
+        headings, rows = [], []
+
+        if ext == ".csv":
+            value.seek(0)
+            decoded = value.read().decode("utf-8").splitlines()
+            reader = csv.reader(decoded)
+            all_rows = list(reader)
+            if all_rows:
+                headings = [str(h).strip().lower() for h in all_rows[0]]
+                if not self.is_valid_headings(headings):
+                    raise serializers.ValidationError(
+                        "Invalid CSV headings. Expected e.g. 'question, option a, option b, option c, option d, answer'."
+                    )
+                rows = all_rows[1:]
+        else:
+            wb = openpyxl.load_workbook(value)
+            sheet = wb.active
+            all_rows = [[cell.value for cell in row] for row in sheet]
+            if all_rows:
+                headings = [str(h).strip().lower() if h is not None else "" for h in all_rows[0]]
+                if not self.is_valid_headings(headings):
+                    raise serializers.ValidationError(
+                        "Invalid Excel headings. Expected e.g. 'question, option a, option b, option c, option d, answer'."
+                    )
+                rows = all_rows[1:]
+
+        formatted_rows, errors = self.format_rows(rows, headings)
+        if errors:
+            # show the first 2 to avoid huge error payloads
+            raise serializers.ValidationError(", ".join(errors[:2]))
+        return formatted_rows
+
+    # ----- Other field validators ---------------------------------------------
+    def validate_role(self, value):
+        role = Role.objects.filter(slug=value).first()
+        if not role:
+            raise serializers.ValidationError("Invalid role")
+        return role  # store the Role instance
+
+    def validate_stack(self, value):
+        if not value:
+            return None
+        stack = TechStack.objects.filter(id=value).first()
+        if not stack:
+            raise serializers.ValidationError("Invalid tech stack")
+        return stack
+    def validate_difficulty_level(self, value):
+        valid = [
+            SkillAssessmentDifficultyLevels.JUNIOR,
+            SkillAssessmentDifficultyLevels.INTERMEDIATE,
+            SkillAssessmentDifficultyLevels.SENIOR,
+        ]
+        v = (value or "").strip().upper()
+        if v not in valid:
+            raise serializers.ValidationError(f'Valid difficulty levels are {", ".join(valid)}')
+        return v
+
+    # ----- Create --------------------------------------------------------------
+    def create(self, validated_data):
+        rows = validated_data["file"]             
+        role = validated_data["role"]   
+        stack=validated_data.get("stack", None)
+        difficulty_level = validated_data["difficulty_level"]  
+        name = validated_data["name"]
+        description = validated_data["description"]
+        duration_minutes = validated_data["duration_minutes"]
+
+        with transaction.atomic():
+            # 1) Create MCQ questions (bulk)
+            mcq_objs = []
+            for r in rows:
+                options = [
+                    {"value": r.get("option_a"), "index": 1},
+                    {"value": r.get("option_b"), "index": 2},
+                    {"value": r.get("option_c"), "index": 3},
+                ]
+                if r.get("option_d"):
+                    options.append({"value": r.get("option_d"), "index": 4})
+
+                mcq_objs.append(GeneralSkillAssessmentMCQQuestion(
+                    is_ai_generated=False,
+                    question=r.get("question") or "",
+                    options=options,
+                    correct_option_index=r.get("correct_answer_index") or 0,  # 0 if unresolved
+                ))
+
+            # Bulk create returns PKs on Postgres/Django 3.2+; adjust if needed
+            GeneralSkillAssessmentMCQQuestion.objects.bulk_create(mcq_objs)
+            # Refresh to ensure IDs are present in all DBs (optional on PG):
+            for obj in mcq_objs:
+                if not getattr(obj, "id", None):
+                    obj.refresh_from_db()
+
+            # 2) Create Assessment
+            assessment = GeneralSkillAssessment.objects.create(
+                title=name,
+                published=True,
+                difficulty_level=difficulty_level,  # canonical stored
+                description=description,
+                duration_minutes=duration_minutes,
+                passing_grade=70,
+                reference=str(uuid.uuid4().hex)[:15],
+                assessment_type=SkillAssessmentTypes.MCQ,
+                assessment_stack=stack
+            )
+            assessment.skillsets.add(role)
+
+            # 3) Create MCQ Section
+            mcq_section = GeneralSkillAssessmentSection.objects.create(
+                name="Multiple Choice Questions",
+                company_skill_assessment=assessment,
+                type=SkillAssessmentTypes.MCQ,
+            )
+
+            # 4) Link MCQs to section via through model with order
+            GeneralSkillAssessmentSectionMCQ.objects.bulk_create([
+                GeneralSkillAssessmentSectionMCQ(section=mcq_section, mcq=obj)
+                for obj in mcq_objs
+            ])
+
+        return assessment
+
+class AddCodingAssessmentSerializer(serializers.Serializer):
+    stack = serializers.PrimaryKeyRelatedField(queryset=TechStack.objects.all())
+    difficulty_level = serializers.CharField()
+    role = serializers.CharField()
+    name = serializers.CharField()
+    description = serializers.CharField()
+    duration_minutes = serializers.IntegerField()
+
+    def validate_role(self, value):
+        role = Role.objects.filter(slug=value).first()
+        if not role:
+            raise serializers.ValidationError("Invalid role")
+        return role
+    
+    def validate_difficulty_level(self, value):
+        valid_difficulty_levels = [
+            SkillAssessmentDifficultyLevels.JUNIOR,
+            SkillAssessmentDifficultyLevels.INTERMEDIATE,
+            SkillAssessmentDifficultyLevels.SENIOR,
+        ]
+        if value.upper() not in valid_difficulty_levels:
+            raise serializers.ValidationError(
+                f'Valid difficulty levels are {", ".join(valid_difficulty_levels)}'
+            )
+        return value.lower()
+    
+    def create(self, validated_data):
+        create_talent_coding_assessment_task_v2.delay(
+            validated_data["stack"].id,
+            validated_data["role"].id,
+            validated_data["difficulty_level"],
+            validated_data["name"],
+            validated_data["description"],
+            validated_data["duration_minutes"]
+        )
+        return {"message": "Task to create coding assessment has been queued."}
+
+class AddCodingAssessmentSerializer_V2(serializers.Serializer):
+    stack = serializers.PrimaryKeyRelatedField(queryset=TechStack.objects.all())
+    difficulty_level = serializers.ChoiceField(choices=[
+        SkillAssessmentDifficultyLevels.JUNIOR,
+        SkillAssessmentDifficultyLevels.INTERMEDIATE,
+        SkillAssessmentDifficultyLevels.SENIOR,
+    ])
+
+    name = serializers.CharField()
+    description = serializers.CharField()
+    duration_minutes = serializers.IntegerField(min_value=1)
+
+    # Frontend passes only the MCQ section id now
+    mcq_section_id = serializers.IntegerField()
+
+    @staticmethod
+    def _lower(v: str) -> str:
+        return (v or "").strip().lower()
+
+    def validate_mcq_section_id(self, value):
+        section = (
+            GeneralSkillAssessmentSection.objects
+            .select_related("company_skill_assessment")
+            .filter(id=value)
+            .first()
+        )
+        if not section:
+            raise serializers.ValidationError("MCQ section not found.")
+        if section.type != SkillAssessmentTypes.MCQ:
+            raise serializers.ValidationError("Provided section is not an MCQ section.")
+        self._mcq_section = section
+        return value
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        stack = attrs["stack"]
+        difficulty = attrs["difficulty_level"]
+
+        mcq_section = getattr(self, "_mcq_section", None)
+        parent = mcq_section.company_skill_assessment
+
+        # Stack coherence
+        
+        if not parent.assessment_stack_id:
+            parent.assessment_stack = stack
+            parent.save(update_fields=["assessment_stack"])
+
+        # Require exactly one role to infer coding context
+        roles = list(parent.skillsets.all()[:2])
+        if len(roles) != 1:
+            raise serializers.ValidationError(
+                "Assessment must have exactly one role in 'skillsets' to infer coding context."
+            )
+
+        # Auto-pick an MCQ from this section (most recently linked through row)
+        link = (
+            mcq_section.section_mcqs
+            .select_related("mcq")
+            .order_by("-id")  # newest link first; no order/weight fields in your model
+            .first()
+        )
+        if not link:
+            raise serializers.ValidationError("The selected MCQ section has no MCQ questions to link.")
+
+        self._assessment = parent
+        self._role = roles[0]
+        self._auto_mcq = link.mcq
+        return attrs
+
+    def create(self, validated_data):
+        stack = validated_data["stack"]
+        difficulty_canonical = validated_data["difficulty_level"]
+        difficulty_lower = self._lower(difficulty_canonical)
+        name = validated_data["name"]
+        description = validated_data["description"]
+        duration_minutes = validated_data["duration_minutes"]
+
+        mcq_section = self._mcq_section
+        parent = self._assessment
+        role = self._role
+        mcq = self._auto_mcq
+
+        with transaction.atomic():
+            # Align parent difficulty (store canonical)
+            if parent.difficulty_level != difficulty_canonical:
+                parent.difficulty_level = difficulty_canonical
+                parent.save(update_fields=["difficulty_level"])
+
+            # Ensure a CODING_TASK section exists
+            coding_section, _ = GeneralSkillAssessmentSection.objects.get_or_create(
+                company_skill_assessment=parent,
+                type=SkillAssessmentTypes.CODING_TASK,
+                defaults={"name": "Coding Challenge"},
+            )
+
+            # Flip MCQ-only → CUSTOM (your enum set has no MIXED)
+            if parent.assessment_type == SkillAssessmentTypes.MCQ:
+                parent.assessment_type = SkillAssessmentTypes.CUSTOM
+                parent.save(update_fields=["assessment_type"])
+
+            # Create MCQ ↔ Coding link placeholder (completed by worker)
+            link = MCQToCodingLink.objects.create(
+                assessment=parent,
+                section=mcq_section,
+                mcq=mcq,
+                coding_task=None,
+            )
+
+            assessment_link = parent.assessment_id or parent.reference or uuid.uuid4().hex[:15]
+
+            # Dispatch worker
+            create_talent_coding_assessment_task_v2.delay(
+                stack_id=stack.id,
+                role_id=role.id,
+                difficulty_level=difficulty_lower,   # AI expects lowercase
+                name=name,
+                description=description,
+                duration_minutes=duration_minutes,
+                assessment_link=assessment_link,
+                coding_section_id=coding_section.id,
+                mcq_coding_link_id=link.id,          # auto-picked MCQ link
+                mcq_section_id=mcq_section.id,       # extra validation for the worker
+            )
+
+        return parent
+
+       
+# serializer to start talent verification assessmentS
+class StartVerificationAssessmentSerializer(serializers.Serializer):
+    role_id           = serializers.IntegerField()
+    stack_id          = serializers.IntegerField(required=False)
+    difficulty_level  = serializers.CharField()
+    mcq_count         = serializers.IntegerField(default=15)
+    coding_count      = serializers.IntegerField(default=2)
+
+    def validate(self, data):
+        role = Role.objects.filter(id=data['role_id']).first()
+        if not role:
+            raise serializers.ValidationError("Invalid role_id")
+        data['role'] = role
+
+        if role.is_technical:
+            stack = TechStack.objects.filter(id=data.get('stack_id')).first()
+            if not stack:
+                raise serializers.ValidationError("stack_id required for technical roles")
+            data['stack'] = stack
+        return data
+    
+    def validate_difficulty_level(self, value):
+        valid_difficulty_levels = [
+            SkillAssessmentDifficultyLevels.JUNIOR,
+            SkillAssessmentDifficultyLevels.INTERMEDIATE,
+            SkillAssessmentDifficultyLevels.SENIOR,
+        ]
+        if value.upper() not in valid_difficulty_levels:
+            raise serializers.ValidationError(
+                f'Valid difficulty levels are {", ".join(valid_difficulty_levels)}'
+            )
+        return value.upper()
+
+class AIFeedbackSerializer(serializers.Serializer):
+    application_id = serializers.IntegerField()
+    talent_name = serializers.CharField()
+    role = serializers.CharField()
+    resume_analysis_score = serializers.IntegerField(allow_null=True)
+    cultural_fit_score = serializers.IntegerField(allow_null=True)
+# serializer to start pre-screening interview
+class PreScreeningInterviewSessionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PreScreeningInterviewSession
+        fields = [
+            "candidate",
+            "job_application",
+            "assessment",
+            "conversation_id",
+            "total_points",
+            "final_evaluation",
+            "agent_comment"
+        ]
+
+
+class InitiateAssessmentPaymentSerializer(serializers.Serializer):
+    assessment_id = serializers.IntegerField()
+    coupon_code = serializers.CharField(required=False, allow_blank=True)
+    
+class AIFeedbackSerializer(serializers.Serializer):
+    application_id = serializers.IntegerField()
+    talent_id = serializers.IntegerField()
+    talent_name = serializers.CharField()
+    role = serializers.CharField()
+    cultural_fitness_score = serializers.IntegerField(allow_null=True)
+    overall_score = serializers.DecimalField(max_digits=5, decimal_places=2)
+    resume_feedback = serializers.CharField()
+    prescreening_feedback = serializers.CharField()
+    assessment_score = serializers.FloatField()
+    email = serializers.EmailField()
+    profile_picture = serializers.URLField(allow_null=True)
+    has_passed_tiaago_assessment = serializers.BooleanField()
+    assessment_title = serializers.CharField()
+    portfolio_slug = serializers.CharField()
+    cover_letter= serializers.CharField()
+    resume=serializers.URLField()
+    resume_role_match_status= serializers.CharField()
+    resume_text_authencity= serializers.CharField()
+    resume_text_authencity_explanation= serializers.CharField()
+    resume_experience_validation= serializers.CharField()
+    resume_experience_validation_explanation= serializers.CharField()
+    resume_review_score= serializers.IntegerField()
+    resume_skill_matching_score= serializers.IntegerField()
+    resume_education_certification_score= serializers.IntegerField()
+    resume_experience_score= serializers.IntegerField()  
+    resume_analysis_score = serializers.IntegerField(allow_null=True)  
+    resume_strengths = serializers.CharField(allow_blank=True)
+    resume_areas_for_improvement = serializers.CharField(allow_blank=True)
+    resume_detailed_analysis = serializers.CharField(allow_blank=True)
+    resume_recommendations= serializers.CharField(allow_blank=True)
+    resume_experience_relevance_score= serializers.IntegerField(allow_null=True) 
+    resume_achievement_quality=serializers.CharField(allow_blank=True)
+    time_taken=serializers.CharField()
+    difficulty_level=serializers.CharField()
+    
+    
+
+        
+
+
+# serializer to start pre-screening interview
+class PreScreeningInterviewSessionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PreScreeningInterviewSession
+        fields = [
+            "candidate",
+            "job_application",
+            "assessment",
+            "conversation_id",
+            "total_points",
+            "final_evaluation",
+            "agent_comment"
+        ]
+
+
+class TechStackSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TechStack
+        fields = ['id', 'stack', 'slug', "difficulty_level"]
+
+
+class CertificateReadSerializer(serializers.ModelSerializer):
+    talent = serializers.SerializerMethodField()
+    skill_assessment = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Certificate
+        fields = [
+            "id",
+            "talent",
+            "skill_assessment",
+            "certificate_url",
+            "issued_at",
+        ]
+
+    def get_talent(self, obj):
+        # keep it lightweight; expand if you need more fields
+        return {
+            "id": obj.talent_id,
+            "user_id": obj.talent.user_id,
+            "full_name": getattr(obj.talent, "full_name", None),
+        }
+
+    def get_skill_assessment(self, obj):
+        return {
+            "id": obj.skill_assessment_id,
+            "title": getattr(obj.skill_assessment, "title", None),
+            "difficulty_level": getattr(obj.skill_assessment, "difficulty_level", None),
+        }
+
+
+class CertificateWriteSerializer(serializers.ModelSerializer):
+    # Accept IDs for write operations
+    talent_id = serializers.PrimaryKeyRelatedField(
+        queryset=TalentProfile.objects.all(), source="talent", write_only=True
+    )
+    skill_assessment_id = serializers.PrimaryKeyRelatedField(
+        queryset=GeneralSkillAssessment.objects.all(),
+        source="skill_assessment",
+        write_only=True,
+    )
+
+    class Meta:
+        model = Certificate
+        fields = [
+            "talent_id",
+            "skill_assessment_id",
+            "certificate_url",
+        ]
+
+    def validate(self, attrs):
+        talent = attrs.get("talent")
+        skill_assessment = attrs.get("skill_assessment")
+        if Certificate.objects.filter(
+            talent=talent, skill_assessment=skill_assessment
+        ).exists():
+            raise serializers.ValidationError(
+                {
+                    "non_field_errors": [
+                        "Certificate already exists for this talent and assessment."
+                    ]
+                }
+            )
+        return attrs
+
+    def to_representation(self, instance):
+        # Return the read shape after create/update
+        return CertificateReadSerializer(instance, context=self.context).data
+
+
+class CertificateRenderInitSerializer(serializers.ModelSerializer):
+    """
+    Returned by the prepare endpoint to give the frontend everything
+    needed to render a certificate, plus the certificate id.
+    """
+
+    recipient = serializers.SerializerMethodField()
+    assessment = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Certificate
+        fields = [
+            "id",  # certificate id to PATCH upload later
+            "issued_at",
+            "certificate_url",  # will be null at this stage
+            "recipient",
+            "assessment",
+        ]
+
+    def get_recipient(self, obj):
+        u = getattr(obj.talent, "user", None)
+        return {
+            "talent_id": obj.talent_id,
+            "full_name": getattr(obj.talent, "full_name", None),
+            "username": getattr(u, "username", None),
+            "email": getattr(u, "email", None),
+        }
+
+    def get_assessment(self, obj):
+        a = obj.skill_assessment
+        return {
+            "id": obj.skill_assessment_id,
+            "title": getattr(a, "title", None),
+            "difficulty_level": getattr(a, "difficulty_level", None),
+            "category": getattr(a, "category", None),
+        }
+
+
+
+class CertificateUploadSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Certificate
+        fields = ["certificate_url"] 
+
+    def validate_certificate_url(self, file):
+        max_mb = 25
+        if file.size and file.size > max_mb * 1024 * 1024:
+            raise serializers.ValidationError(f"File too large. Max is {max_mb}MB.")
+        # accept pdf only
+        ext = Path(file.name).suffix.lower()
+        if ext not in [".pdf"]:
+            raise serializers.ValidationError("Only PDF files are allowed.")
+        return file
+
+    def _build_filename(self, instance, original_name: str) -> str:
+        username = getattr(getattr(instance.talent, "user", None), "username", "user")
+        title = getattr(instance.skill_assessment, "title", "assessment")
+        level = getattr(instance.skill_assessment, "difficulty_level", "level")
+
+        base = f"{slugify(title)}__{slugify(username)}__{slugify(level)}"
+        ext = Path(original_name).suffix.lower() or ".pdf"
+        return f"certificates/{instance.skill_assessment_id}/{instance.talent_id}/{base}{ext}"
+
+    def update(self, instance, validated_data):
+        new_file = validated_data.get("certificate_url")
+        if new_file:
+            new_file.name = self._build_filename(instance, new_file.name)
+            old = getattr(instance, "certificate_url", None)
+            if old and old.name and old.storage.exists(old.name):
+                try:
+                    old.storage.delete(old.name)
+                except Exception:
+                    pass
+
+        return super().update(instance, validated_data)
+
+class CertificatePublicSerializer(serializers.ModelSerializer):
+    talent_name = serializers.CharField(source="talent.full_name", read_only=True)
+    talent_role = serializers.CharField(source="talent.role.name", read_only=True)
+    skill_title = serializers.CharField(source="skill_assessment.title", read_only=True)
+    certificate_url = serializers.FileField(read_only=True)
+
+    class Meta:
+        model = Certificate
+        fields = [
+            "talent_name",
+            "talent_role",
+            "skill_title",
+            "issued_at",
+            "certificate_url",
+        ]
+
+
+class AssessmentCooldownSerializer(serializers.ModelSerializer):
+    """Serializer for AssessmentCooldown model"""
+    days_remaining = serializers.ReadOnlyField()
+    is_active = serializers.ReadOnlyField()
+    
+    class Meta:
+        model = AssessmentCooldown
+        fields = [
+            "id",
+            "skill_assessment",
+            "failed_at",
+            "cooldown_ends_at",
+            "days_remaining",
+            "is_active"
+        ]

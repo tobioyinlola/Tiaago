@@ -1,0 +1,51 @@
+Category,Question,Option A,Option B,Option C,Option D,Answer,Difficulty
+Django,Which method on a Django model returns a string representation of an object?,__unicode__,__repr__,__str__,__display__,C,Junior
+Django,Which Django ORM lookup retrieves objects with case-insensitive containment?,icontains,contains,iexact,instartswith,A,Junior
+Django,Which setting controls cross-site request forgery protection in Django?,CSRF_COOKIE_SECURE,CSRF_USE_SESSIONS,CSRF_TRUSTED_ORIGINS,CSRF_FAILURE_VIEW,C,Junior
+Django,Which of the following is a valid way to create a custom model manager?,Define a new class inheriting models.Manager,Override __init__ in the model,Use @manager decorator,Extend BaseManager,A,Junior
+Django,Which middleware is responsible for managing user sessions?,SessionMiddleware,AuthMiddleware,CommonMiddleware,SecurityMiddleware,A,Junior
+Django,Which argument is required when using Django's reverse() function?,Template name,View name,URL name,App name,C,Junior
+Django,What is the default primary key field type in Django models?,AutoField,UUIDField,BigAutoField,IntegerField,C,Junior
+Django,Which template tag allows passing a block of HTML into a reusable component?,include,block,extends,with,B,Junior
+Django,Which Django form field automatically escapes input to prevent XSS?,CharField,EmailField,Textarea,All form fields,D,Junior
+Django,Which database transaction management method ensures atomicity of operations?,transaction.atomic(),transaction.commit(),transaction.savepoint(),transaction.wrap(),A,Junior
+Django,Which Django ORM function retrieves a single object and raises DoesNotExist if not found?,get,first,filter,exists,A,Junior
+Django,Which decorator is used to restrict view access to authenticated users?,@require_login,@login_required,@auth_required,@authenticated_only,B,Junior
+Django,Which Django class-based view is best for displaying a detail page of an object?,ListView,DetailView,TemplateView,ObjectView,B,Junior
+Django,Which attribute customizes the display of a model field in Django Admin?,verbose_name,display_name,admin_label,field_title,A,Junior
+Django,Which security setting ensures cookies are only sent over HTTPS?,SESSION_EXPIRE_SECURE,SESSION_COOKIE_HTTPONLY,SESSION_COOKIE_SECURE,CSRF_COOKIE_SECURE,C,Junior
+Django,Which function loads environment-specific settings in Django?,load_settings(),os.environ.get(),from_env(),env_config(),B,Junior
+Django,Which database backend is NOT officially supported by Django?,MySQL,Oracle,MongoDB,PostgreSQL,C,Junior
+Django,Which class is used to define custom validators in Django forms?,Validator,FormValidator,BaseValidator,RegexValidator,C,Junior
+Django,Which signal is triggered after a Django model instance is saved?,post_save,pre_save,model_save,after_save,A,Junior
+Django,Which argument in ModelForm.Meta specifies which model fields to include?,fields,include,allowed,form_fields,A,Junior
+Django,Which command collects static files into STATIC_ROOT for deployment?,python manage.py collectstatic,python manage.py gatherstatic,python manage.py collectfiles,python manage.py buildstatic,A,Junior
+Django,Which ORM method allows efficient bulk creation of model instances?,create_many(),bulk_create(),insert_many(),batch_create(),B,Junior
+Django,Which Django package is most commonly used to build REST APIs?,django-rest,django-api,django-rest-framework,django-restful,C,Junior
+Django,Which field type is most suitable for storing JSON data in PostgreSQL with Django?,CharField,TextField,JSONField,BinaryField,C,Junior
+Django,Which HTTP status code corresponds to Django's HttpResponseForbidden?,401,403,404,500,B,Junior
+Django,Which template filter is used to truncate text to a specific number of words?,truncatechars,truncatewords,truncate truncatewords_html,truncatechartd,B,Junior
+Django,Which Django management command displays the current project settings?,showsettings,printconfig,envsettings,diffsettings,D,Junior
+Django,Which test client method submits a POST request in Django tests?,post(),send_post(),client_post(),submit_post(),A,Junior
+Django,Which Django admin option enables inline editing of related models?,related_inline,TabularInline,StackedInline,InlineAdmin,B,Junior
+Django,Which ORM queryset method returns a dictionary-like mapping of values?,values(),annotate(),values_list(),extra(),A,Junior
+Django,Which feature enforces a unique combination of multiple fields?,unique_together,constraints,unique_fields,compound_unique,A,Junior
+Django,Which deployment setting disables Django’s debug mode?,DEBUG = False,DEBUG = 0,DEBUG_OFF = True,DEVELOPMENT = False,A,Junior
+Django,Which view mixin ensures a user is both authenticated and passes a test function?,LoginRequiredMixin,PermissionRequiredMixin,UserPassesTestMixin,TestViewMixin,C,Junior
+Django,Which ORM method updates multiple rows in a single query?,update(),set(),modify(),edit(),A,Junior
+Django,Which authentication class provides token-based authentication in Django REST Framework?,TokenAuth,BasicAuth,TokenAuthentication,SessionAuthentication,C,Junior
+Django,Which Django class is used to paginate a queryset?,Paginator,Page,PagedQuery,QueryPaginator,A,Junior
+Django,Which function returns the absolute URL of a model instance?,get_url(),get_absolute_url(),instance_url(),object_url(),B,Junior
+Django,Which setting allows limiting which hosts can serve your Django app?,ALLOWED_ORIGINS,ALLOWED_DOMAINS,ALLOWED_HOSTS,SECURE_HOSTS,C,Junior
+Django,Which ORM lookup filters objects where a DateField year equals a given value?,year__exact,date__year,exact__year,year_eq,B,Junior
+Django,Which caching backend is recommended for high-performance Django deployments?,FileBasedCache,DatabaseCache,Memcached,LocMemCache,C,Junior
+Django,Which field option automatically sets a timestamp on object creation?,auto_now,auto_add,auto_now_add,auto_create,C,Junior
+Django,Which Django REST Framework class serializes complex querysets into JSON?,JSONSerializer,QuerySerializer,ModelSerializer,Serializer,C,Junior
+Django,Which form method validates and saves model-backed form data?,save_form(),validate_and_save(),save(commit=True),submit(),C,Junior
+Django,Which Django testing tool ensures database rollback after each test?,TransactionTestCase,TestCase,SimpleTestCase,DBTestCase,B,Junior
+Django,Which template tag includes another template’s content into the current template?,block,include,insert,extends,B,Junior
+Django,Which ORM aggregation returns the total count of objects?,Count(),Sum(),Aggregate(),Total(),A,Junior
+Django,Which decorator ensures a Django view only responds to POST requests?,@post_required,@require_POST,@only_post,@method_post,B,Junior
+Django,Which setting allows limiting which hosts can serve your Django app?,ALLOWED_ORIGINS,ALLOWED_DOMAINS,ALLOWED_HOSTS,SECURE_HOSTS,C,Junior
+Django,Which ORM lookup filters objects where a DateField year equals a given value?,year__exact,date__year,exact__year,year_eq,B,Junior
+Django,Which caching backend is recommended for high-performance Django deployments?,FileBasedCache,DatabaseCache,Memcached,LocMemCache,C,Junior

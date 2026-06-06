@@ -1,0 +1,552 @@
+"use client";
+
+import Image from "next/image";
+import { toast } from "sonner";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { RiCashFill } from "react-icons/ri";
+import {
+  HelpCircle,
+  CheckCircle,
+  Gift,
+  Crown,
+  ArrowRight,
+  Check,
+} from "lucide-react";
+
+import {
+  pricingTiers,
+  subscriptionPlans,
+  currencyRates,
+  currencySymbols,
+  type Currency,
+} from "../constants";
+
+import {
+  cn,
+  formatPrice as formatPriceUtil,
+  handleFormSubmissionError,
+} from "@/app/common/utils";
+
+import {
+  subscribeToFreePlan,
+  subscribeToPaystackPlan,
+  subscribeToStripePlan,
+} from "@/app/common/services/subscription";
+import { BASE_URL } from "@/app/common/constants";
+import { useAlert } from "@/app/common/store/useAlert";
+import Testimonials from "../../_components/Testimonials";
+import { SubscriptionPlanV3, User } from "@/app/common/types";
+import CustomButton from "@/app/common/components/CustomButton";
+import { CustomAuthButton } from "@/app/common/components/AuthButton";
+
+const Pricing = ({
+  currentUser,
+  subscriptionPlans: subPlans,
+}: {
+  currentUser: User | null;
+  subscriptionPlans: SubscriptionPlanV3[];
+}) => {
+  const isNigerian = currentUser?.country.toLowerCase() === "nigeria";
+  const router = useRouter();
+  const setAlert = useAlert(s => s.setAlert);
+  const [isSubscribing, setIsSubscribing] = useState(false);
+  const [pricingModel, setPricingModel] = useState<"usage" | "subscription">(
+    "usage"
+  );
+  const [billingCycle, setBillingCycle] = useState<"monthly" | "annually">(
+    "monthly"
+  );
+  const [usage, setUsage] = useState<{ [key: string]: number }>({
+    "Resume Screening": 100,
+    "Non-Technical Assessment": 30,
+    "Technical Assessment": 30,
+    "Pre-screening Interview": 15,
+  });
+
+  const [selectedCurrency, setSelectedCurrency] = useState<Currency>("USD");
+
+  const isUsageBased = pricingModel === "usage";
+
+  const convertPrice = (priceUSD: number) => {
+    const convertedPrice = priceUSD * currencyRates[selectedCurrency];
+    return selectedCurrency === "NGN"
+      ? convertedPrice.toFixed(0)
+      : convertedPrice.toFixed(3);
+  };
+
+  const formatPrice = (price: string | number) => {
+    return formatPriceUtil({
+      price: +price,
+      currencyCode: selectedCurrency,
+      noOfDigits: selectedCurrency === "NGN" ? 0 : 2,
+    });
+  };
+
+  const getTotalCandidates = () => {
+    return Object.values(usage).reduce((total, count) => total + count, 0);
+  };
+
+  const getFreeCandidates = () => {
+    const totalCandidates = getTotalCandidates();
+    return Math.min(totalCandidates, 10);
+  };
+
+  const getPaidCandidates = () => {
+    const totalCandidates = getTotalCandidates();
+    return Math.max(totalCandidates - 10, 0);
+  };
+
+  const calculatePaidCost = () => {
+    const paidCandidates = getPaidCandidates();
+    if (paidCandidates === 0) return "0.00";
+
+    const totalCandidates = getTotalCandidates();
+    const totalCostUSD = Object.entries(usage).reduce(
+      (total, [tierName, count]) => {
+        const tier = pricingTiers.find(t => t.name === tierName);
+        const paidCount = Math.max(count - (10 * count) / totalCandidates, 0);
+        return total + (tier?.pricePerUnit || 0) * paidCount;
+      },
+      0
+    );
+
+    const converted = totalCostUSD * currencyRates[selectedCurrency];
+    return selectedCurrency === "NGN"
+      ? converted.toFixed(0)
+      : converted.toFixed(2);
+  };
+
+  const handleUsageChange = (tierName: string, value: string) => {
+    const numValue = parseInt(value) || 0;
+    setUsage(prev => ({
+      ...prev,
+      [tierName]: numValue,
+    }));
+  };
+
+  const handleSubscribeToPlan = async (plan_code: string) => {
+    if (!currentUser || currentUser.user_type !== "CR") {
+      setAlert({
+        icon: "info",
+        title: "This feature requires a recruiter account",
+        buttonText: "Sign in as a recruiter",
+        buttonLink: `/startups/signin?next=${encodeURIComponent(
+          window.location.pathname
+        )}`,
+        secondaryButton: {
+          text: "Close",
+        },
+      });
+      return;
+    }
+    if (isSubscribing) return;
+    setIsSubscribing(true);
+    toast.loading("Processing...");
+    const isNigerian = currentUser.country.toLowerCase() === "nigeria";
+    if (isNigerian) {
+      const res = await subscribeToPaystackPlan(plan_code);
+      if (res.success && res.data) {
+        window.open(res.data.data.authorization_url, "_blank");
+      } else {
+        handleFormSubmissionError(res.error, undefined, setAlert);
+      }
+      setIsSubscribing(false);
+      toast.dismiss();
+    } else {
+      const res = await subscribeToStripePlan(
+        plan_code,
+        `${BASE_URL}/startups/dashboard/billing`
+      );
+      if (res.success && res.data?.data?.checkout_url) {
+        window.location.assign(res.data.data.checkout_url);
+      } else {
+        handleFormSubmissionError(res.error, undefined, setAlert);
+      }
+      setIsSubscribing(false);
+      toast.dismiss();
+    }
+  };
+
+  const handleSubscribeTofreePlan = async () => {
+    if (!currentUser || currentUser.user_type !== "CR") {
+      setAlert({
+        icon: "info",
+        title: "This feature requires a recruiter account",
+        buttonText: "Sign in as a recruiter",
+        buttonLink: `/startups/signin?next=${encodeURIComponent(
+          window.location.pathname
+        )}`,
+        secondaryButton: {
+          text: "Close",
+        },
+      });
+      return;
+    }
+    if (isSubscribing) return;
+    setIsSubscribing(true);
+    toast.loading("Processing...");
+    const res = await subscribeToFreePlan();
+    if (res.success && res.data) {
+      toast.dismiss();
+      toast.success("You have successfully downgraded to our free plan");
+      router.refresh();
+    } else {
+      handleFormSubmissionError(res.error, undefined, setAlert);
+      toast.dismiss();
+    }
+    setIsSubscribing(false);
+  };
+
+  return (
+    <main className='pb-[112px] md:mb-[84px]'>
+      {/* Pricing Model Toggle */}
+      <section className='pt-16 md:pt-[85px] relative pb-14 md:pb-20 bg-[radial-gradient(100%_100%_at_50%_0%,#FFFFFF_70%,#EEEFFF_100%)]'>
+        <div className='relative pt-16 md:pt-[102px]'>
+          <Image
+            src='/assets/images/Pricing Background pattern.png'
+            alt='Bg pattern'
+            className='object-cover'
+            fill
+          />
+          <div className='md:container mx-auto px-4 relative'>
+            <div className='max-w-3xl mx-auto text-center'>
+              <h1 className='text-4xl md:text-[60px] font-medium text-black font-onest mb-3 md:leading-[70px]'>
+                Choose the plan that fits your workflow
+              </h1>
+              <p className='text-sm md:text-lg text-[#5F6264] font-onest mb-6'>
+                Flexible pricing designed to scale with your needs. Whether
+                you’re a startup agency or a recuiter, find the right plan to
+                unlock all the features you need.
+              </p>
+
+              {/* Toggle Switch */}
+              <div className='inline-flex items-center bg-white rounded-full p-1 shadow-lg border border-gray-200'>
+                <button
+                  onClick={() => setPricingModel("usage")}
+                  className={`flex items-center px-6 py-3 rounded-full text-sm font-onest font-medium transition-all ${
+                    pricingModel === "usage"
+                      ? "bg-primary text-white shadow-md"
+                      : "text-black"
+                  }`}
+                >
+                  <RiCashFill className='w-5 h-5 mr-2 max-sm:hidden' />
+                  Usage-Based
+                </button>
+                <button
+                  onClick={() => setPricingModel("subscription")}
+                  className={`flex items-center px-6 py-3 rounded-full font-medium text-sm font-onest transition-all ${
+                    pricingModel === "subscription"
+                      ? "bg-primary text-white shadow-md"
+                      : "text-black"
+                  }`}
+                >
+                  <Crown className='w-5 h-5 mr-2 max-sm:hidden' />
+                  Subscription Based
+                </button>
+              </div>
+
+              {/* <div className='mt-6 text-center'>
+              <p className='text-gray-600'>
+                {pricingModel === "usage"
+                  ? "Pay only for what you use - perfect for variable hiring needs"
+                  : "Predictable monthly costs with included candidate limits"}
+              </p>
+            </div> */}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div className='max-w-lg mx-auto text-center mt-16 md:mt-24'>
+        <p className='text-sm text-primary font-jetbrains-mono'>
+          PRICING PLANS
+        </p>
+        <h1 className='text-2xl md:text-[40px] font-semibold text-[#1D1D1D] font-onest my-2 leading-[52x]'>
+          {isUsageBased
+            ? "Usage-Based Pricing"
+            : "Simple pricing, powerful features"}
+        </h1>
+        <p className='text-sm md:text-base text-[#0A0A0AB2]'>
+          {isUsageBased
+            ? "Pay only for what you use. Our AI-powered platform scales with your needs."
+            : "Start for free"}
+        </p>
+      </div>
+
+      {/* Usage-Based Pricing */}
+      {pricingModel === "usage" && (
+        <section className='mt-9'>
+          <div className='md:container mx-auto px-4 lg:px-6 xl:px-8'>
+            <div className='bg-[#0A0A0A05] rounded-xl border border-[#DEE1E3] p-4 max-md:py-6 md:p-12 max-w-6xl mx-auto'>
+              <div className='grid gap-16 sm:gap-8 lg:grid-cols-2 items-center'>
+                <div>
+                  <div className='flex flex-col sm:flex-row sm:justify-between sm:items-center'>
+                    <h3 className='text-xl md:text-[26px] font-onest font-semibold text-black mb-2 sm:mb-0'>
+                      Calculate Your Cost
+                    </h3>
+                    <select
+                      value={selectedCurrency}
+                      onChange={e =>
+                        setSelectedCurrency(e.target.value as Currency)
+                      }
+                      className='w-full sm:w-auto px-5 py-2.5 bg-white border focus-visible:outline-none border-primary/20 rounded-[6px] cursor-pointer font-onest font-bold text-sm md:text-base text-primary'
+                    >
+                      <option value='USD'>USD</option>
+                      <option value='EUR'>EUR</option>
+                      <option value='GBP'>GBP</option>
+                      <option value='NGN'>NGN</option>
+                    </select>
+                  </div>
+                  <div className='space-y-6 mt-10'>
+                    {pricingTiers.map(tier => (
+                      <div key={tier.name} className='p-4 bg-white rounded-lg'>
+                        <div className='flex items-center justify-between mb-2'>
+                          <label className='flex items-center text-sm md:text-base font-semibold font-onest mb-2 sm:mb-0'>
+                            {tier.name}
+                            {/* <div className='group relative ml-2'>
+                              <HelpCircle className='w-4 h-4 text-gray-400' />
+                              <div className='absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-48 p-2 bg-gray-900 text-white text-xs rounded hidden group-hover:block z-10'>
+                                {tier.description}
+                              </div>
+                            </div> */}
+                          </label>
+                          <span className='text-xs md:text-sm text-primary/50 font-onest bg-[#EEEFFF] py-0.5 px-2 rounded-full w-fit'>
+                            {formatPrice(convertPrice(tier.pricePerUnit))}{" "}
+                            /candidate
+                          </span>
+                        </div>
+                        <input
+                          type='number'
+                          min='0'
+                          value={usage[tier.name]}
+                          onChange={e =>
+                            handleUsageChange(tier.name, e.target.value)
+                          }
+                          className='w-full sm:flex-1 px-5 py-2 h-12 border border-[#D0D5DD] rounded-[6px] focus-visible:outline-none focus:border-primary text-sm'
+                          placeholder='Enter quantity'
+                        />
+                        {!!usage[tier.name] && (
+                          <p className='text-base font-onest font-semibold mt-3'>
+                            <span className='text-sm text-gray-500 font-normal'>
+                              Costs:{" "}
+                            </span>
+                            {usage[tier.name]} ×{" "}
+                            {formatPrice(convertPrice(tier.pricePerUnit))} ={" "}
+                            {formatPrice(
+                              tier.pricePerUnit *
+                                usage[tier.name] *
+                                currencyRates[selectedCurrency]
+                            )}
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className='bg-[radial-gradient(100%_100%_at_50%_0%,#FFFFFF_70%,#F4F5FF_100%)] border integrations-shadow p-4 sm:p-6 md:p-8 rounded-xl h-fit'>
+                  <h3 className='text-xl md:text-[26px] font-onest font-semibold text-[#1D1D1D] mb-3'>
+                    Estimated Cost
+                  </h3>
+
+                  {/* Free Trial Section */}
+                  <div className='bg-[linear-gradient(270deg,#FFC28C_0%,#A1708B_32.93%,#5465FF_100%)] text-white border-[1.5px] border-[#027A4826] rounded-lg p-3 mb-8'>
+                    <div className='flex items-center mb-2'>
+                      <Gift className='w-5 h-5 mr-2' />
+                      <span className='text-sm font-onest font-bold'>
+                        Free Trial
+                      </span>
+                    </div>
+                    <div className='text-xs font-onest font-bold'>
+                      First {getFreeCandidates()} candidates:{" "}
+                      <span className='font-semibold'>FREE</span>
+                    </div>
+                  </div>
+
+                  <div className='space-y-1'>
+                    {pricingTiers.map(tier => (
+                      <div
+                        key={tier.name}
+                        className='flex flex-col py-3 sm:flex-row sm:justify-between space-y-1 sm:space-y-0 text-[#0A0A0AB2] font-bold text-sm font-onest'
+                      >
+                        <h6 className='truncate pr-2'>{tier.name}</h6>
+                        <span className='sm:text-right max-sm:opacity-75'>
+                          {usage[tier.name]} ×{" "}
+                          {formatPrice(convertPrice(tier.pricePerUnit))} ={" "}
+                          {formatPrice(
+                            tier.pricePerUnit *
+                              usage[tier.name] *
+                              currencyRates[selectedCurrency]
+                          )}
+                        </span>
+                      </div>
+                    ))}
+
+                    <div className='border-y border-[#0A0A0A1A] pt-6 text-sm text-[#0A0A0AB2] font-bold font-onest space-y-1'>
+                      <div className='flex justify-between items-center py-3'>
+                        <span>Total candidates:</span>
+                        <span>{getTotalCandidates()}</span>
+                      </div>
+                      <div className='flex justify-between items-center py-3 text-primary'>
+                        <span>Free candidates:</span>
+                        <span>{getFreeCandidates()}</span>
+                      </div>
+                      <div className='flex justify-between items-center py-3'>
+                        <span>Paid candidates:</span>
+                        <span>{getPaidCandidates()}</span>
+                      </div>
+
+                      <div className='flex flex-col sm:flex-row sm:justify-between sm:items-center py-3 space-y-2 sm:space-y-0'>
+                        <span className='font-semibold'>You Pay</span>
+                        <span className='text-xl text-primary'>
+                          {formatPrice(calculatePaidCost())}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className='mt-6 sm:mt-8'>
+                    <CustomAuthButton fullWidth size='lg'>
+                      Start for free <ArrowRight className='w-5 ml-2.5' />
+                    </CustomAuthButton>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Subscription Pricing */}
+      {pricingModel === "subscription" && (
+        <section className='mt-9'>
+          <div className='md:container mx-auto px-4 lg:px-6 xl:px-8'>
+            <div className='text-center max-w-3xl mx-auto mb-12'>
+              {/* Billing Cycle Toggle */}
+              <div className='inline-flex items-center bg-[#F7F7F7] rounded-full p-1 mb-8'>
+                <button
+                  onClick={() => setBillingCycle("monthly")}
+                  className={`flex items-center px-6 py-3 rounded-full transition-all border border-transparent text-sm font-medium font-onest text-[#1D1D1D] ${
+                    billingCycle === "monthly"
+                      ? "bg-white integrations-shadow"
+                      : "border-transparent"
+                  }`}
+                >
+                  Monthly
+                </button>
+                <button
+                  onClick={() => setBillingCycle("annually")}
+                  className={`flex items-center px-6 py-3 rounded-full transition-all border text-sm font-medium font-onest text-[#1D1D1D] ${
+                    billingCycle === "annually"
+                      ? "bg-white integrations-shadow"
+                      : "border-transparent"
+                  }`}
+                >
+                  Yearly
+                  <span className='ml-2 uppercase bg-clip-text text-transparent bg-[linear-gradient(90deg,#5465FF_0%,#EF7B16_100%)] font-inter'>
+                    (2 months free)
+                  </span>
+                </button>
+              </div>
+            </div>
+
+            <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-10'>
+              {subscriptionPlans.map((plan, index) => {
+                const isFree = plan.name.toLowerCase() === "free";
+                const relatedServerPlan = subPlans.find(
+                  p =>
+                    p.name.toLowerCase() === plan.name.toLowerCase() &&
+                    (billingCycle === p.interval.toLowerCase() ||
+                      (billingCycle === "annually" &&
+                        p.interval.toLowerCase() === "yearly"))
+                );
+                if (!relatedServerPlan && !isFree) return null;
+                return (
+                  <div
+                    key={index}
+                    className={cn(
+                      "relative bg-white rounded-xl border integrations-shadow p-8",
+                      plan.popular &&
+                        "bg-[radial-gradient(100%_100%_at_50%_0%,#FFFFFF_70%,#F4F5FF_100%)]"
+                    )}
+                  >
+                    <div className='mb-10 md:mb-[60px]'>
+                      <div className='flex items-center justify-between mb-10 md:mb-[60px]'>
+                        <h3
+                          className={cn(
+                            "text-2xl md:text-[26px] font-semibold text-[#1D1D1D] font-onest",
+                            plan.popular && "text-primary"
+                          )}
+                        >
+                          {plan.name}
+                        </h3>
+
+                        {plan.popular && (
+                          <div className='rounded-full bg-[#F4F5FF] integrations-shadow border border-primary px-2 py-1 text-xs font-medium text-primary'>
+                            Most Popular
+                          </div>
+                        )}
+                      </div>
+                      <h2 className='text-2xl md:text-[28px] font-bold text-[#1D1D1D]'>
+                        {formatPriceUtil({
+                          price: relatedServerPlan?.amount || 0,
+                          // divisor: 100,
+                          noOfDigits: 0,
+                          currencyCode: isNigerian ? "NGN" : "USD",
+                        })}
+                        <span className='text-[#0A0A0AB2] font-medium text-xs ml-2'>
+                          per
+                          {billingCycle === "annually" ? " year" : " month"}
+                        </span>
+                      </h2>
+                      <p className='text-[#0A0A0A73] mt-2.5 font-onest text-sm'>
+                        {plan.description}
+                      </p>
+                    </div>
+
+                    <ul className='mb-20 md:mb-[100px]'>
+                      {plan.features.map((feature, featureIndex) => (
+                        <li
+                          key={featureIndex}
+                          className='flex items-center py-3 border-b border-[#0A0A0A1A]'
+                        >
+                          <Check className='w-5 h-5 text-green-500 mr-2 flex-shrink-0' />
+                          <span className='text-[#0A0A0AB2] font-onest text-sm'>
+                            {feature}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+
+                    <CustomButton
+                      fullWidth
+                      size='lg'
+                      className={cn(
+                        "integrations-shadow text-sm font-medium",
+                        plan.popular ? "bg-primary hover:bg-primary-dark" : ""
+                      )}
+                      variant={plan.popular ? "primary" : "outline"}
+                      onClick={() =>
+                        relatedServerPlan && !isFree
+                          ? handleSubscribeToPlan(relatedServerPlan.plan_code)
+                          : handleSubscribeTofreePlan()
+                      }
+                      // isLoading={isSubscribing}
+                    >
+                      {plan.ctaText} <ArrowRight className='w-5 ml-2.5' />
+                    </CustomButton>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+      )}
+
+      <Testimonials />
+    </main>
+  );
+};
+
+export default Pricing;

@@ -1,0 +1,51 @@
+Category,Question,Option A,Option B,Option C,Option D,Answer,Difficulty
+Django,Which Django feature supports sharding across multiple databases?,database_router,shard_manager,database_splitter,read_write_split,A,Senior
+Django,Which Django setting enforces HSTS headers to enhance HTTPS security?,SECURE_HSTS_SECONDS,SECURE_HSTS_INCLUDE_SUBDOMAINS,SECURE_STRICT_HTTPS,SECURE_HSTS_ENABLED,A,Senior
+Django,Which ORM method allows bulk updating without triggering model save signals?,bulk_update(),update_batch(),batch_update(),update_many(),A,Senior
+Django,Which Django DRF feature allows API documentation generation automatically?,AutoSchema,APIDocs,CoreAPISchema,SchemaGen,A,Senior
+Django,Which field class supports encrypted data storage in Django?,EncryptedField,EncryptedTextField,EncryptedCharField,EncryptedValueField,C,Senior
+Django,Which tool integrates with Django ORM to manage multi-tenant SaaS applications?,Django-Tenants,Django-Multisite,TenantSchema,Django-SaaS,A,Senior
+Django,Which Django ORM tool supports full-text search on PostgreSQL?,SearchVector,SearchField,FullTextQuery,TSQuery,A,Senior
+Django,Which decorator ensures database queries are atomic within a view?,@transaction.atomic,@db_transaction,@query_atomic,@atomic,A,Senior
+Django,Which DRF feature supports token rotation and expiration natively?,ExpiringTokenAuthentication,RotatingTokenAuthentication,DRF-TokenAuth,DRF Simple JWT,D,Senior
+Django,Which Django ORM class allows defining window functions (PostgreSQL)?,Window(),Over(),PartitionWindow(),AggregateWindow(),A,Senior
+Django,Which Django security practice mitigates SSRF attacks when handling URLs?,URL validation,URL sanitization,Restrict internal requests,All of the above,D,Senior
+Django,Which management command assists in profiling database queries?,runserver --noreload,dbshell,sqlmigrate,debugsqlshell,D,Senior
+Django,Which Django middleware handles Content Security Policy (CSP)?,CspMiddleware,SecurityMiddleware,ContentSecurityMiddleware,DjangoCSP,B,Senior
+Django,Which DRF renderer allows outputting responses in OpenAPI format?,OpenAPIRenderer,SchemaRenderer,YAMLRenderer,SwaggerRenderer,A,Senior
+Django,Which caching backend is optimal for distributed caching with failover?,FileBasedCache,LocMemCache,RedisCache,DatabaseCache,C,Senior
+Django,Which Django model Meta option allows defining conditional unique constraints?,unique_together,constraints,conditional_unique,field_constraints,B,Senior
+Django,Which Django ORM technique prevents N+1 query problems most efficiently?,select_related(),prefetch_related(),raw(),annotate(),A,Senior
+Django,Which Django DRF feature supports dynamic serializer fields based on request context?,context_serializer,SerializerMethodField,dynamic_fields,ConditionalSerializer,B,Senior
+Django,Which Django tool manages asynchronous periodic tasks at scale?,Celery Flower,Django Q,Celery Beat,RQ Worker,C,Senior
+Django,Which deployment strategy minimizes cold start time of Django apps?,Gunicorn preload,Uvicorn workers,Daphne channels,ASGI hot swap,A,Senior
+Django,Which Django ORM pattern allows conditional updates with subqueries?,Case() + Subquery(),ConditionalAggregate(),NestedQuery(),ConditionalUpdate(),A,Senior
+Django,Which Django DRF feature enables API throttling based on user rate?,RateThrottle,UserThrottle,ScopedRateThrottle,RequestThrottle,C,Senior
+Django,Which Django ORM method ensures consistency when using select_for_update()?,with_for_update(nowait=True),with_transaction(atomic=True),select_for_update(of=...),select_related(for_update=True),C,Senior
+Django,Which Django template feature reduces template duplication?,includes,blocks,inheritance,partials,C,Senior
+Django,Which Django deployment best practice helps with static files on production?,runserver_static,WhiteNoise,StaticMiddleware,FileServer,B,Senior
+Django,Which Django ORM feature supports constraints using database functions?,FunctionalConstraint,FuncConstraint,ExpressionConstraint,Func + CheckConstraint,D,Senior
+Django,Which tool integrates Django ORM with GraphQL APIs?,DjangoGraphQL,Django-Graphene,GraphQL-Django,DjangoGQL,B,Senior
+Django,Which Django security setting enforces cookie security in production?,SESSION_COOKIE_SECURE,COOKIE_SECURITY,CSRF_COOKIE_HTTPONLY,SESSION_COOKIE_HTTPONLY,A,Senior
+Django,Which Django ORM pattern is recommended for bulk inserting millions of rows?,bulk_create(),create_many(),insert_many(),batch_create(),A,Senior
+Django,Which DRF tool allows view throttling based on scoped actions?,ScopedRateThrottle,ViewThrottle,ActionThrottle,EndpointThrottle,A,Senior
+Django,Which Django management command dumps specific app data into JSON?,dumpdata loaddata,exportdata,dumpappdata,Hard,A,Senior
+Django,Which deployment practice prevents downtime during migrations?,Run migrations in atomic blocks,Blue-Green deployment,Transaction-wrapped migrations,All of the above,D,Senior
+Django,Which Django ORM option ensures field-level encryption via database functions?,EncryptedField,EncryptedExpression,ExpressionWrapper(Func()),Func(Encrypt()),C,Senior
+Django,Which DRF serializer option helps with polymorphic models?,PolymorphicSerializer,OneOfSerializer,MultiModelSerializer,SerializerChoiceField,A,Senior
+Django,Which Django ORM feature improves large query pagination performance?,Keyset pagination,Cursor pagination,Window pagination,Prefetch pagination,B,Senior
+Django,Which Django deployment tool automates provisioning with Ansible?,Fabric,Django-Deployer,Ansible Playbook,Cookiecutter A,D,Senior
+Django,Which Django ORM expression optimizes filtering on JSONB fields?,JSONField contains,JSONBLookup,JSONContains,QueryLookup A,A,Senior
+Django,Which DRF feature simplifies hyperlinked nested relationships?,HyperlinkedNestedSerializer,SlugRelatedField,HyperlinkedIdentityField,SlugHyperlinkedSerializer,A,Senior
+Django,Which caching pattern helps cache per-user data effectively?,Per-view cache,Template cache,Per-user cache,Cache alias C,C,Senior
+Django,Which Django deployment tool aids continuous integration workflows?,CircleCI,GitHub Actions,Jenkins,All of the above,D,Senior
+Django,Which ORM feature ensures safe concurrent updates across multiple workers?,select_for_update(),Optimistic locking,Atomic transactions,All of the above,D,Senior
+Django,Which DRF feature improves API discoverability and testing?,BrowsableAPIRenderer,APIExplorer,SwaggerUI,OpenAPIView,A,Senior
+Django,Which Django ORM tool allows complex filtering on JSONField keys?,JSONField__key,JSONQuery,JSONKeyLookup,JSONField__contains,A,Senior
+Django,Which DRF authentication method allows OAuth2 integration?,OAuth2Authentication,DRF-OAuth,OAuthToolkitAuthentication,SocialAuthAuthentication,C,Senior
+Django,Which deployment strategy minimizes database downtime on schema changes?,Zero downtime migrations,Lazy migrations,Hot migrations,Live migrations,A,Senior
+Django,Which field class supports encrypted data storage in Django?,EncryptedField,EncryptedTextField,EncryptedCharField,EncryptedValueField,C,Senior
+Django,Which tool integrates with Django ORM to manage multi-tenant SaaS applications?,Django-Tenants,Django-Multisite,TenantSchema,Django-SaaS,A,Senior
+Django,Which Django ORM tool supports full-text search on PostgreSQL?,SearchVector,SearchField,FullTextQuery,TSQuery,A,Senior
+Django,Which decorator ensures database queries are atomic within a view?,@transaction.atomic,@db_transaction,@query_atomic,@atomic,A,Senior
+Django,Which DRF feature supports token rotation and expiration natively?,ExpiringTokenAuthentication,RotatingTokenAuthentication,DRF-TokenAuth,DRF Simple JWT,D,Senior

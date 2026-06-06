@@ -1,0 +1,34 @@
+import { PropsWithChildren } from "react";
+
+import { useUserStore } from "../common/store/useUser";
+import Navbar from "../common/components/Layout/Navbar";
+// import Footer from "../common/components/Layout/Footer";
+import ScrollArea from "../common/components/ScrollArea";
+import { getCurrentUser } from "../common/services/profile";
+import ScrollToTop from "../common/components/Layout/ScrollToTop";
+import SetUserProfile from "../common/components/Layout/SetUserProfile";
+
+const scrollElId = "root-scroll-area";
+
+const HomeLayout = async ({ children }: PropsWithChildren) => {
+  const { currentUser, removeAuthCookies } = await getCurrentUser(undefined, {
+    allowNull: true,
+  });
+  useUserStore.setState({ profile: currentUser });
+  return (
+    <ScrollArea id={scrollElId} className='h-screen font-poppins'>
+      <div className='relative'>
+        <Navbar scrollElId={scrollElId} />
+      </div>
+      {children}
+      {/* <Footer /> */}
+      <ScrollToTop id={scrollElId} />
+      <SetUserProfile
+        profile={currentUser}
+        removeAuthCookies={removeAuthCookies}
+      />
+    </ScrollArea>
+  );
+};
+
+export default HomeLayout;

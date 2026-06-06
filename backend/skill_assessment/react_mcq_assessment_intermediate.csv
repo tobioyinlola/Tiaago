@@ -1,0 +1,51 @@
+Category,Question,Option A,Option B,Option C,Option D,Answer,Difficulty
+React,Why is it important to use a stable key in React lists?,To prevent unnecessary re-renders,To improve styling,To store data,To manage global state,To prevent unnecessary re-renders,Intermediate
+React,How do you ensure a component only renders once?,By using an empty dependency array in useEffect,By using useState,By using useMemo,By using useContext,By using an empty dependency array in useEffect,Intermediate
+React,What is React Fiber?,A new UI framework,A state management tool,React's new reconciliation algorithm,A testing library,React's new reconciliation algorithm,Intermediate
+React,What is the role of the key prop in lists?,To uniquely identify elements,To define CSS classes,To enhance performance,To store local state,To uniquely identify elements,Intermediate
+React,How does React.memo improve performance?,By caching API responses,By memoizing entire components,By optimizing network requests,By batching updates,By memoizing entire components,Intermediate
+React,What is the purpose of reconciliation in React?,To efficiently update the DOM,To re-render components,To fetch API data,To optimize CSS styles,To efficiently update the DOM,Intermediate
+React,How do you prevent memory leaks in React?,Using componentWillUnmount,Using useEffect cleanup,Using Redux,Using React.memo,Using useEffect cleanup,Intermediate
+React,What is the best way to pass props efficiently?,By using React.memo,By using useContext,By using Redux,By using a global variable,By using React.memo,Intermediate
+React,Which feature allows concurrent rendering in React?,React.lazy,React Fiber,React Context,React.memo,React Fiber,Intermediate
+React,How can you prevent unnecessary re-renders in React?,Using React.memo,Using setState,Using useEffect,Using useContext,Using React.memo,Intermediate
+React,What is React Suspense used for?,Error handling,Lazy loading components,Managing state,Optimizing rendering,Lazy loading components,Intermediate
+React,How can you optimize a list of dynamically rendered components?,Using React.memo and keys,Using useContext,Using Redux,Avoiding useEffect,Using React.memo and keys,Intermediate
+React,How does useMemo improve performance?,By caching expensive calculations,By replacing Redux,By preventing re-renders,By managing state,By caching expensive calculations,Intermediate
+React,Which hook is useful for handling complex state transitions?,useReducer,useState,useContext,useMemo,useReducer,Intermediate
+React,How does useRef differ from useState?,useRef persists values without re-rendering,useRef triggers state updates,useRef manages event listeners,useRef replaces Redux,useRef persists values without re-rendering,Intermediate
+React,How does React improve performance using the virtual DOM?,By diffing and only updating changed elements,By reloading the page,By caching state,By preventing renders,By diffing and only updating changed elements,Intermediate
+React,How does React handle event delegation?,By attaching events to the document root,By attaching events to each element,By handling events via Redux,By preventing event propagation,By attaching events to the document root,Intermediate
+React,Why is it better to use useEffect instead of componentDidMount?,It runs asynchronously,It prevents unnecessary re-renders,It allows cleanup,It is faster,It allows cleanup,Intermediate
+React,What is the primary purpose of React Refs?,To store local component state,To directly access the DOM,To manage global state,To pass data between components,To directly access the DOM,Intermediate
+React,What happens if you call setState inside useEffect without dependencies?,It causes an infinite loop,It updates once,It throws an error,It does nothing,It causes an infinite loop,Intermediate
+React,Why is useCallback useful in React?,It caches API responses,It prevents function recreation,It replaces Redux,It prevents re-renders,It prevents function recreation,Intermediate
+React,What is the main advantage of lazy loading components?,Reduces initial bundle size,Prevents re-renders,Enhances styling,Optimizes useState,Reduces initial bundle size,Intermediate
+React,Which React optimization prevents function recreation on re-renders?,useCallback,useEffect,useMemo,useReducer,useCallback,Intermediate
+React,Which lifecycle method is invoked before a component is removed?,componentWillUnmount,componentDidUpdate,componentWillUpdate,componentDidMount,componentWillUnmount,Intermediate
+React,What is the best way to handle API requests in React?,Using useEffect,Using useState,Using React.memo,Using React.lazy,Using useEffect,Intermediate
+React,What is the purpose of useReducer in React?,To replace useState,To manage complex state logic,To handle side effects,To optimize rendering,To manage complex state logic,Intermediate
+React,Which hook is used to optimize expensive calculations in React?,useState,useCallback,useMemo,useEffect,useMemo,Intermediate
+React,Which React feature is used to handle rendering interruptions?,Concurrent Mode,React.memo,React.lazy,useEffect,Concurrent Mode,Intermediate
+React,How does React hydrate server-rendered content?,By reusing existing HTML and binding events,By rendering everything again,By using a WebSocket connection,By loading it asynchronously,By reusing existing HTML and binding events,Intermediate
+React,What does useImperativeHandle do?,Exposes methods from a component,Handles side effects,Manages Redux state,Controls re-rendering,Exposes methods from a component,Intermediate
+React,Which hook is used to manage complex state logic?,useReducer,useState,useEffect,useContext,useReducer,Intermediate
+React,What is the purpose of useRef in functional components?,To replace state variables,To create context,To persist values across renders without causing re-renders,To handle API calls,To persist values across renders without causing re-renders,Intermediate
+React,What is the best way to prevent unnecessary re-renders in React?,By disabling strict mode,By using local state,Using React.memo and useCallback,Using setState frequently,Using React.memo and useCallback,Intermediate
+React,How do you pass data between sibling components?,By creating a new state,By using lifecycle methods,By lifting state up to a common parent,By using props directly,By lifting state up to a common parent,Intermediate
+React,How do you ensure a function inside a component does not get recreated on every render?,Using useCallback,Using useEffect,Using React.memo,Using useState,Using useCallback,Intermediate
+React,Why is it important to provide a unique key when rendering lists?,To help React efficiently update the DOM,To prevent duplicate elements,To improve styling,To enable event handling,To help React efficiently update the DOM,Intermediate
+React,How can you improve performance in a large React application?,Using multiple useState hooks,Avoiding keys in lists,Using React.memo and lazy loading,Disabling strict mode,Using React.memo and lazy loading,Intermediate
+React,What is the correct way to update state based on the previous state?,"setState({...state, newValue})","setState(prev => {...prev, newValue})",setState(state => newValue),setState(newValue),"setState(prev => {...prev, newValue})",Intermediate
+React,What is the primary use of React Suspense?,To handle forms,To improve re-rendering speed,To manage global state,To handle lazy-loaded components,To handle lazy-loaded components,Intermediate
+React,Which method allows handling async data fetching in React?,useEffect with fetch,componentDidMount,useState,useReducer,useEffect with fetch,Intermediate
+React,Which lifecycle method is invoked just before a component is removed from the DOM?,componentWillUnmount,componentDidUnmount,componentDidUpdate,componentWillUpdate,componentWillUnmount,Intermediate
+React,Which method allows React to handle large lists efficiently?,React.memo,useMemo,useReducer,React Virtualized,React Virtualized,Intermediate
+React,How does the React virtual DOM improve performance?,By using a shadow DOM,By preventing state updates,By storing all components in memory,By reducing direct updates to the real DOM,By reducing direct updates to the real DOM,Intermediate
+React,What is the advantage of code-splitting in React?,It speeds up component rendering,It allows state sharing,It prevents unnecessary re-renders,It reduces initial load time,It reduces initial load time,Intermediate
+React,What happens if a component throws an error during rendering?,The app crashes,React retries rendering,The error is ignored,React Error Boundaries can catch it,React Error Boundaries can catch it,Intermediate
+React,What is the benefit of React.memo?,It replaces useEffect,It prevents unnecessary re-renders,It forces re-rendering,It improves performance by caching data,It prevents unnecessary re-renders,Intermediate
+React,Which feature allows prioritizing rendering tasks in React?,StrictMode,React.memo,useEffect,Concurrent Mode,Concurrent Mode,Intermediate
+React,What is the correct way to handle conditional rendering?,Using an if statement inside JSX,Using console.log(),Using a loop inside JSX,Using the && operator or ternary operator,Using the && operator or ternary operator,Intermediate
+React,Which hook is best for optimizing performance by memoizing expensive calculations?,useMemo,useCallback,useEffect,useReducer,useMemo,Intermediate
+React,How does React handle event binding in class components?,Using arrow functions or binding in the constructor,Using a static method,Using the render function,Using componentDidMount,Using arrow functions or binding in the constructor,Intermediate

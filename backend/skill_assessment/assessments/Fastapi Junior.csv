@@ -1,0 +1,51 @@
+Category,Question,Option A,Option B,Option C,Option D,Answer,Difficulty
+FastAPI,Which command installs FastAPI?,pip install fastapi,python install fastapi,pip3 fastapi,install fastapi,A,Junior
+FastAPI,Which server is commonly used to run FastAPI apps?,Uvicorn,Gunicorn,NGINX,Apache,A,Junior
+FastAPI,Which decorator defines a GET route in FastAPI?,@app.route,@app.get,@app.fetch,@app.retrieve,B,Junior
+FastAPI,Which parameter type is used to extract data from the URL path?,Path,Query,Header,Body,A,Junior
+FastAPI,Which object allows validation and serialization of request bodies?,BaseModel,Schema,Model,Serializer,A,Junior
+FastAPI,Which status code indicates a successful POST request?,200,201,204,202,B,Junior
+FastAPI,Which method is used to define query parameters?,Query(),Param(),Field(),Request(),A,Junior
+FastAPI,Which type of response returns JSON by default?,PlainResponse,JSONResponse,HTMLResponse,FileResponse,B,Junior
+FastAPI,Which library does FastAPI use for data validation?,Pydantic,Marshmallow,Cerberus,Voluptuous,A,Junior
+FastAPI,Which option starts a FastAPI app using Uvicorn?,uvicorn main:app,python main.py,start fastapi,run fastapi,A,Junior
+FastAPI,Which tool provides interactive API docs in FastAPI?,Swagger,Redoc,Postman,Swagger & Redoc,D,Junior
+FastAPI,Which decorator defines a POST route?,@app.create,@app.send,@app.post,@app.insert,C,Junior
+FastAPI,Which FastAPI dependency handles OAuth2 authentication?,OAuth2PasswordBearer,OAuth2ClientCredentials,OAuth2PasswordGrant,OAuth2AccessToken,A,Junior
+FastAPI,Which library is used to define database models with FastAPI?,SQLAlchemy,Peewee,Tortoise ORM,Django ORM,A,Junior
+FastAPI,Which FastAPI class is used to manage cookies?,Cookie,Session,Token,Header,A,Junior
+FastAPI,Which middleware is useful for handling CORS?,CORSMiddleware,CSRFMiddleware,SessionMiddleware,SecurityMiddleware,A,Junior
+FastAPI,Which is the default response model format?,JSON,XML,YAML,HTML,A,Junior
+FastAPI,"Which status code means ""Not Found""?",400,404,403,405,B,Junior
+FastAPI,Which HTTP method is idempotent?,POST,GET,PUT,PATCH,C,Junior
+FastAPI,Which tool automatically reloads the server on code changes?,uvicorn --reload,gunicorn --reload,python reload,hypercorn reload,A,Junior
+FastAPI,Which is the correct way to define a response model?,response_model=MyModel,output_model=MyModel,return_model=MyModel,output_schema=MyModel,A,Junior
+FastAPI,Which is NOT a valid parameter source in FastAPI?,Path,Query,Form,Session,D,Junior
+FastAPI,Which FastAPI utility handles form data?,Form(),Field(),Input(),RequestForm(),A,Junior
+FastAPI,Which FastAPI tool validates environment variables?,Pydantic Settings,ConfigEnv,SettingsEnv,Python dotenv,A,Junior
+FastAPI,Which Python type hint is used to define optional fields?,Optional[],List[],Dict[],Union[],A,Junior
+FastAPI,Which database supports asynchronous drivers?,MySQL,MongoDB,PostgreSQL,All of the above,D,Junior
+FastAPI,Which method returns current request object?,Request(),Depends(Request),request.get(),get_request(),B,Junior
+FastAPI,Which HTTP method is used to delete a resource?,REMOVE,DELETE,DESTROY,ERASE,B,Junior
+FastAPI,Which class in Pydantic defines a schema?,BaseModel,Model,Schema,BaseSchema,A,Junior
+FastAPI,Which FastAPI feature supports background tasks?,BackgroundTask,BackgroundTasks,TaskQueue,AsyncTasks,B,Junior
+FastAPI,Which decorator defines a PUT route?,@app.put,@app.update,@app.patch,@app.change,A,Junior
+FastAPI,Which option allows uploading files in FastAPI?,File(),UploadFile(),FormFile(),RequestFile(),B,Junior
+FastAPI,Which tool executes asynchronous database queries?,SQLAlchemy ORM,SQLAlchemy Core,Databases library,Pony ORM,C,Junior
+FastAPI,Which FastAPI dependency handles HTTP basic auth?,HTTPBasic,BasicAuth,BasicHTTP,AuthBasic,A,Junior
+FastAPI,Which type hint returns multiple query parameters?,List[str],Dict[str],Set[str],Union[str],A,Junior
+FastAPI,Which FastAPI middleware handles sessions?,SessionMiddleware,CookieMiddleware,TokenMiddleware,CORSMiddleware,A,Junior
+FastAPI,Which library serializes ORM objects into JSON?,Pydantic,SchemaORM,ORMModel,SQLJSON,A,Junior
+FastAPI,Which package integrates Alembic migrations?,SQLAlchemy,FastAPI-Alembic,Alembic-CLI,FastAPI-Migrate,A,Junior
+FastAPI,Which FastAPI utility hashes passwords?,passlib,hashlib,bcrypt,jwt,A,Junior
+FastAPI,Which decorator defines a DELETE route?,@app.delete,@app.remove,@app.destroy,@app.erase,A,Junior
+FastAPI,Which status code represents Unauthorized?,400,401,403,404,B,Junior
+FastAPI,Which Pydantic config disables extra fields?,extra = ignore,extra = deny,extra = remove,extra = forbid,D,Junior
+FastAPI,Which dependency injection function is built into FastAPI?,Depends(),Inject(),Provide(),Use(),A,Junior
+FastAPI,Which object allows streaming large file downloads?,FileResponse,StreamingResponse,StreamFileResponse,DownloadResponse,B,Junior
+FastAPI,Which CORS setting allows all origins?,"allow_origins=[""*""]",allow_all_origins=True,"enable_origins=""*""","allow_origin=""*""",A,Junior
+FastAPI,Which option ensures type-safe environment variables?,Pydantic Settings,envparse,Python-dotenv,ConfigParser,A,Junior
+FastAPI,Which header returns the API version?,X-API-Version,API-Version,Version,Header-Version,A,Junior
+FastAPI,Which status code indicates a successful DELETE?,204,200,202,201,A,Junior
+FastAPI,Which command installs FastAPI?,pip install fastapi,python install fastapi,pip3 fastapi,install fastapi,A,Junior
+FastAPI,Which server is commonly used to run FastAPI apps?,Uvicorn,Gunicorn,NGINX,Apache,A,Junior

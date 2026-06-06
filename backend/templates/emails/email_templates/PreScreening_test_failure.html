@@ -1,0 +1,86 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Update on Your Skill Assessment Results</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: 'Inter', Arial, sans-serif; background-color: #f8fafc; line-height: 1.6;">
+    <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+        
+        <!-- Header -->
+        <div style="background: linear-gradient(135deg, #4857DE 0%, #6366f1 100%); padding: 40px 30px; text-align: center;">
+            <div style="display: inline-block; margin-bottom: 20px;">
+                <img src="https://prod-backend-production-4495.up.railway.app/static/emails/assets/Tiaago_logo.png" alt="Tiaago" style="height: 40px; width: auto;">
+            </div>
+            <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: 700;">Update on Your Skill Assessment Results</h1>
+        </div>
+
+        <!-- Content -->
+        <div style="padding: 40px 30px;">
+            <p style="color: #374151; font-size: 16px; margin-bottom: 20px;">
+                Dear <strong>{{ talent_name }}</strong>,
+            </p>
+
+            <p style="color: #374151; font-size: 16px; margin-bottom: 20px;">
+                Thank you for completing the Skill Assessment stage for your application through TIAAGO. We truly appreciate the time and effort you invested in this process.
+            </p>
+
+            <div style="background-color: #f3f4f6; border-radius: 8px; padding: 20px; margin: 25px 0; text-align: center;">
+                <p style="color: #6b7280; font-size: 14px; margin: 0 0 8px 0;">Your Total Assessment Score:</p>
+                <p style="color: #4857DE; font-size: 32px; font-weight: 700; margin: 0;"><strong>{{ score }}</strong></p>
+            </div>
+
+            <div style="background-color: #fef2f2; border-left: 4px solid #ef4444; border-radius: 8px; padding: 20px; margin: 25px 0;">
+                <p style="color: #dc2626; font-size: 16px; margin: 0; font-weight: 600;">
+                    After reviewing your results, we regret to inform you that you did not achieve the required benchmark to proceed to the Prescreening Interview stage.
+                </p>
+                <p style="color: #dc2626; font-size: 16px; margin: 15px 0 0 0;">
+                    Please note that this does not reflect a lack of potential, it simply means there are certain areas where further improvement is needed.
+                </p>
+            </div>
+
+            <div style="background-color: #fefbf2; border-radius: 8px; padding: 20px; margin: 25px 0;">
+                <h3 style="color: #92400e; font-size: 18px; margin: 0 0 15px 0; font-weight: 700;">
+                    Areas for Improvement:
+                </h3>
+                <div style="background-color: #fff8e1; border-radius: 6px; padding: 15px; margin: 10px 0;">
+                    {% if feedback_areas %}
+                        {% for area in feedback_areas %}
+                            <p style="color: #7c2d12; font-size: 14px; margin: 0 0 10px 0; font-style: italic;">
+                                {{ area }}
+                            </p>
+                        {% endfor %}
+                    {% else %}
+                        <p style="color: #7c2d12; font-size: 14px; margin: 0; font-style: italic;">
+                            {{ feedback_areas }}
+                        </p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div style="background-color: #ecfdf5; border-radius: 8px; padding: 20px; margin: 25px 0;">
+                <p style="color: #065f46; font-size: 16px; margin: 0; font-weight: 600;">
+                    Remember, this is just one step in your journey.
+                </p>
+                <p style="color: #065f46; font-size: 16px; margin: 15px 0 0 0;">
+                    Recruiters may still reach out to you directly if your profile matches their needs. Stay active on TIAAGO, and don't be discouraged. We believe in your potential and look forward to seeing you grow.
+                </p>
+            </div>
+
+            <p style="color: #374151; font-size: 16px; margin-bottom: 20px;">
+                Best regards,<br>
+                <strong>TIAAGO Team</strong>
+            </p>
+        </div>
+
+        <!-- Footer -->
+        <div style="background-color: #f9fafb; padding: 20px 30px; text-align: center; border-top: 1px solid #e5e7eb;">
+            <p style="color: #6b7280; font-size: 12px; margin: 0;">
+                © 2024 Tiaago. All rights reserved.
+            </p>
+        </div>
+    </div>
+</body>
+</html>
