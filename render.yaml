@@ -1,0 +1,111 @@
+# Render Blueprint — TIAAGO monorepo backend
+# Docs: https://render.com/docs/blueprint-spec
+# Place this at the monorepo root (tiaago-monorepo/render.yaml). Render reads it once
+# and provisions every service in the list.
+#
+# One image, three services — distinguished by the ROLE env var. The web service
+# has a release command that runs migrations + collectstatic before each deploy;
+# the worker and beat services are Background Workers.
+
+services:
+  # ── 1. Web (Daphne ASGI) ──────────────────────────────────────────────────
+  - type: web
+    name: tiaago-backend-web
+    runtime: docker
+    rootDir: backend
+    dockerfilePath: ./Dockerfile
+    plan: standard       # minimum with 1 GB RAM; bump if you hit OOMs
+    region: oregon       # pick whichever is closest to your Postgres + Redis
+    healthCheckPath: /   # backend's root URL is a health check; the URL prefix is /api/
+    envVars:
+      - key: ROLE
+        value: web
+      - key: ENV
+        value: production
+      - key: DEBUG
+        value: "0"
+      - key: PORT
+        value: "10000"   # Render injects PORT; 10000 is Render's default
+      # Migration + static collection on every release (before web starts).
+    releaseCommand: |
+      python manage.py migrate --noinput && \
+      python manage.py collectstatic --noinput
+      # envVars continued below
+
+  # ── 2. Celery worker ──────────────────────────────────────────────────────
+  - type: worker
+    name: tiaago-backend-worker
+    runtime: docker
+    rootDir: backend
+    dockerfilePath: ./Dockerfile
+    plan: standard
+    region: oregon
+    envVars:
+      - key: ROLE
+        value: worker
+      - key: CELERY_CONCURRENCY
+        value: "2"
+      - key: CELERY_MAX_TASKS_PER_CHILD
+        value: "100"
+      - key: CELERY_LOGLEVEL
+        value: info
+
+  # ── 3. Celery beat (scheduler) ───────────────────────────────────────────
+  - type: worker
+    name: tiaago-backend-beat
+    runtime: docker
+    rootDir: backend
+    dockerfilePath: ./Dockerfile
+    plan: starter         # beat is a single process; minimal plan is fine
+    region: oregon
+    envVars:
+      - key: ROLE
+        value: beat
+      - key: CELERY_LOGLEVEL
+        value: info
+
+  # ── 4. AI service (FastAPI) ──────────────────────────────────────────────
+  - type: web
+    name: tiaago-ai
+    runtime: docker
+    rootDir: ai
+    dockerfilePath: ./Dockerfile
+    plan: standard
+    region: oregon
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: ENV
+        value: production
+
+# ── Shared env vars (apply to every service) ───────────────────────────────
+# These are defined via `envVarGroups` if you want DRY; Render's Blueprint spec
+# supports them. For simplicity, list shared vars per service above OR manage
+# them in the Render UI's "Environment" tab per service after first deploy.
+#
+# Below is the canonical list. Repeat in the service block above OR set in UI:
+#
+#   SECRET_KEY             (required, generate with `python -c "import secrets; print(secrets.token_urlsafe(50))"`)
+#   DB_URL                 (postgres://user:pass@host:port/dbname — Render Postgres or Supabase)
+#   REDIS_URL              (redis://default:pass@host:port — Render Redis or Upstash)
+#   SENTRY_DSN             (optional, from Sentry project settings)
+#   AI_SERVICE_BASE_URL    (https://tiaago-ai.onrender.com/api/v1 — the AI service URL above)
+#   AI_SERVICE_API_KEY     (shared secret, identical value in the AI service's env)
+#   OPENAI_API_KEY         (required for the AI service)
+#   OPENAI_MODEL_NAME      (gpt-4o-mini default)
+#   CORS_ORIGINS           (https://tiaago.com,https://www.tiaago.com for the AI service)
+#   FRONTEND_URL           (https://www.tiaago.com for the backend — used in emails + payment redirects)
+#   ALLOWED_HOSTS          (127.0.0.1,localhost,api.tiaago.com)
+#   CORS_ALLOWED_ORIGINS   (https://tiaago.com,https://www.tiaago.com,https://api.tiaago.com)
+#   EMAIL_*                (SMTP creds)
+#   PAYSTACK_*             (Paystack keys + plan codes)
+#   STRIPE_*               (Stripe keys + price ids)
+#   FLW_*                  (Flutterwave keys + plan codes)
+#   CLOUDINARY_*           (Cloudinary creds)
+#   BUNNY_*                (Bunny.net creds if USE_BUNNY=1)
+#   USE_BUNNY              (1 to use Bunny.net for media, 0 for Cloudinary)
+#   CONVERTKIT_*           (ConvertKit marketing keys + form/tag ids)
+#   CURRENCY_PRIVATE_KEY   (CurrencyAPI key)
+#   DAILY_API_TOKEN        (Daily.co video call API)
+#   ELEVENLABS_API_KEY     (ElevenLabs TTS)
+#   DEEPGRAM_API_KEY       (Deepgram STT)
+#   MAX_CONCURRENT_INTERVIEWS
