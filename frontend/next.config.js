@@ -4,19 +4,11 @@ const nextConfig = {
     remotePatterns: [
       { hostname: "clearlink-official.vercel.app", protocol: "https" },
       {
-        hostname: "tiaago-v2-backend-production.up.railway.app",
-        protocol: "https",
-      },
-      {
         hostname: "tiaago.b-cdn.net",
         protocol: "https",
       },
       {
         hostname: "tiaago-prod-storage.b-cdn.net",
-        protocol: "https",
-      },
-      {
-        hostname: "prod-backend-production-4495.up.railway.app",
         protocol: "https",
       },
       {
