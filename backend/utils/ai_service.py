@@ -96,7 +96,7 @@ class CodingAnswer(TypedDict):
 
 logger = logging.getLogger("ai")
 
-BASE_URL =os.environ.get("AI_SERVICE_BASE_URL", "https://ai-production-e4a0.up.railway.app/api/v1")
+BASE_URL = os.environ.get("AI_SERVICE_BASE_URL", "http://localhost:9000/api/v1")
 #BASE_URL = "https://ai-q964.onrender.com/api/v1"
 
 
@@ -123,6 +123,12 @@ class AIServiceHandler:
 
     def __init__(self):
         self.requests = LoggingSession()
+        # Authenticate to the AI service with a shared secret in the X-Service-Key header.
+        # The AI service validates this against its own AI_SERVICE_API_KEY env var on every
+        # non-health request. The header is omitted in tests by leaving the env var unset.
+        api_key = os.environ.get("AI_SERVICE_API_KEY", "")
+        if api_key:
+            self.requests.headers["X-Service-Key"] = api_key
         # self.requests.headers = headers
 
     def get(self, url: str):
