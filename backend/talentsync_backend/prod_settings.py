@@ -15,6 +15,7 @@ SECRET_KEY = env("SECRET_KEY", default="")
 DATABASE_URL = env("DB_URL", default="")
 REDIS_URL = env("REDIS_URL", default="redis://localhost:6379/1")
 DAILY_API_TOKEN = env("DAILY_API_TOKEN", default="")
+SENTRY_DSN = env("SENTRY_DSN", default="")
 
 # Feature flags for production
 #CELERY_TASK_ALWAYS_EAGER = os.getenv("CELERY_TASK_ALWAYS_EAGER", "1") in ("1", "true", "True")
@@ -30,19 +31,19 @@ MEDIA_ROOT = Path(os.environ.get("MEDIA_ROOT", "/home/app/web/media"))"""
 
 import sentry_sdk
 
-sentry_sdk.init(
-        dsn="https://586683833580eb668fa07d44d7a5f5af@o4509594367492096.ingest.us.sentry.io/4510105419907072",
+if SENTRY_DSN:
+    sentry_sdk.init(
+        dsn=SENTRY_DSN,
         traces_sample_rate=1.0,
         _experiments={
             "continuous_profiling_auto_start": True,
         },
         environment="production",
     )
-    
+
 DEBUG = False
 
 ALLOWED_HOSTS = ["127.0.0.1", "localhost",
-    "prod-backend-production-4495.up.railway.app",
     "api.tiaago.com",
     "www.tiaago.com",
     "tiaago.com",
