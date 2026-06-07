@@ -42,8 +42,10 @@ def get_user_id_from_jwt(jwt_token):
         # Remove 'Bearer ' prefix if present
         if jwt_token.startswith('Bearer '):
             jwt_token = jwt_token[7:]
-            
-        logger.debug("Attempting to decode token: %s", jwt_token[:10] + '...')
+
+        # Log a fingerprint of the token, not its raw value
+        token_fp = jwt_token[:6] + "..." + jwt_token[-4:] if len(jwt_token) > 12 else "<short>"
+        logger.debug("Attempting to decode token (fp=%s)", token_fp)
         
         # Decode the JWT token
         decoded_token = jwt.decode(
@@ -124,9 +126,10 @@ class JWTAuthMiddleware(BaseMiddleware):
         query_params = parse_qs(query_string)
         token = query_params.get("token", [None])[0]
 
-        logger.info("🔑 Incoming WebSocket connection...")
-        logger.debug(f"Query string: {query_string}")
-        logger.debug(f"Extracted token: {token}")
+        logger.info("Incoming WebSocket connection...")
+        # Log only token length and presence, never the value
+        logger.debug("Query string length: %d", len(query_string))
+        logger.debug("Token present: %s", bool(token))
 
         if token:
             try:
@@ -135,16 +138,17 @@ class JWTAuthMiddleware(BaseMiddleware):
                 payload = validated_token.payload
                 user_id = payload.get("user_id")
 
-                logger.info(f"✅ Token valid for user_id={user_id}")
-                logger.debug(f"Token payload: {payload}")
+                # Log user_id only, never the token contents
+                logger.info(f"Token valid for user_id={user_id}")
+                logger.debug("Token payload keys: %s", list(payload.keys()))
 
                 scope["user"] = await self.get_user(user_id)
 
             except (InvalidToken, TokenError) as e:
-                logger.warning(f"❌ Token validation failed: {e}")
+                logger.warning(f"Token validation failed: {e}")
                 scope["user"] = None
         else:
-            logger.warning("⚠️ No token provided in WebSocket connection.")
+            logger.warning("No token provided in WebSocket connection.")
             scope["user"] = None
 
         return await super().__call__(scope, receive, send)

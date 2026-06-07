@@ -8,7 +8,7 @@ from rest_framework import permissions
 import os
 
 from roles.urls import router
-from .views import media_debug, health_check, test_ping, trigger_error, ws_test
+from .views import media_debug, health_check, test_ping, ws_test
 
 swagger_base_url = None
 if settings.DEBUG:
@@ -59,7 +59,6 @@ urlpatterns = [
     path('', health_check, name='health-check'),
     path('test-ping/', test_ping), 
     path("ws-test/", ws_test),
-    path('sentry-debug/', trigger_error),
 ]
 
 urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

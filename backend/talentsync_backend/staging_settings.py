@@ -128,7 +128,10 @@ def _normalize_redis_url(raw: str, default: str = "redis://localhost:6379/1") ->
 
 RAW_REDIS_URL = os.environ.get("REDIS_URL", "")
 REDIS_URL = _normalize_redis_url(RAW_REDIS_URL)
-logger.info(f"Using Redis URL: {REDIS_URL}")
+# Log host/port/db only, never credentials
+from urllib.parse import urlparse as _urlparse
+_rp = _urlparse(REDIS_URL)
+logger.info(f"Using Redis: {_rp.hostname or 'localhost'}:{_rp.port or 6379}/{(_rp.path or '/1').lstrip('/') or '1'}")
 
 def _build_cache():
     try:

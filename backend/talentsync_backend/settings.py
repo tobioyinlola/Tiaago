@@ -138,7 +138,10 @@ if DB_URL:
             ssl_require=False
         )
     }
-    logger.info(f"Database configured using regular URL: {DB_URL}")
+    # Log the database host/scheme only — never the password
+    from urllib.parse import urlparse
+    _p = urlparse(DB_URL)
+    logger.info(f"Database configured: scheme={_p.scheme} host={_p.hostname} db={(_p.path or '/').lstrip('/')}")
 else:
     # Fallback for development - use SQLite if no database URL is provided
     DATABASES = {

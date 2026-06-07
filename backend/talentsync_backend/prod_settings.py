@@ -7,11 +7,13 @@ import dj_database_url
 
 env = environ.Env()
 BASE_DIR = Path(__file__).resolve().parent.parent
-environ.Env.read_env(os.path.join(BASE_DIR, ".env"), overwrite=True)
+# .env is read once at startup (no overwrite of real environment)
+_managed_env = os.path.join(BASE_DIR, ".env")
+if os.path.isfile(_managed_env):
+    environ.Env.read_env(_managed_env, overwrite=False)
 
-
-
-SECRET_KEY = env("SECRET_KEY", default="")
+# SECRET_KEY is required in production; no silent empty default
+SECRET_KEY = env("SECRET_KEY")
 DATABASE_URL = env("DB_URL", default="")
 REDIS_URL = env("REDIS_URL", default="redis://localhost:6379/1")
 DAILY_API_TOKEN = env("DAILY_API_TOKEN", default="")
@@ -43,24 +45,22 @@ if SENTRY_DSN:
 
 DEBUG = False
 
-ALLOWED_HOSTS = ["127.0.0.1", "localhost",
+ALLOWED_HOSTS = [h.strip() for h in env.list("ALLOWED_HOSTS", default=[
+    "127.0.0.1",
+    "localhost",
     "api.tiaago.com",
     "www.tiaago.com",
     "tiaago.com",
-]
+]) if h.strip()]
 
-CSRF_TRUSTED_ORIGINS = [
+CSRF_TRUSTED_ORIGINS = [o.strip() for o in env.list("CSRF_TRUSTED_ORIGINS", default=[
     "https://tiaago.com",
     "https://www.tiaago.com",
     "https://api.tiaago.com",
-]
+]) if o.strip()]
 
-CORS_ALLOW_ALL_ORIGINS = True
-CORS_ALLOWED_ORIGINS = [
-    "https://tiaago.com",
-    "https://www.tiaago.com",
-    "https://api.tiaago.com",
-]
+# Strict CORS: explicit list + regex only. No wildcard.
+CORS_ALLOWED_ORIGINS = CSRF_TRUSTED_ORIGINS
 CORS_ALLOWED_ORIGIN_REGEXES = [
     r"^https://([a-z0-9-]+\.)?tiaago\.com$",
 ]

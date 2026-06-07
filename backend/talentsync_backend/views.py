@@ -49,9 +49,6 @@ def test_ping(request):
     task = ping_task.delay()   
     return JsonResponse({"task_id": task.id})
 
-#used to test sentry error logs
-def trigger_error(request):
-    division_by_zero = 1 / 0
-    
+# (sentry trigger_error view removed — production routes must not crash by design)
 def ws_test(request):
     return render(request, "ws_test.html")
