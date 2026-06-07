@@ -1,0 +1,17 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+*~
+.idea/
+.vscode/
+
+# Logs
+*.log
+logs/
+
+# Env files (defense-in-depth — subdirs already ignore them)
+.env
+.env.*
+!.env.example
+!.env.dist
