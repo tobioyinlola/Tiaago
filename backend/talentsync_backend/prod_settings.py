@@ -22,11 +22,11 @@ SENTRY_DSN = env("SENTRY_DSN", default="")
 # Feature flags for production
 #CELERY_TASK_ALWAYS_EAGER = os.getenv("CELERY_TASK_ALWAYS_EAGER", "1") in ("1", "true", "True")
 
-"""STATIC_URL = "/static/"
-STATIC_ROOT = Path(os.environ.get("STATIC_ROOT", "/home/app/web/staticfiles"))
-
-MEDIA_URL = "/media/"
-MEDIA_ROOT = Path(os.environ.get("MEDIA_ROOT", "/home/app/web/media"))"""
+# Static files: WhiteNoise serves /static/ from STATIC_ROOT, which collectstatic
+# populates during the render.yaml releaseCommand.
+STATIC_URL = "/static/"
+STATIC_ROOT = BASE_DIR / "staticfiles"
+STATICFILES_DIRS: list = []  # collected artifacts only; no source dir at this level
 
 
 

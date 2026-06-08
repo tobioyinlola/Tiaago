@@ -90,7 +90,7 @@ const AssessmentMCQSectionPage = async ({
       <AssessmentMCQQuiz
         mcqSection={mcqSection as MCQSection}
         assessment={assessment}
-        checkoutUrl={IS_DEV ? undefined : paymentUrl}
+        checkoutUrl={paymentUrl}
         mode='talent-verification'
         daysLeftToTakeAssessment={coolDownStatus?.days_remaining}
       />

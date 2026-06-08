@@ -271,8 +271,10 @@ SIMPLE_JWT = {
 REST_AUTH = {
     "USER_DETAILS_SERIALIZER": "create_user.api.serializers.CustomUserSerializer",
     "USE_JWT": True,
-    "JWT_AUTH_COOKIE": "my-app-auth",
-    "JWT_AUTH_REFRESH_COOKIE": "my-refresh-token",
+    # Cookie names must match what the frontend reads. See
+    # frontend/app/common/constants/index.ts (ACCESS_TOKEN_KEY / REFRESH_TOKEN_KEY).
+    "JWT_AUTH_COOKIE": "tiaago_access",
+    "JWT_AUTH_REFRESH_COOKIE": "tiaago_refresh",
     "JWT_AUTH_RETURN_EXPIRATION": True,
 }
 
@@ -357,10 +359,23 @@ CELERY_TASK_SERIALIZER = "json"
 PHONENUMBER_DEFAULT_REGION = "NG"
 
 # FOR THE TEMPLATE
-TIAAGO_TALENT_LOGIN_URL = "https://www.tiaago.com/talents/signin"
-TIAAGO_STARTUP_LOGIN_URL = "https://www.tiaago.com/startups/signin"
-FRONTEND_URL = os.environ.get("FRONTEND_URL", "https://www.tiaago.com/")
-FRONTEND_BASE_URL = os.environ.get("FRONTEND_BASE_URL", "https://www.tiaago.com")
+# In production, these MUST be set via Render env vars — silent defaults
+# will silently email users links to a wrong (or no) domain. We fail loudly
+# at startup if they're missing in prod.
+def _required_url_in_prod(env_key: str, default: str) -> str:
+    val = os.environ.get(env_key, default)
+    if not val:
+        raise RuntimeError(f"{env_key} must be set in production (got empty value).")
+    return val
+
+TIAAGO_TALENT_LOGIN_URL = _required_url_in_prod(
+    "TIAAGO_TALENT_LOGIN_URL", "https://www.tiaago.com/talents/signin"
+)
+TIAAGO_STARTUP_LOGIN_URL = _required_url_in_prod(
+    "TIAAGO_STARTUP_LOGIN_URL", "https://www.tiaago.com/startups/signin"
+)
+FRONTEND_URL = _required_url_in_prod("FRONTEND_URL", "https://www.tiaago.com/")
+FRONTEND_BASE_URL = _required_url_in_prod("FRONTEND_BASE_URL", "https://www.tiaago.com")
 TIAAGO_MAIL_SUPPORT = "mailto:support@Tiaago.com"
 
 IS_PRODUCTION = ENV == "production"
@@ -385,7 +400,9 @@ PAYG_PRICES = {
 
 if IS_PRODUCTION:
     from .prod_settings import *
-    CORS_ALLOWED_ORIGINS = ["http://localhost:3040", "https://www.tiaago.com", "https://.tiaago.com"]
+    # prod_settings.py already sets CORS_ALLOWED_ORIGINS from CSRF_TRUSTED_ORIGINS.
+    # Don't override it here — the previous version included a broken "https://.tiaago.com"
+    # (leading dot, no subdomain) and a localhost origin, both of which silently broke CORS.
     REST_FRAMEWORK["DEFAULT_AUTHENTICATION_CLASSES"] = [
         "rest_framework.authentication.TokenAuthentication",
         "dj_rest_auth.jwt_auth.JWTCookieAuthentication",
@@ -451,9 +468,15 @@ STRIPE_WEBHOOK_SECRET = env("STRIPE_WEBHOOK_SECRET", default="")
 # usage billing with paystack
 PAYG_NAIRA_EXCHANGE_RATE = env("PAYG_NAIRA_EXCHANGE_RATE", default=1600)
 
-FRONTEND_SUCCESS_URL = env("FRONTEND_SUCCESS_URL", default="https://www.tiaago.com/payment/success")
-FRONTEND_CANCEL_URL = env("FRONTEND_CANCEL_URL", default="https://www.tiaago.com/payment/cancel")
-FRONTEND_CALLBACK_URL = env("FRONTEND_CALLBACK_URL", default="https://www.tiaago.com/payment/callback")
+FRONTEND_SUCCESS_URL = _required_url_in_prod(
+    "FRONTEND_SUCCESS_URL", "https://www.tiaago.com/payment/success"
+)
+FRONTEND_CANCEL_URL = _required_url_in_prod(
+    "FRONTEND_CANCEL_URL", "https://www.tiaago.com/payment/cancel"
+)
+FRONTEND_CALLBACK_URL = _required_url_in_prod(
+    "FRONTEND_CALLBACK_URL", "https://www.tiaago.com/payment/callback"
+)
 # Cloud Run optimized logging configuration
 if ENV in ['staging', 'production']:
     # For Cloud Run: Use structured logging to stdout/stderr

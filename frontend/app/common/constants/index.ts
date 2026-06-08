@@ -9,9 +9,21 @@ export const BASE_URL =
       ? process.env.NEXT_PUBLIC_VERCEL ?? "https://tiaago.com"
       : "https://" + window.location.host;
 
-export const API_URL =
-  process.env.NEXT_PUBLIC_API_URL ?? "https://backend.tiaago.com/api";
-// "https://prod-backend-production-4495.up.railway.app/api";
+// API_URL: in production, NEXT_PUBLIC_API_URL MUST be set on Vercel
+// (the fallback intentionally does not point at a real domain — we want
+// the app to throw loud at first request rather than silently call a dead URL).
+function resolveApiUrl(): string {
+  const fromEnv = process.env.NEXT_PUBLIC_API_URL;
+  if (fromEnv) return fromEnv;
+  if (process.env.NODE_ENV === "development") {
+    return "http://localhost:8000/api";
+  }
+  throw new Error(
+    "NEXT_PUBLIC_API_URL is not set. Set it on Vercel to your Render backend URL " +
+    "(e.g. https://tiaago-backend-web.onrender.com/api) before deploying.",
+  );
+}
+export const API_URL = resolveApiUrl();
 
 // `wss://${apiUrlDomain}/ws/pre-screening/interview/?my-app-auth=${authToken}`;
 
@@ -20,7 +32,9 @@ export const REFRESH_TOKEN_KEY = "tiaago_refresh";
 export const ACCESS_TOKEN_EXPIRY = 60 * 60 * 24 * 7; // 7 days
 export const REFRESH_TOKEN_EXPIRY = 60 * 60 * 24 * 30; // 30 days
 
-export const IS_DEV = true; // process.env.NODE_ENV === "development";
+// IS_DEV is read from the build-time NODE_ENV, not hardcoded.
+// Payment-bypass logic in this codebase must never assume IS_DEV === payment-free.
+export const IS_DEV = process.env.NODE_ENV === "development";
 
 export const SUPPORT_EMAIL = "support@tiaago.com";
 export const CONTACT_EMAIL = SUPPORT_EMAIL;
