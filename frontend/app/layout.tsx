@@ -34,7 +34,7 @@ export const metadata: Metadata = {
 
 const RootLayout = ({ children }: PropsWithChildren<{}>) => {
   return (
-    <html lang='en' data-theme='light' className='scroll-smooth'>
+    <html lang='en' data-theme='light' className='scroll-smooth' suppressHydrationWarning>
       <body
         className={cn(
           inter.className,
