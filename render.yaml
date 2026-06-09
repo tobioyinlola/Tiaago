@@ -25,7 +25,10 @@ services:
         value: "0"
       - key: PORT
         value: "10000"
-    releaseCommand: python manage.py migrate --noinput && python manage.py collectstatic --noinput
+      - key: MIGRATE_ON_START
+        value: "1"
+      - key: COLLECTSTATIC_ON_START
+        value: "1"
 
   # ── 2. Celery worker ──────────────────────────────────────────────────────
   - type: worker
