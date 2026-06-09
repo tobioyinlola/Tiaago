@@ -14,9 +14,8 @@ services:
     runtime: docker
     rootDir: backend
     dockerfilePath: ./Dockerfile
-    plan: standard       # minimum with 1 GB RAM; bump if you hit OOMs
-    region: oregon       # pick whichever is closest to your Postgres + Redis
-    healthCheckPath: /   # backend's root URL is a health check; the URL prefix is /api/
+    plan: free
+    region: oregon
     envVars:
       - key: ROLE
         value: web
@@ -25,12 +24,8 @@ services:
       - key: DEBUG
         value: "0"
       - key: PORT
-        value: "10000"   # Render injects PORT; 10000 is Render's default
-      # Migration + static collection on every release (before web starts).
-    releaseCommand: |
-      python manage.py migrate --noinput && \
-      python manage.py collectstatic --noinput
-      # envVars continued below
+        value: "10000"
+    releaseCommand: python manage.py migrate --noinput && python manage.py collectstatic --noinput
 
   # ── 2. Celery worker ──────────────────────────────────────────────────────
   - type: worker
@@ -38,7 +33,7 @@ services:
     runtime: docker
     rootDir: backend
     dockerfilePath: ./Dockerfile
-    plan: standard
+    plan: free
     region: oregon
     envVars:
       - key: ROLE
@@ -56,7 +51,7 @@ services:
     runtime: docker
     rootDir: backend
     dockerfilePath: ./Dockerfile
-    plan: starter         # beat is a single process; minimal plan is fine
+    plan: free
     region: oregon
     envVars:
       - key: ROLE
@@ -70,9 +65,8 @@ services:
     runtime: docker
     rootDir: ai
     dockerfilePath: ./Dockerfile
-    plan: standard
+    plan: free
     region: oregon
-    healthCheckPath: /api/v1/health
     envVars:
       - key: ENV
         value: production
