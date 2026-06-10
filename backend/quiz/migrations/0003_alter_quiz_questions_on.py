@@ -31,17 +31,24 @@ class Migration(migrations.Migration):
             reverse_code=migrations.RunPython.noop,
         ),
         migrations.RunSQL(
-            sql=(
-                'ALTER TABLE quiz_quiz '
-                'ALTER COLUMN "questions_on" TYPE varchar(70)[] '
-                'USING ARRAY('
-                '  SELECT jsonb_array_elements_text("questions_on")'
-                ')::varchar(70)[];'
-            ),
+            sql=[
+                (
+                    "CREATE OR REPLACE FUNCTION _jsonb_to_text_array(val jsonb) "
+                    "RETURNS text[] LANGUAGE sql IMMUTABLE AS "
+                    "$$SELECT coalesce(array_agg(x), ARRAY[]::text[]) "
+                    "FROM jsonb_array_elements_text(val) x$$"
+                ),
+                (
+                    'ALTER TABLE quiz_quiz '
+                    'ALTER COLUMN "questions_on" TYPE varchar(70)[] '
+                    'USING _jsonb_to_text_array("questions_on")::varchar(70)[]'
+                ),
+                "DROP FUNCTION _jsonb_to_text_array(jsonb)",
+            ],
             reverse_sql=(
                 'ALTER TABLE quiz_quiz '
                 'ALTER COLUMN "questions_on" TYPE jsonb '
-                'USING to_jsonb("questions_on");'
+                'USING to_jsonb("questions_on")'
             ),
             state_operations=[
                 migrations.AlterField(
