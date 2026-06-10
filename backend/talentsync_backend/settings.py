@@ -691,7 +691,7 @@ ACCEPTANCE_MAIL_DELAY_SECONDS = env.int(
     default=60  
 )
 
-BASE_URL=env("BASE_URL")
+BASE_URL=env("BASE_URL", default="http://localhost:8000")
 
 
 
