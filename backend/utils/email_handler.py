@@ -12,13 +12,14 @@ import requests
 logger = logging.getLogger("emails")
 
 
-def log_mail(email, email_type, email_status, provider_message_id=""):
+def log_mail(email, email_type, email_status, provider_message_id="", delivery_status=None):
     """Log mails been sent out from the system."""
     email_track_obj = EmailTrack.objects.create(
         email=email,
         email_type=email_type,
         status=email_status,
         provider_message_id=provider_message_id or "",
+        delivery_status=delivery_status or EmailTrack.DeliveryStatus.PENDING,
     )
     return email_track_obj.id
 
@@ -175,6 +176,7 @@ class EmailHandler:
 
         success = False
         provider_message_id = ""
+        delivery_status = None  # pending → updated by Resend webhooks
 
         if RESEND_API_KEY:
             for attempt in range(2):
@@ -195,17 +197,23 @@ class EmailHandler:
             try:
                 mailgun_from = RESEND_SECURITY_EMAIL if security else from_email
                 success = self._send_via_mailgun(subject, html, mailgun_from)
+                if success:
+                    # No webhook tracking on the fallback — mark explicitly
+                    # so the row doesn't sit at "pending" forever.
+                    delivery_status = EmailTrack.DeliveryStatus.SENT_VIA_MAILGUN
             except requests.exceptions.RequestException as e:
                 logger.error(f"Mailgun fallback connection error: {e}")
 
         if not success:
             logger.error("Failed to send email via all providers.")
+            delivery_status = EmailTrack.DeliveryStatus.FAILED
 
         email_log_id = None
         if email_type is not None:
             email_log_id = log_mail(
                 ", ".join(self.recipients), email_type, success,
                 provider_message_id=provider_message_id,
+                delivery_status=delivery_status,
             )
         return f"Email Track Model Id - {email_log_id}"
     def send_basic_email(self, subject, message):

@@ -21,6 +21,8 @@ class EmailTrack(TimeStampedModel):
         BOUNCED = "bounced", "Bounced"
         COMPLAINED = "complained", "Complained"
         FAILED = "failed", "Failed"
+        # Fallback providers have no webhook tracking — terminal on send.
+        SENT_VIA_MAILGUN = "mailgun_sent", "Sent via Mailgun (untracked)"
 
     email = models.EmailField()
     email_type = models.CharField(max_length=400)
