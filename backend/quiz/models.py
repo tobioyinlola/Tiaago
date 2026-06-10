@@ -19,7 +19,7 @@ class Quiz(models.Model):
     id = models.UUIDField(primary_key=True, editable=False, default=uuid4)
     name = models.CharField(max_length=255, unique=True)
     question_count = models.PositiveIntegerField(default=20)
-    questions_on = ArrayField(models.CharField(max_length=30), size=10)
+    questions_on = ArrayField(models.CharField(max_length=70), size=10)
     minutes = models.PositiveIntegerField(default=30)
     description = models.TextField()
     slug = models.SlugField(null=True, blank=True)
