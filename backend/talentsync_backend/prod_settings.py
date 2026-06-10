@@ -45,6 +45,8 @@ if SENTRY_DSN:
 
 DEBUG = False
 
+DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="Tiaago <notifications@email.tiaago.com>")
+
 ALLOWED_HOSTS = [h.strip() for h in env.list("ALLOWED_HOSTS", default=[
     "127.0.0.1",
     "localhost",

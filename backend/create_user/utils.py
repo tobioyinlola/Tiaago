@@ -96,8 +96,12 @@ def send_invite_email(invite: CompanyTeamInvite):
         "link": link,
         "expiry_days" : 5,
     }
-    message = render_to_string("emails/company_invite.txt", context)
-    html_message = render_to_string("emails/company_invite.html", context) if True else None
+    html_message = render_to_string("emails/email_templates/company_invite.html", context)
+    message = (
+        f"{context['inviter']} invited you to join {context['company_name']} on Tiaago "
+        f"as {context['role']}. Accept the invite here: {link} "
+        f"(expires in {context['expiry_days']} days)."
+    )
 
     send_mail(
         subject=subject,

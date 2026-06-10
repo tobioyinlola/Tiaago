@@ -28,6 +28,15 @@ class EmailTypes:
 MAILGUN_DOMAIN = os.getenv("MAILGUN_DOMAIN")  # e.g. "mg.yourdomain.com"
 MAILGUN_API_KEY = os.getenv("MAILGUN_API_KEY")
 
+# Resend (primary provider). The from address must belong to the domain
+# verified in the Resend dashboard (email.tiaago.com) — the apex domain
+# would be rejected with a 403 unless verified separately.
+RESEND_API_KEY = os.getenv("RESEND_API_KEY")
+RESEND_FROM_EMAIL = os.getenv(
+    "RESEND_FROM_EMAIL", "Tiaago <notifications@email.tiaago.com>"
+)
+RESEND_REPLY_TO = os.getenv("RESEND_REPLY_TO", "")  # e.g. "support@tiaago.com"
+
 class EmailHandler:
     """
     For sending mails
@@ -74,10 +83,62 @@ class EmailHandler:
             # Maximum retries reached, log error or raise exception
             logger.error("Failed to send email after maximum retries.")
         return f"Email Track Model Id - {email_log_id}"
+    def _send_via_resend(self, subject, html) -> bool:
+        """Send through the Resend HTTP API. Returns True on 2xx."""
+        payload = {
+            "from": RESEND_FROM_EMAIL,
+            "to": self.recipients,
+            "subject": subject,
+            "text": "See HTML version for full content.",
+            "html": html,
+        }
+        if RESEND_REPLY_TO:
+            payload["reply_to"] = RESEND_REPLY_TO
+        response = requests.post(
+            "https://api.resend.com/emails",
+            headers={"Authorization": f"Bearer {RESEND_API_KEY}"},
+            json=payload,
+            timeout=10,
+        )
+        logger.info(f"Resend response: {response.status_code} - {response.text}")
+        if not (200 <= response.status_code < 300):
+            logger.error(f"Resend error: {response.text}")
+            return False
+        logger.info(f"Email sent successfully via Resend to {self.recipients}")
+        return True
+
+    def _send_via_mailgun(self, subject, html, from_email) -> bool:
+        """Send through the Mailgun HTTP API. Returns True on 200."""
+        data = {
+            "from": from_email,
+            "to": self.recipients,
+            "subject": subject,
+            "text": "See HTML version for full content.",
+            "html": html,
+        }
+        response = requests.post(
+            f"https://api.mailgun.net/v3/{MAILGUN_DOMAIN}/messages",
+            auth=("api", MAILGUN_API_KEY),
+            data=data,
+            timeout=10,
+        )
+        logger.info(f"Mailgun response: {response.status_code} - {response.text}")
+        if response.status_code != 200:
+            logger.error(f"Mailgun error: {response.text}")
+            return False
+        logger.info(f"Email sent successfully via Mailgun to {self.recipients}")
+        return True
+
     def send_mail(
         self, subject, context, template, email_type=None,
         from_email="notifications@tiaago.com"
     ):
+        """Send an email: Resend first (2 attempts), Mailgun as fallback.
+
+        `from_email` only applies to the Mailgun fallback — Resend requires
+        the from address to be on its verified domain, so it always uses
+        RESEND_FROM_EMAIL.
+        """
         html = get_template(template).render(context)
 
         # Add environment prefixes
@@ -86,56 +147,63 @@ class EmailHandler:
         if settings.IS_DEV:
             subject = f"Dev : {subject}"
 
-        retry_count = 0
-        email_log_id = None
+        success = False
 
-        while retry_count < self.MAX_RETRIES:
+        if RESEND_API_KEY:
+            for attempt in range(2):
+                try:
+                    if self._send_via_resend(subject, html):
+                        success = True
+                        break
+                except requests.exceptions.RequestException as e:
+                    logger.error(f"Resend connection error: {e}")
+                if attempt == 0:
+                    time.sleep(2)
+        else:
+            logger.warning("RESEND_API_KEY not set; skipping Resend.")
+
+        if not success and MAILGUN_API_KEY and MAILGUN_DOMAIN:
             try:
-                # Mailgun request payload
-                data = {
-                    "from": from_email,
-                    "to": self.recipients,
-                    "subject": subject,
-                    "text": "See HTML version for full content.",
-                    "html": html,
-                }
-
-                response = requests.post(
-                    f"https://api.mailgun.net/v3/{MAILGUN_DOMAIN}/messages",
-                    auth=("api", MAILGUN_API_KEY),
-                    data=data,
-                )
-                logger.info(f"Mailgun response: {response.status_code} - {response.text}")
-                success = response.status_code == 200 
-                # Log email if required
-                if email_type is not None:
-                    email_log_id = log_mail(
-                        ", ".join(self.recipients), email_type, success
-                    )
-
-                if success:
-                    logger.info(f"Email sent successfully via Mailgun to {self.recipients}")
-                    return f"Email Track Model Id - {email_log_id}"
-
-                # Failure (non-200)
-                logger.error(f"Mailgun error: {response.text}")
-                retry_count += 1
-                time.sleep(self.RETRY_DELAY)
-
+                success = self._send_via_mailgun(subject, html, from_email)
             except requests.exceptions.RequestException as e:
-                # Handle request/connection errors (similar to SMTP disconnect)
-                logger.error(f"Mailgun connection error: {e}. Retrying...")
-                retry_count += 1
-                time.sleep(self.RETRY_DELAY)
+                logger.error(f"Mailgun fallback connection error: {e}")
 
-        # After all retries fail
-        logger.error("Failed to send email via Mailgun after maximum retries.")
+        if not success:
+            logger.error("Failed to send email via all providers.")
+
+        email_log_id = None
+        if email_type is not None:
+            email_log_id = log_mail(
+                ", ".join(self.recipients), email_type, success
+            )
         return f"Email Track Model Id - {email_log_id}"
     def send_basic_email(self, subject, message):
         """
-        Send a basic email with django's send_mail\n
-        Does not use a HTML template
+        Send a basic plain-text email.\n
+        Tries Resend first; falls back to Django's send_mail (SMTP).
         """
+        if RESEND_API_KEY:
+            try:
+                payload = {
+                    "from": RESEND_FROM_EMAIL,
+                    "to": self.recipients,
+                    "subject": subject,
+                    "text": message,
+                }
+                if RESEND_REPLY_TO:
+                    payload["reply_to"] = RESEND_REPLY_TO
+                response = requests.post(
+                    "https://api.resend.com/emails",
+                    headers={"Authorization": f"Bearer {RESEND_API_KEY}"},
+                    json=payload,
+                    timeout=10,
+                )
+                if 200 <= response.status_code < 300:
+                    logger.info(f"Email sent via Resend to {', '.join(self.recipients)}")
+                    return
+                logger.error(f"Resend error (basic email): {response.text}")
+            except requests.exceptions.RequestException as e:
+                logger.error(f"Resend connection error (basic email): {e}")
         try:
             send_mail(
                 subject=subject,
