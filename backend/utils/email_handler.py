@@ -30,6 +30,7 @@ class EmailTypes:
     USER_INVITE = "User Invite to join Tiaago"
     PASSWORD_RESET = "Password Reset"
     COMPANY_TEAM_INVITE = "Company Team Invite"
+    BILLING_NOTIFICATION = "Billing Notification"
 
 MAILGUN_DOMAIN = os.getenv("MAILGUN_DOMAIN")  # e.g. "mg.yourdomain.com"
 MAILGUN_API_KEY = os.getenv("MAILGUN_API_KEY")
@@ -216,11 +217,16 @@ class EmailHandler:
                 delivery_status=delivery_status,
             )
         return f"Email Track Model Id - {email_log_id}"
-    def send_basic_email(self, subject, message):
+    def send_basic_email(self, subject, message, email_type=EmailTypes.BILLING_NOTIFICATION):
         """
         Send a basic plain-text email.\n
         Tries Resend first; falls back to Django's send_mail (SMTP).
+        Logs to EmailTrack (pass email_type=None to skip logging).
         """
+        success = False
+        provider_message_id = ""
+        delivery_status = None  # pending → updated by Resend webhooks
+
         if RESEND_API_KEY:
             try:
                 payload = {
@@ -239,18 +245,36 @@ class EmailHandler:
                 )
                 if 200 <= response.status_code < 300:
                     logger.info(f"Email sent via Resend to {', '.join(self.recipients)}")
-                    return
-                logger.error(f"Resend error (basic email): {response.text}")
+                    success = True
+                    try:
+                        provider_message_id = response.json().get("id", "")
+                    except ValueError:
+                        pass
+                else:
+                    logger.error(f"Resend error (basic email): {response.text}")
             except requests.exceptions.RequestException as e:
                 logger.error(f"Resend connection error (basic email): {e}")
-        try:
-            send_mail(
-                subject=subject,
-                message=message,
-                from_email=settings.DEFAULT_FROM_EMAIL,
-                recipient_list=self.recipients,  # Accepting a list of emails here
-                fail_silently=False,
+
+        if not success:
+            try:
+                send_mail(
+                    subject=subject,
+                    message=message,
+                    from_email=settings.DEFAULT_FROM_EMAIL,
+                    recipient_list=self.recipients,  # Accepting a list of emails here
+                    fail_silently=False,
+                )
+                logger.info(f"Email sent to {', '.join(self.recipients)}")
+                success = True
+                # SMTP has no webhook tracking — terminal on send.
+                delivery_status = EmailTrack.DeliveryStatus.SENT_VIA_MAILGUN
+            except Exception as e:
+                logger.error(f"Error sending email to {', '.join(self.recipients)}: {e}")
+                delivery_status = EmailTrack.DeliveryStatus.FAILED
+
+        if email_type is not None:
+            log_mail(
+                ", ".join(self.recipients), email_type, success,
+                provider_message_id=provider_message_id,
+                delivery_status=delivery_status,
             )
-            logger.info(f"Email sent to {', '.join(self.recipients)}")
-        except Exception as e:
-            logger.error(f"Error sending email to {', '.join(self.recipients)}: {e}")

@@ -11,6 +11,8 @@ class EmailTrackAdmin(admin.ModelAdmin):
         "email_type",
         "status",
         "delivery_status",
+        "opened_at",
+        "clicked_at",
         "provider_message_id",
     ]
     list_filter = ["delivery_status"]
