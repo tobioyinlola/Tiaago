@@ -16,6 +16,10 @@ services:
     dockerfilePath: ./Dockerfile
     plan: free
     region: oregon
+    # Deploy is marked live only when Django answers, not when the port opens.
+    # Must be the public root — Render's checker can't send the X-Health-Key
+    # header that /api/health/ requires.
+    healthCheckPath: /
     envVars:
       - key: ROLE
         value: web
@@ -29,6 +33,10 @@ services:
         value: "1"
       - key: COLLECTSTATIC_ON_START
         value: "1"
+      # Shared secret for /api/health/ — copy the generated value from the
+      # Render dashboard into the cron-job.org job's X-Health-Key header.
+      - key: HEALTHCHECK_SECRET
+        generateValue: true
 
   # ── 2. Celery worker ──────────────────────────────────────────────────────
   - type: worker

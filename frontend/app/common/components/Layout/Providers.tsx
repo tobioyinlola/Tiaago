@@ -6,6 +6,7 @@ import { domAnimation, LazyMotion } from "framer-motion";
 
 import CustomAlert from "./CustomAlert";
 import PageViewTracker from "./PageViewTracker";
+import BackendWarmupPing from "./BackendWarmupPing";
 
 const Providers = ({ children }: PropsWithChildren) => {
   return (
@@ -14,6 +15,7 @@ const Providers = ({ children }: PropsWithChildren) => {
       <Toaster richColors closeButton />
       <CustomAlert />
       <PageViewTracker />
+      <BackendWarmupPing />
     </LazyMotion>
   );
 };

@@ -8,7 +8,7 @@ from rest_framework import permissions
 import os
 
 from roles.urls import router
-from .views import media_debug, health_check, test_ping, ws_test
+from .views import media_debug, health_check, health_status, test_ping, ws_test
 
 swagger_base_url = None
 if settings.DEBUG:
@@ -43,22 +43,28 @@ urlpatterns = [
     path("api/subscriptions/", include("subscriptions.urls")),
     path("api/work-experiences/", include("work_experience.urls")),
     path("api/management/", include("management.urls")),
+    # Registered before the router include so it can never be shadowed.
+    path("api/health/", health_status, name="health-status"),
     path("api/", include(router.urls)),
-    path(
-        "swagger<format>/", schema_view.without_ui(cache_timeout=0), name="schema-json"
-    ),
-    path(
-        "swagger/",
-        schema_view.with_ui("swagger", cache_timeout=0),
-        name="schema-swagger-ui",
-    ),
-    path("redoc/", schema_view.with_ui("redoc", cache_timeout=0), name="schema-redoc"),
-
-    # Testing endpoints
-    path('media-debug/', media_debug),
     path('', health_check, name='health-check'),
-    path('test-ping/', test_ping), 
-    path("ws-test/", ws_test),
 ]
+
+# Debug-only routes: schema browsers and test endpoints must not exist in
+# production (media-debug leaks paths, test-ping fires Celery tasks).
+if settings.DEBUG:
+    urlpatterns += [
+        path(
+            "swagger<format>/", schema_view.without_ui(cache_timeout=0), name="schema-json"
+        ),
+        path(
+            "swagger/",
+            schema_view.with_ui("swagger", cache_timeout=0),
+            name="schema-swagger-ui",
+        ),
+        path("redoc/", schema_view.with_ui("redoc", cache_timeout=0), name="schema-redoc"),
+        path('media-debug/', media_debug),
+        path('test-ping/', test_ping),
+        path("ws-test/", ws_test),
+    ]
 
 urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

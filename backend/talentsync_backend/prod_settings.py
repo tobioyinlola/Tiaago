@@ -53,6 +53,8 @@ ALLOWED_HOSTS = [h.strip() for h in env.list("ALLOWED_HOSTS", default=[
     "api.tiaago.com",
     "www.tiaago.com",
     "tiaago.com",
+    # Render's own domain — uptime pings and direct API access use it.
+    "tiaago-backend-web.onrender.com",
 ]) if h.strip()]
 
 CSRF_TRUSTED_ORIGINS = [o.strip() for o in env.list("CSRF_TRUSTED_ORIGINS", default=[
