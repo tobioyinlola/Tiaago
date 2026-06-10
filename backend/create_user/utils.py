@@ -4,10 +4,8 @@ from django.contrib.auth import get_user_model
 from django.utils import timezone
 from datetime import timedelta
 from emails import emails
-from django.core.mail import send_mail
 from django.conf import settings
 from django.utils.encoding import force_str, force_bytes
-from django.core.mail import EmailMultiAlternatives
 from django.template.loader import render_to_string
 from django.utils.html import strip_tags
 from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
@@ -96,19 +94,11 @@ def send_invite_email(invite: CompanyTeamInvite):
         "link": link,
         "expiry_days" : 5,
     }
-    html_message = render_to_string("emails/email_templates/company_invite.html", context)
-    message = (
-        f"{context['inviter']} invited you to join {context['company_name']} on Tiaago "
-        f"as {context['role']}. Accept the invite here: {link} "
-        f"(expires in {context['expiry_days']} days)."
-    )
-
-    send_mail(
+    EmailHandler(invite.email).send_mail(
         subject=subject,
-        message=message,
-        from_email=getattr(settings, "DEFAULT_FROM_EMAIL", "nonreply@example.com"),
-        recipient_list=[invite.email],
-        html_message=html_message,
+        context=context,
+        template="emails/email_templates/company_invite.html",
+        email_type=EmailTypes.COMPANY_TEAM_INVITE,
     )
     
    

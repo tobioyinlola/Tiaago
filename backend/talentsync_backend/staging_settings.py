@@ -75,7 +75,7 @@ CORS_ALLOW_METHODS = list(default_methods)
 
 # ---------- Email ----------
 EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
-DEFAULT_FROM_EMAIL = "Tiaago Staging <no-reply@tiaago.com>"
+DEFAULT_FROM_EMAIL = "Tiaago Staging <support@email.tiaago.com>"
 
 ALLOWED_HOSTS = os.environ.get(
     "ALLOWED_HOSTS",

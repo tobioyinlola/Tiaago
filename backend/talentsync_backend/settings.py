@@ -291,7 +291,7 @@ EMAIL_USE_SSL = False
 EMAIL_HOST_USER = env("EMAIL_HOST_USER", default="")
 EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", default="")
 EMAIL_SUBJECT_PREFIX = ""
-DEFAULT_FROM_EMAIL = "Tiaago Dev <no-reply@tiaago.com>"
+DEFAULT_FROM_EMAIL = "Tiaago Dev <support@email.tiaago.com>"
 
 
 SITE_ID = 1

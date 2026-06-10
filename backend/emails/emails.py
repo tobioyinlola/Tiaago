@@ -56,7 +56,7 @@ def _send_with_latest_flow(
     template_file: str,
     context: Dict[str, Any],
     email_type: Optional[str] = None,
-    from_email: str = "notifications@tiaago.com",
+    from_email: str = "Tiaago <support@email.tiaago.com>",
 ) -> str:
     """
     Thin shim to the new EmailHandler: DO NOT render here.
@@ -563,7 +563,7 @@ def send_assessment_pass_via_handler(
         context=context,
         template=template,
         email_type="ASSESSMENT_PASS",
-        from_email=getattr(settings, "DEFAULT_FROM_EMAIL", "notifications@tiaago.com"),
+        from_email=getattr(settings, "DEFAULT_FROM_EMAIL", "Tiaago <support@email.tiaago.com>"),
     )
 
 

@@ -24,6 +24,8 @@ class EmailTypes:
     TALENT_ASSESSMENT_PASS_MAIL = "Talent Assessment Pass Mail"
     OTP_FOR_EMAIL_VERIFICATION = "One-Time Password for Email Verification"
     USER_INVITE = "User Invite to join Tiaago"
+    PASSWORD_RESET = "Password Reset"
+    COMPANY_TEAM_INVITE = "Company Team Invite"
 
 MAILGUN_DOMAIN = os.getenv("MAILGUN_DOMAIN")  # e.g. "mg.yourdomain.com"
 MAILGUN_API_KEY = os.getenv("MAILGUN_API_KEY")
@@ -33,9 +35,9 @@ MAILGUN_API_KEY = os.getenv("MAILGUN_API_KEY")
 # would be rejected with a 403 unless verified separately.
 RESEND_API_KEY = os.getenv("RESEND_API_KEY")
 RESEND_FROM_EMAIL = os.getenv(
-    "RESEND_FROM_EMAIL", "Tiaago <notifications@email.tiaago.com>"
+    "RESEND_FROM_EMAIL", "Tiaago <support@email.tiaago.com>"
 )
-RESEND_REPLY_TO = os.getenv("RESEND_REPLY_TO", "")  # e.g. "support@tiaago.com"
+RESEND_REPLY_TO = os.getenv("RESEND_REPLY_TO", "")  # e.g. "support@email.tiaago.com"
 
 class EmailHandler:
     """
@@ -131,7 +133,7 @@ class EmailHandler:
 
     def send_mail(
         self, subject, context, template, email_type=None,
-        from_email="notifications@tiaago.com"
+        from_email="Tiaago <support@email.tiaago.com>"
     ):
         """Send an email: Resend first (2 attempts), Mailgun as fallback.
 
