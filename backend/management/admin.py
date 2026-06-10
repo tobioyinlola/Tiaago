@@ -10,4 +10,8 @@ class EmailTrackAdmin(admin.ModelAdmin):
         "email",
         "email_type",
         "status",
+        "delivery_status",
+        "provider_message_id",
     ]
+    list_filter = ["delivery_status"]
+    search_fields = ["email", "provider_message_id"]

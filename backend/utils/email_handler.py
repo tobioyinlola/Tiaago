@@ -12,10 +12,13 @@ import requests
 logger = logging.getLogger("emails")
 
 
-def log_mail(email, email_type, email_status):
+def log_mail(email, email_type, email_status, provider_message_id=""):
     """Log mails been sent out from the system."""
     email_track_obj = EmailTrack.objects.create(
-        email=email, email_type=email_type, status=email_status
+        email=email,
+        email_type=email_type,
+        status=email_status,
+        provider_message_id=provider_message_id or "",
     )
     return email_track_obj.id
 
@@ -94,8 +97,11 @@ class EmailHandler:
             # Maximum retries reached, log error or raise exception
             logger.error("Failed to send email after maximum retries.")
         return f"Email Track Model Id - {email_log_id}"
-    def _send_via_resend(self, subject, html, security=False) -> bool:
-        """Send through the Resend HTTP API. Returns True on 2xx."""
+    def _send_via_resend(self, subject, html, security=False):
+        """Send through the Resend HTTP API.
+
+        Returns the Resend message id (str) on 2xx, None on failure.
+        """
         payload = {
             "from": RESEND_SECURITY_EMAIL if security else RESEND_FROM_EMAIL,
             "to": self.recipients,
@@ -114,9 +120,12 @@ class EmailHandler:
         logger.info(f"Resend response: {response.status_code} - {response.text}")
         if not (200 <= response.status_code < 300):
             logger.error(f"Resend error: {response.text}")
-            return False
+            return None
         logger.info(f"Email sent successfully via Resend to {self.recipients}")
-        return True
+        try:
+            return response.json().get("id", "")
+        except ValueError:
+            return ""
 
     def _send_via_mailgun(self, subject, html, from_email) -> bool:
         """Send through the Mailgun HTTP API. Returns True on 200."""
@@ -165,12 +174,15 @@ class EmailHandler:
             subject = f"Dev : {subject}"
 
         success = False
+        provider_message_id = ""
 
         if RESEND_API_KEY:
             for attempt in range(2):
                 try:
-                    if self._send_via_resend(subject, html, security=security):
+                    message_id = self._send_via_resend(subject, html, security=security)
+                    if message_id is not None:
                         success = True
+                        provider_message_id = message_id
                         break
                 except requests.exceptions.RequestException as e:
                     logger.error(f"Resend connection error: {e}")
@@ -192,7 +204,8 @@ class EmailHandler:
         email_log_id = None
         if email_type is not None:
             email_log_id = log_mail(
-                ", ".join(self.recipients), email_type, success
+                ", ".join(self.recipients), email_type, success,
+                provider_message_id=provider_message_id,
             )
         return f"Email Track Model Id - {email_log_id}"
     def send_basic_email(self, subject, message):
