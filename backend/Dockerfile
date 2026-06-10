@@ -48,10 +48,16 @@ RUN chmod +x $APP_HOME/entrypoint.sh
 
 RUN mkdir -p $APP_HOME/staticfiles $APP_HOME/static $APP_HOME/media
 
+# Collect static files at build time so the container starts faster.
+# SECRET_KEY is required by settings.py but not used by collectstatic,
+# so we pass a throwaway value. ENV=build prevents prod_settings import.
+RUN SECRET_KEY=build-placeholder ENV=build \
+    python manage.py collectstatic --noinput
+
 # Copy your nginx config (template uses ${PORT}; otherwise copy to /etc/nginx/nginx.conf directly)
 COPY nginx.conf /etc/nginx/templates/nginx.conf
 
-EXPOSE 8000
+EXPOSE 10000
 
 # Keep the container PID 1 as your entrypoint (uses $PORT inside)
 ENTRYPOINT ["./entrypoint.sh"]

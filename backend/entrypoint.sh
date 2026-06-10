@@ -25,8 +25,7 @@ if [[ "${MIGRATE_ON_START}" == "1" ]]; then
 fi
 
 if [[ "${COLLECTSTATIC_ON_START}" == "1" ]]; then
-  echo "==> Collecting static..."
-  python manage.py collectstatic --noinput
+  echo "==> Collecting static (skipped — done at build time)..."
 fi
 
 # Sanity log for MEDIA 
@@ -49,12 +48,6 @@ case "${ROLE}" in
     else
       echo "==> Starting Daphne (ASGI) on 0.0.0.0:${PORT}"
       exec daphne -b 0.0.0.0 -p "${PORT}" "${CELERY_APP}.asgi:application"
-
-      echo "==> Rendering nginx.conf with PORT=${PORT}"
-      envsubst '${PORT}' < /etc/nginx/templates/nginx.conf > /etc/nginx/nginx.conf
-
-      echo "==> Starting Nginx (front proxy, WebSocket-enabled) on ${PORT}"
-      exec nginx -g 'daemon off;'
     fi
     ;;
 
