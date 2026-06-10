@@ -51,7 +51,7 @@ RUN mkdir -p $APP_HOME/staticfiles $APP_HOME/static $APP_HOME/media
 # Collect static files at build time so the container starts faster.
 # SECRET_KEY is required by settings.py but not used by collectstatic,
 # so we pass a throwaway value. ENV=build prevents prod_settings import.
-RUN SECRET_KEY=build-placeholder ENV=build \
+RUN SECRET_KEY=build-placeholder BASE_URL=http://localhost \
     python manage.py collectstatic --noinput
 
 # Copy your nginx config (template uses ${PORT}; otherwise copy to /etc/nginx/nginx.conf directly)
