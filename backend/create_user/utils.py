@@ -40,6 +40,7 @@ def send_otp_to_user(email):
             template=email_template_name,
             email_type=EmailTypes.OTP_FOR_EMAIL_VERIFICATION,
             context=context,
+            no_reply=True,
         )
 
 

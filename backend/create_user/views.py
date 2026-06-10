@@ -431,6 +431,7 @@ class CustomPasswordResetView(APIView):
             context=context,
             template=email_template_name,
             email_type=EmailTypes.PASSWORD_RESET,
+            no_reply=True,
         )
 
 
