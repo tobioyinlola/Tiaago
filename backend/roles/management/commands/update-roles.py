@@ -2,27 +2,27 @@ from django.core.management.base import BaseCommand
 from roles.models import Role
 
 new_talent_roles = [
-    "Full Stack Engineer",
-    "Mobile App Engineer",
-    "Technical Product Manager",
-    "Product Manager",
-    "Product Designer",
-    "Frontend Engineer",
-    "Backend Engineer",
-    "AI/ML Engineer",
-    "Social Media Manager",
-    "Community Manager",
-    "Customer Support",
-    "Copywriter/Content Writer",
-    "Virtual Assistant",
-    "Brand Designer",
+    {"title": "Full Stack Engineer", "is_technical": True},
+    {"title": "Mobile App Engineer", "is_technical": True},
+    {"title": "Technical Product Manager", "is_technical": False},
+    {"title": "Product Manager", "is_technical": False},
+    {"title": "Product Designer", "is_technical": False},
+    {"title": "Frontend Engineer", "is_technical": True},
+    {"title": "Backend Engineer", "is_technical": True},
+    {"title": "AI/ML Engineer", "is_technical": True},
+    {"title": "Social Media Manager", "is_technical": False},
+    {"title": "Community Manager", "is_technical": False},
+    {"title": "Customer Support", "is_technical": False},
+    {"title": "Copywriter/Content Writer", "is_technical": False},
+    {"title": "Virtual Assistant", "is_technical": False},
+    {"title": "Brand Designer", "is_technical": False},
 ]
 
 new_startup_roles = [
-    "HR",
-    "Talent acquisition expert",
-    "Startup founders",
-    "Other",
+    {"title": "HR", "is_technical": False},
+    {"title": "Talent acquisition expert", "is_technical": False},
+    {"title": "Startup founders", "is_technical": False},
+    {"title": "Other", "is_technical": False},
 ]
 
 
@@ -31,26 +31,26 @@ class Command(BaseCommand):
         Role.objects.all().update(active=False)
         # talent roles
         for role in new_talent_roles:
-            corr_role = Role.objects.filter(title__iexact=role).first()
+            corr_role = Role.objects.filter(title__iexact=role["title"]).first()
             if corr_role:
-                corr_role.is_technical = True
+                corr_role.is_technical = role["is_technical"]
                 corr_role.active = True
                 corr_role.is_startup_role = False
                 corr_role.save()
             else:
                 Role.objects.create(
-                    title=role, active=True, is_technical=True, is_startup_role=False
+                    title=role["title"], active=True, is_technical=role["is_technical"], is_startup_role=False
                 )
         # startup roles
         for role in new_startup_roles:
-            corr_role = Role.objects.filter(title__iexact=role).first()
+            corr_role = Role.objects.filter(title__iexact=role["title"]).first()
             if corr_role:
-                corr_role.is_technical = False
+                corr_role.is_technical = role["is_technical"]
                 corr_role.active = True
                 corr_role.is_startup_role = True
                 corr_role.save()
             else:
                 Role.objects.create(
-                    title=role, active=True, is_technical=False, is_startup_role=True
+                    title=role["title"], active=True, is_technical=role["is_technical"], is_startup_role=True
                 )
         self.stdout.write(self.style.SUCCESS("Roles sorted ✅"))

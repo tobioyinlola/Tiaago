@@ -54,9 +54,11 @@ const Signup = async ({
       next={next}
     >
       <SignupForm
-        startupRoles={startupRoles.sort(role =>
-          role.title === "Other" ? 1 : -1
-        )}
+        startupRoles={startupRoles.sort((a, b) => {
+          if (a.title === "Other") return 1;
+          if (b.title === "Other") return -1;
+          return 0;
+        })}
         groupedCountries={groupedCountries}
         next={next}
         referral_code={referral_code}

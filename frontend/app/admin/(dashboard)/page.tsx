@@ -1,6 +1,5 @@
 import { Metadata } from "next";
 
-import { useAdminStore } from "./store";
 import { getCurrentUser } from "@/app/common/services/profile";
 import { getAdminMetrics } from "@/app/common/services/metrics";
 import { cn, getMetricPercentageChange } from "../../common/utils";
@@ -12,11 +11,7 @@ export const metadata: Metadata = {
 };
 
 const AdminDashboard = async () => {
-  let currentUser = useAdminStore.getState().profile;
-  if (!currentUser) {
-    currentUser = (await getCurrentUser("staff")).currentUser;
-    useAdminStore.setState({ profile: currentUser });
-  }
+  const currentUser = (await getCurrentUser("staff")).currentUser;
   const dashboardMetrics = await getAdminMetrics();
   return (
     <>

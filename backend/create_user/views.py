@@ -124,13 +124,8 @@ class CustomRegisterView(RegisterView):
         # Generate OTP and send to mail
         try:
             send_otp_to_user(user.email)
-
-        except Exception as e: 
-            raise e   
-            logger.error(f"User created but failed to send OTP email")
-            user.is_verified = False
-            user.verified = False
-            user.save(update_fields=["is_verified"])
+        except Exception as e:
+            logger.error(f"User {user.id} created but failed to send OTP email: {e}")
 
         # If the registration was done via an invite token, link the new user to the company
         invite_token = request.data.get("invite_token") or request.query_params.get("invite_token")

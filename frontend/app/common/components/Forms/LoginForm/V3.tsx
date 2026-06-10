@@ -187,7 +187,7 @@ const LoginForm = ({ as = "startup", next }: { as?: Ias; next?: string }) => {
               color='primary'
               type='submit'
               className='mb-6 font-semibold text-base'
-              disabled
+              disabled={isSubmitting}
             >
               {isSubmitting ? "Logging in..." : "Login"}
             </Button>

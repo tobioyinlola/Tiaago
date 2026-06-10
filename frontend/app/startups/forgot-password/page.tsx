@@ -20,6 +20,7 @@ const ForgotPassword = async () => {
       title='Forgot Password'
       description='Please enter your email address to reset password'
       goBackHref='/startups/signin'
+      as='startup'
     >
       <ForgotPasswordForm />
     </AuthFormPageWrapper>

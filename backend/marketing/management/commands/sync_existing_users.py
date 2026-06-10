@@ -27,8 +27,8 @@ class Command(BaseCommand):
         batch_size = options['batch_size']
         user_type_filter = options.get('user_type')
         
-        # Get all users or filter by type
-        users = CustomUser.objects.all()
+        # Get all users or filter by type — always exclude staff from marketing sync
+        users = CustomUser.objects.exclude(user_type=CustomUser.USER_TYPE.STAFF)
         if user_type_filter:
             users = users.filter(user_type=user_type_filter)
         

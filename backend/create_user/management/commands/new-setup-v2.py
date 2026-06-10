@@ -356,7 +356,10 @@ class Command(BaseCommand):
     def handle(self, *args, **kwargs):
         # Create Roles
         for role in role_data:
-            Role.objects.get_or_create(title=role["title"], is_technical=role["is_technical"])
+            Role.objects.update_or_create(
+                title=role["title"],
+                defaults={"is_technical": role["is_technical"], "is_startup_role": role["is_startup_role"]},
+            )
         log_success("Roles created ✅", self)
 
         # Create Tech Stacks
@@ -376,7 +379,11 @@ class Command(BaseCommand):
         talent_premium_plan = None
         company_premium_plan = None
         for plan in sub_plans:
-            sub_obj, _ = SubPlan.objects.get_or_create(**plan)
+            sub_obj, _ = SubPlan.objects.get_or_create(
+                sub_type=plan["sub_type"],
+                user_type=plan["user_type"],
+                defaults={k: v for k, v in plan.items() if k not in ("sub_type", "user_type")},
+            )
             if plan["user_type"] == SubPlan.SUB_USER_TYPE.TALENT and plan["sub_type"] == SubPlan.SUB_TYPE.PREMIUM:
                 talent_premium_plan = sub_obj
             elif plan["user_type"] == SubPlan.SUB_USER_TYPE.COMPANY_REP and plan["sub_type"] == SubPlan.SUB_TYPE.PREMIUM:

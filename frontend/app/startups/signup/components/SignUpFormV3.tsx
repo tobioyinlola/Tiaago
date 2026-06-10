@@ -86,11 +86,9 @@ const SignUpFormV3 = ({
           .then(() => {
             toast.success("Account created successfully");
             resetForm();
-            if (next) {
-              router.push(next);
-            } else {
-              router.push(`/verify-email?email=${input.email}`);
-            }
+            const verifyParams = new URLSearchParams({ email: input.email, as: "startup" });
+            if (next) verifyParams.set("next", next);
+            router.push(`/verify-email?${verifyParams.toString()}`);
           })
           .catch(err => handleFormSubmissionError(err, setFieldError, setAlert))
           .finally(() => setSubmitting(false));
