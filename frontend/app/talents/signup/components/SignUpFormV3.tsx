@@ -154,7 +154,7 @@ const SignUpFormV3 = ({
             color='primary'
             className='text-white w-full mb-6'
             type='submit'
-            disabled
+            disabled={!acceptedTerms || isSubmitting}
           >
             {isSubmitting ? "Creating account..." : "Create account"}
           </Button>

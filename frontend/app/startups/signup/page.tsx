@@ -34,6 +34,13 @@ const Signup = async ({
     });
     return [];
   });
+  if (!startupRoles.length && !errors.length) {
+    errors.push({
+      message:
+        "No roles are available right now, so the Role field cannot be filled. Please try again later or contact support.",
+      title: "Roles unavailable",
+    });
+  }
   const groupedCountries = await getCountries().catch(async e => {
     const error = await handleServerApiCallError(e);
     console.log("Get countries error (startup signup): ", error);
