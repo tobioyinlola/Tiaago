@@ -145,6 +145,14 @@ class GeneralSkillAssessmentMCQListSerializer(serializers.ModelSerializer):
             "correct_option_index",
         ]
 
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+        # Candidates must never see the answer key; only the owning
+        # company/staff (view sets this flag) get correct_option_index.
+        if not self.context.get("include_correct_answers"):
+            representation.pop("correct_option_index", None)
+        return representation
+
 
 class TestCaseSerializer(serializers.ModelSerializer):
 
@@ -301,7 +309,7 @@ class GeneralSkillAssessmentListSerializer(GeneralSkillAssessmentCreateSerialize
             representation["sections"] = sections
         else:
             sections = GeneralSkillAssessmentSectionListSerializer(
-                instance.sections.all(), many=True
+                instance.sections.all(), many=True, context=self.context
             ).data
             representation["sections"] = sections
         return representation

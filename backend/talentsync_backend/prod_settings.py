@@ -152,8 +152,11 @@ SECURE_CONTENT_TYPE_NOSNIFF = True
 SECURE_BROWSER_XSS_FILTER = True
 X_FRAME_OPTIONS = 'DENY'
 
-# Rate Limiting (basic)
-REST_FRAMEWORK = {
+# Rate Limiting (basic).
+# NOTE: merged into the base REST_FRAMEWORK by settings.py — defining
+# REST_FRAMEWORK here would replace the whole dict and silently drop
+# DEFAULT_PERMISSION_CLASSES (IsUserVerified), parsers, and versioning.
+REST_FRAMEWORK_OVERRIDES = {
     'DEFAULT_THROTTLE_CLASSES': [
         'rest_framework.throttling.AnonRateThrottle',
         'rest_framework.throttling.UserRateThrottle'

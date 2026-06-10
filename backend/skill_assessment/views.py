@@ -409,9 +409,22 @@ class GeneralSkillAssessmentDetailAPIView(APIView):
                 data={"error": "Skill assessment does not exist or has been deleted"},
             )
 
+        # Only the owning company or staff may see the answer key —
+        # talents take the assessment and must never receive it.
+        is_owner_or_staff = request.user.is_authenticated and (
+            request.user.is_staff
+            or (
+                request.user.is_company()
+                and skill_assessment.company_id is not None
+                and skill_assessment.company_id == request.user.company.id
+            )
+        )
         data = GeneralSkillAssessmentListSerializer(
             skill_assessment,
-            context={"include_section_questions": request.user.is_authenticated},
+            context={
+                "include_section_questions": request.user.is_authenticated,
+                "include_correct_answers": is_owner_or_staff,
+            },
         ).data
         return Response(status=200, data=data)
 
@@ -1016,7 +1029,7 @@ class GetSubmissionsForASkillAssessment(APIView, PaginationHandlerMixin):
 class AddMCQAssessmentAPIView(APIView):
     """Endpoint for a Tiaago Staff to add an MCQ Assessment for verification"""
 
-    permission_classes = [AllowAny]
+    permission_classes = [IsStaffUser]
 
     def post(self, request, *args, **kwargs):
         serializer = AddMCQAssessmentSerializer(data=request.data)

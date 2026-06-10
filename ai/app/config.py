@@ -14,8 +14,12 @@ class Settings(BaseSettings):
     RESUME_SCREENING_MIN_SCORE_RECOMMEND: int = 70
     RESUME_SCREENING_MIN_SCORE_CONSIDER: int = 60
 
+    # Deployment environment. render.yaml sets ENV=production for tiaago-ai.
+    ENV: str = "development"
+
     # Inter-service auth: shared secret the backend sends as X-Service-Key.
-    # Leave empty in dev to disable auth (NOT recommended in any deployed env).
+    # Empty disables auth in development only; in production requests are
+    # rejected until the key is configured (fail closed).
     AI_SERVICE_API_KEY: str = ""
 
     # Comma-separated list of allowed CORS origins. Defaults to localhost dev only.

@@ -1368,16 +1368,17 @@ class UsageEventListView(ListAPIView):
     permission_classes = [IsAuthenticated]
     pagination_class = TiaagoPagination
     def get_queryset(self):
-        usage = UsageEvent.objects.filter(
+        return UsageEvent.objects.filter(
             job_application__job__company__company_rep=self.request.user
-        )  
-        if usage.exists():
-            return usage
-        return UsageEvent.objects.all()
+        )
 class UsageEventDetailView(RetrieveAPIView):
-    queryset = UsageEvent.objects.all()
     serializer_class = UsageEventSerializer
     permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return UsageEvent.objects.filter(
+            job_application__job__company__company_rep=self.request.user
+        )
     
 #paystack webhook
 

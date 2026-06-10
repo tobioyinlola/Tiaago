@@ -403,12 +403,16 @@ if IS_PRODUCTION:
     # prod_settings.py already sets CORS_ALLOWED_ORIGINS from CSRF_TRUSTED_ORIGINS.
     # Don't override it here — the previous version included a broken "https://.tiaago.com"
     # (leading dot, no subdomain) and a localhost origin, both of which silently broke CORS.
+    # Merge throttling on top of the base config instead of replacing the dict,
+    # which used to drop DEFAULT_PERMISSION_CLASSES (IsUserVerified) in prod.
+    REST_FRAMEWORK.update(REST_FRAMEWORK_OVERRIDES)
     REST_FRAMEWORK["DEFAULT_AUTHENTICATION_CLASSES"] = [
         "rest_framework.authentication.TokenAuthentication",
         "dj_rest_auth.jwt_auth.JWTCookieAuthentication",
     ]
 elif IS_STAGING:
     from .staging_settings import *
+    REST_FRAMEWORK.update(REST_FRAMEWORK_OVERRIDES)
     REST_FRAMEWORK["DEFAULT_AUTHENTICATION_CLASSES"] = [
         "rest_framework.authentication.TokenAuthentication",
         "dj_rest_auth.jwt_auth.JWTCookieAuthentication",

@@ -52,31 +52,19 @@ CELERY_TASK_ALWAYS_EAGER = os.getenv("CELERY_TASK_ALWAYS_EAGER", "1") in ("1", "
 
 
 
-try:
-    REST_FRAMEWORK["DEFAULT_RENDERER_CLASSES"] = ("rest_framework.renderers.JSONRenderer",)
-    REST_FRAMEWORK["DEFAULT_PAGINATION_CLASS"] = "rest_framework.pagination.PageNumberPagination"
-    REST_FRAMEWORK["PAGE_SIZE"] = 20
-    REST_FRAMEWORK["DEFAULT_THROTTLE_CLASSES"] = [
+# NOTE: merged into the base REST_FRAMEWORK by settings.py — this module's
+# namespace cannot see the base dict, so defining REST_FRAMEWORK here would
+# replace the whole config and drop DEFAULT_PERMISSION_CLASSES (IsUserVerified).
+REST_FRAMEWORK_OVERRIDES = {
+    "DEFAULT_RENDERER_CLASSES": ("rest_framework.renderers.JSONRenderer",),
+    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
+    "PAGE_SIZE": 20,
+    "DEFAULT_THROTTLE_CLASSES": [
         "rest_framework.throttling.AnonRateThrottle",
         "rest_framework.throttling.UserRateThrottle",
-    ]
-    REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"] = {"anon": "100/minute", "user": "1000/minute"}
-except NameError:
-    REST_FRAMEWORK = {
-        "DEFAULT_RENDERER_CLASSES": ("rest_framework.renderers.JSONRenderer",),
-        "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
-        "PAGE_SIZE": 20,
-        "DEFAULT_THROTTLE_CLASSES": [
-            "rest_framework.throttling.AnonRateThrottle",
-            "rest_framework.throttling.UserRateThrottle",
-        ],
-        "DEFAULT_THROTTLE_RATES": {"anon": "100/minute", "user": "1000/minute"},
-    }
-
-REST_FRAMEWORK["DEFAULT_AUTHENTICATION_CLASSES"] = [
-    "rest_framework_simplejwt.authentication.JWTAuthentication",
-    "rest_framework.authentication.BasicAuthentication",
-]
+    ],
+    "DEFAULT_THROTTLE_RATES": {"anon": "100/minute", "user": "1000/minute"},
+}
 
 DEBUG = True
 

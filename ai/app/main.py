@@ -12,15 +12,21 @@ app = FastAPI(
 
 
 def require_service_key(x_service_key: str | None = Header(default=None)) -> None:
-    """Dependency: enforce X-Service-Key on every API call (skips no-op if key is unset).
+    """Dependency: enforce X-Service-Key on every API call.
 
-    Set AI_SERVICE_API_KEY in the environment to enable auth. When unset (e.g. local dev),
-    the dependency is a no-op and the service is open. In any deployed env, the key MUST
-    be set — otherwise the service is effectively unauthenticated.
+    AI_SERVICE_API_KEY must be set in any deployed environment. When unset,
+    auth is skipped only in development; in production (ENV=production, set
+    by render.yaml) requests are rejected outright so a missing key can never
+    leave the service open to the public.
     """
     expected = settings.AI_SERVICE_API_KEY
     if not expected:
-        return  # auth disabled (dev only)
+        if settings.ENV == "production":
+            raise HTTPException(
+                status_code=503,
+                detail="service auth not configured: set AI_SERVICE_API_KEY",
+            )
+        return  # auth disabled (local dev only)
     if not x_service_key or x_service_key != expected:
         raise HTTPException(status_code=401, detail="invalid or missing X-Service-Key")
 

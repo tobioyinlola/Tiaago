@@ -95,7 +95,9 @@ class ConversationDetailView(RetrieveAPIView):
     
 
     def retrieve(self, request, *args, **kwargs):
-        conversation = Conversation.objects.filter(id=kwargs["convo_id"])
+        conversation = Conversation.objects.filter(id=kwargs["convo_id"]).filter(
+            Q(initiator=request.user) | Q(receiver=request.user)
+        )
         if not conversation.exists():
             return Response(
                 {"message": "Conversation does not exist"}, status=HTTP_404_NOT_FOUND

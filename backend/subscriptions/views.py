@@ -1146,7 +1146,17 @@ def paystack_wallet_fund_webhook(request):
             
             if company:
                 wallet, _ = Wallet.objects.get_or_create(company=company)
-                
+
+                # Idempotency: Paystack retries webhooks — never credit the
+                # same reference twice.
+                if WalletTransaction.objects.filter(
+                    wallet=wallet, transaction_type="credit", reference=reference
+                ).exists():
+                    log_entry.processed = True
+                    log_entry.notes = f"Duplicate webhook ignored for reference: {reference}"
+                    log_entry.save()
+                    return JsonResponse({'status': 'already processed'}, status=200)
+
                 # credit wallet
                 wallet.credit(amount=amount, reference=reference, description="Wallet funding via Paystack", currency="NGN")
 
@@ -1230,11 +1240,19 @@ def stripe_wallet_fund_webhook(request):
             if session['metadata'].get('type') != 'wallet_fund':
                 return JsonResponse({'status': 'ignored'}, status=200)
             
-            # get company 
+            # get company
             company = Company.objects.filter(company_email=customer_email).first()
             if company:
                 wallet, _ = Wallet.objects.get_or_create(company=company)
-                
+
+                # Idempotency: Stripe retries webhooks — never credit the
+                # same checkout session twice.
+                if WalletTransaction.objects.filter(
+                    wallet=wallet, transaction_type="credit", reference=reference
+                ).exists():
+                    logger.info(f"Duplicate Stripe wallet funding webhook ignored: {reference}")
+                    return JsonResponse({'status': 'already processed'}, status=200)
+
                 # credit wallet
                 wallet.credit(amount=amount_total, reference=reference, description="Wallet funding via Stripe", currency="USD")
                 logger.info(f"Wallet funded successfully via Stripe for company: {company.company_email}")

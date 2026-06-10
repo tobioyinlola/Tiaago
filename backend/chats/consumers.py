@@ -27,8 +27,15 @@ class ChatConsumer(AsyncWebsocketConsumer):
         
         logger.info(f"WebSocket connection attempt - Room: {self.room_id}, User: {self.user}")
 
-        if not self.user.is_authenticated:
+        if not self.user or not getattr(self.user, "is_authenticated", False):
             logger.warning(f"Unauthenticated user attempted to connect to room {self.room_id}")
+            await self.close()
+            return
+
+        if not self._user_belongs_to_room():
+            logger.warning(
+                f"User {self.user.username} denied access to room {self.room_id}: not a participant"
+            )
             await self.close()
             return
 
@@ -40,6 +47,14 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 "type": "error",
                 "message": "Failed to initialize conversation"
             }))
+            await self.close()
+            return
+
+        if not self._is_conversation_participant(conversation):
+            logger.warning(
+                f"User {self.user.username} denied access to room {self.room_id}: "
+                f"conversation belongs to other users"
+            )
             await self.close()
             return
             
@@ -281,6 +296,23 @@ class ChatConsumer(AsyncWebsocketConsumer):
             # Graceful exit on task cancellation
             raise
 
+    def _user_belongs_to_room(self):
+        """Room names are room_<id1>_<id2> (sorted user ids set by StartConversationView).
+        The connecting user's id must be one of the two."""
+        parts = self.room_id.split("_")
+        if len(parts) != 3 or parts[0] != "room":
+            return False
+        return str(self.user.id) in parts[1:]
+
+    def _is_conversation_participant(self, conversation):
+        """The user must be the initiator or receiver of the conversation.
+        Conversations created over WS may not have a receiver yet; in that case
+        the room-name check already guarantees the user is one of the two
+        intended parties, so only a fully-populated conversation can exclude."""
+        if conversation.initiator_id is None or conversation.receiver_id is None:
+            return True
+        return self.user.id in (conversation.initiator_id, conversation.receiver_id)
+
     @database_sync_to_async
     def get_or_create_conversation(self):
         """Get or create a conversation for the room"""
@@ -289,7 +321,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
             
             if not conversation:
                 # Check if user can create conversation
-                if hasattr(self.user, 'is_company') and self.user.is_company:
+                if hasattr(self.user, 'is_company') and self.user.is_company():
                     logger.info(f"Creating new conversation for room {self.room_id} by company user {self.user.username}")
                     conversation = Conversation.objects.create(
                         room_name=self.room_id,
@@ -401,7 +433,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
             if not conversation:
                 logger.error(f"No conversation found for room {self.room_id}")
                 # Try to create one if user is a company
-                if hasattr(self.user, 'is_company') and self.user.is_company:
+                if hasattr(self.user, 'is_company') and self.user.is_company():
                     # If we have receiver_id, get the receiver user
                     receiver = None
                     if receiver_id:
