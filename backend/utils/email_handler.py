@@ -34,17 +34,17 @@ MAILGUN_API_KEY = os.getenv("MAILGUN_API_KEY")
 # verified in the Resend dashboard (email.tiaago.com) — the apex domain
 # would be rejected with a 403 unless verified separately.
 #
-# Two sender identities:
-#   - RESEND_FROM_EMAIL: replyable emails (welcome, billing, invites, ...)
-#     with reply-to RESEND_REPLY_TO so replies reach a monitored inbox.
-#   - RESEND_NO_REPLY_EMAIL: mechanical emails (OTP, password reset) where
-#     a reply serves no purpose; no reply-to is attached.
+# Two sender identities (Resend advises against no-reply@ addresses — both
+# are real addresses and replies route to RESEND_REPLY_TO):
+#   - RESEND_FROM_EMAIL: general emails (welcome, billing, invites, ...)
+#   - RESEND_SECURITY_EMAIL: security emails (OTP, password reset) — a
+#     distinct sender so users and mail filters can tell them apart.
 RESEND_API_KEY = os.getenv("RESEND_API_KEY")
 RESEND_FROM_EMAIL = os.getenv(
     "RESEND_FROM_EMAIL", "Tiaago <support@email.tiaago.com>"
 )
-RESEND_NO_REPLY_EMAIL = os.getenv(
-    "RESEND_NO_REPLY_EMAIL", "Tiaago <no-reply@email.tiaago.com>"
+RESEND_SECURITY_EMAIL = os.getenv(
+    "RESEND_SECURITY_EMAIL", "Tiaago <verify@email.tiaago.com>"
 )
 RESEND_REPLY_TO = os.getenv("RESEND_REPLY_TO", "support@email.tiaago.com")
 
@@ -94,16 +94,16 @@ class EmailHandler:
             # Maximum retries reached, log error or raise exception
             logger.error("Failed to send email after maximum retries.")
         return f"Email Track Model Id - {email_log_id}"
-    def _send_via_resend(self, subject, html, no_reply=False) -> bool:
+    def _send_via_resend(self, subject, html, security=False) -> bool:
         """Send through the Resend HTTP API. Returns True on 2xx."""
         payload = {
-            "from": RESEND_NO_REPLY_EMAIL if no_reply else RESEND_FROM_EMAIL,
+            "from": RESEND_SECURITY_EMAIL if security else RESEND_FROM_EMAIL,
             "to": self.recipients,
             "subject": subject,
             "text": "See HTML version for full content.",
             "html": html,
         }
-        if not no_reply and RESEND_REPLY_TO:
+        if RESEND_REPLY_TO:
             payload["reply_to"] = RESEND_REPLY_TO
         response = requests.post(
             "https://api.resend.com/emails",
@@ -143,18 +143,18 @@ class EmailHandler:
     def send_mail(
         self, subject, context, template, email_type=None,
         from_email="Tiaago <support@email.tiaago.com>",
-        no_reply=False,
+        security=False,
     ):
         """Send an email: Resend first (2 attempts), Mailgun as fallback.
 
-        `no_reply=True` sends from the no-reply identity with no reply-to —
-        use for mechanical emails (OTP, password reset) where replies serve
-        no purpose. All other emails send from the support identity with
-        reply-to attached.
+        `security=True` sends from the security identity (verify@...) —
+        use for OTP and password-reset emails so users and mail filters can
+        distinguish them from general mail. Replies always route to
+        RESEND_REPLY_TO regardless of identity.
 
         `from_email` only applies to the Mailgun fallback — Resend requires
         the from address to be on its verified domain, so it picks the
-        identity from the no_reply flag.
+        identity from the security flag.
         """
         html = get_template(template).render(context)
 
@@ -169,7 +169,7 @@ class EmailHandler:
         if RESEND_API_KEY:
             for attempt in range(2):
                 try:
-                    if self._send_via_resend(subject, html, no_reply=no_reply):
+                    if self._send_via_resend(subject, html, security=security):
                         success = True
                         break
                 except requests.exceptions.RequestException as e:
@@ -181,7 +181,7 @@ class EmailHandler:
 
         if not success and MAILGUN_API_KEY and MAILGUN_DOMAIN:
             try:
-                mailgun_from = RESEND_NO_REPLY_EMAIL if no_reply else from_email
+                mailgun_from = RESEND_SECURITY_EMAIL if security else from_email
                 success = self._send_via_mailgun(subject, html, mailgun_from)
             except requests.exceptions.RequestException as e:
                 logger.error(f"Mailgun fallback connection error: {e}")
