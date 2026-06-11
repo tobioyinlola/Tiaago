@@ -181,6 +181,10 @@ def _verify_svix_signature(request) -> str | None:
     svix_timestamp = request.headers.get("svix-timestamp")
     svix_signature = request.headers.get("svix-signature")
     if not (svix_id and svix_timestamp and svix_signature):
+        logger.warning(
+            "Resend webhook missing svix headers "
+            f"(id={bool(svix_id)} timestamp={bool(svix_timestamp)} signature={bool(svix_signature)})"
+        )
         return None
 
     try:
@@ -211,6 +215,10 @@ def _verify_svix_signature(request) -> str | None:
             continue
         if version == "v1" and hmac.compare_digest(signature, expected):
             return svix_id
+    logger.warning(
+        f"Resend webhook signature mismatch (svix-id={svix_id}) — "
+        "RESEND_WEBHOOK_SECRET likely differs from the endpoint's signing secret in the Resend dashboard"
+    )
     return None
 
 
