@@ -10,8 +10,6 @@ from .views import (
     AdminVerifyUserView,
     ConfirmEmailView,
     CustomRegisterView,
-    ForgotPasswordView,
-    PasswordResetView,
     CustomPasswordResetView,
     CustomPasswordResetConfirmView,
     CustomResendEmailVerificationView,
@@ -93,8 +91,6 @@ urlpatterns = [
         AdminVerifyUserView.as_view(),
         name="admin_verify_user",
     ),
-    path("forgot-password/", ForgotPasswordView.as_view(), name="forgot_password"),
-    path("reset-password/", PasswordResetView.as_view(), name="reset_password"),
     path(
         "referrals/referral-code/generate/",
         GenerateReferralCodeAPIView.as_view(),

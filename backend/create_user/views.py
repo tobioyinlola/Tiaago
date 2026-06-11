@@ -63,8 +63,6 @@ from .api.serializers import (
     CompanyListSerializer,
     SimpleUserSerializer,
     PasswordResetConfirmSerializer,
-    ForgotPasswordSerializer,
-    ResetPasswordSerializer,
     ReferralSerializer,
     ReferralEmailSerializer,
     DummySerializer,
@@ -287,91 +285,6 @@ class ResendOtpView(APIView):
 
 
 
-class ForgotPasswordView(GenericAPIView):
-    """Forgot password"""
-
-    permission_classes = [AllowAny]
-    serializer_class = ForgotPasswordSerializer
-
-    def post(self, request):
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-
-        email = serializer.validated_data["email"]
-
-        try:
-            User.objects.get(email=email)
-        except User.DoesNotExist:
-            return Response(
-                {"message": "User with Email does not exist, please create an account"},
-                status=status.HTTP_404_NOT_FOUND,
-            )
-
-        try:
-            send_otp_to_user(email)
-        except Exception as e:
-            return Response(
-                {"error": f"Failed to send verification email: {e}"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
-        return Response(
-            {
-                "message": "Otp has been sent to your email, please clease check your inbox to reset your password."
-            },
-            status=status.HTTP_200_OK,
-        )
-
-
-class PasswordResetView(GenericAPIView):
-    permission_classes = [AllowAny]
-    serializer_class = ResetPasswordSerializer
-
-    def post(self, request):
-        otp = request.data.get("otp")
-        email = request.data.get("email")
-
-        # Validate email existence
-        try:
-            user = User.objects.get(email=email)
-        except User.DoesNotExist:
-            return Response(
-                {"message": "User with this email does not exist"},
-                status=status.HTTP_404_NOT_FOUND,
-            )
-
-        # Validate OTP
-        try:
-            otp_entry = OneTimePassword.objects.select_related("user").get(
-                user__email=email, code=otp, otp_expires__gte=now()
-            )
-        except OneTimePassword.DoesNotExist:
-            return Response(
-                {"message": "OTP not found or expired"},
-                status=status.HTTP_404_NOT_FOUND,
-            )
-        except OneTimePassword.MultipleObjectsReturned:
-            return Response(
-                {"message": "Multiple OTPs found, check for duplicates"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        # Validate passwords
-        serializer = ResetPasswordSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        password = serializer.validated_data["new_password1"]
-
-        # Reset password
-        user.set_password(password)
-        user.save()
-
-        # Delete OTP after successful password reset
-        otp_entry.delete()
-
-        return Response(
-            {"message": "Password reset successful."}, status=status.HTTP_200_OK
-        )
-
-
 class CustomPasswordResetView(APIView):
     """
     Custom Password Reset View that generates the token and UID separately
@@ -382,25 +295,26 @@ class CustomPasswordResetView(APIView):
 
     def post(self, request):
         email = request.data.get("email")
-
-        # Validate email and get the user
-        try:
-            user = User.objects.get(email=email)
-        except User.DoesNotExist:
+        if not email:
             return Response(
-                {"error": "User with this email does not exist."},
+                {"error": "Email is required."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # Generate token and UID
-        uid = urlsafe_base64_encode(force_bytes(user.pk))
-        token = default_token_generator.make_token(user)
-
-        # Send custom email with the frontend link
-        self.send_password_reset_email(user, uid, token, request)
+        # Same response whether or not the account exists, so this endpoint
+        # can't be used to probe which emails are registered.
+        try:
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            pass
+        else:
+            uid = urlsafe_base64_encode(force_bytes(user.pk))
+            token = default_token_generator.make_token(user)
+            self.send_password_reset_email(user, uid, token, request)
 
         return Response(
-            {"message": "Password reset link sent."}, status=status.HTTP_200_OK
+            {"message": "If an account exists for this email, a password reset link has been sent."},
+            status=status.HTTP_200_OK,
         )
 
     def send_password_reset_email(self, user, uid, token, request):

@@ -27,7 +27,6 @@ from django.utils.http import urlsafe_base64_decode
 from django.utils import timezone
 from django.db import transaction
 from rest_framework import serializers
-from rest_framework.exceptions import AuthenticationFailed
 from dj_rest_auth.registration.serializers import RegisterSerializer
 from phonenumber_field.serializerfields import PhoneNumberField
 from create_user.serializers import SocialMediaLinkSerializer
@@ -939,33 +938,6 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
         user.save()
 
         return user
-
-
-class ForgotPasswordSerializer(serializers.ModelSerializer):
-    email = serializers.EmailField()
-
-    class Meta:
-        model = User
-        fields = ["email"]
-
-    def validate(self, attrs):
-        email = attrs.get("email")
-        if not User.objects.filter(email=email).exists():
-            raise AuthenticationFailed("User with email not found")
-        return attrs
-
-
-class ResetPasswordSerializer(serializers.Serializer):
-    new_password1 = serializers.CharField(write_only=True)
-    new_password2 = serializers.CharField(write_only=True)
-
-    def validate(self, attrs):
-        new_password1 = attrs.get("new_password1")
-        new_password2 = attrs.get("new_password2")
-
-        if new_password1 != new_password2:
-            raise serializers.ValidationError("Passwords do not match")
-        return attrs
 
 
 class ReferralSerializer(serializers.ModelSerializer):
