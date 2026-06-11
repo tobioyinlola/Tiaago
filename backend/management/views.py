@@ -236,12 +236,6 @@ def resend_webhook(request):
     if not svix_id:
         return JsonResponse({"error": "Invalid signature"}, status=401)
 
-    # Idempotency: Resend delivers at-least-once.
-    try:
-        ProcessedWebhookEvent.objects.create(provider="resend", event_id=svix_id)
-    except IntegrityError:
-        return JsonResponse({"status": "already processed"}, status=200)
-
     try:
         event = json.loads(request.body)
     except json.JSONDecodeError:
@@ -261,8 +255,20 @@ def resend_webhook(request):
 
     track = EmailTrack.objects.filter(provider_message_id=message_id).first()
     if not track:
-        logger.info(f"Resend webhook for unknown message id: {message_id}")
-        return JsonResponse({"status": "unknown message"}, status=200)
+        # The EmailTrack row is committed only after the Resend API call
+        # returns, so the first sent/delivered events can beat it here. 404
+        # (without recording the event as processed) makes Resend retry on
+        # its backoff schedule until the row exists.
+        logger.info(f"Resend webhook for unknown message id: {message_id}; returning 404 so Resend retries")
+        return JsonResponse({"error": "unknown message"}, status=404)
+
+    # Idempotency: Resend delivers at-least-once. Recorded only now that the
+    # event will be applied — consuming it any earlier loses events that
+    # fail to apply (the retry would be dismissed as already processed).
+    try:
+        ProcessedWebhookEvent.objects.create(provider="resend", event_id=svix_id)
+    except IntegrityError:
+        return JsonResponse({"status": "already processed"}, status=200)
 
     # Engagement events: stamp first-seen timestamps, leave delivery_status
     # alone (opened also implies delivered, handled below).

@@ -186,6 +186,10 @@ class EmailHandler:
                     if message_id is not None:
                         success = True
                         provider_message_id = message_id
+                        # Resend accepted the message — record SENT now instead
+                        # of relying on the email.sent webhook; webhooks upgrade
+                        # to delivered/bounced/etc. from here.
+                        delivery_status = EmailTrack.DeliveryStatus.SENT
                         break
                 except requests.exceptions.RequestException as e:
                     logger.error(f"Resend connection error: {e}")
@@ -246,6 +250,7 @@ class EmailHandler:
                 if 200 <= response.status_code < 300:
                     logger.info(f"Email sent via Resend to {', '.join(self.recipients)}")
                     success = True
+                    delivery_status = EmailTrack.DeliveryStatus.SENT
                     try:
                         provider_message_id = response.json().get("id", "")
                     except ValueError:
