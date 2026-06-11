@@ -138,6 +138,12 @@ if DB_URL:
             ssl_require=False
         )
     }
+    # DB_URL must use the Supabase transaction pooler (port 6543): the session
+    # pooler (5432) caps at 15 clients, which web threads + worker + beat exhaust.
+    # Transaction pooling forbids server-side cursors, and the pooler may drop
+    # idle persistent connections, so health-check before reuse.
+    DATABASES['default']['DISABLE_SERVER_SIDE_CURSORS'] = True
+    DATABASES['default']['CONN_HEALTH_CHECKS'] = True
     # Log the database host/scheme only — never the password
     from urllib.parse import urlparse
     _p = urlparse(DB_URL)
