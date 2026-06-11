@@ -20,8 +20,11 @@ const ResetPassword = async ({
   });
   const resolvedSearchParams = await searchParams;
   const uid = typeof resolvedSearchParams.uid === "string" ? resolvedSearchParams.uid : "";
+  // Reset emails sent before the link fix appended a stray "/" to the token.
   const token =
-    typeof resolvedSearchParams.token === "string" ? resolvedSearchParams.token : "";
+    typeof resolvedSearchParams.token === "string"
+      ? resolvedSearchParams.token.replace(/\/+$/, "")
+      : "";
 
   if (!uid || !token) {
     return (

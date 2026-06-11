@@ -409,12 +409,13 @@ class CustomPasswordResetView(APIView):
         """
         current_site = get_current_site(request)
 
+        base_url = settings.FRONTEND_URL.rstrip("/")
         if user.is_talent():
-            frontend_url = f"{settings.FRONTEND_URL}/talents/reset-password/?uid={uid}&token={token}/"
+            frontend_url = f"{base_url}/talents/reset-password/?uid={uid}&token={token}"
         elif user.is_company():
-            frontend_url = f"{settings.FRONTEND_URL}/startups/reset-password/?uid={uid}&token={token}/"
+            frontend_url = f"{base_url}/startups/reset-password/?uid={uid}&token={token}"
         else:
-            frontend_url = f"{settings.FRONTEND_URL}/admin/reset-password/?uid={uid}&token={token}/"
+            frontend_url = f"{base_url}/admin/reset-password/?uid={uid}&token={token}"
 
         # Render the email content
         subject = "Reset Your Password"
