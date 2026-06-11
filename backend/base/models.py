@@ -4,8 +4,10 @@ from django.db import models
 class ActiveObjectsManager(models.Manager):
     """Returns items that are not deleted"""
 
-    def filter(self, *args, **kwargs):
-        return super().filter(*args, **kwargs).filter(deleted_at__isnull=True)
+    # Filtering must live in get_queryset(): overriding only filter() lets
+    # soft-deleted rows leak through .all(), .get(), .count(), aggregates, …
+    def get_queryset(self):
+        return super().get_queryset().filter(deleted_at__isnull=True)
 
 
 class TimeStampedModel(models.Model):
