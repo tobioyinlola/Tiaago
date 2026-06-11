@@ -4,6 +4,7 @@ import type { IconBaseProps } from "react-icons";
 import { PiClipboardText, PiExam, PiHandshake } from "react-icons/pi";
 import {
   IoBusinessOutline,
+  IoMailOutline,
   IoSettingsOutline,
   IoWalletOutline,
 } from "react-icons/io5";
@@ -74,6 +75,11 @@ export const navItems = [
     name: "coupons",
     href: `${baseHref}/coupons`,
     Icon: RiCoupon2Line,
+  },
+  {
+    name: "email logs",
+    href: `${baseHref}/email-logs`,
+    Icon: IoMailOutline,
   },
   {
     name: "referral withdrawals",

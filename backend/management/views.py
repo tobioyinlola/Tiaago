@@ -5,16 +5,26 @@ import json
 import logging
 import os
 import time
+from collections import OrderedDict
+from datetime import timedelta
 
 from django.db import IntegrityError
+from django.db.models import Count, Q
 from django.http import JsonResponse
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework import generics
+from rest_framework.filters import OrderingFilter, SearchFilter
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAdminUser
 from rest_framework.response import Response
 from rest_framework.status import HTTP_200_OK
+
+from base.mixins.pagination import TiaagoPagination
+from subscriptions.permissions import IsStaffUser
 from .models import EmailTrack, ProcessedWebhookEvent
+from .serializers import EmailTrackSerializer
 from .utils import get_user_and_registration_metrics, get_startup_metrics, get_contract_metrics, get_talent_metrics
 
 logger = logging.getLogger(__name__)
@@ -38,6 +48,89 @@ class AdminMetricsAPIView(APIView):
             "startup_metrics":startup_metrics,
             "contract_metrics":contract_metrics,
             "registration_metrics":registration_metrics
+        }
+        return Response(data=data, status=HTTP_200_OK)
+
+
+class EmailTrackPagination(TiaagoPagination):
+    """TiaagoPagination emitting the {current, count, next, previous, results}
+    body that PaginationHandlerMixin produces — the shape the frontend's
+    PagedResource/ServerPagination expect (page numbers, not URLs)."""
+
+    def get_paginated_response(self, data):
+        try:
+            previous_page = self.page.previous_page_number()
+        except Exception:
+            previous_page = None
+        try:
+            next_page = self.page.next_page_number()
+        except Exception:
+            next_page = None
+        return Response(
+            OrderedDict(
+                [
+                    ("current", self.page.number),
+                    ("count", self.page.paginator.count),
+                    ("next", next_page),
+                    ("previous", previous_page),
+                    ("results", data),
+                ]
+            )
+        )
+
+
+class EmailTrackListView(generics.ListAPIView):
+    """Staff-only paginated list of sent emails for the admin Email Logs page."""
+
+    serializer_class = EmailTrackSerializer
+    permission_classes = [IsStaffUser]
+    filter_backends = [SearchFilter, DjangoFilterBackend, OrderingFilter]
+    filterset_fields = ["delivery_status", "email_type"]
+    search_fields = ["email", "provider_message_id"]
+    ordering_fields = ["created_at"]
+    ordering = ["-created_at"]
+    pagination_class = EmailTrackPagination
+    queryset = EmailTrack.objects.all()
+
+
+class EmailTrackStatsAPIView(APIView):
+    """Summary stats for the admin Email Logs page, plus the distinct
+    email_type values that drive the type filter dropdown."""
+
+    permission_classes = [IsStaffUser]
+
+    def get(self, request):
+        now = timezone.now()
+        week = EmailTrack.objects.filter(created_at__gte=now - timedelta(days=7))
+        week_agg = week.aggregate(
+            total=Count("id"),
+            delivered=Count(
+                "id", filter=Q(delivery_status=EmailTrack.DeliveryStatus.DELIVERED)
+            ),
+            bounced=Count(
+                "id", filter=Q(delivery_status=EmailTrack.DeliveryStatus.BOUNCED)
+            ),
+            complained=Count(
+                "id", filter=Q(delivery_status=EmailTrack.DeliveryStatus.COMPLAINED)
+            ),
+        )
+        delivered_rate = (
+            round(week_agg["delivered"] / week_agg["total"] * 100, 1)
+            if week_agg["total"]
+            else 0
+        )
+        data = {
+            "sent_24h": EmailTrack.objects.filter(
+                created_at__gte=now - timedelta(hours=24)
+            ).count(),
+            "delivered_rate_7d": delivered_rate,
+            "bounced_7d": week_agg["bounced"],
+            "complained_7d": week_agg["complained"],
+            "email_types": list(
+                EmailTrack.objects.order_by("email_type")
+                .values_list("email_type", flat=True)
+                .distinct()
+            ),
         }
         return Response(data=data, status=HTTP_200_OK)
 
