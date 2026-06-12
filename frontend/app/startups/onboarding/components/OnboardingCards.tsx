@@ -52,6 +52,17 @@ const OnboardingCards = ({
   const [isSkipping, setIsSkipping] = useState(false);
   const setAlert = useAlert(state => state.setAlert);
 
+  const roleOptions = startupRoles.map(({ title, slug }) => ({
+    label: title,
+    value: slug,
+  }));
+  // react-select needs the full option object to display a stored value
+  // (saved cards being resumed, or data prefilled from signup)
+  const findOption = (
+    options: { label: string; value: string }[],
+    value: string
+  ) => options.find(option => option.value === value) ?? null;
+
   const totalSteps = onboardingSteps.length;
   const currentStep = onboardingSteps[step];
   const isLastStep = step === totalSteps - 1;
@@ -234,7 +245,10 @@ const OnboardingCards = ({
                   value={values.industry}
                   error={errors.industry}
                   touched={touched.industry}
-                  selectFieldProps={{ options: industryOptions }}
+                  selectFieldProps={{
+                    options: industryOptions,
+                    value: findOption(industryOptions, values.industry),
+                  }}
                 />
                 <FormikField
                   name='size'
@@ -245,7 +259,10 @@ const OnboardingCards = ({
                   error={errors.size}
                   touched={touched.size}
                   className='sm:col-span-2'
-                  selectFieldProps={{ options: companySizeOptions }}
+                  selectFieldProps={{
+                    options: companySizeOptions,
+                    value: findOption(companySizeOptions, values.size),
+                  }}
                 />
               </div>
             )}
@@ -261,10 +278,8 @@ const OnboardingCards = ({
                   error={errors.role}
                   touched={touched.role}
                   selectFieldProps={{
-                    options: startupRoles.map(({ title, slug }) => ({
-                      label: title,
-                      value: slug,
-                    })),
+                    options: roleOptions,
+                    value: findOption(roleOptions, values.role),
                   }}
                 />
                 <FormikField
@@ -288,7 +303,10 @@ const OnboardingCards = ({
                   value={values.heard_from}
                   error={errors.heard_from}
                   touched={touched.heard_from}
-                  selectFieldProps={{ options: heardFromOptions }}
+                  selectFieldProps={{
+                    options: heardFromOptions,
+                    value: findOption(heardFromOptions, values.heard_from),
+                  }}
                 />
                 {values.heard_from === "Other" && (
                   <FormikField
