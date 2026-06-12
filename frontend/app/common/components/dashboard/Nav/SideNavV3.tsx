@@ -95,7 +95,7 @@ const SideNavV3 = ({
               colsesMobileDrawer
               className='py-[5px] md:px-2.5 text-[#6C757D] fill-[#2E3031] text-sm font-medium hover:bg-[#F1F3FF] flex rounded-[5px]'
               activeClassName='text-primary fill-primary bg-[#FAFAFA]'
-              anchorClassName='py-[5px] min-h-fit h-fit md:px-2.5 text-[#6C757D] fill-[#2E3031] text-sm font-medium hover:bg-[#F1F3FF] flex items-center rounded-[5px]'
+              anchorClassName='py-[5px] min-h-fit h-fit md:px-2.5 md:pe-9 text-[#6C757D] fill-[#2E3031] text-sm font-medium hover:bg-[#F1F3FF] flex items-center rounded-[5px]'
               anchorActiveClassName='text-primary fill-primary'
               badges={badges}
             >
