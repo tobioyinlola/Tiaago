@@ -40,7 +40,7 @@ const Signup = async ({
       description='Sign up to access top talent and streamline your hiring'
       unconstrainedWidth
       hideSupport
-      className='pb-3'
+      className='pb-3 md:flex md:flex-col md:justify-center'
       containerClassName='pt-3'
       next={next}
     >
