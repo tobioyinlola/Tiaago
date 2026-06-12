@@ -70,12 +70,15 @@ const StartupOnboardingPage = async () => {
               again, or skip ahead to your dashboard.
             </p>
             <div className='flex items-center justify-center gap-4'>
-              <a href='/startups/onboarding' className='btn btn-primary text-white'>
+              <a
+                href='/startups/onboarding'
+                className='btn btn-primary text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+              >
                 Try again
               </a>
               <a
                 href='/startups/dashboard'
-                className='text-sm text-muted-foreground hover:text-foreground transition-colors duration-200'
+                className='text-sm text-muted-foreground hover:text-foreground transition-colors duration-200 rounded-md px-2 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
               >
                 Go to dashboard
               </a>

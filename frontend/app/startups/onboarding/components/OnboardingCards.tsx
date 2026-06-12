@@ -21,6 +21,7 @@ import {
   accountTypeOptions,
   heardFromOptions,
   industryOptions,
+  isEmptyPhone,
   normalizeUrl,
   onboardingSteps,
   OnboardingFormValues,
@@ -68,7 +69,7 @@ const OnboardingCards = ({
     toast.dismiss();
     const result = await updateCompanyOnboarding({ skip: true });
     if (result.success) {
-      toast.success("No problem — you can finish setup anytime from your dashboard.");
+      toast.success("No problem. You can finish setup anytime from your dashboard.");
       window.location.href = "/startups/dashboard";
     } else {
       toast.error(result.error);
@@ -84,7 +85,10 @@ const OnboardingCards = ({
     // save only the fields owned by the current card so users can resume
     const payload: CompanyOnboardingInput = {};
     currentStep.fieldNames.forEach(field => {
-      const value = field === "website" ? normalizeUrl(values[field]) : values[field];
+      let value = values[field];
+      if (field === "website") value = normalizeUrl(value);
+      // a bare dial code means the phone field was left empty
+      if (field === "phone_number" && isEmptyPhone(value)) value = "";
       if (value !== "") payload[field] = value as never;
     });
     if (isLastStep) payload.complete = true;
@@ -155,7 +159,11 @@ const OnboardingCards = ({
           <div className='space-y-4'>
             {step === 0 && (
               <>
-                <div role='radiogroup' className='grid sm:grid-cols-2 gap-3'>
+                <div
+                  role='radiogroup'
+                  aria-label='Account type'
+                  className='grid sm:grid-cols-2 gap-3'
+                >
                   {accountTypeOptions.map(option => (
                     <label
                       key={option.value}
@@ -305,43 +313,45 @@ const OnboardingCards = ({
             )}
           </div>
 
-          <div className='flex items-center justify-between gap-3 pt-4 border-t border-border'>
-            <Button
-              type='button'
-              color='ghost'
-              size='sm'
-              className='gap-2'
-              onClick={() => setStep(current => Math.max(0, current - 1))}
-              disabled={step === 0 || isSubmitting || isSkipping}
-            >
-              <ArrowLeft className='h-4 w-4' aria-hidden /> Back
-            </Button>
-            <button
-              type='button'
-              onClick={skipForNow}
-              disabled={isSubmitting || isSkipping}
-              className='text-xs text-muted-foreground hover:text-foreground transition-colors duration-200 disabled:opacity-50 disabled:pointer-events-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-md px-2 py-3'
-            >
-              {isSkipping ? "Skipping..." : "Skip for now"}
-            </button>
-            <Button
-              type='submit'
-              color='primary'
-              size='sm'
-              className='gap-2 text-white'
-              loading={isSubmitting}
-              disabled={isSubmitting || isSkipping}
-            >
-              {isLastStep ? (
-                <>
-                  <CheckCircle2 className='h-4 w-4' aria-hidden /> Finish
-                </>
-              ) : (
-                <>
-                  Continue <ArrowRight className='h-4 w-4' aria-hidden />
-                </>
-              )}
-            </Button>
+          <div className='pt-4 border-t border-border space-y-1'>
+            <div className='flex items-center justify-between gap-2 sm:gap-3'>
+              <Button
+                type='button'
+                color='ghost'
+                className='gap-2'
+                onClick={() => setStep(current => Math.max(0, current - 1))}
+                disabled={step === 0 || isSubmitting || isSkipping}
+              >
+                <ArrowLeft className='h-4 w-4' aria-hidden /> Back
+              </Button>
+              <Button
+                type='submit'
+                color='primary'
+                className='gap-2 text-white'
+                loading={isSubmitting}
+                disabled={isSubmitting || isSkipping}
+              >
+                {isLastStep ? (
+                  <>
+                    <CheckCircle2 className='h-4 w-4' aria-hidden /> Finish
+                  </>
+                ) : (
+                  <>
+                    Continue <ArrowRight className='h-4 w-4' aria-hidden />
+                  </>
+                )}
+              </Button>
+            </div>
+            <div className='flex justify-center'>
+              <button
+                type='button'
+                onClick={skipForNow}
+                disabled={isSubmitting || isSkipping}
+                className='text-sm text-muted-foreground hover:text-foreground transition-colors duration-200 disabled:opacity-50 disabled:pointer-events-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-md px-3 py-3.5'
+              >
+                {isSkipping ? "Skipping..." : "Skip for now"}
+              </button>
+            </div>
           </div>
         </form>
       )}

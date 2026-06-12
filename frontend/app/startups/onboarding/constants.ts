@@ -1,7 +1,6 @@
 import * as Yup from "yup";
 
 import { CompanyAccountType, CompanyOnboarding } from "@/app/common/types";
-import { urlValidationSchema } from "@/app/common/constants/validationSchemas";
 import { companySizeOptions } from "../signup/constants/form.contants";
 
 export { companySizeOptions };
@@ -43,6 +42,31 @@ export const industryOptions = [
   "Media",
   "Other",
 ].map(industry => ({ label: industry, value: industry }));
+
+// Unlike the shared urlValidationSchema, this one accepts an empty value
+// (the field is optional) and scheme-less input like "acme.com", which is
+// normalized to https:// before saving.
+const optionalUrlSchema = Yup.string().matches(
+  /^((http|https):\/\/)?(www\.)?([a-zA-Z0-9-]+(\.[a-zA-Z]+)+)(\/[\w\-./?%&=]*)?$/,
+  { message: "Please enter a valid URL", excludeEmptyString: true }
+);
+
+// react-phone-input-2 leaves the bare country dial code behind when the
+// user clears the field; up to 4 digits counts as empty, anything longer
+// must look like a real number.
+const PHONE_DIAL_CODE_MAX_DIGITS = 4;
+export const phoneDigits = (value?: string) =>
+  (value || "").replace(/\D/g, "");
+const optionalPhoneSchema = Yup.string().test(
+  "phone-length",
+  "Please enter a valid phone number",
+  value => {
+    const digits = phoneDigits(value);
+    return digits.length <= PHONE_DIAL_CODE_MAX_DIGITS || digits.length >= 8;
+  }
+);
+export const isEmptyPhone = (value: string) =>
+  phoneDigits(value).length <= PHONE_DIAL_CODE_MAX_DIGITS;
 
 export const heardFromOptions = [
   "Google search",
@@ -109,8 +133,8 @@ export const onboardingSteps: OnboardingStep[] = [
     description: "A few details about your organization",
     fieldNames: ["company_name", "website", "industry", "size"],
     validationSchema: Yup.object().shape({
-      company_name: Yup.string().required().label("Company name"),
-      website: urlValidationSchema.notRequired().label("Website"),
+      company_name: Yup.string().trim().required().label("Company name"),
+      website: optionalUrlSchema.label("Website"),
       industry: Yup.string().label("Industry"),
       size: Yup.string().required().label("Company size"),
     }),
@@ -121,12 +145,12 @@ export const onboardingSteps: OnboardingStep[] = [
     fieldNames: ["role", "phone_number"],
     validationSchema: Yup.object().shape({
       role: Yup.string().required().label("Job title"),
-      phone_number: Yup.string().label("Phone number"),
+      phone_number: optionalPhoneSchema.label("Phone number"),
     }),
   },
   {
     title: "How did you hear?",
-    description: "Last thing — and you're in!",
+    description: "Last step, then you're all set!",
     fieldNames: ["heard_from", "heard_from_other", "onboarding_notes"],
     validationSchema: Yup.object().shape({
       heard_from: Yup.string().required().label("Where you heard about us"),
