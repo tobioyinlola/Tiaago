@@ -21,12 +21,12 @@ class CreateUserManagerTests(TestCase):
             user_type="T"
         )
         email_address = user.get_associated_emails()  # get all created associated email
-        self.assertEquals(user.email, "test01@example.com")
-        self.assertEquals(user.username, "test01")
+        self.assertEqual(user.email, "test01@example.com")
+        self.assertEqual(user.username, "test01")
         self.assertTrue(user.check_password("testpassword123"))
         self.assertFalse(user.is_staff)
         self.assertFalse(user.is_superuser)
-        self.assertEquals(user.user_type, "T")
+        self.assertEqual(user.user_type, "T")
         self.assertFalse(email_address.exists())   # check that no associated email is created
 
     def test_create_user_for_company_rep_user_type(self):
@@ -37,12 +37,12 @@ class CreateUserManagerTests(TestCase):
             user_type="CR"
         )
         email_address = user.get_associated_emails()  # get all created associated email
-        self.assertEquals(user.email, "test01@example.com")
-        self.assertEquals(user.username, "test01")
+        self.assertEqual(user.email, "test01@example.com")
+        self.assertEqual(user.username, "test01")
         self.assertTrue(user.check_password("testpassword123"))
         self.assertFalse(user.is_staff)
         self.assertFalse(user.is_superuser)
-        self.assertEquals(user.user_type, "CR")
+        self.assertEqual(user.user_type, "CR")
         self.assertFalse(email_address.exists())   # check that no associated email is created
 
     def test_create_user_for_staff_user_type(self):
@@ -55,12 +55,12 @@ class CreateUserManagerTests(TestCase):
             is_superuser=True
         )
         email_address = user.get_associated_emails()  # get all created associated email
-        self.assertEquals(user.email, "test01@example.com")
-        self.assertEquals(user.username, "test01")
+        self.assertEqual(user.email, "test01@example.com")
+        self.assertEqual(user.username, "test01")
         self.assertTrue(user.check_password("testpassword123"))
         self.assertTrue(user.is_staff)
         self.assertTrue(user.is_superuser)
-        self.assertEquals(user.user_type, "ST")
+        self.assertEqual(user.user_type, "ST")
         self.assertFalse(email_address.exists())   # check that no associated email is created
 
 class CreateTalentUserManagerTests(TestCase):
@@ -79,12 +79,12 @@ class CreateTalentUserManagerTests(TestCase):
             username=self.user.get("username"),
         )
         email_address = user.get_associated_emails()  # get all created associated email
-        self.assertEquals(user.email, "test01@example.com")
-        self.assertEquals(user.username, "test01")
+        self.assertEqual(user.email, "test01@example.com")
+        self.assertEqual(user.username, "test01")
         self.assertTrue(user.check_password("testpassword123"))
         self.assertFalse(user.is_staff)
         self.assertFalse(user.is_superuser)
-        self.assertEquals(user.user_type, "T")
+        self.assertEqual(user.user_type, "T")
         self.assertFalse(email_address.exists())   # check that no associated email is created
 
     def test_create_talent_user_and_verify(self):
@@ -95,12 +95,12 @@ class CreateTalentUserManagerTests(TestCase):
             username=self.user.get("username"),
         )
         email_address = user.get_associated_emails()  # get the associated email address
-        self.assertEquals(user.email, "test01@example.com")
-        self.assertEquals(user.username, "test01")
+        self.assertEqual(user.email, "test01@example.com")
+        self.assertEqual(user.username, "test01")
         self.assertTrue(user.check_password("testpassword123"))
         self.assertFalse(user.is_staff)
         self.assertFalse(user.is_superuser)
-        self.assertEquals(user.user_type, "T")
+        self.assertEqual(user.user_type, "T")
         self.assertTrue(email_address[0].primary)
         self.assertTrue(email_address[0].verified)
 
@@ -121,12 +121,12 @@ class CreateCompanyRepUserManagerTests(TestCase):
             username=self.user.get("username"),
         )
         email_address = user.get_associated_emails()  # get all created associated email
-        self.assertEquals(user.email, "test01@example.com")
-        self.assertEquals(user.username, "test01")
+        self.assertEqual(user.email, "test01@example.com")
+        self.assertEqual(user.username, "test01")
         self.assertTrue(user.check_password("testpassword123"))
         self.assertFalse(user.is_staff)
         self.assertFalse(user.is_superuser)
-        self.assertEquals(user.user_type, "CR")
+        self.assertEqual(user.user_type, "CR")
         self.assertFalse(email_address.exists())   # check that no associated email is created
 
     def test_create_company_rep_user_and_verify(self):
@@ -137,12 +137,12 @@ class CreateCompanyRepUserManagerTests(TestCase):
             username=self.user.get("username"),
         )
         email_address = user.get_associated_emails()  # get the associated email address
-        self.assertEquals(user.email, "test01@example.com")
-        self.assertEquals(user.username, "test01")
+        self.assertEqual(user.email, "test01@example.com")
+        self.assertEqual(user.username, "test01")
         self.assertTrue(user.check_password("testpassword123"))
         self.assertFalse(user.is_staff)
         self.assertFalse(user.is_superuser)
-        self.assertEquals(user.user_type, "CR")
+        self.assertEqual(user.user_type, "CR")
         self.assertTrue(email_address[0].primary)
         self.assertTrue(email_address[0].verified)
 
@@ -162,12 +162,12 @@ class CreateSuperUserManagerTests(TestCase):
             username=self.user.get("username"),
         )
         email_address = user.get_associated_emails()  # get all created associated email
-        self.assertEquals(user.email, "admin@example.com")
-        self.assertEquals(user.username, "admin")
+        self.assertEqual(user.email, "admin@example.com")
+        self.assertEqual(user.username, "admin")
         self.assertTrue(user.check_password("testpassword123"))
         self.assertTrue(user.is_staff)
         self.assertTrue(user.is_superuser)
-        self.assertEquals(user.user_type, "ST")
+        self.assertEqual(user.user_type, "ST")
         self.assertFalse(email_address.exists())   # check that no associated email is created
 
     def test_create_super_user_and_verify(self):
@@ -178,11 +178,11 @@ class CreateSuperUserManagerTests(TestCase):
             username=self.user.get("username"),
         )
         email_address = user.get_associated_emails()  # get the associated email address
-        self.assertEquals(user.email, "admin@example.com")
-        self.assertEquals(user.username, "admin")
+        self.assertEqual(user.email, "admin@example.com")
+        self.assertEqual(user.username, "admin")
         self.assertTrue(user.check_password("testpassword123"))
         self.assertTrue(user.is_staff)
         self.assertTrue(user.is_superuser)
-        self.assertEquals(user.user_type, "ST")
+        self.assertEqual(user.user_type, "ST")
         self.assertTrue(email_address[0].primary)
         self.assertTrue(email_address[0].verified)
