@@ -13,6 +13,7 @@ import { getCurrentUser } from "@/app/common/services/profile";
 import { getUnreadMessageCounts } from "@/app/common/services/chat";
 import SideNavV3 from "@/app/common/components/dashboard/Nav/SideNavV3";
 import SetUserProfile from "@/app/common/components/Layout/SetUserProfile";
+import FinishOnboardingBanner from "./components/FinishOnboardingBanner";
 import { getCompanyOnboarding } from "@/app/common/services/company-onboarding";
 
 const StartupDashboardLayout = async ({ children }: PropsWithChildren) => {
@@ -21,8 +22,9 @@ const StartupDashboardLayout = async ({ children }: PropsWithChildren) => {
   // if (!user.is_verified)
   //   return redirect(`/verify-email?email=${user.email}&as=talent`);
 
-  // New signups must finish (or skip) the onboarding cards before the
-  // dashboard; fail open if the status call errors so a backend hiccup
+  // New signups must finish or explicitly skip the onboarding cards before
+  // the dashboard; skipped users get in but see a finish-setup banner until
+  // they complete. Fail open if the status call errors so a backend hiccup
   // never locks users out.
   const onboarding = await getCompanyOnboarding().catch(e => {
     console.log(
@@ -31,8 +33,14 @@ const StartupDashboardLayout = async ({ children }: PropsWithChildren) => {
     );
     return null;
   });
-  if (onboarding && !onboarding.has_completed_onboarding)
+  if (
+    onboarding &&
+    !onboarding.has_completed_onboarding &&
+    !onboarding.has_skipped_onboarding
+  )
     redirect("/startups/onboarding");
+  const showFinishOnboardingBanner =
+    !!onboarding && !onboarding.has_completed_onboarding;
   const splitCompanyName = startup.company_name.split(" ");
   const unreadMessageCounts = !IS_CHAT_HIDDEN
     ? await getUnreadMessageCounts().catch(async e => {
@@ -88,6 +96,7 @@ const StartupDashboardLayout = async ({ children }: PropsWithChildren) => {
           className='h-[calc(100svh-5rem)] max-lg:drawer-content bg-[#F8F9FA] px-3 md:px-8 flex-1'
         >
           <div className='h-8' />
+          {showFinishOnboardingBanner && <FinishOnboardingBanner />}
           {children}
           <div className='h-8' />
         </ScrollArea>

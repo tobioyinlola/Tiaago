@@ -15,11 +15,16 @@ export const getCompanyOnboarding = async (): Promise<CompanyOnboarding> => {
 export type CompanyOnboardingInput = Partial<
   Omit<
     CompanyOnboarding,
-    "onboarding_completed_at" | "has_completed_onboarding"
+    | "onboarding_completed_at"
+    | "onboarding_skipped_at"
+    | "has_completed_onboarding"
+    | "has_skipped_onboarding"
   >
 > & {
-  /** Marks onboarding as finished (also used by "Skip for now"). */
+  /** Marks onboarding as finished — the cards never show again. */
   complete?: boolean;
+  /** Defers onboarding: no forced redirect, but the flow stays resumable. */
+  skip?: boolean;
 };
 
 export const updateCompanyOnboarding = async (

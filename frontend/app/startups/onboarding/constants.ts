@@ -149,3 +149,13 @@ export const getInitialStep = (onboarding: CompanyOnboarding) => {
   if (!onboarding.role) return 2;
   return 3;
 };
+
+/**
+ * Users type "acme.com"; the backend URLField requires a scheme — add
+ * https:// for them rather than rejecting the input.
+ */
+export const normalizeUrl = (url: string) => {
+  const trimmed = url.trim();
+  if (!trimmed) return trimmed;
+  return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+};

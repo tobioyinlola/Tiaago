@@ -2,6 +2,7 @@ from datetime import datetime, timezone as dt_timezone
 
 from urllib import request
 from django.conf import settings
+from django.utils.crypto import constant_time_compare
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AnonymousUser
 from django.contrib.auth.tokens import default_token_generator
@@ -195,10 +196,36 @@ class ConfirmEmailView(APIView):
         otp_code = serializer.validated_data["otp"]
 
         try:
-            otp_entry = OneTimePassword.objects.select_related("user").get(
-                user__email=email, code=otp_code, otp_expires__gte=now()
+            otp_entry = (
+                OneTimePassword.objects.select_related("user")
+                .filter(user__email=email, otp_expires__gte=now())
+                .first()
             )
-    
+            if otp_entry is None:
+                return Response(
+                    {"detail": "Invalid or expired OTP."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # This endpoint issues login tokens, so brute-forcing the short
+            # code must be cut off: a handful of wrong guesses burns the OTP
+            # and the user has to request a new one.
+            if not constant_time_compare(otp_entry.code, otp_code):
+                otp_entry.attempts += 1
+                if otp_entry.attempts >= OneTimePassword.MAX_ATTEMPTS:
+                    otp_entry.delete()
+                    return Response(
+                        {
+                            "detail": "Too many incorrect attempts. Please request a new code."
+                        },
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+                otp_entry.save(update_fields=["attempts"])
+                return Response(
+                    {"detail": "Invalid or expired OTP."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
             otp_entry.user.is_verified = True
             otp_entry.user.save()
 
@@ -890,10 +917,18 @@ class CompanyOnboardingAPIView(APIView):
         serializer.is_valid(raise_exception=True)
         company = serializer.save()
 
-        # "complete": true marks onboarding as finished (or skipped)
+        update_fields = []
+        # "complete": true marks onboarding as finished — the cards never
+        # show again. "skip": true only defers it: the dashboard stops
+        # force-redirecting but the flow stays open for resuming later.
         if request.data.get("complete") and company.onboarding_completed_at is None:
             company.onboarding_completed_at = now()
-            company.save(update_fields=["onboarding_completed_at"])
+            update_fields.append("onboarding_completed_at")
+        if request.data.get("skip") and company.onboarding_skipped_at is None:
+            company.onboarding_skipped_at = now()
+            update_fields.append("onboarding_skipped_at")
+        if update_fields:
+            company.save(update_fields=update_fields)
 
         return Response(CompanyOnboardingSerializer(company).data)
 

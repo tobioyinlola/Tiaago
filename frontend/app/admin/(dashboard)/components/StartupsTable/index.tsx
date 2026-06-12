@@ -53,11 +53,11 @@ const BaseTable = ({ data, className }: BaseProps) => {
                     </div>
                   </td>
                   <td className='max-sm:hidden text-[#2E2E2E]'>
-                    {startup.size}
+                    {startup.size || "—"}
                   </td>
                   <td>{startup.country}</td>
                   <td>
-                    <p className='line-clamp-1'>{startup.website}</p>
+                    <p className='line-clamp-1'>{startup.website || "—"}</p>
                   </td>
                   <td>
                     <StatusBadge
@@ -72,14 +72,17 @@ const BaseTable = ({ data, className }: BaseProps) => {
                     />
                   </td>
                   <td>
-                    <a
-                      href={startup.website}
-                      target='_blank'
-                      rel='noreferrer'
-                      className='text-base text-[#7F7F7F] hover:text-primary'
-                    >
-                      <LuExternalLink />
-                    </a>
+                    {!!startup.website && (
+                      <a
+                        href={startup.website}
+                        target='_blank'
+                        rel='noreferrer'
+                        aria-label={`Open ${startup.company_name} website`}
+                        className='text-base text-[#7F7F7F] hover:text-primary'
+                      >
+                        <LuExternalLink />
+                      </a>
+                    )}
                   </td>
                 </tr>
               ))

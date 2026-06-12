@@ -33,7 +33,10 @@ const EmailVerificationForm = ({
 }: Props) => {
   const router = useRouter();
   const setAlert = useAlert(state => state.setAlert);
-  const inputBox = [{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }];
+  const OTP_LENGTH = 6;
+  const inputBox = Array.from({ length: OTP_LENGTH }, (_, i) => ({
+    id: i + 1,
+  }));
 
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
@@ -77,7 +80,7 @@ const EmailVerificationForm = ({
     }
     if (isLoading) return;
     const otp = _code.join("");
-    if (otp.length !== 4) {
+    if (otp.length !== OTP_LENGTH) {
       toast.error("Invalid OTP");
       return;
     }
@@ -126,7 +129,7 @@ const EmailVerificationForm = ({
       if (index < inputRefs.current.length - 1) {
         inputRefs.current[index + 1]?.focus();
       } else {
-        verifyEmail(code.length === 3 ? [...code, value] : code);
+        verifyEmail(code.length === OTP_LENGTH - 1 ? [...code, value] : code);
       }
     }
   };
@@ -181,7 +184,7 @@ const EmailVerificationForm = ({
       <div
         role='group'
         aria-label='Enter verification code'
-        className='flex gap-3 justify-center p-4 w-full'
+        className='flex gap-2 sm:gap-3 justify-center p-4 w-full'
       >
         {inputBox.map(input => (
           <input
@@ -193,7 +196,7 @@ const EmailVerificationForm = ({
             key={input.id}
             maxLength={1}
             aria-label={`Verification code digit ${input.id}`}
-            className='w-12 h-12 p-2 shadow-sm border border-border bg-card text-xl font-bold rounded-md text-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+            className='w-11 sm:w-12 h-12 p-2 shadow-sm border border-border bg-card text-xl font-bold rounded-md text-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
           />
         ))}
       </div>
@@ -214,7 +217,7 @@ const EmailVerificationForm = ({
 
       <Button
         loading={isLoading}
-        disabled={isLoading || code.length !== 4}
+        disabled={isLoading || code.length !== OTP_LENGTH}
         onClick={() => verifyEmail()}
         color='primary'
         className='mt-3 rounded-md w-full'

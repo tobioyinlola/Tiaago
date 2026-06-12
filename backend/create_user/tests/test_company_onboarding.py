@@ -62,20 +62,24 @@ class MinimalCompanyRegistrationTests(APITestCase):
 
 
 class ConfirmEmailTokenTests(APITestCase):
-    def test_otp_confirmation_returns_login_tokens(self):
-        register_company(self.client)
-        user = User.objects.get(email="jane@acme.com")
+    def _set_otp(self, user, code="432109"):
         OneTimePassword.objects.update_or_create(
             user=user,
             defaults={
-                "code": "4321",
+                "code": code,
                 "otp_expires": timezone.now() + timedelta(minutes=10),
+                "attempts": 0,
             },
         )
 
+    def test_otp_confirmation_returns_login_tokens(self):
+        register_company(self.client)
+        user = User.objects.get(email="jane@acme.com")
+        self._set_otp(user)
+
         response = self.client.post(
             reverse("account_confirm_email"),
-            {"email": "jane@acme.com", "otp": "4321"},
+            {"email": "jane@acme.com", "otp": "432109"},
         )
         self.assertEqual(response.status_code, 200, response.content)
         for key in ("access", "refresh", "access_expiration", "refresh_expiration"):
@@ -97,10 +101,49 @@ class ConfirmEmailTokenTests(APITestCase):
         register_company(self.client)
         response = self.client.post(
             reverse("account_confirm_email"),
-            {"email": "jane@acme.com", "otp": "0000"},
+            {"email": "jane@acme.com", "otp": "000000"},
         )
         self.assertEqual(response.status_code, 400)
         self.assertNotIn("access", response.data)
+
+    def test_otp_invalidated_after_max_wrong_attempts(self):
+        register_company(self.client)
+        user = User.objects.get(email="jane@acme.com")
+        self._set_otp(user)
+
+        for _ in range(OneTimePassword.MAX_ATTEMPTS):
+            response = self.client.post(
+                reverse("account_confirm_email"),
+                {"email": "jane@acme.com", "otp": "000000"},
+            )
+            self.assertEqual(response.status_code, 400)
+
+        # the OTP is burned: even the correct code no longer works
+        self.assertFalse(OneTimePassword.objects.filter(user=user).exists())
+        response = self.client.post(
+            reverse("account_confirm_email"),
+            {"email": "jane@acme.com", "otp": "432109"},
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertNotIn("access", response.data)
+
+    def test_wrong_attempts_below_limit_keep_otp_usable(self):
+        register_company(self.client)
+        user = User.objects.get(email="jane@acme.com")
+        self._set_otp(user)
+
+        for _ in range(OneTimePassword.MAX_ATTEMPTS - 1):
+            self.client.post(
+                reverse("account_confirm_email"),
+                {"email": "jane@acme.com", "otp": "000000"},
+            )
+
+        response = self.client.post(
+            reverse("account_confirm_email"),
+            {"email": "jane@acme.com", "otp": "432109"},
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertIn("access", response.data)
 
 
 class CompanyOnboardingAPITests(APITestCase):
@@ -169,10 +212,27 @@ class CompanyOnboardingAPITests(APITestCase):
         self.assertEqual(self.company.heard_from, "LinkedIn")
         self.assertIsNotNone(self.company.onboarding_completed_at)
 
-    def test_skip_marks_complete_without_data(self):
-        response = self.client.patch(self.url, {"complete": True})
+    def test_skip_defers_onboarding_without_completing(self):
+        response = self.client.patch(self.url, {"skip": True})
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertTrue(response.data["has_skipped_onboarding"])
+        self.assertFalse(response.data["has_completed_onboarding"])
+
+        self.company.refresh_from_db()
+        self.assertIsNotNone(self.company.onboarding_skipped_at)
+        self.assertIsNone(self.company.onboarding_completed_at)
+
+    def test_skipped_user_can_resume_and_complete(self):
+        self.client.patch(self.url, {"skip": True})
+        response = self.client.patch(
+            self.url, {"heard_from": "Podcast", "complete": True}
+        )
         self.assertEqual(response.status_code, 200, response.content)
         self.assertTrue(response.data["has_completed_onboarding"])
+
+        self.company.refresh_from_db()
+        self.assertEqual(self.company.heard_from, "Podcast")
+        self.assertIsNotNone(self.company.onboarding_completed_at)
 
     def test_complete_timestamp_is_not_overwritten(self):
         self.client.patch(self.url, {"complete": True})

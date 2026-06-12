@@ -19,11 +19,12 @@ User = get_user_model()
 
 
 def generate_otp(user):
-    otp_code = get_random_string(length=4, allowed_chars="0123456789")
+    otp_code = get_random_string(length=6, allowed_chars="0123456789")
     otp_expires = timezone.now() + timedelta(seconds=settings.OTP_EXPIRY_TIME)
 
     otp, created = OneTimePassword.objects.update_or_create(
-        user=user, defaults={"code": otp_code, "otp_expires": otp_expires}
+        user=user,
+        defaults={"code": otp_code, "otp_expires": otp_expires, "attempts": 0},
     )
     return otp_code
 

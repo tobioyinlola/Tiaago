@@ -21,6 +21,7 @@ import {
   accountTypeOptions,
   heardFromOptions,
   industryOptions,
+  normalizeUrl,
   onboardingSteps,
   OnboardingFormValues,
 } from "../constants";
@@ -65,9 +66,10 @@ const OnboardingCards = ({
     if (isSkipping) return;
     setIsSkipping(true);
     toast.dismiss();
-    const result = await updateCompanyOnboarding({ complete: true });
+    const result = await updateCompanyOnboarding({ skip: true });
     if (result.success) {
-      finishAndRedirect();
+      toast.success("No problem — you can finish setup anytime from your dashboard.");
+      window.location.href = "/startups/dashboard";
     } else {
       toast.error(result.error);
       setIsSkipping(false);
@@ -82,7 +84,7 @@ const OnboardingCards = ({
     // save only the fields owned by the current card so users can resume
     const payload: CompanyOnboardingInput = {};
     currentStep.fieldNames.forEach(field => {
-      const value = values[field];
+      const value = field === "website" ? normalizeUrl(values[field]) : values[field];
       if (value !== "") payload[field] = value as never;
     });
     if (isLastStep) payload.complete = true;

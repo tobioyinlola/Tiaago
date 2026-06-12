@@ -450,6 +450,7 @@ class CompanyOnboardingSerializer(serializers.ModelSerializer):
     )
     phone_number = PhoneNumberField(required=False, allow_blank=True, write_only=True)
     has_completed_onboarding = serializers.SerializerMethodField()
+    has_skipped_onboarding = serializers.SerializerMethodField()
 
     class Meta:
         model = Company
@@ -465,9 +466,11 @@ class CompanyOnboardingSerializer(serializers.ModelSerializer):
             "heard_from_other",
             "onboarding_notes",
             "onboarding_completed_at",
+            "onboarding_skipped_at",
             "has_completed_onboarding",
+            "has_skipped_onboarding",
         )
-        read_only_fields = ("onboarding_completed_at",)
+        read_only_fields = ("onboarding_completed_at", "onboarding_skipped_at")
         extra_kwargs = {
             "website": {"required": False, "allow_null": True},
             "size": {"required": False, "allow_null": True},
@@ -475,6 +478,9 @@ class CompanyOnboardingSerializer(serializers.ModelSerializer):
 
     def get_has_completed_onboarding(self, obj):
         return obj.onboarding_completed_at is not None
+
+    def get_has_skipped_onboarding(self, obj):
+        return obj.onboarding_skipped_at is not None
 
     def to_representation(self, instance):
         data = super().to_representation(instance)

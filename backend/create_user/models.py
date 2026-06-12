@@ -226,9 +226,12 @@ class Company(models.Model):
     heard_from = models.CharField(max_length=100, blank=True, default="")
     heard_from_other = models.CharField(max_length=255, blank=True, default="")
     onboarding_notes = models.TextField(max_length=1000, blank=True, default="")
-    # Null means the company rep has not finished (or skipped) the onboarding
-    # cards yet; existing companies are backfilled as completed by migration.
+    # Null means the company rep has not finished the onboarding cards yet;
+    # existing companies are backfilled as completed by migration.
     onboarding_completed_at = models.DateTimeField(null=True, blank=True)
+    # "Skip for now" defers onboarding: the dashboard stops force-redirecting
+    # but shows a finish-setup banner until onboarding_completed_at is set.
+    onboarding_skipped_at = models.DateTimeField(null=True, blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -333,11 +336,17 @@ class CompanyTeamInvite(models.Model):
 
 
 class OneTimePassword(models.Model):
+    MAX_ATTEMPTS = 5
+
     user = models.OneToOneField(
         CustomUser, on_delete=models.CASCADE, related_name="otp"
     )
-    code = models.CharField(max_length=6, unique=True)
+    # Not globally unique: codes are short and only need to be unique per
+    # user, which the OneToOne on user already guarantees.
+    code = models.CharField(max_length=6)
     otp_expires = models.DateTimeField(blank=True, null=True)
+    # Wrong guesses so far; the OTP is invalidated at MAX_ATTEMPTS.
+    attempts = models.PositiveSmallIntegerField(default=0)
 
     def __str__(self):
         return f"{self.user.first_name}-passcode"

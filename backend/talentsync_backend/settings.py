@@ -676,7 +676,7 @@ else:
         },
     }
 
-OTP_EXPIRY_TIME = 3000
+OTP_EXPIRY_TIME = 600  # seconds; OTPs grant login tokens, keep the window short
 MAX_CONCONCURRENT_INTERVIEWS= env("MAX_CONCURRENT_INTERVIEWS", cast=int, default=5)
 
 

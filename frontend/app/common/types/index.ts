@@ -709,7 +709,9 @@ export type CompanyOnboarding = {
   heard_from_other: string;
   onboarding_notes: string;
   onboarding_completed_at: string | null;
+  onboarding_skipped_at: string | null;
   has_completed_onboarding: boolean;
+  has_skipped_onboarding: boolean;
 };
 
 export type ReferredUser = {
