@@ -24,6 +24,7 @@ from .views import (
     SendReferralMailAPIView,
     TalentProfileStatusAPIView,
     GenerateReferralCodeAPIView,
+    CompanyOnboardingAPIView,
     CompanyTeamInviteCreateAPIView,
     ComapnayTeamInviteValidateAPIView,
     CompanyTeamInviteAcceptAPIView,
@@ -128,6 +129,11 @@ urlpatterns = [
         "talent-profile-status",
         TalentProfileStatusAPIView.as_view(),
         name="talent_profile_status",
+    ),
+    path(
+        "company-onboarding/",
+        CompanyOnboardingAPIView.as_view(),
+        name="company_onboarding",
     ),
 ]
 

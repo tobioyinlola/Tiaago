@@ -14,20 +14,18 @@ import {
   startupSignUpV3FormFields,
 } from "../constants/form.contants";
 import { useAlert } from "@/app/common/store/useAlert";
+import { CountryField } from "@/app/common/types";
 import { handleFormSubmissionError } from "@/app/common/utils";
 import FormikField from "@/app/common/components/Forms/FormikField";
 import { trackSignup } from "@/app/common/services/mixpanel.services";
 import { publicAxiosInstance } from "@/app/common/utils/axios.instance";
 import CountrySelect from "@/app/common/components/Forms/CountrySelect";
-import { CountryField, TalentRole as StartupRole } from "@/app/common/types";
 
 const SignUpFormV3 = ({
-  startupRoles,
   groupedCountries,
   next,
   referral_code,
 }: {
-  startupRoles: StartupRole[];
   groupedCountries: GroupBase<CountryField>[];
   next?: string;
   referral_code?: string;
@@ -46,10 +44,6 @@ const SignUpFormV3 = ({
           ...values,
           password2: values.password1,
           referral_code,
-          // add https:// to company website if it doesn't exist
-          website: values.website.startsWith("http")
-            ? values.website
-            : `https://${values.website}`,
         };
         toast.dismiss();
         new Promise(async (resolve, reject) => {
@@ -67,12 +61,9 @@ const SignUpFormV3 = ({
               if (process.env.NODE_ENV === "production")
                 await trackSignup({
                   user_type: "startup",
-                  role: input.role,
                   email: input.email,
                   first_name,
                   last_name,
-                  size: input.size,
-                  website: input.website,
                   country: input.country,
                 });
             } catch (error) {
@@ -119,24 +110,20 @@ const SignUpFormV3 = ({
                 touched={touched[name]}
                 disablePasswordHelpers
                 inputContainerClassName='min-h-10 h-10'
-                {...(name === "role" && {
-                  selectFieldProps: {
-                    options: startupRoles.map(({ title, slug }) => ({
-                      label: title,
-                      value: slug,
-                    })),
-                  },
-                })}
               />
             );
           })}
-          <label className='flex gap-3 text-sm w-fit cursor-pointer mx-auto'>
+          <label
+            htmlFor='acceptance'
+            className='flex gap-3 text-sm w-fit cursor-pointer mx-auto'
+          >
             <input
+              id='acceptance'
               type='checkbox'
               name='acceptance'
               checked={acceptedTerms}
               onChange={e => setAcceptedTerms(e.target.checked)}
-              className='checkbox checkbox-primary checkbox-xs rounded-[2px]'
+              className='checkbox checkbox-primary checkbox-xs rounded-sm'
             />
             <span>
               I accept Tiaago&apos;s{" "}
@@ -158,7 +145,7 @@ const SignUpFormV3 = ({
           >
             {isSubmitting ? "Creating account..." : "Create account"}
           </Button>
-          <p className='text-[#343A40] text-base text-center'>
+          <p className='text-foreground text-base text-center'>
             Click{" "}
             <Link
               className='text-primary hover:underline'

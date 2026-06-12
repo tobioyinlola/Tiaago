@@ -11,16 +11,24 @@ import { useAlert } from "../common/store/useAlert";
 import { handleFormSubmissionError } from "../common/utils";
 import { publicAxiosInstance } from "../common/utils/axios.instance";
 import { usePersistedStore } from "../common/store/usePersistedStore";
+import { setAuthCookies, TokensInput } from "../common/actions";
 
 type Props = {
   email?: string;
   loginUrl: string;
+  /**
+   * Where to send the user right after a successful verification when the
+   * backend returns auth tokens (auto-login). Falls back to loginUrl when
+   * absent or when no tokens are returned.
+   */
+  autoLoginRedirect?: string;
   resendDelayInMinutes?: number;
 };
 
 const EmailVerificationForm = ({
   email,
   loginUrl,
+  autoLoginRedirect,
   resendDelayInMinutes = 1,
 }: Props) => {
   const router = useRouter();
@@ -76,12 +84,18 @@ const EmailVerificationForm = ({
     setIsLoading(true);
     toast.dismiss();
     publicAxiosInstance
-      .post("/auth/account-confirm-email/", {
+      .post<Partial<TokensInput>>("/auth/account-confirm-email/", {
         email,
         otp,
       })
-      .then(() => {
+      .then(async ({ data }) => {
         toast.success("Email verified successfully");
+        if (autoLoginRedirect && data?.access) {
+          // log the user straight in and hand off (e.g. onboarding cards)
+          await setAuthCookies(data as TokensInput);
+          window.location.href = autoLoginRedirect;
+          return;
+        }
         router.push(loginUrl);
       })
       .catch(e => {
@@ -164,7 +178,11 @@ const EmailVerificationForm = ({
 
   return (
     <div>
-      <div className='flex gap-3 justify-center p-4 w-full'>
+      <div
+        role='group'
+        aria-label='Enter verification code'
+        className='flex gap-3 justify-center p-4 w-full'
+      >
         {inputBox.map(input => (
           <input
             onChange={e => handleInputChange(e, input.id - 1)}
@@ -174,7 +192,8 @@ const EmailVerificationForm = ({
             }}
             key={input.id}
             maxLength={1}
-            className='w-10 h-12 p-2 shadow-lg border border-[#e3e3e3] bg-white font-xl font-bold outline-none rounded-md text-center focus:border focus:border-primary'
+            aria-label={`Verification code digit ${input.id}`}
+            className='w-12 h-12 p-2 shadow-sm border border-border bg-card text-xl font-bold rounded-md text-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
           />
         ))}
       </div>
@@ -189,7 +208,7 @@ const EmailVerificationForm = ({
           Resend Code
         </button>
         {!canResend && (
-          <strong className='text-red-500 font-bold'> ({counter}secs)</strong>
+          <strong className='text-destructive font-bold'> ({counter}secs)</strong>
         )}
       </h3>
 

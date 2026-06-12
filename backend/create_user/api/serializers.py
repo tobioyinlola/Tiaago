@@ -320,9 +320,11 @@ class TalentSerializer(RegisterSerializer):
 
 class CompanySerializer(RegisterSerializer):
     full_name = serializers.CharField()
-    role = serializers.CharField()
-    website = serializers.URLField()
-    size = serializers.ChoiceField(choices=Company.SIZE_CHOICES.choices)
+    role = serializers.CharField(required=False, allow_blank=True)
+    website = serializers.URLField(required=False, allow_blank=True)
+    size = serializers.ChoiceField(
+        choices=Company.SIZE_CHOICES.choices, required=False, allow_blank=True
+    )
     profile_pic = serializers.ImageField(allow_empty_file=True, required=False)
     country = serializers.CharField()
 
@@ -356,16 +358,19 @@ class CompanySerializer(RegisterSerializer):
 
 
         user.save()
-        # Handle role assignment safely
+        # Handle role assignment safely; role is optional at signup and can be
+        # provided later during onboarding
+        role = None
         role_slug = self.validated_data.get("role")
-        try:
-            role = Role.objects.get(slug=role_slug)
-        except Role.DoesNotExist:
-            raise serializers.ValidationError({"role": "Invalid role provided."})
+        if role_slug:
+            try:
+                role = Role.objects.get(slug=role_slug)
+            except Role.DoesNotExist:
+                raise serializers.ValidationError({"role": "Invalid role provided."})
         company = Company.objects.create(
             company_rep_id=user.id,
-            website=self.data.get("website"),
-            size=self.data.get("size"),
+            website=self.validated_data.get("website") or None,
+            size=self.validated_data.get("size") or None,
             role=role,
         )
         # Ensure the registering company rep is added to the company team as ADMIN
@@ -385,8 +390,11 @@ class CompanySerializer(RegisterSerializer):
         return user
 
     def validate(self, data):
+        website = data.get("website")
+        if not website:
+            return data
         get_companies = Company.objects.filter(
-            website=data["website"],
+            website=website,
             # company_rep__country=data['country']
         )
         if not get_companies:
@@ -430,6 +438,57 @@ class CompanySerializer(RegisterSerializer):
             raise serializers.ValidationError("Phone number is already in use")
 
         return value
+
+class CompanyOnboardingSerializer(serializers.ModelSerializer):
+    """Per-card saves for the post-signup company onboarding flow."""
+
+    role = serializers.SlugRelatedField(
+        queryset=Role.objects.filter(is_startup_role=True),
+        slug_field="slug",
+        required=False,
+        allow_null=True,
+    )
+    phone_number = PhoneNumberField(required=False, allow_blank=True, write_only=True)
+    has_completed_onboarding = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Company
+        fields = (
+            "account_type",
+            "company_name",
+            "website",
+            "industry",
+            "size",
+            "role",
+            "phone_number",
+            "heard_from",
+            "heard_from_other",
+            "onboarding_notes",
+            "onboarding_completed_at",
+            "has_completed_onboarding",
+        )
+        read_only_fields = ("onboarding_completed_at",)
+        extra_kwargs = {
+            "website": {"required": False, "allow_null": True},
+            "size": {"required": False, "allow_null": True},
+        }
+
+    def get_has_completed_onboarding(self, obj):
+        return obj.onboarding_completed_at is not None
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        phone_number = instance.company_rep.phone_number
+        data["phone_number"] = str(phone_number) if phone_number else ""
+        return data
+
+    def update(self, instance, validated_data):
+        phone_number = validated_data.pop("phone_number", None)
+        if phone_number:
+            instance.company_rep.phone_number = phone_number
+            instance.company_rep.save(update_fields=["phone_number"])
+        return super().update(instance, validated_data)
+
 
 class CustomUserSerializer(serializers.ModelSerializer):
     bio = serializers.CharField(required=False)

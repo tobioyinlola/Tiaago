@@ -691,6 +691,27 @@ export type TalentProfileStatus = {
   has_taken_assessment: boolean;
 };
 
+export type CompanyAccountType =
+  | "in-house"
+  | "agency"
+  | "hiring-company"
+  | "independent";
+
+export type CompanyOnboarding = {
+  account_type: CompanyAccountType | "";
+  company_name: string;
+  website: string | null;
+  industry: string;
+  size: string | null;
+  role: string | null;
+  phone_number?: string;
+  heard_from: string;
+  heard_from_other: string;
+  onboarding_notes: string;
+  onboarding_completed_at: string | null;
+  has_completed_onboarding: boolean;
+};
+
 export type ReferredUser = {
   id: ID;
   invitee_email: string;

@@ -211,13 +211,12 @@ export const startupSignupformSteps = [
 
 // v3
 
+// Signup only collects the basics; role, company size and website are
+// gathered afterwards in the onboarding cards (/startups/onboarding).
 export const startupSignUpV3ValidationSchema = Yup.object().shape({
   full_name: Yup.string().required().label("Full name"),
   email: emailValidationSchema.label("Work email address"),
   country: Yup.string().required().label("Country"),
-  role: Yup.string().required().label("Role"),
-  website: urlValidationSchema.label("Company website"),
-  size: Yup.string().required().label("Company size"),
   password1: passwordValidationSchema,
 });
 
@@ -245,31 +244,6 @@ export const startupSignUpV3FormFields: FormField<StartupSignupV3FormValues>[] =
       label: "Country",
     },
     {
-      name: "role",
-      label: "Select Role",
-      type: "select",
-      placeholder: "Hiring Manager",
-      leftIcon: <IoMail className='text-base text-[#98A2B3]' />,
-      selectFieldProps: {
-        createable: true,
-      },
-    },
-    {
-      name: "size",
-      label: "Size of employees",
-      type: "select",
-      selectFieldProps: {
-        options: companySizeOptions,
-        defaultValue: companySizeOptions[0],
-      },
-    },
-    {
-      name: "website",
-      label: "Company URL",
-      type: "url",
-      placeholder: "https://www.tiaago.com",
-    },
-    {
       name: "password1",
       label: "Password",
       type: "password",
@@ -289,9 +263,6 @@ export const startupSignUpV3InitialFormValues: StartupSignupV3FormValues = {
   full_name: "",
   email: "",
   country: "",
-  role: "",
-  size: companySizeOptions[0].value,
-  website: "",
   password1: "",
   // password2: "",
 };

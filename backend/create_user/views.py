@@ -1,3 +1,5 @@
+from datetime import datetime, timezone as dt_timezone
+
 from urllib import request
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -33,6 +35,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.decorators import action
 from rest_framework.status import HTTP_404_NOT_FOUND, HTTP_201_CREATED, HTTP_400_BAD_REQUEST
+from rest_framework_simplejwt.tokens import RefreshToken
 from base.mixins.pagination import PaginationHandlerMixin
 from base.permissions import IsTalentUser
 from base.utils import extract_query_from_request
@@ -54,6 +57,7 @@ from payments.models import WalletTransaction
 from django.db import IntegrityError
 from subscriptions.permissions import IsCompanyRepOrStaffUser, IsTalentOrStaffUser
 from .api.serializers import (
+    CompanyOnboardingSerializer,
     CompanySerializer,
     CompanyTeamInviteSerializer,
     TalentSerializer,
@@ -207,10 +211,26 @@ class ConfirmEmailView(APIView):
             user.verified = True
             user.save()
 
-            otp_entry.delete() 
+            otp_entry.delete()
 
+            # Issue JWTs so the frontend can log the user in right after
+            # verification (same payload shape as the login endpoint).
+            refresh = RefreshToken.for_user(user)
+            access = refresh.access_token
             return Response(
-                {"detail": "Email successfully confirmed."}, status=status.HTTP_200_OK
+                {
+                    "detail": "Email successfully confirmed.",
+                    "access": str(access),
+                    "refresh": str(refresh),
+                    "access_expiration": datetime.fromtimestamp(
+                        access["exp"], tz=dt_timezone.utc
+                    ).isoformat(),
+                    "refresh_expiration": datetime.fromtimestamp(
+                        refresh["exp"], tz=dt_timezone.utc
+                    ).isoformat(),
+                    "user_type": user.user_type,
+                },
+                status=status.HTTP_200_OK,
             )
 
         except ObjectDoesNotExist:
@@ -844,6 +864,38 @@ class TalentProfileStatusAPIView(APIView):
             "has_taken_assessment": has_taken_assessment,
         }
         return Response(data=progress)
+
+
+class CompanyOnboardingAPIView(APIView):
+    """Status, per-card saves, and completion for company onboarding cards."""
+
+    permission_classes = [IsAuthenticated]
+
+    def _get_company(self, request):
+        company = getattr(request.user, "company", None)
+        if company is None:
+            raise NotFound("No company profile found for this user.")
+        return company
+
+    def get(self, request):
+        company = self._get_company(request)
+        serializer = CompanyOnboardingSerializer(company)
+        return Response(serializer.data)
+
+    def patch(self, request):
+        company = self._get_company(request)
+        serializer = CompanyOnboardingSerializer(
+            company, data=request.data, partial=True
+        )
+        serializer.is_valid(raise_exception=True)
+        company = serializer.save()
+
+        # "complete": true marks onboarding as finished (or skipped)
+        if request.data.get("complete") and company.onboarding_completed_at is None:
+            company.onboarding_completed_at = now()
+            company.save(update_fields=["onboarding_completed_at"])
+
+        return Response(CompanyOnboardingSerializer(company).data)
 
 
 class CompanyTeamInviteCreateAPIView(APIView):

@@ -4,7 +4,7 @@ import DisplayErrorMessages, {
   DisplayErrorMessagesProps,
 } from "@/app/common/components/DisplayErrorMessages";
 import SignupForm from "./components/SignUpFormV3";
-import { getCountries, getTalentRoles } from "@/app/common/services";
+import { getCountries } from "@/app/common/services";
 import { getCurrentUser } from "@/app/common/services/profile";
 import AuthFormPageWrapper from "@/app/common/components/Forms/AuthFormPageWrapper";
 import { handleServerApiCallError } from "@/app/common/utils";
@@ -25,22 +25,6 @@ const Signup = async ({
     allowNull: true,
     validUserRedirect: "dashboard",
   });
-  const startupRoles = await getTalentRoles(true).catch(async e => {
-    const error = await handleServerApiCallError(e);
-    console.log("Get startup roles error (startup signup): ", error);
-    errors.push({
-      message: error,
-      title: "Error getting startup roles",
-    });
-    return [];
-  });
-  if (!startupRoles.length && !errors.length) {
-    errors.push({
-      message:
-        "No roles are available right now, so the Role field cannot be filled. Please try again later or contact support.",
-      title: "Roles unavailable",
-    });
-  }
   const groupedCountries = await getCountries().catch(async e => {
     const error = await handleServerApiCallError(e);
     console.log("Get countries error (startup signup): ", error);
@@ -61,11 +45,6 @@ const Signup = async ({
       next={next}
     >
       <SignupForm
-        startupRoles={startupRoles.sort((a, b) => {
-          if (a.title === "Other") return 1;
-          if (b.title === "Other") return -1;
-          return 0;
-        })}
         groupedCountries={groupedCountries}
         next={next}
         referral_code={referral_code}

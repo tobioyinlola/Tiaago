@@ -1,5 +1,5 @@
 import { PropsWithChildren } from "react";
-// import { redirect } from "next/navigation";
+import { redirect } from "next/navigation";
 
 import DisplayErrorMessages, {
   DisplayErrorMessagesProps,
@@ -13,12 +13,26 @@ import { getCurrentUser } from "@/app/common/services/profile";
 import { getUnreadMessageCounts } from "@/app/common/services/chat";
 import SideNavV3 from "@/app/common/components/dashboard/Nav/SideNavV3";
 import SetUserProfile from "@/app/common/components/Layout/SetUserProfile";
+import { getCompanyOnboarding } from "@/app/common/services/company-onboarding";
 
 const StartupDashboardLayout = async ({ children }: PropsWithChildren) => {
   const errors: DisplayErrorMessagesProps["errors"] = [];
   const { currentUser: startup } = await getCurrentUser("startup");
   // if (!user.is_verified)
   //   return redirect(`/verify-email?email=${user.email}&as=talent`);
+
+  // New signups must finish (or skip) the onboarding cards before the
+  // dashboard; fail open if the status call errors so a backend hiccup
+  // never locks users out.
+  const onboarding = await getCompanyOnboarding().catch(e => {
+    console.log(
+      "Get company onboarding error (startup dashboard layout): ",
+      e?.message
+    );
+    return null;
+  });
+  if (onboarding && !onboarding.has_completed_onboarding)
+    redirect("/startups/onboarding");
   const splitCompanyName = startup.company_name.split(" ");
   const unreadMessageCounts = !IS_CHAT_HIDDEN
     ? await getUnreadMessageCounts().catch(async e => {

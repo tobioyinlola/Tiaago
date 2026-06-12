@@ -211,6 +211,25 @@ class Company(models.Model):
         max_length=20, choices=SIZE_CHOICES.choices, default=SIZE_CHOICES.SIZE10, null=True, blank=True
     )
     pay_range = models.CharField(max_length=25, blank=True, default="")
+
+    # Post-signup onboarding cards (collected after OTP verification)
+    class ACCOUNT_TYPE(models.TextChoices):
+        IN_HOUSE = "in-house", _("In-house recruiter")
+        AGENCY = "agency", _("Recruiting agency")
+        HIRING_COMPANY = "hiring-company", _("Hiring company / startup")
+        INDEPENDENT = "independent", _("Independent recruiter")
+
+    account_type = models.CharField(
+        max_length=20, choices=ACCOUNT_TYPE.choices, blank=True, default=""
+    )
+    industry = models.CharField(max_length=100, blank=True, default="")
+    heard_from = models.CharField(max_length=100, blank=True, default="")
+    heard_from_other = models.CharField(max_length=255, blank=True, default="")
+    onboarding_notes = models.TextField(max_length=1000, blank=True, default="")
+    # Null means the company rep has not finished (or skipped) the onboarding
+    # cards yet; existing companies are backfilled as completed by migration.
+    onboarding_completed_at = models.DateTimeField(null=True, blank=True)
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

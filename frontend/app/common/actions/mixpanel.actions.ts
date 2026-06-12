@@ -44,9 +44,10 @@ type StartupSignupEventInput = BaseSignupEventInput & {
   user_type: "startup";
   company_name?: string;
   company_email?: string;
-  size: string;
+  // size and website are collected post-signup in the onboarding cards
+  size?: string;
   address?: string;
-  website: string;
+  website?: string;
 };
 
 export type SignupEventInput = TalentSignupEventInput | StartupSignupEventInput;
