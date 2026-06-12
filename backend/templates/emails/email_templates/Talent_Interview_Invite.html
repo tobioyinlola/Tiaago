@@ -1,64 +1,50 @@
-{% load static %}
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Interview Invitation Received</title>
-</head>
-<body style="margin: 0; padding: 0; font-family: 'Inter', Arial, sans-serif; background-color: #f8fafc; line-height: 1.6;">
-    <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
-        
-        <!-- Header -->
-        <div style="background: linear-gradient(135deg, #4857DE 0%, #6366f1 100%); padding: 40px 30px; text-align: center;">
-            <div style="display: inline-block; margin-bottom: 20px;">
-                <img src="{{ logo_url }}" alt="Tiaago" style="height: 40px; width: auto;">
-            </div>
-            <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: 700;">Interview Invitation Received</h1>
-        </div>
+{% extends "emails/base_email.html" %}
 
-        <!-- Content -->
-        <div style="padding: 40px 30px;">
-            <p style="color: #374151; font-size: 16px; margin-bottom: 20px;">
-                Dear <strong>{{ name }}</strong>,
-            </p>
+{% block title %}Interview Invitation Received{% endblock %}
 
-            <p style="color: #374151; font-size: 16px; margin-bottom: 20px;">
-                We hope this email finds you well. You have received an interview invitation from <strong>{{ company_name }}</strong> on Tiaago.
-            </p>
+{% block preheader %}{{ company_name }} has invited you to an interview on Tiaago — log in to respond.{% endblock %}
 
-            <div style="background-color: #eff6ff; border-left: 4px solid #4857DE; border-radius: 8px; padding: 20px; margin: 25px 0;">
-                <p style="color: #1e40af; font-size: 16px; margin: 0; font-weight: 600;">
-                    📋 Action Required
-                </p>
-                <p style="color: #1e40af; font-size: 16px; margin: 10px 0 0 0;">
-                    Please login to your account, take a moment to review the details of the invitation and decide whether you would like to accept or decline it.
-                </p>
-            </div>
+{% block content %}
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin:0 auto 16px;">
+  <tr>
+    <td bgcolor="#EFF2FF" style="border-radius:9999px;padding:6px 16px;font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:13px;font-weight:600;color:#5465FF;">Interview Invitation</td>
+  </tr>
+</table>
 
-            <p style="color: #374151; font-size: 16px; margin-bottom: 30px;">
-                Your prompt response is appreciated to facilitate the scheduling process. We wish you the best of luck with your interview!
-            </p>
+<h1 class="h1" style="margin:0 0 16px;font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:24px;line-height:32px;font-weight:700;color:#0F172A;">Interview Invitation Received</h1>
 
-            <!-- Dashboard Button -->
-            <div style="text-align: center; margin: 30px 0;">
-                <a href="{{ TIAAGO_TALENT_LOGIN_URL }}" style="background-color: #4857DE; color: white; padding: 14px 30px; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px; display: inline-block; box-shadow: 0 2px 4px rgba(72, 87, 222, 0.3);">
-                    Go to Dashboard
-                </a>
-            </div>
+<p style="margin:0 0 16px;font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:24px;color:#475569;">Dear <strong style="color:#0F172A;">{{ name }}</strong>,</p>
 
-            <p style="color: #374151; font-size: 16px; margin-bottom: 20px;">
-                Best regards,<br>
-                <strong>Tiaago Team</strong>
-            </p>
-        </div>
+<p style="margin:0 0 16px;font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:24px;color:#475569;">You have received an interview invitation from <strong style="color:#0F172A;">{{ company_name }}</strong> on Tiaago.</p>
 
-        <!-- Footer -->
-        <div style="background-color: #f9fafb; padding: 20px 30px; text-align: center; border-top: 1px solid #e5e7eb;">
-            <p style="color: #6b7280; font-size: 12px; margin: 0;">
-                © 2024 Tiaago. All rights reserved.
-            </p>
-        </div>
-    </div>
-</body>
-</html>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#F8FAFC" style="border:1px solid #E2E8F0;border-radius:8px;margin:24px 0;">
+  <tr>
+    <td style="padding:20px 24px;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td style="padding:6px 0;font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:13px;color:#64748B;width:140px;">Company</td>
+          <td style="padding:6px 0;font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px;font-weight:600;color:#0F172A;">{{ company_name }}</td>
+        </tr>
+        <tr>
+          <td style="padding:6px 0;font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:13px;color:#64748B;width:140px;">Action required</td>
+          <td style="padding:6px 0;font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px;font-weight:600;color:#0F172A;">Accept or decline the invitation</td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+
+<p style="margin:0 0 16px;font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:24px;color:#475569;">Please log in to your account, review the details of the invitation, and decide whether you would like to accept or decline it.</p>
+
+<p style="margin:0 0 16px;font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:24px;color:#475569;">Your prompt response helps the scheduling process move quickly. We wish you the best of luck with your interview!</p>
+
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin:28px auto 8px;">
+  <tr>
+    <td align="center" bgcolor="#5465FF" style="border-radius:8px;">
+      <a href="{{ TIAAGO_TALENT_LOGIN_URL }}" target="_blank" style="display:inline-block;padding:13px 36px;font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;font-weight:600;line-height:20px;color:#ffffff;text-decoration:none;border-radius:8px;">Go to Dashboard</a>
+    </td>
+  </tr>
+</table>
+
+<p style="margin:24px 0 0;font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:24px;color:#475569;">Best regards,<br>The Tiaago Team</p>
+{% endblock %}

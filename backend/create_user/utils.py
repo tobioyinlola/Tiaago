@@ -66,7 +66,7 @@ def send_invite_to_user(email, referral_code):
         inviter = TalentProfile.objects.get(referral_code=referral_code)
         # Load HTML email template for invitation
         email_template_name = "account/email/invite_email.html"
-        context = {"inviter": inviter.full_name, "invite_link": invite_link, "welcome_image_url": f"{settings.BASE_URL}/static/emails/assets/welcome_onboard.jpg"}
+        context = {"inviter": inviter.full_name, "invite_link": invite_link, "welcome_image_url": f"{settings.BASE_URL}/static/emails/assets/welcome_onboard_Img.png"}
         EmailHandler(email).send_mail(
             subject=subject,
             context=context,

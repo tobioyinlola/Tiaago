@@ -1,76 +1,38 @@
-{% load static %}
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>You've Qualified for the Prescreening Interview</title>
-</head>
-<body style="margin: 0; padding: 0; font-family: 'Inter', Arial, sans-serif; background-color: #f8fafc; line-height: 1.6;">
-    <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
-        
-        <!-- Header -->
-        <div style="background: linear-gradient(135deg, #4857DE 0%, #6366f1 100%); padding: 40px 30px; text-align: center;">
-            <div style="display: inline-block; margin-bottom: 20px;">
-                <img src="{{ logo_url }}" alt="Tiaago" style="height: 40px; width: auto;">
-            </div>
-            <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: 700;">You've Qualified for the Prescreening Interview! 🎉</h1>
-        </div>
+{% extends "emails/base_email.html" %}
 
-        <!-- Content -->
-        <div style="padding: 40px 30px;">
-            <div style="text-align: center; margin-bottom: 30px;">
-                <div style="background-color: #10b981; color: white; padding: 8px 20px; border-radius: 20px; display: inline-block; font-weight: 600; margin-bottom: 20px;">
-                    Skill Assessment Passed
-                </div>
-            </div>
+{% block title %}Prescreening Interview Invitation{% endblock %}
 
-            <p style="color: #374151; font-size: 16px; margin-bottom: 20px;">
-                Dear <strong>{{ talent_name }}</strong>,
-            </p>
+{% block preheader %}You passed the skill assessment — you're invited to the prescreening interview with Jane AI.{% endblock %}
 
-            <p style="color: #374151; font-size: 16px; margin-bottom: 20px;">
-                Congratulations on your achievement! 🎯 You have successfully passed the Skill Assessment Stage.
-            </p>
+{% block content %}
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin:0 auto 16px;">
+  <tr>
+    <td bgcolor="#ECFDF3" style="border-radius:9999px;padding:6px 16px;font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:13px;font-weight:600;color:#027A48;">Skill Assessment Passed</td>
+  </tr>
+</table>
 
-            <div style="background-color: #f3f4f6; border-radius: 8px; padding: 20px; margin: 25px 0; text-align: center;">
-                <p style="color: #6b7280; font-size: 14px; margin: 0 0 8px 0;">Your Assessment Score:</p>
-                <p style="color: #4857DE; font-size: 32px; font-weight: 700; margin: 0;"><strong>{{ score }}</strong></p>
-            </div>
+<h1 class="h1" style="margin:0 0 16px;font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:24px;line-height:32px;font-weight:700;color:#0F172A;">You've Qualified for the Prescreening Interview!</h1>
 
-            <div style="background-color: #ecfdf5; border-left: 4px solid #10b981; border-radius: 8px; padding: 20px; margin: 25px 0;">
-                <p style="color: #065f46; font-size: 16px; margin: 0; font-weight: 600;">
-                    With your strong performance, you are now invited to the next stage which is the Prescreening Interview stage with Jane AI.
-                </p>
-            </div>
+<p style="margin:0 0 16px;font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:24px;color:#475569;">Dear <strong>{{ talent_name }}</strong>,</p>
 
-            <p style="color: #374151; font-size: 16px; margin-bottom: 20px;">
-                Please use the link below to begin your interview:
-            </p>
+<p style="margin:0 0 16px;font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:24px;color:#475569;">Congratulations on your achievement! 🎯 You have successfully passed the Skill Assessment stage.</p>
 
-            <!-- Interview Link Button -->
-            <div style="text-align: center; margin: 30px 0;">
-                <a href="{{ TIAAGO_TALENT_LOGIN_URL }}" style="background-color: #4857DE; color: white; padding: 14px 30px; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px; display: inline-block; box-shadow: 0 2px 4px rgba(72, 87, 222, 0.3);">
-                    Start Interview
-                </a>
-            </div>
+<p style="margin:24px 0 4px;font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:36px;font-weight:700;color:#5465FF;text-align:center;">{{ score }}</p>
+<p style="margin:0 0 24px;font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:13px;line-height:20px;color:#64748B;text-align:center;">Your Assessment Score</p>
 
-            <p style="color: #374151; font-size: 16px; margin-bottom: 30px; text-align: center;">
-                ✨ We're proud of your progress so far and excited to see you take the next step in your journey. Keep going as you're on the path to great opportunities!
-            </p>
+<p style="margin:0 0 16px;font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:24px;color:#475569;">With your strong performance, you're now invited to the next stage: the <strong>Prescreening Interview with Jane AI</strong>.</p>
 
-            <p style="color: #374151; font-size: 16px; margin-bottom: 20px;">
-                Best regards,<br>
-                <strong>TIAAGO Team</strong>
-            </p>
-        </div>
+<p style="margin:0 0 16px;font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:24px;color:#475569;">Please use the button below to begin your interview:</p>
 
-        <!-- Footer -->
-        <div style="background-color: #f9fafb; padding: 20px 30px; text-align: center; border-top: 1px solid #e5e7eb;">
-            <p style="color: #6b7280; font-size: 12px; margin: 0;">
-                © 2024 Tiaago. All rights reserved.
-            </p>
-        </div>
-    </div>
-</body>
-</html>
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin:28px auto 8px;">
+  <tr>
+    <td align="center" bgcolor="#5465FF" style="border-radius:8px;">
+      <a href="{{ TIAAGO_TALENT_LOGIN_URL }}" target="_blank" style="display:inline-block;padding:13px 36px;font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;font-weight:600;line-height:20px;color:#ffffff;text-decoration:none;border-radius:8px;">Start Interview</a>
+    </td>
+  </tr>
+</table>
+
+<p style="margin:24px 0 16px;font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:24px;color:#475569;">✨ We're proud of your progress so far and excited to see you take the next step in your journey. Keep going — you're on the path to great opportunities!</p>
+
+<p style="margin:0;font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:24px;color:#475569;">Best regards,<br>The Tiaago Team</p>
+{% endblock %}

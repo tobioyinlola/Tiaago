@@ -1,252 +1,51 @@
-{% load static %}
-<!DOCTYPE html>
-<html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Application Update - Resume Screening Results</title>
-    </head>
-    <body
-        style="
-            margin: 0;
-            padding: 0;
-            font-family: 'Inter', Arial, sans-serif;
-            background-color: #f8fafc;
-            line-height: 1.6;
-        "
-    >
-        <div
-            style="
-                max-width: 600px;
-                margin: 0 auto;
-                background-color: #ffffff;
-                border-radius: 12px;
-                overflow: hidden;
-                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            "
-        >
-            <!-- Header -->
-            <div
-                style="
-                    background: linear-gradient(
-                        135deg,
-                        #4857de 0%,
-                        #6366f1 100%
-                    );
-                    padding: 40px 30px;
-                    text-align: center;
-                "
-            >
-                <div style="display: inline-block; margin-bottom: 20px">
-                    <img
-                        src="{{ logo_url }}"
-                        alt="Tiaago"
-                        style="height: 40px; width: auto"
-                    />
-                </div>
-                <h1
-                    style="
-                        color: #ffffff;
-                        margin: 0;
-                        font-size: 28px;
-                        font-weight: 700;
-                    "
-                >
-                    Application Update
-                </h1>
-            </div>
+{% extends "emails/base_email.html" %}
 
-            <!-- Content -->
-            <div style="padding: 40px 30px">
-                <p style="color: #374151; font-size: 16px; margin-bottom: 20px">
-                    Dear <strong>[Talent's Name]</strong>,
-                </p>
+{% block title %}Application Update{% endblock %}
 
-                <p style="color: #374151; font-size: 16px; margin-bottom: 20px">
-                    Thank you for your interest in the
-                    <strong>[Position Name]</strong> at
-                    <strong>[Company Name]</strong> and for taking the time to
-                    apply for this role.
-                </p>
+{% block preheader %}An update on your application — resume screening results.{% endblock %}
 
-                <div
-                    style="
-                        background-color: #fef2f2;
-                        border-left: 4px solid #ef4444;
-                        border-radius: 8px;
-                        padding: 20px;
-                        margin: 25px 0;
-                    "
-                >
-                    <p
-                        style="
-                            color: #dc2626;
-                            font-size: 16px;
-                            margin: 0;
-                            font-weight: 600;
-                        "
-                    >
-                        After careful review, we regret to inform you that we
-                        are unable to move your application to the next stage of
-                        the vetting process.
-                    </p>
-                    <p
-                        style="
-                            color: #dc2626;
-                            font-size: 16px;
-                            margin: 15px 0 0 0;
-                        "
-                    >
-                        While we recognize your potential, your application did
-                        not fully meet the specific requirements needed for this
-                        role to advance to the Skill Assessment stage.
-                    </p>
-                </div>
+{% block content %}
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin:0 auto 16px;">
+  <tr>
+    <td bgcolor="#FEF3F2" style="border-radius:9999px;padding:6px 16px;font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:13px;font-weight:600;color:#B42318;">Not Moving Forward</td>
+  </tr>
+</table>
 
-                <div
-                    style="
-                        background-color: #ecfdf5;
-                        border-radius: 8px;
-                        padding: 20px;
-                        margin: 25px 0;
-                    "
-                >
-                    <p
-                        style="
-                            color: #065f46;
-                            font-size: 16px;
-                            margin: 0 0 15px 0;
-                            font-weight: 600;
-                        "
-                    >
-                        Important Note:
-                    </p>
-                    <p style="color: #065f46; font-size: 16px; margin: 0">
-                        Please note that this decision does not prevent
-                        recruiters from reaching out to you directly for other
-                        opportunities that may align better with your profile.
-                        It simply means that, based on the requirements for this
-                        particular role, we are unable to move you forward at
-                        this time.
-                    </p>
-                </div>
+<h1 class="h1" style="margin:0 0 16px;font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:24px;line-height:32px;font-weight:700;color:#0F172A;">Application Update</h1>
 
-                <div
-                    style="
-                        background-color: #fefbf2;
-                        border-radius: 8px;
-                        padding: 20px;
-                        margin: 25px 0;
-                    "
-                >
-                    <h3
-                        style="
-                            color: #92400e;
-                            font-size: 18px;
-                            margin: 0 0 15px 0;
-                            font-weight: 700;
-                        "
-                    >
-                        Areas for Improvement
-                    </h3>
-                    <div
-                        style="
-                            background-color: #fff8e1;
-                            border-radius: 6px;
-                            padding: 15px;
-                            margin: 10px 0;
-                        "
-                    >
-                        <p
-                            style="
-                                color: #7c2d12;
-                                font-size: 14px;
-                                margin: 0;
-                                font-style: italic;
-                            "
-                        >
-                            [Specific feedback areas will be listed here]
-                        </p>
-                    </div>
-                </div>
+<p style="margin:0 0 16px;font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:24px;color:#475569;">Dear <strong>[Talent's Name]</strong>,</p>
 
-                <p style="color: #374151; font-size: 16px; margin-bottom: 30px">
-                    We encourage you to focus on these areas as you continue to
-                    grow and apply for roles on Tiaago that better align with
-                    your strengths.
-                </p>
+<p style="margin:0 0 16px;font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:24px;color:#475569;">Thank you for your interest in the <strong>[Position Name]</strong> at <strong>[Company Name]</strong> and for taking the time to apply for this role.</p>
 
-                <!-- Dashboard Button -->
-                <div style="text-align: center; margin: 30px 0">
-                    <a
-                        href="[DASHBOARD_LINK]"
-                        style="
-                            background-color: #4857de;
-                            color: white;
-                            padding: 14px 30px;
-                            text-decoration: none;
-                            border-radius: 8px;
-                            font-weight: 600;
-                            font-size: 16px;
-                            display: inline-block;
-                            box-shadow: 0 2px 4px rgba(72, 87, 222, 0.3);
-                        "
-                    >
-                        Go to Dashboard
-                    </a>
-                </div>
+<p style="margin:0 0 16px;font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:24px;color:#475569;">After careful review, we regret to inform you that we are unable to move your application to the next stage of the vetting process. While we recognize your potential, your application did not fully meet the specific requirements needed for this role to advance to the Skill Assessment stage.</p>
 
-                <p style="color: #374151; font-size: 16px; margin-bottom: 20px">
-                    Best regards,<br />
-                    <strong>Tiaago Team</strong>
-                </p>
+<p style="margin:24px 0 4px;font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:16px;line-height:24px;font-weight:700;color:#0F172A;">Areas for improvement</p>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:16px 0;">
+  <tr>
+    <td style="padding:4px 0 4px 8px;font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:24px;color:#475569;">&bull;&nbsp;&nbsp;[Specific feedback areas will be listed here]</td>
+  </tr>
+</table>
 
-                <!-- Community Section -->
-                <div
-                    style="
-                        background-color: #fef3c7;
-                        border-radius: 8px;
-                        padding: 20px;
-                        margin-top: 30px;
-                    "
-                >
-                    <p
-                        style="
-                            color: #92400e;
-                            font-size: 14px;
-                            margin: 0 0 10px 0;
-                            font-weight: 600;
-                        "
-                    >
-                        <strong>NB:</strong> Join the community for first-hand
-                        updates, real opportunities, and straight answers.
-                    </p>
-                    <a
-                        href="https://chat.whatsapp.com/D0zOEwcVUD1HR1K2AxRXtc?mode=ems_copy_h_t"
-                        style="
-                            color: #4857de;
-                            font-weight: 600;
-                            text-decoration: none;
-                        "
-                    >
-                        Join here >>>>
-                    </a>
-                </div>
-            </div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#F8FAFC" style="border:1px solid #E2E8F0;border-radius:8px;margin:24px 0;">
+  <tr>
+    <td style="padding:20px 24px;">
+      <p style="margin:0 0 8px;font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px;line-height:22px;font-weight:600;color:#0F172A;">Important note</p>
+      <p style="margin:0;font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:24px;color:#475569;">This decision does not prevent recruiters from reaching out to you directly for other opportunities that may align better with your profile. It simply means that, based on the requirements for this particular role, we are unable to move you forward at this time.</p>
+    </td>
+  </tr>
+</table>
 
-            <!-- Footer -->
-            <div
-                style="
-                    background-color: #f9fafb;
-                    padding: 20px 30px;
-                    text-align: center;
-                    border-top: 1px solid #e5e7eb;
-                "
-            >
-                <p style="color: #6b7280; font-size: 12px; margin: 0">
-                    © 2025 Tiaago. All rights reserved.
-                </p>
-            </div>
-        </div>
-    </body>
-</html>
+<p style="margin:0 0 16px;font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:24px;color:#475569;">We encourage you to focus on these areas as you continue to grow and apply for roles on Tiaago that better align with your strengths.</p>
+
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin:28px auto 8px;">
+  <tr>
+    <td align="center" bgcolor="#5465FF" style="border-radius:8px;">
+      <a href="[DASHBOARD_LINK]" target="_blank" style="display:inline-block;padding:13px 36px;font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;font-weight:600;line-height:20px;color:#ffffff;text-decoration:none;border-radius:8px;">Go to Dashboard</a>
+    </td>
+  </tr>
+</table>
+
+<p style="margin:24px 0 16px;font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:24px;color:#475569;">Best regards,<br>The Tiaago Team</p>
+
+<p style="margin:0;font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:13px;line-height:20px;color:#64748B;">PS: Join the Tiaago community for first-hand updates, real opportunities, and straight answers — <a href="https://chat.whatsapp.com/D0zOEwcVUD1HR1K2AxRXtc" target="_blank" style="color:#5465FF;text-decoration:underline;">join here</a>.</p>
+{% endblock %}

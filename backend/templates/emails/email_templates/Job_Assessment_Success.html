@@ -1,60 +1,26 @@
-{% load static %}
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Congratulations - Assessment Passed!</title>
-</head>
-<body style="margin: 0; padding: 0; font-family: 'Inter', Arial, sans-serif; background-color: #f8fafc; line-height: 1.6;">
-    <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
-        
-        <!-- Header -->
-        <div style="background: linear-gradient(135deg, #4857DE 0%, #6366f1 100%); padding: 40px 30px; text-align: center;">
-            <div style="display: inline-block; margin-bottom: 20px;">
-                <img src="{{ logo_url }}" alt="Tiaago" style="height: 40px; width: auto;">
-            </div>
-            <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: 700;">Congratulations! 🎉</h1>
-        </div>
+{% extends "emails/base_email.html" %}
 
-        <!-- Content -->
-        <div style="padding: 40px 30px;">
-            <div style="text-align: center; margin-bottom: 30px;">
-                <div style="background-color: #10b981; color: white; padding: 8px 20px; border-radius: 20px; display: inline-block; font-weight: 600; margin-bottom: 20px;">
-                    Assessment Passed
-                </div>
-            </div>
+{% block title %}Skill Assessment Passed{% endblock %}
 
-            <p style="color: #374151; font-size: 16px; margin-bottom: 20px;">
-                Dear <strong>{{ name }}</strong>,
-            </p>
+{% block preheader %}You passed the Skill Assessment stage — a recruiter may reach out to schedule your interview.{% endblock %}
 
-            <p style="color: #374151; font-size: 16px; margin-bottom: 20px;">
-                Congratulations on your achievement! 🎯 You have successfully passed the Skill Assessment Stage. 
-            </p>
+{% block content %}
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin:0 auto 16px;">
+  <tr>
+    <td bgcolor="#ECFDF3" style="border-radius:9999px;padding:6px 16px;font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:13px;font-weight:600;color:#027A48;">Assessment Passed</td>
+  </tr>
+</table>
 
-            <div style="background-color: #f3f4f6; border-radius: 8px; padding: 20px; margin: 25px 0; text-align: center;">
-                <p style="color: #6b7280; font-size: 14px; margin: 0 0 8px 0;">Your Assessment Score:</p>
-                <p style="color: #4857DE; font-size: 32px; font-weight: 700; margin: 0;"><strong>{{ score }}</strong></p>
-            </div>
+<h1 class="h1" style="margin:0 0 16px;font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:24px;line-height:32px;font-weight:700;color:#0F172A;">Congratulations!</h1>
 
-            <p style="color: #374151; font-size: 16px; margin-bottom: 20px;">
-                At this stage, the recruiter or hiring manager may reach out to you directly to schedule a call for your interview. Please ensure your contact details on your Tiaago profile are up to date and that you are available to respond promptly when contacted.
-            </p>
+<p style="margin:0 0 16px;font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:24px;color:#475569;">Dear <strong>{{ name }}</strong>,</p>
 
-            <p style="color: #374151; font-size: 16px; margin-bottom: 20px;">
-                Warm regards,<br>
-                <strong>The Tiaago Team</strong>
-            </p>
+<p style="margin:0 0 16px;font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:24px;color:#475569;">Congratulations on your achievement! 🎯 You have successfully passed the Skill Assessment stage.</p>
 
-        </div>
+<p style="margin:24px 0 4px;font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:36px;font-weight:700;color:#5465FF;text-align:center;">{{ score }}</p>
+<p style="margin:0 0 24px;font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:13px;line-height:20px;color:#64748B;text-align:center;">Your Assessment Score</p>
 
-        <!-- Footer -->
-        <div style="background-color: #f9fafb; padding: 20px 30px; text-align: center; border-top: 1px solid #e5e7eb;">
-            <p style="color: #6b7280; font-size: 12px; margin: 0;">
-                © 2024 Tiaago. All rights reserved.
-            </p>
-        </div>
-    </div>
-</body>
-</html>
+<p style="margin:0 0 16px;font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:24px;color:#475569;">At this stage, the recruiter or hiring manager may reach out to you directly to schedule a call for your interview. Please make sure the contact details on your Tiaago profile are up to date and that you're available to respond promptly when contacted.</p>
+
+<p style="margin:24px 0 0;font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:24px;color:#475569;">Best regards,<br>The Tiaago Team</p>
+{% endblock %}

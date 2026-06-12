@@ -1,46 +1,20 @@
-{% load account %}{% user_display user as user_display %}{% load i18n %}
+{% extends "emails/base_email.html" %}
+{% load account %}{% load i18n %}
 
-<div class="email-container">
-  <div class="content">
-    <div class="img">
-      <img
-        src="{{ welcome_image_url }}"
-        alt="welcome_onboard_img"
-      />
-    </div>
+{% block title %}Hi from Tiaago{% endblock %}
 
-    <h1>Hi from Tiaago!</h1>
-    <p>Dear {{user.first_name}},</p>
+{% block preheader %}Welcome to Tiaago — showcase your skills, explore opportunities, and connect with innovative companies.{% endblock %}
 
-    <p>
-      Welcome to Tiaago, the private marketplace connecting talents with
-      startups and businesses globally. We're excited to have you!
-      Congratulations on joining Tiaago! Showcase your skills, explore
-      opportunities, and connect with innovative companies. Your journey to
-      success begins now.
-    </p>
+{% block content %}{% user_display user as user_display %}
+<h1 class="h1" style="margin:0 0 16px;font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:24px;line-height:32px;font-weight:700;color:#0F172A;">Hi from Tiaago!</h1>
 
-    <p>
-      You received this email because user {{ user_display }} provided your
-      email to connect their account. Complete your profile by adding your
-      portfolio and achievements to attract potential clients and collaborators.
-      Browse projects and collaborations that match your career goals, from
-      short-term gigs to long-term contracts.
-    </p>
+<p style="margin:0 0 16px;font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:24px;color:#475569;">Dear {{ user.first_name }},</p>
 
-    <p>
-      For any questions, reach out to our support team. We're here to help you
-      every step of the way.
-    </p>
-  </div>
+<p style="margin:0 0 16px;font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:24px;color:#475569;">Welcome to Tiaago, the private marketplace connecting talent with startups and businesses globally. We're excited to have you! Congratulations on joining Tiaago — showcase your skills, explore opportunities, and connect with innovative companies. Your journey to success begins now.</p>
 
-  <div class="last">
-    <!-- <p>This email was sent to <a href="mailto:angel@notable.com">angel@notable.com</a>. If you'd rather not receive this kind of email, <a href="#">Unsubscribe</a>.</p> -->
+<p style="margin:0 0 16px;font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:24px;color:#475569;">You received this email because user {{ user_display }} provided your email address to connect their account. Complete your profile by adding your portfolio and achievements to attract potential clients and collaborators, then browse projects that match your career goals — from short-term gigs to long-term contracts.</p>
 
-    <p>
-      17, Oterubi Ogidan street, Owode onirin, Ikorodu road, Lagos. <br />
-      &copy; Tiaago 2024
-    </p>
-  </div>
-</div>
-{% endautoescape %}
+<p style="margin:0 0 16px;font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:24px;color:#475569;">If you have any questions, reach out to our support team — we're here to help you every step of the way.</p>
+
+<p style="margin:24px 0 0;font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:24px;color:#475569;">Best regards,<br>The Tiaago Team</p>
+{% endblock %}

@@ -1,64 +1,44 @@
-<!DOCTYPE html>
-<html xmlns="http://www.w3.org/1999/xhtml">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>You’ve Been Invited to Join Tiaago</title>
-</head>
-<body style="margin:0; padding:20px; background:#f7f7f7; font-family:Arial, Helvetica, sans-serif;">
-  <div style="max-width:600px; margin:40px auto; background:#ffffff; border-radius:8px; overflow:hidden; box-shadow:0 4px 12px rgba(0,0,0,0.05);">
-    <!-- Wrapper Table for Outlook -->
-    <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
-      <tr>
-        <td style="padding:40px 30px;">
-          <h2 style="margin:0 0 20px; color:#111111; font-size:24px;">
-            You’ve Been Invited to Join Tiaago Recruiter Workspace
-          </h2>
-          <p style="margin:0 0 16px; font-size:16px; line-height:1.5; color:#333333;">Hi there,</p>
-          <p style="margin:0 0 16px; font-size:16px; line-height:1.5; color:#333333;">
-            You’ve been invited to join <strong>{{ company_name }}</strong> on Tiaago, an AI-powered hiring platform for smarter recruitment workflows.
-          </p>
-          <p style="margin:0 0 24px; font-size:16px; line-height:1.5; color:#333333;">
-            <strong>Invited by:</strong> {{ inviter }}<br>
-            <strong>Role:</strong> {{ role }}
-          </p>
+{% extends "emails/base_email.html" %}
 
-          <!-- Button (with Outlook VML fallback) -->
-          <table align="center" cellpadding="0" cellspacing="0" role="presentation" style="margin:30px 0;">
-            <tr>
-              <td align="center" bgcolor="#4f46e5" style="border-radius:6px;">
-                <!--[if mso]>
-                <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="{{ link }}" style="height:48px;v-text-anchor:middle;width:200px;" arcsize="12%" stroke="f" fillcolor="#4f46e5">
-                  <w:anchorlock/>
-                  <center style="color:#ffffff;font-family:Arial,sans-serif;font-size:16px;font-weight:bold;">Accept Invite</center>
-                </v:roundrect>
-                <![endif]-->
-                <!--[if !mso]><!-- -->
-                <a href="{{ link }}"
-                   style="background-color:#4f46e5; border-radius:6px; color:#ffffff; display:inline-block; font-family:Arial,sans-serif; font-size:16px; font-weight:bold; line-height:48px; text-align:center; text-decoration:none; width:200px; -webkit-text-size-adjust:none;">
-                  Accept Invite
-                </a>
-                <!--<![endif]-->
-              </td>
-            </tr>
-          </table>
+{% block title %}You're invited to join {{ company_name }} on Tiaago{% endblock %}
 
-          <p style="margin:0; font-size:14px; color:#666666;">
-            This invitation link will expire in <strong>{{ expiry_days }}</strong> days.
-          </p>
+{% block preheader %}{{ inviter }} invited you to join {{ company_name }}'s recruiter workspace on Tiaago.{% endblock %}
 
-          <p style="margin:20px 0 0; font-size:16px; color:#333333;">
-            Thanks,<br>The Tiaago Team
-          </p>
-        </td>
-      </tr>
-    </table>
-  </div>
+{% block content %}
+<h1 class="h1" style="margin:0 0 16px;font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:24px;line-height:32px;font-weight:700;color:#0F172A;">You've been invited to join the Tiaago recruiter workspace</h1>
 
-  <!-- Optional footer -->
-  <div style="text-align:center; padding:20px; font-size:12px; color:#999999;">
-    © 2025 Tiaago. All rights reserved.<br>
-    <a href="{{ unsubscribe_link }}" style="color:#999999; text-decoration:underline;">Unsubscribe</a>
-  </div>
-</body>
-</html>
+<p style="margin:0 0 16px;font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:24px;color:#475569;">Hi there,</p>
+
+<p style="margin:0 0 16px;font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:24px;color:#475569;">You've been invited to join <strong>{{ company_name }}</strong> on Tiaago, an AI-powered hiring platform for smarter recruitment workflows.</p>
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#F8FAFC" style="border:1px solid #E2E8F0;border-radius:8px;margin:24px 0;">
+  <tr>
+    <td style="padding:20px 24px;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td style="padding:6px 0;font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:13px;color:#64748B;width:140px;">Invited by</td>
+          <td style="padding:6px 0;font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px;font-weight:600;color:#0F172A;">{{ inviter }}</td>
+        </tr>
+        <tr>
+          <td style="padding:6px 0;font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:13px;color:#64748B;width:140px;">Role</td>
+          <td style="padding:6px 0;font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px;font-weight:600;color:#0F172A;">{{ role }}</td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin:28px auto 8px;">
+  <tr>
+    <td align="center" bgcolor="#5465FF" style="border-radius:8px;">
+      <a href="{{ link }}" target="_blank" style="display:inline-block;padding:13px 36px;font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;font-weight:600;line-height:20px;color:#ffffff;text-decoration:none;border-radius:8px;">Accept Invite</a>
+    </td>
+  </tr>
+</table>
+
+<p style="margin:16px 0;font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:13px;line-height:20px;color:#64748B;text-align:center;">This invitation link expires in <strong>{{ expiry_days }}</strong> days.</p>
+
+<p style="margin:0 0 24px;font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:24px;color:#475569;">Best regards,<br>The Tiaago Team</p>
+
+<p style="margin:0;font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:12px;line-height:18px;color:#94A3B8;text-align:center;">Didn't expect this invite? <a href="{{ unsubscribe_link }}" style="color:#94A3B8;text-decoration:underline;">Unsubscribe</a>.</p>
+{% endblock %}

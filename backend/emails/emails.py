@@ -234,7 +234,7 @@ def get_email_template_and_context(
     # logo url for all emails
     if context is not None:
         context["logo_url"] = f"{settings.BASE_URL}/static/emails/assets/Tiaago_logo.png"
-        context["welcome_image_url"] = f"{settings.BASE_URL}/static/emails/assets/welcome_onboard.jpg"
+        context["welcome_image_url"] = f"{settings.BASE_URL}/static/emails/assets/welcome_onboard_Img.png"
 
     return template_file, context
 
