@@ -160,3 +160,6 @@ zope.interface==7.0.1
 # Storage backends
 django-redis==5.4.0
 django-bunny
+
+# Logging
+logtail-python

@@ -26,6 +26,9 @@ class Settings(BaseSettings):
     # Example: "https://backend.tiaago.com,https://staging-backend.tiaago.com"
     CORS_ORIGINS: str = "http://localhost:8000"
 
+    BETTERSTACK_SOURCE_TOKEN: str = ""
+    BETTERSTACK_HOST: str = ""
+
     model_config = SettingsConfigDict(
         env_file=".env",
         case_sensitive=True,

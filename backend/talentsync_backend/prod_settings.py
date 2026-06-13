@@ -18,6 +18,8 @@ DATABASE_URL = env("DB_URL", default="")
 REDIS_URL = env("REDIS_URL", default="redis://localhost:6379/1")
 DAILY_API_TOKEN = env("DAILY_API_TOKEN", default="")
 SENTRY_DSN = env("SENTRY_DSN", default="")
+BETTERSTACK_SOURCE_TOKEN = env("BETTERSTACK_SOURCE_TOKEN", default="")
+BETTERSTACK_HOST = env("BETTERSTACK_HOST", default="")
 
 # Feature flags for production
 #CELERY_TASK_ALWAYS_EAGER = os.getenv("CELERY_TASK_ALWAYS_EAGER", "1") in ("1", "true", "True")
@@ -145,6 +147,19 @@ LOGGING = {
         },
     },
 }
+
+if BETTERSTACK_SOURCE_TOKEN:
+    _logtail_handler = {
+        "class": "logtail.LogtailHandler",
+        "source_token": BETTERSTACK_SOURCE_TOKEN,
+    }
+    if BETTERSTACK_HOST:
+        _logtail_handler["host"] = f"https://{BETTERSTACK_HOST}"
+    LOGGING["handlers"]["logtail"] = _logtail_handler
+    if "root" in LOGGING:
+        LOGGING["root"]["handlers"].append("logtail")
+    for _logger_cfg in LOGGING.get("loggers", {}).values():
+        _logger_cfg["handlers"].append("logtail")
 
 # Performance Settings
 USE_TZ = True

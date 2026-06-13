@@ -1,6 +1,8 @@
 "use client";
 
+import { useEffect } from "react";
 import { cn } from "./common/utils";
+import { logtail } from "./common/lib/logtail";
 
 export default function GlobalError({
   error,
@@ -9,6 +11,14 @@ export default function GlobalError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  useEffect(() => {
+    logtail?.error(error.message, {
+      digest: error.digest,
+      stack: error.stack,
+    });
+    logtail?.flush();
+  }, [error]);
+
   return (
     <html>
       <body

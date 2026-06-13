@@ -1,8 +1,21 @@
 # app/main.py
+import logging
 from fastapi import FastAPI, Depends, Header, HTTPException
 from app.api.routes import router as api_router
 from app.config import settings
 from fastapi.middleware.cors import CORSMiddleware
+
+_root = logging.getLogger()
+_root.setLevel(logging.INFO)
+if not any(isinstance(h, logging.StreamHandler) for h in _root.handlers):
+    _root.addHandler(logging.StreamHandler())
+
+if settings.BETTERSTACK_SOURCE_TOKEN:
+    from logtail import LogtailHandler
+    _handler_kwargs = {"source_token": settings.BETTERSTACK_SOURCE_TOKEN}
+    if settings.BETTERSTACK_HOST:
+        _handler_kwargs["host"] = f"https://{settings.BETTERSTACK_HOST}"
+    _root.addHandler(LogtailHandler(**_handler_kwargs))
 
 app = FastAPI(
     title="Resume Analysis and Assessment API",

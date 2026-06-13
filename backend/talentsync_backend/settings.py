@@ -25,6 +25,9 @@ SECRET_KEY = env("SECRET_KEY")
 ENV = env("ENV")          # "development" | "staging" | "production"
 DEBUG = env("DEBUG")
 
+BETTERSTACK_SOURCE_TOKEN = env("BETTERSTACK_SOURCE_TOKEN", default="")
+BETTERSTACK_HOST = env("BETTERSTACK_HOST", default="")
+
 
 
 ALLOWED_HOSTS = [
@@ -676,6 +679,19 @@ else:
             },
         },
     }
+
+if BETTERSTACK_SOURCE_TOKEN:
+    _logtail_handler = {
+        "class": "logtail.LogtailHandler",
+        "source_token": BETTERSTACK_SOURCE_TOKEN,
+    }
+    if BETTERSTACK_HOST:
+        _logtail_handler["host"] = f"https://{BETTERSTACK_HOST}"
+    LOGGING["handlers"]["logtail"] = _logtail_handler
+    if "root" in LOGGING:
+        LOGGING["root"]["handlers"].append("logtail")
+    for _logger_cfg in LOGGING.get("loggers", {}).values():
+        _logger_cfg["handlers"].append("logtail")
 
 OTP_EXPIRY_TIME = 600  # seconds; OTPs grant login tokens, keep the window short
 MAX_CONCONCURRENT_INTERVIEWS= env("MAX_CONCURRENT_INTERVIEWS", cast=int, default=5)
