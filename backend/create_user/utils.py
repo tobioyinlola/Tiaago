@@ -56,8 +56,8 @@ def generate_referral_code():
 
 
 def send_invite_to_user(email, referral_code):
-    subject = "You’re invited to join Tiaago"
-    invite_url = f"{settings.FRONTEND_URL.rstrip(‘/’)}/talents/signup?ref={referral_code}"
+    subject = "You're invited to join Tiaago"
+    invite_url = f"{settings.FRONTEND_URL.rstrip('/')}/talents/signup?ref={referral_code}"
 
     try:
         inviter = TalentProfile.objects.get(referral_code=referral_code)
