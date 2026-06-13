@@ -113,8 +113,13 @@ const StartupApplicationsTable = ({ data = [] }: { data: Startup[] }) => {
                   </td>
                   <td>
                     <div className='flex items-center gap-2'>
-                      <StartupDetailPanel startup={startup} showActions />
-                      <UserApplicationActions isStartup id={startup.pk} />
+                      <StartupDetailPanel
+                        startup={startup}
+                        showActions={!startup.verified}
+                      />
+                      {!startup.verified && (
+                        <UserApplicationActions isStartup id={startup.pk} />
+                      )}
                     </div>
                   </td>
                 </tr>
