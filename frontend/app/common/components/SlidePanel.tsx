@@ -24,32 +24,32 @@ const SlidePanel = ({
   children,
   className,
 }: SlidePanelProps) => {
-  const [render, setRender] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const [show, setShow] = useState(false);
   const closeRef = useRef<HTMLButtonElement>(null);
   const triggerRef = useRef<HTMLElement | null>(null);
 
-  useEffect(() => {
-    if (open) {
-      triggerRef.current = document.activeElement as HTMLElement;
-      setRender(true);
-      document.body.style.overflow = "hidden";
-    } else {
-      setShow(false);
-    }
-  }, [open]);
+  if (open && !mounted) {
+    setMounted(true);
+  }
+
+  if (!open && show) {
+    setShow(false);
+  }
 
   useEffect(() => {
-    if (render && open) {
-      const outer = requestAnimationFrame(() => {
+    if (mounted && open && !show) {
+      triggerRef.current = document.activeElement as HTMLElement;
+      document.body.style.overflow = "hidden";
+      const rafId = requestAnimationFrame(() => {
         requestAnimationFrame(() => {
           setShow(true);
           closeRef.current?.focus();
         });
       });
-      return () => cancelAnimationFrame(outer);
+      return () => cancelAnimationFrame(rafId);
     }
-  }, [render, open]);
+  }, [mounted, open, show]);
 
   useEffect(() => {
     if (!open) return;
@@ -72,14 +72,14 @@ const SlidePanel = ({
       e.propertyName === "transform" &&
       !open
     ) {
-      setRender(false);
+      setMounted(false);
       document.body.style.overflow = "";
       triggerRef.current?.focus();
       triggerRef.current = null;
     }
   };
 
-  if (!render) return null;
+  if (!mounted) return null;
 
   return createPortal(
     <div
