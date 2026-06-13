@@ -18,8 +18,12 @@ from .sample_context import EMAIL_META
 def render_email(name, context=None):
     """Render an email by template name. Returns (subject, html, text)."""
     context = context or {}
-    base = getattr(settings, "BASE_URL", "https://tiaago-backend-web.onrender.com")
-    asset_url = f"{base}/static/emails/assets"
+    if settings.DEBUG:
+        base = getattr(settings, "BASE_URL", "http://localhost:8000")
+        asset_url = f"{base}/static/emails/assets"
+    else:
+        frontend = getattr(settings, "FRONTEND_URL", "https://www.tiaago.com/").rstrip("/")
+        asset_url = f"{frontend}/emails/assets"
     context.setdefault("asset_url", asset_url)
     context.setdefault("logo_url", f"{asset_url}/Tiaago_logo_white.png")
     context.setdefault("hero_url", f"{asset_url}/welcome-onboard.png")
