@@ -69,14 +69,31 @@ class TalentProfileAdmin(admin.ModelAdmin):
 
 @admin.register(Company)
 class CompanyAdmin(admin.ModelAdmin):
-    list_display = ("company_rep", "pk", "company_name")
+    list_display = ("company_rep", "pk", "company_name", "account_type", "industry", "onboarding_completed_at")
+    list_filter = ("account_type",)
     fieldsets = (
         (
             "Company Details",
-            {"fields": ("company_name", "company_email", "website", "address")},
+            {"fields": ("company_name", "company_email", "website", "address", "size")},
+        ),
+        (
+            "Onboarding",
+            {
+                "fields": (
+                    "account_type",
+                    "industry",
+                    "role",
+                    "heard_from",
+                    "heard_from_other",
+                    "onboarding_notes",
+                    "onboarding_completed_at",
+                    "onboarding_skipped_at",
+                ),
+            },
         ),
     )
-    search_fields = ["company_name"]
+    readonly_fields = ("onboarding_completed_at", "onboarding_skipped_at")
+    search_fields = ["company_name", "company_rep__email"]
 
 
 # # register allauth email confirmation model to admin

@@ -666,6 +666,12 @@ class CompanyListSerializer(serializers.ModelSerializer):
             "role",
             "address",
             "size",
+            "account_type",
+            "industry",
+            "heard_from",
+            "onboarding_notes",
+            "onboarding_completed_at",
+            "onboarding_skipped_at",
             "created_at",
             "updated_at",
         )

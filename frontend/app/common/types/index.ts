@@ -176,6 +176,12 @@ export type Startup = BaseUser & {
   address: string;
   website: string;
   profile_pic: string;
+  account_type?: string;
+  industry?: string;
+  heard_from?: string;
+  onboarding_notes?: string;
+  onboarding_completed_at?: string | null;
+  onboarding_skipped_at?: string | null;
 };
 
 export type Staff = BaseUser & {

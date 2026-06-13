@@ -20,7 +20,7 @@ export const metadata: Metadata = {
 
 const StartupOnboardingPage = async () => {
   const errors: DisplayErrorMessagesProps["errors"] = [];
-  await getCurrentUser("startup");
+  const { currentUser } = await getCurrentUser("startup");
 
   const onboarding = await getCompanyOnboarding().catch(async e => {
     const error = await handleServerApiCallError(e);
@@ -56,6 +56,7 @@ const StartupOnboardingPage = async () => {
         {onboarding ? (
           <OnboardingCards
             onboarding={onboarding}
+            firstName={currentUser.first_name}
             startupRoles={startupRoles.sort((a, b) => {
               if (a.title === "Other") return 1;
               if (b.title === "Other") return -1;

@@ -30,6 +30,9 @@ const BaseTable = ({ data, className }: BaseProps) => {
               <th>Startup</th>
               <th className='max-sm:hidden'>Team Size</th>
               <th>Country</th>
+              <th className='max-sm:hidden'>Account Type</th>
+              <th className='max-sm:hidden'>Industry</th>
+              <th className='max-sm:hidden'>Onboarding</th>
               <th>Company URL</th>
               <th>Status</th>
               <th />
@@ -56,6 +59,19 @@ const BaseTable = ({ data, className }: BaseProps) => {
                     {startup.size || "—"}
                   </td>
                   <td>{startup.country}</td>
+                  <td className='max-sm:hidden capitalize'>
+                    {startup.account_type?.replace("-", " ") || "—"}
+                  </td>
+                  <td className='max-sm:hidden'>
+                    {startup.industry || "—"}
+                  </td>
+                  <td className='max-sm:hidden'>
+                    {startup.onboarding_completed_at
+                      ? "Completed"
+                      : startup.onboarding_skipped_at
+                      ? "Skipped"
+                      : "Pending"}
+                  </td>
                   <td>
                     <p className='line-clamp-1'>{startup.website || "—"}</p>
                   </td>
@@ -88,7 +104,7 @@ const BaseTable = ({ data, className }: BaseProps) => {
               ))
             ) : (
               <tr>
-                <td colSpan={7}>
+                <td colSpan={10}>
                   <EmptyState text='There are currently no startups...' />
                 </td>
               </tr>

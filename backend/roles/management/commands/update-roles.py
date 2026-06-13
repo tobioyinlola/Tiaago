@@ -21,7 +21,7 @@ new_talent_roles = [
 new_startup_roles = [
     {"title": "HR", "is_technical": False},
     {"title": "Talent acquisition expert", "is_technical": False},
-    {"title": "Startup founders", "is_technical": False},
+    {"title": "Recruiter", "is_technical": False},
     {"title": "Other", "is_technical": False},
 ]
 

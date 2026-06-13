@@ -23,7 +23,7 @@ TALENT_ROLES = [
 STARTUP_ROLES = [
     "HR",
     "Talent acquisition expert",
-    "Startup founders",
+    "Recruiter",
     "Other",
 ]
 

@@ -44,9 +44,11 @@ const stepIcons = [Users, Building2, UserRound, Megaphone];
 const OnboardingCards = ({
   onboarding,
   startupRoles,
+  firstName,
 }: {
   onboarding: CompanyOnboarding;
   startupRoles: StartupRole[];
+  firstName: string;
 }) => {
   const [step, setStep] = useState(() => getInitialStep(onboarding));
   const [isSkipping, setIsSkipping] = useState(false);
@@ -139,8 +141,13 @@ const OnboardingCards = ({
       }) => (
         <form
           onSubmit={handleSubmit}
-          className='w-full max-w-2xl rounded-xl border border-border bg-card text-card-foreground shadow-sm p-6 md:p-8 space-y-6'
+          className='w-full max-w-2xl rounded-xl bg-card text-card-foreground p-6 md:p-8 space-y-6'
         >
+          {firstName && (
+            <h2 className='text-lg font-semibold text-center'>
+              Let&apos;s get you started, {firstName} 😁
+            </h2>
+          )}
           <div className='space-y-2'>
             <div className='flex items-center justify-between text-xs text-muted-foreground'>
               <span className='font-medium'>
@@ -339,7 +346,7 @@ const OnboardingCards = ({
             )}
           </div>
 
-          <div className='pt-4 border-t border-border space-y-1'>
+          <div className='pt-4 border-t border-border'>
             <div className='flex items-center justify-between gap-2 sm:gap-3'>
               <Button
                 type='button'
@@ -350,6 +357,14 @@ const OnboardingCards = ({
               >
                 <ArrowLeft className='h-4 w-4' aria-hidden /> Back
               </Button>
+              <button
+                type='button'
+                onClick={skipForNow}
+                disabled={isSubmitting || isSkipping}
+                className='text-sm text-muted-foreground hover:text-foreground transition-colors duration-200 disabled:opacity-50 disabled:pointer-events-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-md px-3 py-2'
+              >
+                {isSkipping ? "Skipping..." : "Skip for now"}
+              </button>
               <Button
                 type='submit'
                 color='primary'
@@ -367,16 +382,6 @@ const OnboardingCards = ({
                   </>
                 )}
               </Button>
-            </div>
-            <div className='flex justify-center'>
-              <button
-                type='button'
-                onClick={skipForNow}
-                disabled={isSubmitting || isSkipping}
-                className='text-sm text-muted-foreground hover:text-foreground transition-colors duration-200 disabled:opacity-50 disabled:pointer-events-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-md px-3 py-3.5'
-              >
-                {isSkipping ? "Skipping..." : "Skip for now"}
-              </button>
             </div>
           </div>
         </form>
