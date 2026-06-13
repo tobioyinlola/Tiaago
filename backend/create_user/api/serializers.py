@@ -654,6 +654,7 @@ class UserListSerializer(serializers.ModelSerializer):
 
 class CompanyListSerializer(serializers.ModelSerializer):
     user = CustomUserSerializer(source="company_rep", read_only=True)
+    role = serializers.SlugRelatedField(read_only=True, slug_field="title")
 
     class Meta:
         model = Company

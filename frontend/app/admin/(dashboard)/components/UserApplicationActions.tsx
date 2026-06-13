@@ -53,11 +53,17 @@ const UserApplicationActions = ({
   };
 
   return (
-    <div className='flex items-center gap-3'>
-      <button className='text-[#667085]' onClick={() => handleClick("decline")}>
+    <div className='flex items-center gap-2'>
+      <button
+        className='inline-flex items-center rounded-md border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+        onClick={() => handleClick("decline")}
+      >
         Decline
       </button>
-      <button className='text-primary' onClick={() => handleClick("accept")}>
+      <button
+        className='inline-flex items-center rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+        onClick={() => handleClick("accept")}
+      >
         Accept
       </button>
 
@@ -73,7 +79,7 @@ const UserApplicationActions = ({
             <h3 className='text-[32px] leading-[38px] -tracking-[0.5px] font-bold mb-4'>
               Are you sure?
             </h3>
-            <p className='text-[#999] text-sm -tracking-[0.1px]'>
+            <p className='text-muted-foreground text-sm'>
               {accepted
                 ? `Do you want to approve this ${name} aboard Tiaago?`
                 : `Do you want to decline this ${name}'s application?`}
