@@ -25,7 +25,7 @@ const SlidePanel = ({
     <dialog
       ref={panelRef}
       id={id}
-      className='fixed inset-0 m-0 h-full w-full max-h-none max-w-none border-none bg-transparent p-0 backdrop:bg-black/30 backdrop:backdrop-blur-[2px]'
+      className='fixed inset-0 m-0 h-full w-full max-h-none max-w-none border-none bg-transparent p-0 backdrop:bg-black/30 backdrop:backdrop-blur-sm'
     >
       <div
         className='flex h-full w-full justify-end'

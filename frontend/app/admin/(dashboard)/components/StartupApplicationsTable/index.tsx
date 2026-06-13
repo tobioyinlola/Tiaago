@@ -13,7 +13,7 @@ const selectClassName =
 const StartupApplicationsTable = ({ data = [] }: { data: Startup[] }) => {
   return (
     <>
-      <div className='w-full pl-6 pr-2 py-[14px] bg-primary/10 mb-8 flex max-sm:flex-col sm:items-center gap-1 justify-between'>
+      <div className='w-full pl-6 pr-2 py-3.5 bg-primary/10 mb-8 flex max-sm:flex-col sm:items-center gap-1 justify-between'>
         <SearchBar searchKey='startup-applications' querySearch />
         <div className='border-l flex items-center join'>
           <select className={selectClassName} defaultValue=''>
@@ -97,6 +97,7 @@ const StartupApplicationsTable = ({ data = [] }: { data: Startup[] }) => {
                         target='_blank'
                         rel='noreferrer'
                         className='line-clamp-1 hover:text-primary'
+                        aria-label={`Open ${startup.company_name} website`}
                       >
                         {startup.website}
                       </a>

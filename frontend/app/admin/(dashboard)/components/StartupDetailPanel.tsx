@@ -58,7 +58,7 @@ const StartupDetailPanel = ({
       <button
         type='button'
         onClick={() => panelRef.current?.showModal()}
-        className='inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+        className='inline-flex items-center gap-1.5 rounded-md px-3 py-2 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
         aria-label={`View details for ${startup.company_name || startup.first_name}`}
       >
         <LuEye className='h-3.5 w-3.5' />

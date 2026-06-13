@@ -124,7 +124,7 @@ const Header = () => {
   const className =
     "select select-sm select-bordered text-foreground font-medium join-item focus:outline-none";
   return (
-    <div className='w-full pl-6 pr-2 py-[14px] bg-primary/10 mb-8 flex max-sm:flex-col sm:items-center gap-1 justify-between'>
+    <div className='w-full pl-6 pr-2 py-3.5 bg-primary/10 mb-8 flex max-sm:flex-col sm:items-center gap-1 justify-between'>
       <SearchBar querySearch />
       <div className='border-l flex items-center join'>
         <select className={className} defaultValue=''>
