@@ -1,5 +1,7 @@
 # TIAAGO
 
+[![Better Stack Badge](https://uptime.betterstack.com/status-badges/v2/monitor/2p25o.svg)](https://uptime.betterstack.com/?utm_source=status_badge)
+
 Talent marketplace connecting African developers with startups. Candidates build a profile, take assessments, and run live AI interviews; recruiters post jobs, screen applicants, and hire.
 
 This monorepo holds the three services that make up the product.
