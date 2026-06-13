@@ -69,9 +69,17 @@ const OnboardingCards = ({
   const progress = Math.round(((step + 1) / totalSteps) * 100);
   const StepIcon = stepIcons[step];
 
-  const finishAndRedirect = () => {
-    toast.success("Welcome aboard! Your workspace is ready.");
-    window.location.href = "/startups/dashboard";
+  const showFinishSuccessAlert = () => {
+    setAlert({
+      icon: "success",
+      title: "Success",
+      message:
+        "Welcome aboard! Your workspace is ready and tailored to your hiring.",
+      buttonText: "Go to dashboard",
+      buttonAction: () => {
+        window.location.href = "/startups/dashboard";
+      },
+    });
   };
 
   const skipForNow = async () => {
@@ -110,7 +118,7 @@ const OnboardingCards = ({
       handleFormSubmissionError(result.error, setFieldError, setAlert);
       return;
     }
-    if (isLastStep) finishAndRedirect();
+    if (isLastStep) showFinishSuccessAlert();
     else setStep(current => Math.min(current + 1, totalSteps - 1));
   };
 
