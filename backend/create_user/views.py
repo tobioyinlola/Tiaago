@@ -48,7 +48,7 @@ from .tasks import (
     send_company_invite_email,
     send_referral_invite_email,
 )
-from .utils import generate_referral_code, send_otp_to_user, send_welcome_mail, send_invite_to_user, send_invite_email, build_invite_link
+from .utils import generate_referral_code, send_otp_to_user, send_welcome_mail, send_invite_to_user, send_invite_email, build_invite_link, send_after_commit
 from utils.email_handler import EmailHandler, EmailTypes
 from django.core.cache import cache
 from django.conf import settings as django_settings
@@ -225,17 +225,12 @@ class ConfirmEmailView(APIView):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
-            otp_entry.user.is_verified = True
-            otp_entry.user.save()
-
-            send_welcome_mail(
-                user_pk=otp_entry.user.pk
-            ) 
-            user= otp_entry.user
-            # Update the user profile to mark as verified
+            user = otp_entry.user
             user.is_verified = True
             user.verified = True
-            user.save()
+            user.save(update_fields=["is_verified", "verified"])
+
+            send_after_commit(send_welcome_mail, user_pk=user.pk)
 
             otp_entry.delete()
 

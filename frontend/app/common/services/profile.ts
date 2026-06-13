@@ -83,6 +83,14 @@ export async function getCurrentUser(
     return redirect(nullUserRedirect ?? getOnboardingUrl(requiredUserType));
   }
   const as = getFullUserType(currentUser.user_type);
+
+  if (!currentUser.verified && as !== "staff") {
+    const role = as === "startup" ? "startup" : "talent";
+    return redirect(
+      `/verify-email?email=${encodeURIComponent(currentUser.email)}&as=${role}`
+    );
+  }
+
   if (
     requiredUserType &&
     getFullUserType(currentUser.user_type) !== requiredUserType

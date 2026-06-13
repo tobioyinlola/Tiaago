@@ -1,6 +1,8 @@
 import logging
+import threading
 from django.utils.crypto import get_random_string
 from django.contrib.auth import get_user_model
+from django.db import transaction
 from django.utils import timezone
 from datetime import timedelta
 from emails import emails
@@ -13,6 +15,21 @@ from utils.email_handler import EmailHandler, EmailTypes
 from subscriptions.models import PaystackSubscription, StripeSubscription, Wallet, FreePlan
 
 logger = logging.getLogger(__name__)
+
+
+def send_after_commit(fn, *args, **kwargs):
+    """Run *fn* in a daemon thread after the current DB transaction commits.
+
+    Drop-in replacement for Celery `task.delay()` when the worker isn't
+    running. Swap to `.delay()` later with no caller changes.
+    """
+    def _run():
+        try:
+            fn(*args, **kwargs)
+        except Exception:
+            logger.exception("Background send failed: %s", fn.__name__)
+
+    transaction.on_commit(lambda: threading.Thread(target=_run, daemon=True).start())
 User = get_user_model()
 
 
