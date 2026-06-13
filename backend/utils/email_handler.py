@@ -1,4 +1,5 @@
 import logging
+import os
 import time
 import smtplib
 from typing import TypedDict
@@ -6,8 +7,9 @@ from django.core.mail import send_mail
 from django.conf import settings
 from django.core.mail.message import EmailMultiAlternatives
 from django.template.loader import get_template
+from django.template import TemplateDoesNotExist
+from django.utils.html import strip_tags
 from management.models import EmailTrack
-import os
 import requests
 logger = logging.getLogger("emails")
 
@@ -99,7 +101,30 @@ class EmailHandler:
             # Maximum retries reached, log error or raise exception
             logger.error("Failed to send email after maximum retries.")
         return f"Email Track Model Id - {email_log_id}"
-    def _send_via_resend(self, subject, html, security=False):
+    @staticmethod
+    def _render_text_twin(html_template_path, context):
+        """Try to render a plain-text twin for the HTML template.
+
+        Convention: emails/<name>.html -> emails/text/<name>.txt
+        Falls back to stripping tags from the HTML if no .txt exists.
+        """
+        import os.path as osp
+        parts = html_template_path.rsplit("/", 1)
+        if len(parts) == 2:
+            dirname, filename = parts
+            name, _ = osp.splitext(filename)
+            txt_path = f"{dirname}/text/{name}.txt"
+        else:
+            txt_path = None
+
+        if txt_path:
+            try:
+                return get_template(txt_path).render(context)
+            except TemplateDoesNotExist:
+                pass
+        return None
+
+    def _send_via_resend(self, subject, html, security=False, text_body=None):
         """Send through the Resend HTTP API.
 
         Returns the Resend message id (str) on 2xx, None on failure.
@@ -108,7 +133,7 @@ class EmailHandler:
             "from": RESEND_SECURITY_EMAIL if security else RESEND_FROM_EMAIL,
             "to": self.recipients,
             "subject": subject,
-            "text": "See HTML version for full content.",
+            "text": text_body or "See HTML version for full content.",
             "html": html,
         }
         if RESEND_REPLY_TO:
@@ -129,13 +154,13 @@ class EmailHandler:
         except ValueError:
             return ""
 
-    def _send_via_mailgun(self, subject, html, from_email) -> bool:
+    def _send_via_mailgun(self, subject, html, from_email, text_body=None) -> bool:
         """Send through the Mailgun HTTP API. Returns True on 200."""
         data = {
             "from": from_email,
             "to": self.recipients,
             "subject": subject,
-            "text": "See HTML version for full content.",
+            "text": text_body or "See HTML version for full content.",
             "html": html,
         }
         response = requests.post(
@@ -169,6 +194,8 @@ class EmailHandler:
         """
         html = get_template(template).render(context)
 
+        text_body = self._render_text_twin(template, context)
+
         # Add environment prefixes
         if settings.IS_STAGING:
             subject = f"Staging : {subject}"
@@ -182,7 +209,7 @@ class EmailHandler:
         if RESEND_API_KEY:
             for attempt in range(2):
                 try:
-                    message_id = self._send_via_resend(subject, html, security=security)
+                    message_id = self._send_via_resend(subject, html, security=security, text_body=text_body)
                     if message_id is not None:
                         success = True
                         provider_message_id = message_id
@@ -201,7 +228,7 @@ class EmailHandler:
         if not success and MAILGUN_API_KEY and MAILGUN_DOMAIN:
             try:
                 mailgun_from = RESEND_SECURITY_EMAIL if security else from_email
-                success = self._send_via_mailgun(subject, html, mailgun_from)
+                success = self._send_via_mailgun(subject, html, mailgun_from, text_body=text_body)
                 if success:
                     # No webhook tracking on the fallback — mark explicitly
                     # so the row doesn't sit at "pending" forever.

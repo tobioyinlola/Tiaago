@@ -1,0 +1,25 @@
+{% autoescape off %}OFFER EXTENDED
+
+{{ company|default:"Flutterwave" }} wants to hire you.
+
+Congratulations, {{ first_name|default:"Amara" }}. After your interviews, the
+team is thrilled to extend an offer. Review the terms below and let them know
+your decision.
+
+  Role:         {{ role|default:"Backend Engineer" }}
+  Company:      {{ company|default:"Flutterwave" }}
+  Compensation: {{ comp|default:"$72,000 / year" }}
+  Start date:   {{ start_date|default:"Jul 7, 2026" }}
+
+Review offer:
+{{ offer_url|default:"https://app.tiaago.com" }}
+
+--
+Tiaago - AI-powered end-to-end hiring platform for modern teams.
+X: https://x.com/TiaagoHq
+Instagram: https://www.instagram.com/tiaago_hq
+LinkedIn: https://www.linkedin.com/company/tiaagohq/
+Questions? support@tiaago.com
+1942 Broadway St, Suite 314C, Boulder, CO, US
+(c) Tiaago. All rights reserved.
+{% endautoescape %}

@@ -64,6 +64,7 @@ INSTALLED_APPS = [
     "chats.apps.ChatsConfig",
     "management",
     "marketing.apps.MarketingConfig",
+    "emails_app.apps.EmailsAppConfig",
     # 3rd party apps
     "allauth",
     "allauth.account",

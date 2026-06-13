@@ -6,7 +6,6 @@ from django.utils.crypto import constant_time_compare
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AnonymousUser
 from django.contrib.auth.tokens import default_token_generator
-from django.contrib.sites.shortcuts import get_current_site
 from django.core.mail import send_mail
 from django.db import transaction
 from allauth.account.utils import complete_signup
@@ -365,33 +364,23 @@ class CustomPasswordResetView(APIView):
         )
 
     def send_password_reset_email(self, user, uid, token, request):
-        """
-        Send a custom email with the UID and token to the frontend reset link.
-        """
-        current_site = get_current_site(request)
-
+        """Send a password reset link to the user's email."""
         base_url = settings.FRONTEND_URL.rstrip("/")
         if user.is_talent():
-            frontend_url = f"{base_url}/talents/reset-password/?uid={uid}&token={token}"
+            reset_url = f"{base_url}/talents/reset-password/?uid={uid}&token={token}"
         elif user.is_company():
-            frontend_url = f"{base_url}/startups/reset-password/?uid={uid}&token={token}"
+            reset_url = f"{base_url}/startups/reset-password/?uid={uid}&token={token}"
         else:
-            frontend_url = f"{base_url}/admin/reset-password/?uid={uid}&token={token}"
+            reset_url = f"{base_url}/admin/reset-password/?uid={uid}&token={token}"
 
-        # Render the email content
-        subject = "Reset Your Password"
-        email_template_name = "account/email/password_reset_key_message.html"
         context = {
-            "user": user,
-            "uid": uid,
-            "token": token,
-            "password_reset_url": frontend_url,
-            "current_site": current_site,
+            "email": user.email,
+            "reset_url": reset_url,
         }
         EmailHandler(user.email).send_mail(
-            subject=subject,
+            subject="Reset your password",
             context=context,
-            template=email_template_name,
+            template="emails/password_reset.html",
             email_type=EmailTypes.PASSWORD_RESET,
             security=True,
         )

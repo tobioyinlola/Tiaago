@@ -1,0 +1,25 @@
+{% autoescape off %}SINCE YOU WERE AWAY
+
+New roles are waiting for you.
+
+Hi {{ first_name|default:"Amara" }}, the market has been busy. Startups on
+Tiaago have posted plenty of roles that fit your skills. Here's a quick look
+at what's new.
+
+  {{ new_count|default:"12" }} new matches for you
+
+See what's new:
+{{ matches_url|default:"https://app.tiaago.com/jobs" }}
+
+No pressure. Whenever you're ready, your profile and scores are right where
+you left them.
+
+--
+Tiaago - AI-powered end-to-end hiring platform for modern teams.
+X: https://x.com/TiaagoHq
+Instagram: https://www.instagram.com/tiaago_hq
+LinkedIn: https://www.linkedin.com/company/tiaagohq/
+Questions? support@tiaago.com
+1942 Broadway St, Suite 314C, Boulder, CO, US
+(c) Tiaago. All rights reserved.
+{% endautoescape %}

@@ -1,0 +1,38 @@
+{% extends "emails/base.html" %}
+{% block title %}New roles are waiting{% endblock %}
+{% block preheader %}{{ new_count|default:"12" }} new roles match your skills since you were last here.{% endblock %}
+{% block content %}
+
+  <!-- eyebrow -->
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:18px;"><tr>
+    <td valign="middle" style="padding-right:8px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td bgcolor="#5465FF" width="8" height="8" style="background-color:#5465FF; background-image:linear-gradient(90deg,#5465FF,#3E92CC); width:8px; height:8px; border-radius:8px; font-size:0; line-height:0;">&nbsp;</td></tr></table></td>
+    <td valign="middle" style="font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:12px; font-weight:700; letter-spacing:1.5px; text-transform:uppercase; color:#5465FF;">Since&nbsp;you&nbsp;were&nbsp;away</td>
+  </tr></table>
+
+  <h1 class="h1" style="margin:0 0 14px; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:33px; line-height:1.15; letter-spacing:-0.6px; font-weight:800; color:#0F172A;">New roles are waiting for you</h1>
+
+  <p style="margin:0 0 24px; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:16px; line-height:1.65; color:#475569;">Hi {{ first_name|default:"Amara" }}, the market has been busy. Startups on Tiaago have posted plenty of roles that fit your skills. Here's a quick look at what's new.</p>
+
+  <!-- hero photo -->
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 26px;">
+    <tr><td>
+      <img src="{{ hero_url|default:'https://tiaago-backend-web.onrender.com/static/emails/assets/welcome-onboard.png' }}" width="520" alt="Developers collaborating with their team" style="display:block; width:100%; max-width:520px; height:auto; border-radius:12px; border:1px solid #E2E8F0;" />
+    </td></tr>
+  </table>
+
+  <!-- stat callout -->
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 28px; background-color:#EFF2FF; border:1px solid #DCE3FF; border-radius:12px;">
+    <tr><td align="center" style="padding:26px 20px;">
+      <div class="stat-num" style="font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:52px; line-height:1; font-weight:800; letter-spacing:-1px; color:#5465FF;">{{ new_count|default:"12" }}</div>
+      <div style="margin-top:8px; font-family:'Inter',Arial,sans-serif; font-size:11px; font-weight:700; letter-spacing:1.2px; text-transform:uppercase; color:#64748B;">New matches for you</div>
+    </td></tr>
+  </table>
+
+  <!-- CTA -->
+  <table role="presentation" class="cta-table" cellpadding="0" cellspacing="0" border="0"><tr>
+    <td align="center" bgcolor="#1C3477" style="background-color:#1C3477; border-radius:8px;"><a href="{{ matches_url|default:'https://app.tiaago.com/jobs' }}" target="_blank" class="cta-a" style="display:inline-block; padding:15px 30px; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:15px; font-weight:700; line-height:20px; color:#FFFFFF; text-decoration:none; border-radius:8px;">See what's new&nbsp;&rarr;</a></td>
+  </tr></table>
+
+  <p style="margin:18px 0 0; font-family:'Inter',Arial,sans-serif; font-size:13px; line-height:1.6; color:#64748B;">No pressure. Whenever you're ready, your profile and scores are right where you left them.</p>
+
+{% endblock %}

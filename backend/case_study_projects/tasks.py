@@ -11,11 +11,13 @@ def talent_assessment_pass_mail(user_id):
         user = User.objects.get(id=user_id)
     except User.DoesNotExist:
         return
-    subject = "Congratulations! You're Now a Vetted Talent on Tiaago"
-    template_name = "emails/email_templates/Talent_Assessment_Pass.html"
+    from django.conf import settings
     return EmailHandler(user.email).send_mail(
-        subject=subject,
-        context={"first_name": user.first_name},
-        template=template_name,
+        subject="Your profile is verified",
+        context={
+            "first_name": user.first_name,
+            "profile_url": settings.TIAAGO_TALENT_LOGIN_URL,
+        },
+        template="emails/profile_approved.html",
         email_type=EmailTypes.TALENT_ASSESSMENT_PASS_MAIL,
     )

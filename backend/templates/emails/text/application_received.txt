@@ -1,0 +1,28 @@
+{% autoescape off %}APPLICATION RECEIVED
+
+We've got your application.
+
+Thanks, {{ first_name|default:"Amara" }}. Your application is in front of the
+{{ company|default:"Paystack" }} team. Here's what happens next.
+
+  Role:      {{ role|default:"Senior Frontend Engineer" }}
+  Company:   {{ company|default:"Paystack" }}
+  Submitted: {{ submitted|default:"Jun 12, 2026" }}
+
+What happens next:
+  - The team reviews your verified profile and scores
+  - If it's a match, you'll get an interview invite
+  - We'll keep you posted at every step, good or bad
+
+Track your application:
+{{ track_url|default:"https://app.tiaago.com/applications" }}
+
+--
+Tiaago - AI-powered end-to-end hiring platform for modern teams.
+X: https://x.com/TiaagoHq
+Instagram: https://www.instagram.com/tiaago_hq
+LinkedIn: https://www.linkedin.com/company/tiaagohq/
+Questions? support@tiaago.com
+1942 Broadway St, Suite 314C, Boulder, CO, US
+(c) Tiaago. All rights reserved.
+{% endautoescape %}

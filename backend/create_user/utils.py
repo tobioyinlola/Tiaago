@@ -6,8 +6,6 @@ from datetime import timedelta
 from emails import emails
 from django.conf import settings
 from django.utils.encoding import force_str, force_bytes
-from django.template.loader import render_to_string
-from django.utils.html import strip_tags
 from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 from django.contrib.auth.tokens import default_token_generator
 from .models import CustomUser, OneTimePassword, TalentProfile, CompanyTeamInvite
@@ -30,15 +28,14 @@ def generate_otp(user):
 
 
 def send_otp_to_user(email):
-    subject = "One-Time Password for Email Verification"
-    email_template_name = "account/email/email_confirmation_signup_message.html"
+    subject = "Verify your email"
     user = CustomUser.objects.filter(email=email).first()
-    otp_code = generate_otp(user)  # Generate OTP
-    context = {"otp": otp_code, "user": user}
+    otp_code = generate_otp(user)
+    context = {"code": list(otp_code)}
     if user:
         EmailHandler(email).send_mail(
             subject=subject,
-            template=email_template_name,
+            template="emails/verify_email.html",
             email_type=EmailTypes.OTP_FOR_EMAIL_VERIFICATION,
             context=context,
             security=True,
@@ -59,18 +56,16 @@ def generate_referral_code():
 
 
 def send_invite_to_user(email, referral_code):
-    subject = "You’re Invited to Tiaago!"
-    invite_link = f"{settings.FRONTEND_URL.rstrip('/')}/talents/signup?ref={referral_code}"
+    subject = "You’re invited to join Tiaago"
+    invite_url = f"{settings.FRONTEND_URL.rstrip(‘/’)}/talents/signup?ref={referral_code}"
 
     try:
         inviter = TalentProfile.objects.get(referral_code=referral_code)
-        # Load HTML email template for invitation
-        email_template_name = "account/email/invite_email.html"
-        context = {"inviter": inviter.full_name, "invite_link": invite_link, "welcome_image_url": f"{settings.BASE_URL}/static/emails/assets/welcome_onboard_Img.png"}
+        context = {"inviter": inviter.full_name, "invite_url": invite_url}
         EmailHandler(email).send_mail(
             subject=subject,
             context=context,
-            template=email_template_name,
+            template="emails/referral_invite.html",
             email_type=EmailTypes.USER_INVITE,
         )
     except TalentProfile.DoesNotExist:
@@ -86,20 +81,20 @@ def build_invite_link(token:str):
 
 
 def send_invite_email(invite: CompanyTeamInvite):
-    link = build_invite_link(invite.token)
-    subject = f"You're invited to join {invite.company.company_name} on Tiaago"
+    invite_url = build_invite_link(invite.token)
+    subject = f"Join {invite.company.company_name} on Tiaago"
 
     context = {
         "company_name": invite.company.company_name,
         "inviter": invite.invited_by.get_full_name() if invite.invited_by else "A teammate",
         "role": invite.role,
-        "link": link,
-        "expiry_days" : 5,
+        "invite_url": invite_url,
+        "expiry_days": "5",
     }
     EmailHandler(invite.email).send_mail(
         subject=subject,
         context=context,
-        template="emails/email_templates/company_invite.html",
+        template="emails/company_team_invite.html",
         email_type=EmailTypes.COMPANY_TEAM_INVITE,
     )
     

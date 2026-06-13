@@ -1,0 +1,51 @@
+{% extends "emails/base.html" %}
+{% block title %}Payment receipt{% endblock %}
+{% block preheader %}Your Tiaago receipt for {{ amount|default:"$299.00" }}. Thanks for your payment.{% endblock %}
+{% block content %}
+
+  <!-- eyebrow -->
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:18px;"><tr>
+    <td valign="middle" style="padding-right:8px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td bgcolor="#5465FF" width="8" height="8" style="background-color:#5465FF; background-image:linear-gradient(90deg,#5465FF,#3E92CC); width:8px; height:8px; border-radius:8px; font-size:0; line-height:0;">&nbsp;</td></tr></table></td>
+    <td valign="middle" style="font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:12px; font-weight:700; letter-spacing:1.5px; text-transform:uppercase; color:#5465FF;">Payment&nbsp;receipt</td>
+  </tr></table>
+
+  <h1 class="h1" style="margin:0 0 14px; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:33px; line-height:1.15; letter-spacing:-0.6px; font-weight:800; color:#0F172A;">Thanks for your payment</h1>
+
+  <p style="margin:0 0 24px; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:16px; line-height:1.65; color:#475569;">This confirms your payment to Tiaago. A copy of this receipt is saved to your billing history.</p>
+
+  <!-- amount stat + line items -->
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 28px; background-color:#F8FAFC; border:1px solid #E2E8F0; border-radius:12px;">
+    <tr><td align="center" style="padding:24px 20px 6px;">
+      <div class="stat-num" style="font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:48px; line-height:1; font-weight:800; letter-spacing:-1px; color:#0F172A;">{{ amount|default:"$299.00" }}</div>
+      <div style="margin-top:8px;"><span style="display:inline-block; background-color:#ECFDF3; color:#027A48; border-radius:999px; padding:4px 12px; white-space:nowrap; font-family:'Inter',Arial,sans-serif; font-size:12px; font-weight:700;">&#9679;&nbsp; Paid</span></div>
+    </td></tr>
+    <tr><td style="padding:14px 22px 4px;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td style="padding:10px 0; font-family:'Inter',Arial,sans-serif; font-size:14px; color:#64748B; border-top:1px solid #EAEEF5;">Plan</td>
+          <td align="right" style="padding:10px 0; font-family:'Inter',Arial,sans-serif; font-size:14px; font-weight:600; color:#0F172A; border-top:1px solid #EAEEF5;">{{ plan|default:"Growth (monthly)" }}</td>
+        </tr>
+        <tr>
+          <td style="padding:10px 0; font-family:'Inter',Arial,sans-serif; font-size:14px; color:#64748B; border-top:1px solid #EAEEF5;">Billing period</td>
+          <td align="right" style="padding:10px 0; font-family:'Inter',Arial,sans-serif; font-size:14px; font-weight:600; color:#0F172A; border-top:1px solid #EAEEF5;">{{ period|default:"Jun 12 - Jul 12, 2026" }}</td>
+        </tr>
+        <tr>
+          <td style="padding:10px 0; font-family:'Inter',Arial,sans-serif; font-size:14px; color:#64748B; border-top:1px solid #EAEEF5;">Payment method</td>
+          <td align="right" style="padding:10px 0; font-family:'Inter',Arial,sans-serif; font-size:14px; font-weight:600; color:#0F172A; border-top:1px solid #EAEEF5;">{{ method|default:"Visa ending 4242" }}</td>
+        </tr>
+        <tr>
+          <td style="padding:10px 0 18px; font-family:'Inter',Arial,sans-serif; font-size:14px; color:#64748B; border-top:1px solid #EAEEF5;">Receipt no.</td>
+          <td align="right" style="padding:10px 0 18px; font-family:'Inter',Arial,sans-serif; font-size:14px; font-weight:600; color:#0F172A; border-top:1px solid #EAEEF5;">{{ receipt_no|default:"TGO-2026-0042" }}</td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+
+  <!-- CTA -->
+  <table role="presentation" class="cta-table" cellpadding="0" cellspacing="0" border="0"><tr>
+    <td align="center" bgcolor="#1C3477" style="background-color:#1C3477; border-radius:8px;"><a href="{{ invoice_url|default:'https://app.tiaago.com/billing' }}" target="_blank" class="cta-a" style="display:inline-block; padding:15px 30px; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:15px; font-weight:700; line-height:20px; color:#FFFFFF; text-decoration:none; border-radius:8px;">View invoice&nbsp;&rarr;</a></td>
+  </tr></table>
+
+  <p style="margin:18px 0 0; font-family:'Inter',Arial,sans-serif; font-size:13px; line-height:1.6; color:#64748B;">Questions about this charge? Reach us at <a href="mailto:support@tiaago.com" style="color:#5465FF; text-decoration:none; font-weight:600;">support@tiaago.com</a>.</p>
+
+{% endblock %}

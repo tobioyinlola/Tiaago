@@ -1,0 +1,24 @@
+{% autoescape off %}ACCOUNT UPDATE
+
+An update on your account.
+
+Hi {{ first_name|default:"there" }}, after reviewing your application, we were
+unable to approve your account at this time.
+
+If you believe this is an error or would like more information, please reach
+out to our support team.
+
+Contact support:
+{{ support_email|default:"support@tiaago.com" }}
+
+We appreciate your interest in Tiaago.
+
+--
+Tiaago - AI-powered end-to-end hiring platform for modern teams.
+X: https://x.com/TiaagoHq
+Instagram: https://www.instagram.com/tiaago_hq
+LinkedIn: https://www.linkedin.com/company/tiaagohq/
+Questions? support@tiaago.com
+1942 Broadway St, Suite 314C, Boulder, CO, US
+(c) Tiaago. All rights reserved.
+{% endautoescape %}

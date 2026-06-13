@@ -124,7 +124,7 @@ def meeting_invite_others(user_id, meeting_id, user_emails=None):
             logger.warning("No valid emails found in the provided list")
             return None
             
-        result = emails.meeting_invite_others(user, meeting_details, user_emails)
+        result = emails.meeting_invite_others(user, user_emails, meeting_details)
         logger.info(f"Successfully sent invitations to additional participants for meeting {meeting_id}")
         return result
     except Scheduler.DoesNotExist:

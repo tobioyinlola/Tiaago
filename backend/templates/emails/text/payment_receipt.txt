@@ -1,0 +1,27 @@
+{% autoescape off %}PAYMENT RECEIPT
+
+Thanks for your payment.
+
+This confirms your payment to Tiaago. A copy of this receipt is saved to your
+billing history.
+
+  Amount paid:    {{ amount|default:"$299.00" }}  (Paid)
+  Plan:           {{ plan|default:"Growth (monthly)" }}
+  Billing period: {{ period|default:"Jun 12 - Jul 12, 2026" }}
+  Payment method: {{ method|default:"Visa ending 4242" }}
+  Receipt no.:    {{ receipt_no|default:"TGO-2026-0042" }}
+
+View invoice:
+{{ invoice_url|default:"https://app.tiaago.com/billing" }}
+
+Questions about this charge? Reach us at support@tiaago.com.
+
+--
+Tiaago - AI-powered end-to-end hiring platform for modern teams.
+X: https://x.com/TiaagoHq
+Instagram: https://www.instagram.com/tiaago_hq
+LinkedIn: https://www.linkedin.com/company/tiaagohq/
+Questions? support@tiaago.com
+1942 Broadway St, Suite 314C, Boulder, CO, US
+(c) Tiaago. All rights reserved.
+{% endautoescape %}

@@ -1,0 +1,125 @@
+{% comment %}
+  Tiaago transactional email — BASE TEMPLATE
+  Concept: "Deep navy masthead" — saturated #1C3477 header band with the logo
+  on a white plate, a thick indigo->cyan gradient signature device, and a navy
+  footer brand moment that bookends the masthead.
+
+  Child templates:
+    {% extends "emails/base.html" %}
+    {% block title %}Interview invitation{% endblock %}
+    {% block preheader %}Paystack invited you to a live interview.{% endblock %}
+    {% block content %} ...your email body / component snippets... {% endblock %}
+
+  Email-safe: table layout, inline styles, MSO ghost tables, gradient has a
+  solid bgcolor fallback, Inter loaded for non-MSO only, images carry alt text.
+{% endcomment %}<!DOCTYPE html>
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+<meta name="x-apple-disable-message-reformatting" />
+<meta name="color-scheme" content="light only" />
+<meta name="supported-color-schemes" content="light only" />
+<title>{% block title %}Tiaago{% endblock %}</title>
+<!--[if mso]>
+<noscript><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript>
+<![endif]-->
+<!--[if !mso]><!-->
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<!--<![endif]-->
+<style>
+  html, body { margin: 0 !important; padding: 0 !important; height: 100% !important; width: 100% !important; }
+  * { -ms-text-size-adjust: 100%; -webkit-text-size-adjust: 100%; }
+  table, td { mso-table-lspace: 0pt !important; mso-table-rspace: 0pt !important; border-collapse: collapse !important; }
+  img { -ms-interpolation-mode: bicubic; border: 0; height: auto; line-height: 100%; outline: none; text-decoration: none; }
+  a { text-decoration: none; }
+  .px { padding-left: 40px; padding-right: 40px; }
+  @media only screen and (max-width: 600px) {
+    .container { width: 100% !important; }
+    .px { padding-left: 24px !important; padding-right: 24px !important; }
+    .pt { padding-top: 28px !important; }
+    .h1 { font-size: 27px !important; line-height: 1.2 !important; }
+    .kicker { display: none !important; }
+    .cta-table { width: 100% !important; }
+    .cta-a { display: block !important; text-align: center !important; }
+    .stat-num { font-size: 44px !important; }
+    .otp-cell { width: 40px !important; height: 50px !important; font-size: 24px !important; }
+    .otp-gap { width: 6px !important; }
+    .stack { display: block !important; width: 100% !important; }
+    .stack-r { text-align: left !important; }
+  }
+</style>
+</head>
+<body style="margin:0; padding:0; width:100%; background-color:#EEF1FB; background-image:url('https://tiaago-backend-web.onrender.com/static/emails/assets/pattern-page-indigo.png'); background-repeat:repeat;">
+<!--[if gte mso 9]>
+<v:background xmlns:v="urn:schemas-microsoft-com:vml" fill="t">
+<v:fill type="tile" src="https://tiaago-backend-web.onrender.com/static/emails/assets/pattern-page-indigo.png" color="#EEF1FB" />
+</v:background>
+<![endif]-->
+
+<!-- Preheader (hidden inbox-preview text) -->
+<div style="display:none; max-height:0; overflow:hidden; mso-hide:all; opacity:0; color:transparent; font-size:1px; line-height:1px;">{% block preheader %}{% endblock %}</div>
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#EEF1FB; background-image:url('https://tiaago-backend-web.onrender.com/static/emails/assets/pattern-page-indigo.png'); background-repeat:repeat;">
+  <tr>
+    <td align="center" background="https://tiaago-backend-web.onrender.com/static/emails/assets/pattern-page-indigo.png" style="background-color:#EEF1FB; background-image:url('https://tiaago-backend-web.onrender.com/static/emails/assets/pattern-page-indigo.png'); background-repeat:repeat; padding:32px 12px;">
+      <!--[if mso]><table role="presentation" align="center" cellpadding="0" cellspacing="0" border="0" width="600"><tr><td><![endif]-->
+      <table role="presentation" class="container" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px; max-width:600px; background-color:#FFFFFF; border-radius:12px; overflow:hidden;">
+
+        <!-- MASTHEAD -->
+        <tr>
+          <td bgcolor="#1C3477" class="px" style="background-color:#1C3477; background-image:url('https://tiaago-backend-web.onrender.com/static/emails/assets/pattern-tiles-white.png'), url('https://tiaago-backend-web.onrender.com/static/emails/assets/pattern-tiles-white.png'); background-repeat:no-repeat, no-repeat; background-position:top -30px right -10px, bottom -160px left -70px; background-size:360px auto, 240px auto; padding:30px 40px;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td align="left" valign="middle">
+                  <img src="{{ logo_url|default:'https://tiaago-backend-web.onrender.com/static/emails/assets/Tiaago_logo_white.png' }}" width="116" alt="Tiaago" style="display:block; width:116px; height:auto;" />
+                </td>
+                <td align="right" valign="middle" class="kicker" style="font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:11px; font-weight:600; letter-spacing:1.5px; text-transform:uppercase; color:#AEB8E8;">Hiring,&nbsp;reimagined</td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- SIGNATURE GRADIENT DEVICE -->
+        <tr>
+          <td bgcolor="#5465FF" height="6" style="background-color:#5465FF; background-image:linear-gradient(90deg,#5465FF,#3E92CC); font-size:0; line-height:0; height:6px;">&nbsp;</td>
+        </tr>
+
+        <!-- CONTENT -->
+        <tr>
+          <td class="px pt" style="padding:40px;">
+            {% block content %}{% endblock %}
+          </td>
+        </tr>
+
+        <!-- FOOTER (brand moment) -->
+        <tr>
+          <td bgcolor="#5465FF" height="6" style="background-color:#5465FF; background-image:linear-gradient(90deg,#5465FF,#3E92CC); font-size:0; line-height:0; height:6px;">&nbsp;</td>
+        </tr>
+        <tr>
+          <td bgcolor="#1C3477" class="px" style="background-color:#1C3477; background-image:url('https://tiaago-backend-web.onrender.com/static/emails/assets/pattern-tiles-white.png'); background-repeat:no-repeat; background-position:bottom -120px right -40px; background-size:300px auto; padding:32px 40px;">
+            <p style="margin:0 0 16px; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:16px; line-height:1.5; font-weight:700; color:#FFFFFF;">AI-powered end-to-end hiring<br />platform for modern teams.</p>
+            <p style="margin:0 0 18px; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:13px; line-height:1.6; color:#AEB8E8;">
+              <a href="https://x.com/TiaagoHq?s=09" target="_blank" style="color:#AEB8E8; text-decoration:none; font-weight:600;">X (Twitter)</a>
+              &nbsp;&middot;&nbsp;
+              <a href="https://www.instagram.com/tiaago_hq?igsh=MWszZTN5NDM1MzdlMA==" target="_blank" style="color:#AEB8E8; text-decoration:none; font-weight:600;">Instagram</a>
+              &nbsp;&middot;&nbsp;
+              <a href="https://www.linkedin.com/company/tiaagohq/" target="_blank" style="color:#AEB8E8; text-decoration:none; font-weight:600;">LinkedIn</a>
+            </p>
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="border-top:1px solid #2E4585; font-size:0; line-height:0; height:1px;">&nbsp;</td></tr></table>
+            <p style="margin:16px 0 0; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:12px; line-height:1.7; color:#9AA6D4;">
+              Questions? <a href="mailto:support@tiaago.com" style="color:#FFFFFF; text-decoration:underline;">support@tiaago.com</a><br />
+              1942 Broadway St, Suite 314C, Boulder, CO, US<br />
+              &copy; {% now "Y" %} Tiaago. All rights reserved.
+            </p>
+          </td>
+        </tr>
+
+      </table>
+      <!--[if mso]></td></tr></table><![endif]-->
+    </td>
+  </tr>
+</table>
+</body>
+</html>

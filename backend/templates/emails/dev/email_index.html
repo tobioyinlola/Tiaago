@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Tiaago email previews</title>
+<style>
+  :root { --navy:#1C3477; --indigo:#5465FF; --ink:#0F172A; --body:#475569; --muted:#64748B; --border:#E2E8F0; --bg:#EEF1FB; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; background:var(--bg); color:var(--body); }
+  header { background:var(--navy); background-image:linear-gradient(90deg,#1C3477,#23337a); padding:28px 32px; }
+  header h1 { margin:0; color:#fff; font-size:20px; font-weight:800; letter-spacing:-0.3px; }
+  header p { margin:6px 0 0; color:#AEB8E8; font-size:13px; }
+  .bar { height:5px; background:linear-gradient(90deg,#5465FF,#3E92CC); }
+  .wrap { max-width:920px; margin:0 auto; padding:28px 20px 60px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:14px; }
+  .card { background:#fff; border:1px solid var(--border); border-radius:12px; padding:18px; }
+  .label { font-size:15px; font-weight:700; color:var(--ink); margin:0; }
+  .name { font-family:'JetBrains Mono',ui-monospace,Menlo,monospace; font-size:11px; color:var(--muted); margin:4px 0 0; }
+  .subject { font-size:13px; color:var(--body); margin:10px 0 14px; }
+  .links a { display:inline-block; font-size:13px; font-weight:700; text-decoration:none; padding:7px 13px; border-radius:8px; margin-right:8px; }
+  .links a.html { background:var(--navy); color:#fff; }
+  .links a.txt { background:#EFF2FF; color:var(--indigo); }
+</style>
+</head>
+<body>
+  <header>
+    <h1>Tiaago email previews</h1>
+    <p>{{ items|length }} transactional templates &middot; dev-only &middot; sample context</p>
+  </header>
+  <div class="bar"></div>
+  <div class="wrap">
+    <div class="grid">
+      {% for item in items %}
+      <div class="card">
+        <p class="label">{{ item.label }}</p>
+        <p class="name">{{ item.name }}.html</p>
+        <p class="subject">{{ item.subject }}</p>
+        <div class="links">
+          <a class="html" href="{% url 'emails_app:preview' item.name %}">HTML</a>
+          <a class="txt" href="{% url 'emails_app:preview' item.name %}?format=txt">Text</a>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</body>
+</html>

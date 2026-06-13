@@ -1,0 +1,22 @@
+{% autoescape off %}VERIFY YOUR EMAIL
+
+Let's confirm it's you.
+
+Welcome to Tiaago. Use the code below to verify your email and start
+applying to roles at fast-growing startups.
+
+  Your code: {{ code.0|default:"2" }}{{ code.1|default:"8" }}{{ code.2|default:"4" }}{{ code.3|default:"9" }}{{ code.4|default:"1" }}{{ code.5|default:"3" }}
+
+This code expires in 10 minutes.
+
+If you didn't create a Tiaago account, you can safely ignore this email.
+
+--
+Tiaago - AI-powered end-to-end hiring platform for modern teams.
+X: https://x.com/TiaagoHq
+Instagram: https://www.instagram.com/tiaago_hq
+LinkedIn: https://www.linkedin.com/company/tiaagohq/
+Questions? support@tiaago.com
+1942 Broadway St, Suite 314C, Boulder, CO, US
+(c) Tiaago. All rights reserved.
+{% endautoescape %}

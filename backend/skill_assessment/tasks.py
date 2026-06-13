@@ -320,28 +320,31 @@ def mark_skill_assessment_submission(self, skill_assessment_submission_id: int):
         return {"status": "failed_to_mark", "id": submission.id, "error": str(e)}
 
 
-# work in progress to send interview link
 def send_interview_invite(skill_assessment_submission):
-    # Construct the URL for the pre-screening interview
     assessment_id = skill_assessment_submission.skill_assessment.id
     base = str(FRONTEND_URL).rstrip('/') + '/'
     interview_url = f"https://{base}talents/pre-screening/{assessment_id}"
 
-    # Candidate information
     candidate_email = skill_assessment_submission.candidate.user.email
     candidate_name = skill_assessment_submission.candidate.user.get_full_name()
+    first_name = skill_assessment_submission.candidate.user.first_name
 
-    # Email context and content
-    subject = "Interview Invitation"
+    company = getattr(skill_assessment_submission.skill_assessment, "company", None)
+    company_name = getattr(company, "company_name", "") if company else ""
+
     context = {
-        'candidate_name': candidate_name,
-        'interview_url': interview_url
+        "first_name": first_name,
+        "company": company_name,
+        "interview_url": interview_url,
     }
-    template = 'emails/email_templates/Talent_Interview_Invite.html' 
-    email_type = EmailTypes.TALENT_ASSESSMENT_PASS_MAIL
 
     email_handler = EmailHandler(recipients=[candidate_email])
-    email_handler.send_mail(subject=subject, context=context, template=template, email_type=email_type)
+    email_handler.send_mail(
+        subject="You have an interview",
+        context=context,
+        template="emails/interview_invite.html",
+        email_type=EmailTypes.TALENT_ASSESSMENT_PASS_MAIL,
+    )
 
 
 """@shared_task(name="create_talent_coding_assessment_task", bind=True, max_retries=2)

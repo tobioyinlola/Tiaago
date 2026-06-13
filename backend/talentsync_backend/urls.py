@@ -65,6 +65,7 @@ if settings.DEBUG:
         path('media-debug/', media_debug),
         path('test-ping/', test_ping),
         path("ws-test/", ws_test),
+        path("dev/emails/", include("emails_app.urls")),
     ]
 
 urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

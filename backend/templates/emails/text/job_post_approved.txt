@@ -1,0 +1,22 @@
+{% autoescape off %}JOB POST APPROVED
+
+Your job post is live.
+
+Great news, {{ first_name|default:"there" }}. Your job post has been reviewed
+and approved. Candidates can now discover and apply to this role.
+
+  Title:  {{ job_title|default:"Open role" }}
+  Status: Active and visible to candidates
+
+View job post:
+{{ dashboard_url|default:"https://app.tiaago.com" }}
+
+--
+Tiaago - AI-powered end-to-end hiring platform for modern teams.
+X: https://x.com/TiaagoHq
+Instagram: https://www.instagram.com/tiaago_hq
+LinkedIn: https://www.linkedin.com/company/tiaagohq/
+Questions? support@tiaago.com
+1942 Broadway St, Suite 314C, Boulder, CO, US
+(c) Tiaago. All rights reserved.
+{% endautoescape %}
