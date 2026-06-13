@@ -7,6 +7,7 @@ import ScrollArea from "@/app/common/components/ScrollArea";
 import UserAvatar from "@/app/common/components/UserAvatar";
 import StatusBadge from "@/app/common/components/StatusBadge";
 import UserApplicationActions from "../UserApplicationActions";
+import StartupDetailModal from "../StartupDetailModal";
 import EmptyState from "@/app/common/components/dashboard/EmptyState";
 
 type BaseProps = PropsWithChildren<{
@@ -34,6 +35,7 @@ const BaseTable = ({ data, children, hasActionCol, className }: BaseProps) => {
               <th>Country</th>
               <th>Company URL</th>
               <th>Status</th>
+              <th />
               {hasActionCol && <th />}
             </tr>
           </thead>
@@ -42,7 +44,7 @@ const BaseTable = ({ data, children, hasActionCol, className }: BaseProps) => {
               children
             ) : (
               <tr>
-                <td colSpan={hasActionCol ? 7 : 6}>
+                <td colSpan={hasActionCol ? 8 : 7}>
                   <EmptyState text='There are currently no startup applications...' />
                 </td>
               </tr>
@@ -119,6 +121,9 @@ const StartupApplicationsTable = ({ data = [] }: { data: Startup[] }) => {
                 status={startup.verified ? "approved" : "pending"}
                 hideDot
               />
+            </td>
+            <td>
+              <StartupDetailModal startup={startup} />
             </td>
             <td>
               <UserApplicationActions isStartup id={startup.pk} />

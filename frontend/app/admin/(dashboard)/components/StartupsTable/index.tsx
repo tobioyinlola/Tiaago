@@ -6,6 +6,7 @@ import SearchBar from "@/app/common/components/SearchBar";
 import ScrollArea from "@/app/common/components/ScrollArea";
 import UserAvatar from "@/app/common/components/UserAvatar";
 import StatusBadge from "@/app/common/components/StatusBadge";
+import StartupDetailModal from "../StartupDetailModal";
 import EmptyState from "@/app/common/components/dashboard/EmptyState";
 
 type BaseProps = {
@@ -88,17 +89,20 @@ const BaseTable = ({ data, className }: BaseProps) => {
                     />
                   </td>
                   <td>
-                    {!!startup.website && (
-                      <a
-                        href={startup.website}
-                        target='_blank'
-                        rel='noreferrer'
-                        aria-label={`Open ${startup.company_name} website`}
-                        className='text-base text-[#7F7F7F] hover:text-primary'
-                      >
-                        <LuExternalLink />
-                      </a>
-                    )}
+                    <div className='flex items-center gap-3'>
+                      <StartupDetailModal startup={startup} />
+                      {!!startup.website && (
+                        <a
+                          href={startup.website}
+                          target='_blank'
+                          rel='noreferrer'
+                          aria-label={`Open ${startup.company_name} website`}
+                          className='text-base text-[#7F7F7F] hover:text-primary'
+                        >
+                          <LuExternalLink />
+                        </a>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))
