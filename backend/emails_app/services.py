@@ -8,6 +8,7 @@ project's EmailHandler (Resend primary, Mailgun fallback).
 Templates live in:  templates/emails/<name>.html   (HTML, extends base.html)
                     templates/emails/text/<name>.txt (plain-text alternative)
 """
+from django.conf import settings
 from django.template.loader import render_to_string
 from django.utils.html import strip_tags
 
@@ -17,6 +18,12 @@ from .sample_context import EMAIL_META
 def render_email(name, context=None):
     """Render an email by template name. Returns (subject, html, text)."""
     context = context or {}
+    base = getattr(settings, "BASE_URL", "https://tiaago-backend-web.onrender.com")
+    asset_url = f"{base}/static/emails/assets"
+    context.setdefault("asset_url", asset_url)
+    context.setdefault("logo_url", f"{asset_url}/Tiaago_logo_white.png")
+    context.setdefault("hero_url", f"{asset_url}/welcome-onboard.png")
+    context.setdefault("wave_url", f"{asset_url}/wave-indigo-alpha.png")
     label, subject = EMAIL_META.get(name, (name, "Tiaago"))
     subject = context.get("subject", subject)
 

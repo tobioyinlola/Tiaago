@@ -249,9 +249,6 @@ def get_email_template_and_context(
             "jobs_url": settings.TIAAGO_TALENT_LOGIN_URL,
         }
 
-    if context is not None:
-        context["logo_url"] = f"{settings.BASE_URL}/static/emails/assets/Tiaago_logo_white.png"
-
     return template_file, context
 
 

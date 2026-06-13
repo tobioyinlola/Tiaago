@@ -51,29 +51,29 @@
   }
 </style>
 </head>
-<body style="margin:0; padding:0; width:100%; background-color:#EEF1FB; background-image:url('https://tiaago-backend-web.onrender.com/static/emails/assets/pattern-page-indigo.png'); background-repeat:repeat;">
+<body style="margin:0; padding:0; width:100%; background-color:#EEF1FB; background-image:url('{{ asset_url }}/pattern-page-indigo.png'); background-repeat:repeat;">
 <!--[if gte mso 9]>
 <v:background xmlns:v="urn:schemas-microsoft-com:vml" fill="t">
-<v:fill type="tile" src="https://tiaago-backend-web.onrender.com/static/emails/assets/pattern-page-indigo.png" color="#EEF1FB" />
+<v:fill type="tile" src="{{ asset_url }}/pattern-page-indigo.png" color="#EEF1FB" />
 </v:background>
 <![endif]-->
 
 <!-- Preheader (hidden inbox-preview text) -->
 <div style="display:none; max-height:0; overflow:hidden; mso-hide:all; opacity:0; color:transparent; font-size:1px; line-height:1px;">{% block preheader %}{% endblock %}</div>
 
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#EEF1FB; background-image:url('https://tiaago-backend-web.onrender.com/static/emails/assets/pattern-page-indigo.png'); background-repeat:repeat;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#EEF1FB; background-image:url('{{ asset_url }}/pattern-page-indigo.png'); background-repeat:repeat;">
   <tr>
-    <td align="center" background="https://tiaago-backend-web.onrender.com/static/emails/assets/pattern-page-indigo.png" style="background-color:#EEF1FB; background-image:url('https://tiaago-backend-web.onrender.com/static/emails/assets/pattern-page-indigo.png'); background-repeat:repeat; padding:32px 12px;">
+    <td align="center" background="{{ asset_url }}/pattern-page-indigo.png" style="background-color:#EEF1FB; background-image:url('{{ asset_url }}/pattern-page-indigo.png'); background-repeat:repeat; padding:32px 12px;">
       <!--[if mso]><table role="presentation" align="center" cellpadding="0" cellspacing="0" border="0" width="600"><tr><td><![endif]-->
       <table role="presentation" class="container" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px; max-width:600px; background-color:#FFFFFF; border-radius:12px; overflow:hidden;">
 
         <!-- MASTHEAD -->
         <tr>
-          <td bgcolor="#1C3477" class="px" style="background-color:#1C3477; background-image:url('https://tiaago-backend-web.onrender.com/static/emails/assets/pattern-tiles-white.png'), url('https://tiaago-backend-web.onrender.com/static/emails/assets/pattern-tiles-white.png'); background-repeat:no-repeat, no-repeat; background-position:top -30px right -10px, bottom -160px left -70px; background-size:360px auto, 240px auto; padding:30px 40px;">
+          <td bgcolor="#1C3477" class="px" style="background-color:#1C3477; background-image:url('{{ asset_url }}/pattern-tiles-white.png'), url('{{ asset_url }}/pattern-tiles-white.png'); background-repeat:no-repeat, no-repeat; background-position:top -30px right -10px, bottom -160px left -70px; background-size:360px auto, 240px auto; padding:30px 40px;">
             <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
               <tr>
                 <td align="left" valign="middle">
-                  <img src="{{ logo_url|default:'https://tiaago-backend-web.onrender.com/static/emails/assets/Tiaago_logo_white.png' }}" width="116" alt="Tiaago" style="display:block; width:116px; height:auto;" />
+                  <img src="{{ logo_url }}" width="116" alt="Tiaago" style="display:block; width:116px; height:auto;" />
                 </td>
                 <td align="right" valign="middle" class="kicker" style="font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:11px; font-weight:600; letter-spacing:1.5px; text-transform:uppercase; color:#AEB8E8;">Hiring,&nbsp;reimagined</td>
               </tr>
@@ -98,7 +98,7 @@
           <td bgcolor="#5465FF" height="6" style="background-color:#5465FF; background-image:linear-gradient(90deg,#5465FF,#3E92CC); font-size:0; line-height:0; height:6px;">&nbsp;</td>
         </tr>
         <tr>
-          <td bgcolor="#1C3477" class="px" style="background-color:#1C3477; background-image:url('https://tiaago-backend-web.onrender.com/static/emails/assets/pattern-tiles-white.png'); background-repeat:no-repeat; background-position:bottom -120px right -40px; background-size:300px auto; padding:32px 40px;">
+          <td bgcolor="#1C3477" class="px" style="background-color:#1C3477; background-image:url('{{ asset_url }}/pattern-tiles-white.png'); background-repeat:no-repeat; background-position:bottom -120px right -40px; background-size:300px auto; padding:32px 40px;">
             <p style="margin:0 0 16px; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:16px; line-height:1.5; font-weight:700; color:#FFFFFF;">AI-powered end-to-end hiring<br />platform for modern teams.</p>
             <p style="margin:0 0 18px; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:13px; line-height:1.6; color:#AEB8E8;">
               <a href="https://x.com/TiaagoHq?s=09" target="_blank" style="color:#AEB8E8; text-decoration:none; font-weight:600;">X (Twitter)</a>
