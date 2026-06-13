@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useState } from "react";
 import { LuEye, LuExternalLink } from "react-icons/lu";
 
 import { Startup } from "@/app/common/types";
@@ -51,13 +51,13 @@ const StartupDetailPanel = ({
   startup: Startup;
   showActions?: boolean;
 }) => {
-  const panelRef = useRef<HTMLDialogElement>(null);
+  const [open, setOpen] = useState(false);
 
   return (
     <>
       <button
         type='button'
-        onClick={() => panelRef.current?.showModal()}
+        onClick={() => setOpen(true)}
         className='inline-flex items-center gap-1.5 rounded-md px-3 py-2 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
         aria-label={`View details for ${startup.company_name || startup.first_name}`}
       >
@@ -66,7 +66,8 @@ const StartupDetailPanel = ({
       </button>
 
       <SlidePanel
-        panelRef={panelRef}
+        open={open}
+        onClose={() => setOpen(false)}
         id={`startup-detail-${startup.pk}`}
         title='Startup Details'
       >
