@@ -2,12 +2,6 @@
 {% block title %}Interview accepted{% endblock %}
 {% block preheader %}{{ candidate_name|default:"Amara O." }} accepted the interview for your {{ role|default:"open role" }} pipeline.{% endblock %}
 {% block content %}
-
-  <!-- success badge -->
-  <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:18px;"><tr>
-    <td bgcolor="#ECFDF3" style="background-color:#ECFDF3; border-radius:0; padding:5px 13px; white-space:nowrap; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:12px; font-weight:700; letter-spacing:.2px; color:#027A48;">&#9679;&nbsp; Interview accepted</td>
-  </tr></table>
-
   <h1 class="h1" style="margin:0 0 14px; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:33px; line-height:1.15; letter-spacing:-0.6px; font-weight:800; color:#0F172A;">{{ candidate_name|default:"Amara O." }} accepted the interview</h1>
 
   <p style="margin:0 0 24px; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:16px; line-height:1.65; color:#475569;">Great news for your {{ role|default:"open role" }} pipeline. The candidate has confirmed the interview. Here are the details.</p>

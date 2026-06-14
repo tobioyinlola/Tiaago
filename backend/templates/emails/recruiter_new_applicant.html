@@ -2,13 +2,6 @@
 {% block title %}New applicant{% endblock %}
 {% block preheader %}{{ candidate|default:"Amara O." }} just applied for {{ role|default:"Senior Frontend Engineer" }}.{% endblock %}
 {% block content %}
-
-  <!-- eyebrow -->
-  <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:18px;"><tr>
-    <td valign="middle" style="padding-right:8px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td bgcolor="#5465FF" width="8" height="8" style="background-color:#5465FF; background-image:linear-gradient(90deg,#5465FF,#3E92CC); width:8px; height:8px; border-radius:0; font-size:0; line-height:0;">&nbsp;</td></tr></table></td>
-    <td valign="middle" style="font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:12px; font-weight:700; letter-spacing:1.5px; text-transform:uppercase; color:#5465FF;">New&nbsp;applicant</td>
-  </tr></table>
-
   <h1 class="h1" style="margin:0 0 14px; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:33px; line-height:1.15; letter-spacing:-0.6px; font-weight:800; color:#0F172A;">A new candidate for {{ role|default:"Frontend Engineer" }}</h1>
 
   <p style="margin:0 0 24px; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:16px; line-height:1.65; color:#475569;">{{ candidate|default:"Amara O." }} just applied through Tiaago. Here's a snapshot. Review the full verified profile and assessment scores when you're ready.</p>
