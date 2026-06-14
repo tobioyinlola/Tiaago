@@ -115,22 +115,40 @@ const EmailVerificationForm = ({
     e: React.ChangeEvent<HTMLInputElement>,
     index: number
   ) => {
-    const value = e.target.value;
-    if (isNaN(+value)) {
+    const raw = e.target.value.replace(/\D/g, "");
+    if (!raw) {
       e.target.value = "";
       return;
     }
-    if (value.length === 1) {
+    if (raw.length > 1) {
+      const digits = raw.slice(0, OTP_LENGTH - index).split("");
       setCode(prev => {
         const newCode = [...prev];
-        newCode[index] = value;
+        digits.forEach((d, i) => {
+          newCode[index + i] = d;
+          if (inputRefs.current[index + i]) inputRefs.current[index + i]!.value = d;
+        });
         return newCode;
       });
-      if (index < inputRefs.current.length - 1) {
-        inputRefs.current[index + 1]?.focus();
-      } else {
-        verifyEmail(code.length === OTP_LENGTH - 1 ? [...code, value] : code);
+      const focusIndex = Math.min(index + digits.length, OTP_LENGTH - 1);
+      inputRefs.current[focusIndex]?.focus();
+      if (index + digits.length >= OTP_LENGTH) {
+        const filled = [...code];
+        digits.forEach((d, i) => { filled[index + i] = d; });
+        verifyEmail(filled);
       }
+      return;
+    }
+    e.target.value = raw;
+    setCode(prev => {
+      const newCode = [...prev];
+      newCode[index] = raw;
+      return newCode;
+    });
+    if (index < inputRefs.current.length - 1) {
+      inputRefs.current[index + 1]?.focus();
+    } else {
+      verifyEmail(code.length === OTP_LENGTH - 1 ? [...code, raw] : code);
     }
   };
 
@@ -146,6 +164,20 @@ const EmailVerificationForm = ({
       });
       inputRefs.current[index - 1]?.focus();
     }
+  };
+
+  const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    e.preventDefault();
+    const digits = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, OTP_LENGTH);
+    if (!digits) return;
+    const newCode = digits.split("");
+    setCode(newCode);
+    newCode.forEach((d, i) => {
+      if (inputRefs.current[i]) inputRefs.current[i]!.value = d;
+    });
+    const focusIndex = Math.min(newCode.length, OTP_LENGTH - 1);
+    inputRefs.current[focusIndex]?.focus();
+    if (newCode.length === OTP_LENGTH) verifyEmail(newCode);
   };
 
   const resendEmail = () => {
@@ -190,12 +222,14 @@ const EmailVerificationForm = ({
           <input
             onChange={e => handleInputChange(e, input.id - 1)}
             onKeyDown={e => handleKeyDown(e, input.id - 1)}
+            onPaste={handlePaste}
             ref={el => {
               inputRefs.current[input.id - 1] = el;
             }}
             key={input.id}
-            maxLength={1}
             aria-label={`Verification code digit ${input.id}`}
+            inputMode="numeric"
+            autoComplete={input.id === 1 ? "one-time-code" : "off"}
             className='w-11 sm:w-12 h-12 p-2 shadow-sm border border-border bg-card text-xl font-bold rounded-md text-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
           />
         ))}
