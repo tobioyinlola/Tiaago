@@ -127,32 +127,14 @@ const LoginForm = ({ as = "startup", next }: { as?: Ias; next?: string }) => {
                 setAlert
               );
               setSubmitting(false);
-              if (errorMsg === "E-mail is not verified.")
-                setAlert({
-                  title: "Email not verified",
-                  message: "Please verify your email to continue",
-                  icon: "info",
-                  buttonText: "Resend Verification Email",
-                  buttonAction: () =>
-                    publicAxiosInstance
-                      .post("/auth/resend-email/", {
-                        email: values.email,
-                      })
-                      .then(() => {
-                        toast.success("Verification email sent successfully", {
-                          important: true,
-                        });
-                      })
-                      .catch(e => {
-                        setTimeout(() => {
-                          handleFormSubmissionError(e, undefined, setAlert);
-                        }, 500);
-                      }),
-                  secondaryButton: {
-                    text: "Close",
-                    action: () => setAlert(undefined),
-                  },
-                });
+              if (errorMsg === "E-mail is not verified.") {
+                publicAxiosInstance
+                  .post("/auth/resend-otp/", { email: values.email })
+                  .catch(() => {});
+                const params = new URLSearchParams({ email: values.email, as });
+                if (next) params.set("next", next);
+                window.location.href = `/verify-email?${params.toString()}`;
+              }
             });
         }}
         validationSchema={loginValidationSchema}

@@ -159,7 +159,7 @@ const EmailVerificationForm = ({
     toast.loading("Resending verification email...");
     setIsResending(true);
     publicAxiosInstance
-      .post("/auth/resend-email/", {
+      .post("/auth/resend-otp/", {
         email,
       })
       .then(() => {
