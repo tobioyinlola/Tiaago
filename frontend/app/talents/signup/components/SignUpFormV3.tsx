@@ -3,11 +3,16 @@
 import Link from "next/link";
 import { toast } from "sonner";
 import { Formik } from "formik";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "react-daisyui";
 import { GroupBase } from "react-select";
 import { useRouter } from "next/navigation";
-import { IoCheckmarkCircle } from "react-icons/io5";
+import {
+  IoPersonSharp,
+  IoMail,
+  IoLocation,
+  IoBriefcase,
+} from "react-icons/io5";
 
 import {
   talentSignUpV3FormFields,
@@ -28,20 +33,7 @@ type InvitePreFill = {
   email?: string;
   location?: string;
   current_role?: string;
-} | null;
-
-function getInvitePreFill(next?: string): InvitePreFill {
-  if (typeof window === "undefined" || !next) return null;
-  const match = next.match(/\/sourcing\/invite\/([^/?]+)/);
-  if (!match) return null;
-  try {
-    const raw = sessionStorage.getItem(`invite_form_${match[1]}`);
-    if (!raw) return null;
-    return JSON.parse(raw);
-  } catch {
-    return null;
-  }
-}
+};
 
 const SignUpFormV3 = ({
   talentRoles,
@@ -55,6 +47,7 @@ const SignUpFormV3 = ({
   referral_code?: string;
 }) => {
   const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [preFill, setPreFill] = useState<InvitePreFill | null>(null);
   const router = useRouter();
   const setAlert = useAlert(state => state.setAlert);
   const urlSearchParams = new URLSearchParams();
@@ -62,7 +55,18 @@ const SignUpFormV3 = ({
   if (next) urlSearchParams.set("next", next);
   else urlSearchParams.set("next", "/talents/verification");
 
-  const preFill = getInvitePreFill(next);
+  useEffect(() => {
+    if (!next) return;
+    const match = next.match(/\/sourcing\/invite\/([^/?]+)/);
+    if (!match) return;
+    try {
+      const raw = sessionStorage.getItem(`invite_form_${match[1]}`);
+      if (raw) setPreFill(JSON.parse(raw));
+    } catch {
+      // ignore
+    }
+  }, [next]);
+
   const isFromInvite = !!preFill?.first_name;
 
   const initialValues = preFill
@@ -130,38 +134,69 @@ const SignUpFormV3 = ({
           {isFromInvite ? (
             <>
               {/* Pre-filled summary from invite form */}
-              <div className='rounded-xl border border-[#D0D5DD] bg-[#F9FAFB] p-4 mb-6'>
-                <p className='text-xs font-onest text-[#5F6264] mb-3'>
-                  We&apos;ve filled in your details from the invite form
+              <div className='rounded-xl border border-primary/20 bg-primary/5 p-5 mb-6'>
+                <p className='text-sm font-semibold font-onest text-black mb-1'>
+                  Almost there!
                 </p>
-                <div className='space-y-2'>
-                  <div className='flex items-center gap-2'>
-                    <IoCheckmarkCircle className='text-success text-sm shrink-0' />
-                    <span className='text-sm font-onest text-black'>
-                      {values.full_name}
-                    </span>
+                <p className='text-xs font-onest text-[#5F6264] mb-4'>
+                  Just create a password to complete your account.
+                </p>
+                <div className='space-y-3'>
+                  <div className='flex items-center gap-3'>
+                    <div className='w-8 h-8 rounded-full bg-white border border-[#D0D5DD] flex items-center justify-center shrink-0'>
+                      <IoPersonSharp className='text-sm text-[#98A2B3]' />
+                    </div>
+                    <div>
+                      <p className='text-[11px] font-onest text-[#98A2B3] leading-none mb-0.5'>
+                        Name
+                      </p>
+                      <p className='text-sm font-medium font-onest text-black'>
+                        {values.full_name}
+                      </p>
+                    </div>
                   </div>
-                  <div className='flex items-center gap-2'>
-                    <IoCheckmarkCircle className='text-success text-sm shrink-0' />
-                    <span className='text-sm font-onest text-black'>
-                      {values.email}
-                    </span>
+                  <div className='flex items-center gap-3'>
+                    <div className='w-8 h-8 rounded-full bg-white border border-[#D0D5DD] flex items-center justify-center shrink-0'>
+                      <IoMail className='text-sm text-[#98A2B3]' />
+                    </div>
+                    <div>
+                      <p className='text-[11px] font-onest text-[#98A2B3] leading-none mb-0.5'>
+                        Email
+                      </p>
+                      <p className='text-sm font-medium font-onest text-black'>
+                        {values.email}
+                      </p>
+                    </div>
                   </div>
                   {values.country && (
-                    <div className='flex items-center gap-2'>
-                      <IoCheckmarkCircle className='text-success text-sm shrink-0' />
-                      <span className='text-sm font-onest text-black'>
-                        {values.country}
-                      </span>
+                    <div className='flex items-center gap-3'>
+                      <div className='w-8 h-8 rounded-full bg-white border border-[#D0D5DD] flex items-center justify-center shrink-0'>
+                        <IoLocation className='text-sm text-[#98A2B3]' />
+                      </div>
+                      <div>
+                        <p className='text-[11px] font-onest text-[#98A2B3] leading-none mb-0.5'>
+                          Country
+                        </p>
+                        <p className='text-sm font-medium font-onest text-black'>
+                          {values.country}
+                        </p>
+                      </div>
                     </div>
                   )}
                   {values.role && (
-                    <div className='flex items-center gap-2'>
-                      <IoCheckmarkCircle className='text-success text-sm shrink-0' />
-                      <span className='text-sm font-onest text-black capitalize'>
-                        {talentRoles.find(r => r.slug === values.role)?.title ||
-                          values.role}
-                      </span>
+                    <div className='flex items-center gap-3'>
+                      <div className='w-8 h-8 rounded-full bg-white border border-[#D0D5DD] flex items-center justify-center shrink-0'>
+                        <IoBriefcase className='text-sm text-[#98A2B3]' />
+                      </div>
+                      <div>
+                        <p className='text-[11px] font-onest text-[#98A2B3] leading-none mb-0.5'>
+                          Role
+                        </p>
+                        <p className='text-sm font-medium font-onest text-black capitalize'>
+                          {talentRoles.find(r => r.slug === values.role)
+                            ?.title || values.role}
+                        </p>
+                      </div>
                     </div>
                   )}
                 </div>
