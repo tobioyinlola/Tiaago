@@ -484,7 +484,7 @@ export function InviteApplicationForm({
                     : "This is how the recruiting team will know you"}
                   </p>
                 </div>
-                <div className='grid grid-cols-2 gap-3'>
+                <div className='space-y-5'>
                   <div>
                     <label className='label-text text-black font-medium font-onest mb-1 block'>
                       First Name <span className='text-error'>*</span>
@@ -558,7 +558,7 @@ export function InviteApplicationForm({
                     errors.email
                   )}
                 </div>
-                <div className='grid grid-cols-2 gap-3'>
+                <div className='space-y-5'>
                   <div>
                     <label className='label-text text-black font-medium font-onest mb-1 block'>
                       Phone
@@ -735,7 +735,7 @@ export function InviteApplicationForm({
                     ))}
                   </select>
                 </div>
-                <div className='grid grid-cols-2 gap-3'>
+                <div className='space-y-5'>
                   <div>
                     <label className='label-text text-black font-medium font-onest mb-1 block'>
                       Experience Level
