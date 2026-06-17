@@ -28,8 +28,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { code } = await params;
   const data = await resolveCode(code);
   if (data?.company_name) {
-    const title = `Join ${data.company_name}'s Talent Network | TIAAGO`;
-    const description = `You've been invited to join ${data.company_name}'s ${data.category_name} talent pipeline. Apply now on TIAAGO.`;
+    const title = `Join ${data.company_name}'s ${data.category_name} Pipeline | TIAAGO`;
+    const description = `${data.company_name} is hiring through TIAAGO. Join their ${data.category_name} talent pipeline and get discovered.`;
     return {
       title,
       description,
@@ -38,17 +38,19 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
         description,
         siteName: "TIAAGO",
         type: "website",
-        images: [{ url: "/opengraph-image.png", width: 1200, height: 630 }],
       },
       twitter: {
         card: "summary_large_image",
         title,
         description,
-        images: ["/opengraph-image.png"],
       },
     };
   }
-  return { title: "Talent Network Invite | TIAAGO" };
+  return {
+    title: "Talent Pipeline Invite | TIAAGO",
+    description:
+      "You've been invited to join a talent pipeline on TIAAGO. Apply now to get discovered by top startups.",
+  };
 }
 
 export default async function ShortLinkRedirect({ params }: Props) {

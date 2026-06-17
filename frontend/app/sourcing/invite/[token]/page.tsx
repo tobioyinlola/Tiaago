@@ -14,8 +14,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { token } = await params;
   const result = await validateInviteToken(token);
   if (result.success && result.data.is_active) {
-    const title = `Join ${result.data.company_name}'s Talent Network | TIAAGO`;
-    const description = `You've been invited to join ${result.data.company_name}'s ${result.data.category_name} talent pipeline. Apply now on TIAAGO.`;
+    const title = `Join ${result.data.company_name}'s ${result.data.category_name} Pipeline | TIAAGO`;
+    const description = `${result.data.company_name} is hiring through TIAAGO. Join their ${result.data.category_name} talent pipeline and get discovered.`;
     return {
       title,
       description,
@@ -34,7 +34,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       },
     };
   }
-  return { title: "Talent Network Invite | TIAAGO" };
+  return { title: "Talent Pipeline Invite | TIAAGO" };
 }
 
 export default async function InvitePage({ params }: Props) {
