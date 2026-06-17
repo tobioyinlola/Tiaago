@@ -12,8 +12,6 @@ import {
   IoLocation,
   IoSparkles,
   IoClose,
-  IoChevronDown,
-  IoCheckmarkCircle,
 } from "react-icons/io5";
 import { IoIosLink } from "react-icons/io";
 import { FaUsers, FaShieldAlt, FaFileAlt, FaCheck } from "react-icons/fa";
@@ -41,7 +39,7 @@ const CURRENCIES = ["USD", "GBP", "EUR", "NGN", "KES", "ZAR", "GHS", "EGP"];
 
 const SESSION_STORAGE_KEY = (token: string) => `invite_form_${token}`;
 
-type SavedFormData = {
+type FormState = {
   first_name: string;
   last_name: string;
   email: string;
@@ -57,80 +55,29 @@ type SavedFormData = {
   summary: string;
 };
 
-const STEPS = [
-  { id: 1, title: "Your Name", icon: IoPersonSharp },
-  { id: 2, title: "Contact Details", icon: IoMail },
-  { id: 3, title: "Portfolio & Resume", icon: FaFileAlt },
-  { id: 4, title: "Professional Info", icon: IoBriefcase },
-  { id: 5, title: "Compensation & Summary", icon: IoLocation },
-] as const;
+const INITIAL_FORM: FormState = {
+  first_name: "",
+  last_name: "",
+  email: "",
+  phone: "",
+  linkedin: "",
+  portfolio: "",
+  current_role: "",
+  experience_level: "",
+  location: "",
+  current_pay: "",
+  currency: "USD",
+  frameworks: "",
+  summary: "",
+};
 
-function StepHeader({
-  step,
-  activeStep,
-  completedSteps,
-  summary,
-  onToggle,
-}: {
-  step: (typeof STEPS)[number];
-  activeStep: number;
-  completedSteps: Set<number>;
-  summary: string;
-  onToggle: () => void;
-}) {
-  const isActive = activeStep === step.id;
-  const isCompleted = completedSteps.has(step.id);
-  const Icon = step.icon;
-
-  return (
-    <button
-      type='button'
-      onClick={onToggle}
-      className={`w-full flex items-center gap-3 p-3 rounded-lg transition-colors ${
-        isActive
-          ? "bg-primary/5 border border-primary/20"
-          : "bg-white border border-[#D0D5DD] hover:border-primary/30"
-      }`}
-    >
-      <div
-        className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
-          isCompleted
-            ? "bg-success/10"
-            : isActive
-              ? "bg-primary/10"
-              : "bg-[#F2F4F7]"
-        }`}
-      >
-        {isCompleted ? (
-          <IoCheckmarkCircle className='h-5 w-5 text-success' />
-        ) : (
-          <Icon
-            className={`h-4 w-4 ${isActive ? "text-primary" : "text-[#98A2B3]"}`}
-          />
-        )}
-      </div>
-      <div className='flex-1 text-left min-w-0'>
-        <p
-          className={`text-sm font-medium font-onest ${
-            isActive ? "text-black" : "text-[#5F6264]"
-          }`}
-        >
-          {step.title}
-        </p>
-        {!isActive && summary && (
-          <p className='text-xs text-[#98A2B3] font-onest truncate mt-0.5'>
-            {summary}
-          </p>
-        )}
-      </div>
-      <IoChevronDown
-        className={`h-4 w-4 text-[#98A2B3] shrink-0 transition-transform ${
-          isActive ? "rotate-180" : ""
-        }`}
-      />
-    </button>
-  );
-}
+const STEP_LABELS = [
+  "Your Name",
+  "Contact Details",
+  "Portfolio & Resume",
+  "Professional Info",
+  "Compensation & Summary",
+];
 
 export function InviteApplicationForm({
   token,
@@ -140,29 +87,26 @@ export function InviteApplicationForm({
   const router = useRouter();
   const user = useUserStore((s) => s.profile);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const formRef = useRef<HTMLFormElement>(null);
 
-  const [activeStep, setActiveStep] = useState(1);
-  const [completedSteps, setCompletedSteps] = useState<Set<number>>(
-    new Set()
-  );
+  const [step, setStep] = useState(1);
+  const [form, setForm] = useState<FormState>(() => ({
+    ...INITIAL_FORM,
+    first_name: user?.first_name || "",
+    last_name: user?.last_name || "",
+    email: user?.email || "",
+  }));
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [experienceLevel, setExperienceLevel] = useState("");
-  const [currency, setCurrency] = useState("USD");
-  const [restoredData, setRestoredData] = useState<SavedFormData | null>(null);
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     try {
       const saved = sessionStorage.getItem(SESSION_STORAGE_KEY(token));
       if (saved) {
-        const parsed = JSON.parse(saved) as SavedFormData;
-        setRestoredData(parsed);
-        if (parsed.experience_level) setExperienceLevel(parsed.experience_level);
-        if (parsed.currency) setCurrency(parsed.currency);
-        setCompletedSteps(new Set([1, 2, 3, 4, 5]));
-        setActiveStep(5);
+        const parsed = JSON.parse(saved) as FormState;
+        setForm(parsed);
+        setStep(5);
         sessionStorage.removeItem(SESSION_STORAGE_KEY(token));
       }
     } catch {
@@ -170,47 +114,33 @@ export function InviteApplicationForm({
     }
   }, [token]);
 
-  const getFieldValue = (name: string): string => {
-    if (!formRef.current) return "";
-    const el = formRef.current.elements.namedItem(name) as HTMLInputElement | HTMLTextAreaElement | null;
-    return el?.value || "";
+  const update = (field: keyof FormState, value: string) => {
+    setForm((prev) => ({ ...prev, [field]: value }));
+    if (errors[field]) setErrors((prev) => ({ ...prev, [field]: "" }));
   };
 
-  const getStepSummary = (stepId: number): string => {
-    switch (stepId) {
-      case 1: {
-        const fn = getFieldValue("first_name");
-        const ln = getFieldValue("last_name");
-        return fn || ln ? `${fn} ${ln}`.trim() : "";
-      }
-      case 2: {
-        const email = getFieldValue("email");
-        return email || "";
-      }
-      case 3:
-        return selectedFile ? selectedFile.name : "";
-      case 4: {
-        const role = getFieldValue("current_role");
-        return [role, experienceLevel].filter(Boolean).join(" · ");
-      }
-      case 5: {
-        const pay = getFieldValue("current_pay");
-        return pay ? `${currency} ${pay}` : "";
-      }
-      default:
-        return "";
+  const validateStep = (): boolean => {
+    const newErrors: Record<string, string> = {};
+    if (step === 1) {
+      if (!form.first_name.trim()) newErrors.first_name = "First name is required";
+      if (!form.last_name.trim()) newErrors.last_name = "Last name is required";
     }
+    if (step === 2) {
+      if (!form.email.trim()) newErrors.email = "Email is required";
+      else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email))
+        newErrors.email = "Enter a valid email address";
+    }
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
   };
 
   const handleNext = () => {
-    const newCompleted = new Set(completedSteps);
-    newCompleted.add(activeStep);
-    setCompletedSteps(newCompleted);
-    if (activeStep < 5) setActiveStep(activeStep + 1);
+    if (!validateStep()) return;
+    if (step < 5) setStep(step + 1);
   };
 
-  const handleToggleStep = (stepId: number) => {
-    setActiveStep(activeStep === stepId ? -1 : stepId);
+  const handleBack = () => {
+    if (step > 1) setStep(step - 1);
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -239,41 +169,17 @@ export function InviteApplicationForm({
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  const saveFormToSession = () => {
-    const data: SavedFormData = {
-      first_name: getFieldValue("first_name"),
-      last_name: getFieldValue("last_name"),
-      email: getFieldValue("email"),
-      phone: getFieldValue("phone"),
-      linkedin: getFieldValue("linkedin"),
-      portfolio: getFieldValue("portfolio"),
-      current_role: getFieldValue("current_role"),
-      experience_level: experienceLevel,
-      location: getFieldValue("location"),
-      current_pay: getFieldValue("current_pay"),
-      currency,
-      frameworks: getFieldValue("frameworks"),
-      summary: getFieldValue("summary"),
-    };
-    sessionStorage.setItem(SESSION_STORAGE_KEY(token), JSON.stringify(data));
-  };
-
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-
-    const firstName = getFieldValue("first_name");
-    const lastName = getFieldValue("last_name");
-    const email = getFieldValue("email");
-    if (!firstName || !lastName || !email) {
+  const handleSubmit = async () => {
+    if (!form.first_name.trim() || !form.last_name.trim() || !form.email.trim()) {
       toast.error("Required fields missing", {
-        description: "Please fill in your first name, last name, and email.",
+        description: "Please fill in your name and email.",
       });
-      setActiveStep(!firstName || !lastName ? 1 : 2);
+      setStep(!form.first_name.trim() || !form.last_name.trim() ? 1 : 2);
       return;
     }
 
     if (!user) {
-      saveFormToSession();
+      sessionStorage.setItem(SESSION_STORAGE_KEY(token), JSON.stringify(form));
       toast.info("Please create an account first", {
         description: "You'll be redirected to sign up, then back here.",
       });
@@ -282,30 +188,22 @@ export function InviteApplicationForm({
     }
 
     const formData = new FormData();
-    formData.append("first_name", firstName);
-    formData.append("last_name", lastName);
-    formData.append("email", email);
-    const phone = getFieldValue("phone");
-    if (phone) formData.append("phone", phone);
-    const linkedin = getFieldValue("linkedin");
-    if (linkedin) formData.append("linkedin_url", linkedin);
-    const portfolio = getFieldValue("portfolio");
-    if (portfolio) formData.append("portfolio_url", portfolio);
+    formData.append("first_name", form.first_name);
+    formData.append("last_name", form.last_name);
+    formData.append("email", form.email);
+    if (form.phone) formData.append("phone", form.phone);
+    if (form.linkedin) formData.append("linkedin_url", form.linkedin);
+    if (form.portfolio) formData.append("portfolio_url", form.portfolio);
     if (selectedFile) formData.append("resume", selectedFile);
-    const currentRole = getFieldValue("current_role");
-    if (currentRole) formData.append("current_role", currentRole);
-    if (experienceLevel) formData.append("experience_level", experienceLevel);
-    const location = getFieldValue("location");
-    if (location) formData.append("country", location);
-    const salary = getFieldValue("current_pay");
-    if (salary) {
-      formData.append("current_pay", salary);
-      formData.append("pay_currency", currency);
+    if (form.current_role) formData.append("current_role", form.current_role);
+    if (form.experience_level) formData.append("experience_level", form.experience_level);
+    if (form.location) formData.append("country", form.location);
+    if (form.current_pay) {
+      formData.append("current_pay", form.current_pay);
+      formData.append("pay_currency", form.currency);
     }
-    const frameworks = getFieldValue("frameworks");
-    if (frameworks) formData.append("skills", frameworks);
-    const summary = getFieldValue("summary");
-    if (summary) formData.append("summary", summary);
+    if (form.frameworks) formData.append("skills", form.frameworks);
+    if (form.summary) formData.append("summary", form.summary);
 
     setIsSubmitting(true);
     try {
@@ -314,7 +212,7 @@ export function InviteApplicationForm({
         setIsSuccess(true);
       } else {
         toast.error("Submission failed", {
-          description: result.error || "Something went wrong. Please try again.",
+          description: result.error || "Something went wrong.",
         });
       }
     } catch {
@@ -326,12 +224,31 @@ export function InviteApplicationForm({
     }
   };
 
+  // Input helper
+  const inputBox = (
+    icon: React.ReactNode,
+    children: React.ReactNode,
+    error?: string
+  ) => (
+    <>
+      <div
+        className={`w-full bg-white input input-bordered ${error ? "border-error" : "border-[#D0D5DD]"} placeholder:text-[#7E8285] flex items-center gap-2 focus-within:shadow-none min-h-10 h-10`}
+      >
+        {icon}
+        {children}
+      </div>
+      {error && (
+        <p className='text-error text-xs font-onest mt-1'>{error}</p>
+      )}
+    </>
+  );
+
   if (isSuccess) {
     return (
       <div className='h-[100svh] w-[100svw] bg-white relative overflow-hidden'>
         <Image
           src='/assets/images/Pricing Background pattern.png'
-          alt='Background pattern'
+          alt='Bg'
           className='object-cover'
           fill
         />
@@ -361,7 +278,7 @@ export function InviteApplicationForm({
                 </li>
                 <li className='flex items-start gap-2'>
                   <FaCheck className='h-4 w-4 text-success mt-0.5 shrink-0' />
-                  You&apos;ll be notified when a role matches your profile
+                  You&apos;ll be notified when a role matches
                 </li>
                 <li className='flex items-start gap-2'>
                   <FaCheck className='h-4 w-4 text-success mt-0.5 shrink-0' />
@@ -385,7 +302,7 @@ export function InviteApplicationForm({
     <div className='h-[100svh] w-[100svw] bg-white scrollbar-none md:scrollbar-thin relative overflow-x-hidden'>
       <Image
         src='/assets/images/Pricing Background pattern.png'
-        alt='Background pattern'
+        alt='Bg'
         className='object-cover'
         fill
       />
@@ -395,7 +312,7 @@ export function InviteApplicationForm({
           <div className='bg-black rounded-[30px] flex-1 pt-[65px] pb-20 px-[60px] relative overflow-hidden'>
             <Image
               src='/assets/images/Auth Background pattern.png'
-              alt='Background pattern'
+              alt='Bg'
               className='object-cover'
               fill
             />
@@ -422,9 +339,7 @@ export function InviteApplicationForm({
                     <IoSparkles className='h-4 w-4 text-white' />
                   </div>
                   <div>
-                    <h3 className='font-semibold text-sm font-onest text-white'>
-                      Early Access
-                    </h3>
+                    <h3 className='font-semibold text-sm font-onest text-white'>Early Access</h3>
                     <p className='text-xs text-[#DEE1E3] font-onest mt-0.5'>
                       Hear about roles before they&apos;re posted publicly.
                     </p>
@@ -435,9 +350,7 @@ export function InviteApplicationForm({
                     <FaUsers className='h-4 w-4 text-white' />
                   </div>
                   <div>
-                    <h3 className='font-semibold text-sm font-onest text-white'>
-                      Direct Connection
-                    </h3>
+                    <h3 className='font-semibold text-sm font-onest text-white'>Direct Connection</h3>
                     <p className='text-xs text-[#DEE1E3] font-onest mt-0.5'>
                       Connect directly with the recruiting team.
                     </p>
@@ -448,9 +361,7 @@ export function InviteApplicationForm({
                     <FaShieldAlt className='h-4 w-4 text-white' />
                   </div>
                   <div>
-                    <h3 className='font-semibold text-sm font-onest text-white'>
-                      Privacy First
-                    </h3>
+                    <h3 className='font-semibold text-sm font-onest text-white'>Privacy First</h3>
                     <p className='text-xs text-[#DEE1E3] font-onest mt-0.5'>
                       Your data is secure and shared only with your consent.
                     </p>
@@ -466,30 +377,29 @@ export function InviteApplicationForm({
           <div className='px-3.5 py-5 md:hidden'>
             <BrandLink containerClassName='block w-fit' />
           </div>
-          <div className='w-full md:max-w-[520px] mx-auto px-4 pt-8 md:pt-16 pb-12'>
+          <div className='w-full md:max-w-[454px] mx-auto px-4 pt-8 md:pt-16 pb-12'>
             <h1 className='text-2xl md:text-4xl font-semibold text-left font-onest text-black'>
               Create Your Profile
             </h1>
             <p className='text-[#5F6264] text-sm font-onest mt-2 mb-6'>
-              Complete your profile to join {companyName}&apos;s{" "}
-              {categoryName} pipeline.{" "}
+              Step {step} of 5 &mdash; {STEP_LABELS[step - 1]}.{" "}
               <Link
                 href='/talents/signin'
                 className='font-semibold text-primary hover:underline'
               >
-                Already have an account? Log In
+                Already have an account?
               </Link>
             </p>
 
-            {/* Progress */}
-            <div className='flex items-center gap-1.5 mb-6'>
-              {STEPS.map((s) => (
+            {/* Progress Bar */}
+            <div className='flex items-center gap-1.5 mb-8'>
+              {STEP_LABELS.map((_, i) => (
                 <div
-                  key={s.id}
-                  className={`h-1.5 flex-1 rounded-full transition-colors ${
-                    completedSteps.has(s.id)
+                  key={i}
+                  className={`h-1.5 flex-1 rounded-full transition-colors duration-300 ${
+                    i + 1 < step
                       ? "bg-success"
-                      : activeStep === s.id
+                      : i + 1 === step
                         ? "bg-primary"
                         : "bg-[#E4E7EC]"
                   }`}
@@ -497,354 +407,390 @@ export function InviteApplicationForm({
               ))}
             </div>
 
-            <form ref={formRef} onSubmit={handleSubmit} className='space-y-3'>
-              {/* Step 1: Name */}
-              <StepHeader
-                step={STEPS[0]}
-                activeStep={activeStep}
-                completedSteps={completedSteps}
-                summary={getStepSummary(1)}
-                onToggle={() => handleToggleStep(1)}
-              />
-              {activeStep === 1 && (
-                <div className='pl-11 space-y-4 pb-2 animate-in slide-in-from-top-2 duration-200'>
-                  <div className='grid sm:grid-cols-2 gap-4'>
-                    <div>
-                      <label className='label-text text-black font-medium font-onest mb-1 block'>
-                        First Name <span className='text-error'>*</span>
-                      </label>
-                      <div className='w-full bg-white input input-bordered border-[#D0D5DD] placeholder:text-[#7E8285] flex items-center gap-2 focus-within:shadow-none min-h-10 h-10'>
-                        <IoPersonSharp className='text-base text-[#98A2B3]' />
-                        <input
-                          name='first_name'
-                          placeholder='John'
-                          defaultValue={restoredData?.first_name || user?.first_name || ""}
-                          className='grow bg-transparent outline-none text-sm font-onest'
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <label className='label-text text-black font-medium font-onest mb-1 block'>
-                        Last Name <span className='text-error'>*</span>
-                      </label>
-                      <div className='w-full bg-white input input-bordered border-[#D0D5DD] placeholder:text-[#7E8285] flex items-center gap-2 focus-within:shadow-none min-h-10 h-10'>
-                        <IoPersonSharp className='text-base text-[#98A2B3]' />
-                        <input
-                          name='last_name'
-                          placeholder='Doe'
-                          defaultValue={restoredData?.last_name || user?.last_name || ""}
-                          className='grow bg-transparent outline-none text-sm font-onest'
-                        />
-                      </div>
-                    </div>
-                  </div>
-                  <button type='button' onClick={handleNext} className='btn btn-primary btn-sm text-white'>
+            {/* Step 1: Name */}
+            {step === 1 && (
+              <div className='space-y-5 animate-in fade-in duration-200'>
+                <div>
+                  <h2 className='text-base font-semibold font-onest text-black'>
+                    What&apos;s your name?
+                  </h2>
+                  <p className='text-xs text-[#5F6264] font-onest mt-0.5'>
+                    This is how {companyName}&apos;s team will know you
+                  </p>
+                </div>
+                <div>
+                  <label className='label-text text-black font-medium font-onest mb-1 block'>
+                    First Name <span className='text-error'>*</span>
+                  </label>
+                  {inputBox(
+                    <IoPersonSharp className='text-base text-[#98A2B3]' />,
+                    <input
+                      placeholder='John'
+                      value={form.first_name}
+                      onChange={(e) => update("first_name", e.target.value)}
+                      className='grow bg-transparent outline-none text-sm font-onest'
+                      autoFocus
+                    />,
+                    errors.first_name
+                  )}
+                </div>
+                <div>
+                  <label className='label-text text-black font-medium font-onest mb-1 block'>
+                    Last Name <span className='text-error'>*</span>
+                  </label>
+                  {inputBox(
+                    <IoPersonSharp className='text-base text-[#98A2B3]' />,
+                    <input
+                      placeholder='Doe'
+                      value={form.last_name}
+                      onChange={(e) => update("last_name", e.target.value)}
+                      className='grow bg-transparent outline-none text-sm font-onest'
+                    />,
+                    errors.last_name
+                  )}
+                </div>
+                <button
+                  type='button'
+                  onClick={handleNext}
+                  className='btn btn-primary text-white w-full'
+                >
+                  Continue
+                </button>
+              </div>
+            )}
+
+            {/* Step 2: Contact */}
+            {step === 2 && (
+              <div className='space-y-5 animate-in fade-in duration-200'>
+                <div>
+                  <h2 className='text-base font-semibold font-onest text-black'>
+                    How can we reach you?
+                  </h2>
+                  <p className='text-xs text-[#5F6264] font-onest mt-0.5'>
+                    Your email is required, the rest is optional
+                  </p>
+                </div>
+                <div>
+                  <label className='label-text text-black font-medium font-onest mb-1 block'>
+                    Email <span className='text-error'>*</span>
+                  </label>
+                  {inputBox(
+                    <IoMail className='text-base text-[#98A2B3]' />,
+                    <input
+                      type='email'
+                      placeholder='john@example.com'
+                      value={form.email}
+                      onChange={(e) => update("email", e.target.value)}
+                      className='grow bg-transparent outline-none text-sm font-onest'
+                      autoFocus
+                    />,
+                    errors.email
+                  )}
+                </div>
+                <div>
+                  <label className='label-text text-black font-medium font-onest mb-1 block'>
+                    Phone
+                  </label>
+                  {inputBox(
+                    <IoCall className='text-base text-[#98A2B3]' />,
+                    <input
+                      type='tel'
+                      placeholder='+234 800 000 0000'
+                      value={form.phone}
+                      onChange={(e) => update("phone", e.target.value)}
+                      className='grow bg-transparent outline-none text-sm font-onest'
+                    />
+                  )}
+                </div>
+                <div>
+                  <label className='label-text text-black font-medium font-onest mb-1 block'>
+                    LinkedIn
+                  </label>
+                  {inputBox(
+                    <IoIosLink className='text-base text-[#98A2B3]' />,
+                    <input
+                      type='url'
+                      placeholder='https://linkedin.com/in/johndoe'
+                      value={form.linkedin}
+                      onChange={(e) => update("linkedin", e.target.value)}
+                      className='grow bg-transparent outline-none text-sm font-onest'
+                    />
+                  )}
+                </div>
+                <div className='flex gap-3'>
+                  <button
+                    type='button'
+                    onClick={handleBack}
+                    className='btn btn-ghost flex-1'
+                  >
+                    Back
+                  </button>
+                  <button
+                    type='button'
+                    onClick={handleNext}
+                    className='btn btn-primary text-white flex-1'
+                  >
                     Continue
                   </button>
                 </div>
-              )}
+              </div>
+            )}
 
-              {/* Step 2: Contact */}
-              <StepHeader
-                step={STEPS[1]}
-                activeStep={activeStep}
-                completedSteps={completedSteps}
-                summary={getStepSummary(2)}
-                onToggle={() => handleToggleStep(2)}
-              />
-              {activeStep === 2 && (
-                <div className='pl-11 space-y-4 pb-2 animate-in slide-in-from-top-2 duration-200'>
-                  <div>
-                    <label className='label-text text-black font-medium font-onest mb-1 block'>
-                      Email <span className='text-error'>*</span>
-                    </label>
-                    <div className='w-full bg-white input input-bordered border-[#D0D5DD] placeholder:text-[#7E8285] flex items-center gap-2 focus-within:shadow-none min-h-10 h-10'>
-                      <IoMail className='text-base text-[#98A2B3]' />
-                      <input
-                        name='email'
-                        type='email'
-                        placeholder='john@example.com'
-                        defaultValue={restoredData?.email || user?.email || ""}
-                        className='grow bg-transparent outline-none text-sm font-onest'
-                      />
-                    </div>
-                  </div>
-                  <div className='grid sm:grid-cols-2 gap-4'>
-                    <div>
-                      <label className='label-text text-black font-medium font-onest mb-1 block'>
-                        Phone
-                      </label>
-                      <div className='w-full bg-white input input-bordered border-[#D0D5DD] placeholder:text-[#7E8285] flex items-center gap-2 focus-within:shadow-none min-h-10 h-10'>
-                        <IoCall className='text-base text-[#98A2B3]' />
-                        <input
-                          name='phone'
-                          type='tel'
-                          placeholder='+234 800 000 0000'
-                          defaultValue={restoredData?.phone || ""}
-                          className='grow bg-transparent outline-none text-sm font-onest'
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <label className='label-text text-black font-medium font-onest mb-1 block'>
-                        LinkedIn
-                      </label>
-                      <div className='w-full bg-white input input-bordered border-[#D0D5DD] placeholder:text-[#7E8285] flex items-center gap-2 focus-within:shadow-none min-h-10 h-10'>
-                        <IoIosLink className='text-base text-[#98A2B3]' />
-                        <input
-                          name='linkedin'
-                          type='url'
-                          placeholder='https://linkedin.com/in/johndoe'
-                          defaultValue={restoredData?.linkedin || ""}
-                          className='grow bg-transparent outline-none text-sm font-onest'
-                        />
-                      </div>
-                    </div>
-                  </div>
-                  <button type='button' onClick={handleNext} className='btn btn-primary btn-sm text-white'>
-                    Continue
-                  </button>
+            {/* Step 3: Portfolio & Resume */}
+            {step === 3 && (
+              <div className='space-y-5 animate-in fade-in duration-200'>
+                <div>
+                  <h2 className='text-base font-semibold font-onest text-black'>
+                    Show your work
+                  </h2>
+                  <p className='text-xs text-[#5F6264] font-onest mt-0.5'>
+                    Optional — but helps the team learn about you faster
+                  </p>
                 </div>
-              )}
-
-              {/* Step 3: Portfolio & Resume */}
-              <StepHeader
-                step={STEPS[2]}
-                activeStep={activeStep}
-                completedSteps={completedSteps}
-                summary={getStepSummary(3)}
-                onToggle={() => handleToggleStep(3)}
-              />
-              {activeStep === 3 && (
-                <div className='pl-11 space-y-4 pb-2 animate-in slide-in-from-top-2 duration-200'>
-                  <div>
-                    <label className='label-text text-black font-medium font-onest mb-1 block'>
-                      Portfolio / Website
-                    </label>
-                    <div className='w-full bg-white input input-bordered border-[#D0D5DD] placeholder:text-[#7E8285] flex items-center gap-2 focus-within:shadow-none min-h-10 h-10'>
-                      <IoIosLink className='text-base text-[#98A2B3]' />
-                      <input
-                        name='portfolio'
-                        type='url'
-                        placeholder='https://johndoe.com'
-                        defaultValue={restoredData?.portfolio || ""}
-                        className='grow bg-transparent outline-none text-sm font-onest'
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label className='label-text text-black font-medium font-onest mb-1 block'>
-                      CV / Resume
-                    </label>
-                    <p className='text-xs text-[#7E8285] font-onest mb-1.5'>
-                      PDF, DOC, or DOCX (max 5MB)
-                    </p>
-                    {selectedFile ? (
-                      <div className='flex items-center gap-3 rounded-lg border border-[#D0D5DD] bg-white p-3'>
-                        <div className='w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0'>
-                          <FaFileAlt className='h-5 w-5 text-primary' />
-                        </div>
-                        <div className='flex-1 min-w-0'>
-                          <p className='text-sm font-medium font-onest text-black truncate'>
-                            {selectedFile.name}
-                          </p>
-                          <p className='text-xs text-[#7E8285] font-onest'>
-                            {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
-                          </p>
-                        </div>
-                        <button
-                          type='button'
-                          onClick={removeFile}
-                          className='p-1 rounded-md hover:bg-gray-100 text-[#98A2B3] hover:text-black transition-colors'
-                        >
-                          <IoClose className='h-4 w-4' />
-                        </button>
+                <div>
+                  <label className='label-text text-black font-medium font-onest mb-1 block'>
+                    Portfolio / Website
+                  </label>
+                  {inputBox(
+                    <IoIosLink className='text-base text-[#98A2B3]' />,
+                    <input
+                      type='url'
+                      placeholder='https://johndoe.com'
+                      value={form.portfolio}
+                      onChange={(e) => update("portfolio", e.target.value)}
+                      className='grow bg-transparent outline-none text-sm font-onest'
+                      autoFocus
+                    />
+                  )}
+                </div>
+                <div>
+                  <label className='label-text text-black font-medium font-onest mb-1 block'>
+                    CV / Resume
+                  </label>
+                  <p className='text-xs text-[#7E8285] font-onest mb-1.5'>
+                    PDF, DOC, or DOCX (max 5MB)
+                  </p>
+                  {selectedFile ? (
+                    <div className='flex items-center gap-3 rounded-lg border border-[#D0D5DD] bg-white p-3'>
+                      <div className='w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0'>
+                        <FaFileAlt className='h-5 w-5 text-primary' />
                       </div>
-                    ) : (
+                      <div className='flex-1 min-w-0'>
+                        <p className='text-sm font-medium font-onest text-black truncate'>
+                          {selectedFile.name}
+                        </p>
+                        <p className='text-xs text-[#7E8285] font-onest'>
+                          {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
+                        </p>
+                      </div>
                       <button
                         type='button'
-                        onClick={() => fileInputRef.current?.click()}
-                        className='w-full flex flex-col items-center gap-2 rounded-lg border-2 border-dashed border-[#D0D5DD] hover:border-primary/50 bg-white hover:bg-primary/5 p-5 transition-colors cursor-pointer'
+                        onClick={removeFile}
+                        className='p-1 rounded-md hover:bg-gray-100 text-[#98A2B3] hover:text-black transition-colors'
                       >
-                        <div className='w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center'>
-                          <FaFileAlt className='h-5 w-5 text-primary' />
-                        </div>
-                        <div className='text-center'>
-                          <p className='text-sm font-medium font-onest text-black'>
-                            Click to upload
-                          </p>
-                          <p className='text-xs text-[#7E8285] font-onest'>
-                            PDF, DOC, or DOCX up to 5MB
-                          </p>
-                        </div>
+                        <IoClose className='h-4 w-4' />
                       </button>
-                    )}
+                    </div>
+                  ) : (
+                    <button
+                      type='button'
+                      onClick={() => fileInputRef.current?.click()}
+                      className='w-full flex flex-col items-center gap-2 rounded-lg border-2 border-dashed border-[#D0D5DD] hover:border-primary/50 bg-white hover:bg-primary/5 p-5 transition-colors cursor-pointer'
+                    >
+                      <div className='w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center'>
+                        <FaFileAlt className='h-5 w-5 text-primary' />
+                      </div>
+                      <div className='text-center'>
+                        <p className='text-sm font-medium font-onest text-black'>
+                          Click to upload
+                        </p>
+                        <p className='text-xs text-[#7E8285] font-onest'>
+                          PDF, DOC, or DOCX up to 5MB
+                        </p>
+                      </div>
+                    </button>
+                  )}
+                  <input
+                    ref={fileInputRef}
+                    type='file'
+                    accept='.pdf,.doc,.docx'
+                    onChange={handleFileChange}
+                    className='hidden'
+                  />
+                </div>
+                <div className='flex gap-3'>
+                  <button type='button' onClick={handleBack} className='btn btn-ghost flex-1'>
+                    Back
+                  </button>
+                  <button type='button' onClick={handleNext} className='btn btn-primary text-white flex-1'>
+                    Continue
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Step 4: Professional Info */}
+            {step === 4 && (
+              <div className='space-y-5 animate-in fade-in duration-200'>
+                <div>
+                  <h2 className='text-base font-semibold font-onest text-black'>
+                    Your professional background
+                  </h2>
+                  <p className='text-xs text-[#5F6264] font-onest mt-0.5'>
+                    Helps {companyName} match you to the right roles
+                  </p>
+                </div>
+                <div>
+                  <label className='label-text text-black font-medium font-onest mb-1 block'>
+                    Current Role
+                  </label>
+                  {inputBox(
+                    <IoBriefcase className='text-base text-[#98A2B3]' />,
                     <input
-                      ref={fileInputRef}
-                      type='file'
-                      accept='.pdf,.doc,.docx'
-                      onChange={handleFileChange}
-                      className='hidden'
+                      placeholder='e.g. Senior Software Engineer'
+                      value={form.current_role}
+                      onChange={(e) => update("current_role", e.target.value)}
+                      className='grow bg-transparent outline-none text-sm font-onest'
+                      autoFocus
                     />
+                  )}
+                </div>
+                <div>
+                  <label className='label-text text-black font-medium font-onest mb-1 block'>
+                    Experience Level
+                  </label>
+                  <select
+                    value={form.experience_level}
+                    onChange={(e) => update("experience_level", e.target.value)}
+                    className='w-full bg-white input input-bordered border-[#D0D5DD] min-h-10 h-10 text-sm font-onest focus:shadow-none'
+                  >
+                    <option value='' disabled>Select level</option>
+                    {EXPERIENCE_LEVELS.map((level) => (
+                      <option key={level} value={level}>{level}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className='label-text text-black font-medium font-onest mb-1 block'>
+                    Applying For
+                  </label>
+                  <div className='w-full bg-[#F9FAFB] input input-bordered border-[#D0D5DD] flex items-center gap-2 min-h-10 h-10 cursor-not-allowed'>
+                    <IoBriefcase className='text-base text-[#98A2B3]' />
+                    <span className='text-sm font-onest text-[#5F6264]'>
+                      {categoryName}
+                    </span>
                   </div>
-                  <button type='button' onClick={handleNext} className='btn btn-primary btn-sm text-white'>
+                </div>
+                <div>
+                  <label className='label-text text-black font-medium font-onest mb-1 block'>
+                    Location / Country
+                  </label>
+                  {inputBox(
+                    <IoLocation className='text-base text-[#98A2B3]' />,
+                    <input
+                      placeholder='e.g. Lagos, Nigeria'
+                      value={form.location}
+                      onChange={(e) => update("location", e.target.value)}
+                      className='grow bg-transparent outline-none text-sm font-onest'
+                    />
+                  )}
+                </div>
+                <div className='flex gap-3'>
+                  <button type='button' onClick={handleBack} className='btn btn-ghost flex-1'>
+                    Back
+                  </button>
+                  <button type='button' onClick={handleNext} className='btn btn-primary text-white flex-1'>
                     Continue
                   </button>
                 </div>
-              )}
+              </div>
+            )}
 
-              {/* Step 4: Professional Info */}
-              <StepHeader
-                step={STEPS[3]}
-                activeStep={activeStep}
-                completedSteps={completedSteps}
-                summary={getStepSummary(4)}
-                onToggle={() => handleToggleStep(4)}
-              />
-              {activeStep === 4 && (
-                <div className='pl-11 space-y-4 pb-2 animate-in slide-in-from-top-2 duration-200'>
-                  <div className='grid sm:grid-cols-2 gap-4'>
-                    <div>
-                      <label className='label-text text-black font-medium font-onest mb-1 block'>
-                        Current Role
-                      </label>
-                      <div className='w-full bg-white input input-bordered border-[#D0D5DD] placeholder:text-[#7E8285] flex items-center gap-2 focus-within:shadow-none min-h-10 h-10'>
-                        <IoBriefcase className='text-base text-[#98A2B3]' />
-                        <input
-                          name='current_role'
-                          placeholder='e.g. Senior Software Engineer'
-                          defaultValue={restoredData?.current_role || ""}
-                          className='grow bg-transparent outline-none text-sm font-onest'
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <label className='label-text text-black font-medium font-onest mb-1 block'>
-                        Experience Level
-                      </label>
-                      <select
-                        name='experience_level'
-                        value={experienceLevel}
-                        onChange={(e) => setExperienceLevel(e.target.value)}
-                        className='w-full bg-white input input-bordered border-[#D0D5DD] min-h-10 h-10 text-sm font-onest focus:shadow-none'
-                      >
-                        <option value='' disabled>Select level</option>
-                        {EXPERIENCE_LEVELS.map((level) => (
-                          <option key={level} value={level}>{level}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                  <div>
-                    <label className='label-text text-black font-medium font-onest mb-1 block'>
-                      Applying For
-                    </label>
-                    <div className='w-full bg-[#F9FAFB] input input-bordered border-[#D0D5DD] flex items-center gap-2 min-h-10 h-10 cursor-not-allowed'>
-                      <IoBriefcase className='text-base text-[#98A2B3]' />
-                      <span className='text-sm font-onest text-[#5F6264]'>
-                        {categoryName}
-                      </span>
-                    </div>
-                  </div>
-                  <div>
-                    <label className='label-text text-black font-medium font-onest mb-1 block'>
-                      Location / Country
-                    </label>
-                    <div className='w-full bg-white input input-bordered border-[#D0D5DD] placeholder:text-[#7E8285] flex items-center gap-2 focus-within:shadow-none min-h-10 h-10'>
-                      <IoLocation className='text-base text-[#98A2B3]' />
-                      <input
-                        name='location'
-                        placeholder='e.g. Lagos, Nigeria'
-                        defaultValue={restoredData?.location || ""}
-                        className='grow bg-transparent outline-none text-sm font-onest'
-                      />
-                    </div>
-                  </div>
-                  <button type='button' onClick={handleNext} className='btn btn-primary btn-sm text-white'>
-                    Continue
-                  </button>
+            {/* Step 5: Compensation & Summary */}
+            {step === 5 && (
+              <div className='space-y-5 animate-in fade-in duration-200'>
+                <div>
+                  <h2 className='text-base font-semibold font-onest text-black'>
+                    Almost done!
+                  </h2>
+                  <p className='text-xs text-[#5F6264] font-onest mt-0.5'>
+                    Optional details to strengthen your profile
+                  </p>
                 </div>
-              )}
-
-              {/* Step 5: Compensation & Summary */}
-              <StepHeader
-                step={STEPS[4]}
-                activeStep={activeStep}
-                completedSteps={completedSteps}
-                summary={getStepSummary(5)}
-                onToggle={() => handleToggleStep(5)}
-              />
-              {activeStep === 5 && (
-                <div className='pl-11 space-y-4 pb-2 animate-in slide-in-from-top-2 duration-200'>
-                  <div>
-                    <label className='label-text text-black font-medium font-onest mb-1 block'>
-                      Current Pay (Annual)
-                    </label>
-                    <div className='flex gap-2'>
-                      <select
-                        name='pay_currency'
-                        value={currency}
-                        onChange={(e) => setCurrency(e.target.value)}
-                        className='bg-white input input-bordered border-[#D0D5DD] min-h-10 h-10 text-sm font-onest focus:shadow-none w-20 shrink-0 px-2'
-                      >
-                        {CURRENCIES.map((c) => (
-                          <option key={c} value={c}>{c}</option>
-                        ))}
-                      </select>
-                      <div className='flex-1 bg-white input input-bordered border-[#D0D5DD] placeholder:text-[#7E8285] flex items-center focus-within:shadow-none min-h-10 h-10'>
-                        <input
-                          name='current_pay'
-                          type='number'
-                          placeholder='e.g. 80000'
-                          min='0'
-                          defaultValue={restoredData?.current_pay || ""}
-                          className='grow bg-transparent outline-none text-sm font-onest w-full'
-                        />
-                      </div>
-                    </div>
-                  </div>
-                  <div>
-                    <label className='label-text text-black font-medium font-onest mb-1 block'>
-                      Frameworks / Tools
-                    </label>
-                    <div className='w-full bg-white input input-bordered border-[#D0D5DD] placeholder:text-[#7E8285] flex items-center gap-2 focus-within:shadow-none min-h-10 h-10'>
-                      <IoBriefcase className='text-base text-[#98A2B3]' />
+                <div>
+                  <label className='label-text text-black font-medium font-onest mb-1 block'>
+                    Current Pay (Annual)
+                  </label>
+                  <div className='flex gap-2'>
+                    <select
+                      value={form.currency}
+                      onChange={(e) => update("currency", e.target.value)}
+                      className='bg-white input input-bordered border-[#D0D5DD] min-h-10 h-10 text-sm font-onest focus:shadow-none w-20 shrink-0 px-2'
+                    >
+                      {CURRENCIES.map((c) => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                    </select>
+                    <div className='flex-1 bg-white input input-bordered border-[#D0D5DD] placeholder:text-[#7E8285] flex items-center focus-within:shadow-none min-h-10 h-10'>
                       <input
-                        name='frameworks'
-                        placeholder='e.g. React, Node.js, Python (comma-separated)'
-                        defaultValue={restoredData?.frameworks || ""}
-                        className='grow bg-transparent outline-none text-sm font-onest'
+                        type='number'
+                        placeholder='e.g. 80000'
+                        min='0'
+                        value={form.current_pay}
+                        onChange={(e) => update("current_pay", e.target.value)}
+                        className='grow bg-transparent outline-none text-sm font-onest w-full'
+                        autoFocus
                       />
                     </div>
                   </div>
-                  <div>
-                    <label className='label-text text-black font-medium font-onest mb-1 block'>
-                      Professional Summary
-                    </label>
-                    <textarea
-                      name='summary'
-                      placeholder='Briefly describe your experience and what you&#39;re looking for...'
-                      rows={3}
-                      defaultValue={restoredData?.summary || ""}
-                      className='w-full bg-white textarea textarea-bordered border-[#D0D5DD] placeholder:text-[#7E8285] text-sm font-onest focus:shadow-none resize-none'
+                </div>
+                <div>
+                  <label className='label-text text-black font-medium font-onest mb-1 block'>
+                    Frameworks / Tools
+                  </label>
+                  {inputBox(
+                    <IoBriefcase className='text-base text-[#98A2B3]' />,
+                    <input
+                      placeholder='e.g. React, Node.js, Python (comma-separated)'
+                      value={form.frameworks}
+                      onChange={(e) => update("frameworks", e.target.value)}
+                      className='grow bg-transparent outline-none text-sm font-onest'
                     />
-                  </div>
+                  )}
+                </div>
+                <div>
+                  <label className='label-text text-black font-medium font-onest mb-1 block'>
+                    Professional Summary
+                  </label>
+                  <textarea
+                    placeholder="Briefly describe your experience and what you're looking for..."
+                    rows={3}
+                    value={form.summary}
+                    onChange={(e) => update("summary", e.target.value)}
+                    className='w-full bg-white textarea textarea-bordered border-[#D0D5DD] placeholder:text-[#7E8285] text-sm font-onest focus:shadow-none resize-none'
+                  />
+                </div>
+                <div className='flex gap-3'>
+                  <button type='button' onClick={handleBack} className='btn btn-ghost flex-1'>
+                    Back
+                  </button>
                   <button
-                    type='submit'
+                    type='button'
+                    onClick={handleSubmit}
                     disabled={isSubmitting}
-                    className='btn btn-primary text-white w-full'
+                    className='btn btn-primary text-white flex-1'
                   >
                     {isSubmitting
                       ? "Submitting..."
-                      : `Join ${companyName}'s Talent Network`}
+                      : `Join ${companyName}'s Network`}
                   </button>
-                  <p className='text-xs text-[#7E8285] text-center font-onest'>
-                    By submitting, you agree to share your information with{" "}
-                    {companyName}&apos;s recruiting team through TIAAGO.
-                  </p>
                 </div>
-              )}
-            </form>
+                <p className='text-xs text-[#7E8285] text-center font-onest'>
+                  By submitting, you agree to share your information with{" "}
+                  {companyName}&apos;s recruiting team through TIAAGO.
+                </p>
+              </div>
+            )}
           </div>
         </main>
       </div>

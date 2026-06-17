@@ -21,6 +21,23 @@ import { trackSignup } from "@/app/common/services/mixpanel.services";
 import { publicAxiosInstance } from "@/app/common/utils/axios.instance";
 import CountrySelect from "@/app/common/components/Forms/CountrySelect";
 
+function getInvitePreFill(next?: string) {
+  if (typeof window === "undefined" || !next) return null;
+  const match = next.match(/\/sourcing\/invite\/([^/?]+)/);
+  if (!match) return null;
+  try {
+    const raw = sessionStorage.getItem(`invite_form_${match[1]}`);
+    if (!raw) return null;
+    return JSON.parse(raw) as {
+      first_name?: string;
+      last_name?: string;
+      email?: string;
+    };
+  } catch {
+    return null;
+  }
+}
+
 const SignUpFormV3 = ({
   talentRoles,
   groupedCountries,
@@ -39,9 +56,21 @@ const SignUpFormV3 = ({
   if (referral_code) urlSearchParams.set("referral_code", referral_code);
   if (next) urlSearchParams.set("next", next);
   else urlSearchParams.set("next", "/talents/verification");
+
+  const preFill = getInvitePreFill(next);
+  const initialValues = preFill
+    ? {
+        ...talentSignUpV3InitialFormValues,
+        full_name:
+          `${preFill.first_name || ""} ${preFill.last_name || ""}`.trim(),
+        email: preFill.email || "",
+      }
+    : talentSignUpV3InitialFormValues;
+
   return (
     <Formik
-      initialValues={talentSignUpV3InitialFormValues}
+      initialValues={initialValues}
+      enableReinitialize
       onSubmit={(input, { setSubmitting, resetForm, setFieldError }) => {
         toast.dismiss();
         new Promise(async (resolve, reject) => {
