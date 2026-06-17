@@ -58,33 +58,31 @@ const AdminDashboardLayout = async ({ children }: PropsWithChildren) => {
           email={user.email}
           className='bg-sidebar border-b border-sidebar-border'
         />
-        <div className='lg:flex'>
-          <div className='max-lg:drawer'>
-            <input
-              id='mobile-drawer'
-              type='checkbox'
-              className='drawer-toggle'
-            />
-            <div className='max-lg:drawer-side top-[5rem] z-10 h-[calc(100svh-5rem)]'>
-              <label
-                htmlFor='mobile-drawer'
-                aria-label='close sidebar'
-                className='drawer-overlay'
-              />
-              <SideNavV3
-                as={as}
-                badges={{
-                  Talents: noOfUnverifiedTalents,
-                  Startups: noOfUnverifiedStartups,
-                }}
-              />
-            </div>
-          </div>
+        <div className='lg:flex max-lg:drawer'>
+          <input
+            id='mobile-drawer'
+            type='checkbox'
+            className='drawer-toggle'
+          />
           <ScrollArea className='h-[calc(100svh-5rem)] max-lg:drawer-content bg-[#F8F9FA] px-3 md:px-8 flex-1'>
             <div className='h-8' />
             {children}
             <div className='h-8' />
           </ScrollArea>
+          <div className='max-lg:drawer-side top-[5rem] z-10 h-[calc(100svh-5rem)]'>
+            <label
+              htmlFor='mobile-drawer'
+              aria-label='close sidebar'
+              className='drawer-overlay'
+            />
+            <SideNavV3
+              as={as}
+              badges={{
+                Talents: noOfUnverifiedTalents,
+                Startups: noOfUnverifiedStartups,
+              }}
+            />
+          </div>
         </div>
       </div>
     </>
