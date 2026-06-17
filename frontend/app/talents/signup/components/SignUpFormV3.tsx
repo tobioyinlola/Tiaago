@@ -7,6 +7,7 @@ import { useState } from "react";
 import { Button } from "react-daisyui";
 import { GroupBase } from "react-select";
 import { useRouter } from "next/navigation";
+import { IoCheckmarkCircle } from "react-icons/io5";
 
 import {
   talentSignUpV3FormFields,
@@ -21,18 +22,22 @@ import { trackSignup } from "@/app/common/services/mixpanel.services";
 import { publicAxiosInstance } from "@/app/common/utils/axios.instance";
 import CountrySelect from "@/app/common/components/Forms/CountrySelect";
 
-function getInvitePreFill(next?: string) {
+type InvitePreFill = {
+  first_name?: string;
+  last_name?: string;
+  email?: string;
+  location?: string;
+  current_role?: string;
+} | null;
+
+function getInvitePreFill(next?: string): InvitePreFill {
   if (typeof window === "undefined" || !next) return null;
   const match = next.match(/\/sourcing\/invite\/([^/?]+)/);
   if (!match) return null;
   try {
     const raw = sessionStorage.getItem(`invite_form_${match[1]}`);
     if (!raw) return null;
-    return JSON.parse(raw) as {
-      first_name?: string;
-      last_name?: string;
-      email?: string;
-    };
+    return JSON.parse(raw);
   } catch {
     return null;
   }
@@ -58,12 +63,16 @@ const SignUpFormV3 = ({
   else urlSearchParams.set("next", "/talents/verification");
 
   const preFill = getInvitePreFill(next);
+  const isFromInvite = !!preFill?.first_name;
+
   const initialValues = preFill
     ? {
         ...talentSignUpV3InitialFormValues,
         full_name:
           `${preFill.first_name || ""} ${preFill.last_name || ""}`.trim(),
         email: preFill.email || "",
+        country: preFill.location || "",
+        role: preFill.current_role || "",
       }
     : talentSignUpV3InitialFormValues;
 
@@ -90,13 +99,9 @@ const SignUpFormV3 = ({
                   user_type: "talent",
                   country: input.country,
                   role: input.role,
-                  //   experience_level: input.experience_level,
                   email: input.email,
                   first_name,
                   last_name,
-                  //   phone_number: input.phone_number,
-                  //   gender: input.gender,
-                  //   portfolio: input.portfolio,
                 });
             } catch (error) {
               if (process.env.NODE_ENV === "development") console.error(error);
@@ -122,43 +127,136 @@ const SignUpFormV3 = ({
     >
       {({ handleSubmit, isSubmitting, errors, touched, values }) => (
         <form onSubmit={handleSubmit} className='mt-8 mb-3'>
-          {talentSignUpV3FormFields.map(({ name, label, ...props }, i) => {
-            if (name === "country")
+          {isFromInvite ? (
+            <>
+              {/* Pre-filled summary from invite form */}
+              <div className='rounded-xl border border-[#D0D5DD] bg-[#F9FAFB] p-4 mb-6'>
+                <p className='text-xs font-onest text-[#5F6264] mb-3'>
+                  We&apos;ve filled in your details from the invite form
+                </p>
+                <div className='space-y-2'>
+                  <div className='flex items-center gap-2'>
+                    <IoCheckmarkCircle className='text-success text-sm shrink-0' />
+                    <span className='text-sm font-onest text-black'>
+                      {values.full_name}
+                    </span>
+                  </div>
+                  <div className='flex items-center gap-2'>
+                    <IoCheckmarkCircle className='text-success text-sm shrink-0' />
+                    <span className='text-sm font-onest text-black'>
+                      {values.email}
+                    </span>
+                  </div>
+                  {values.country && (
+                    <div className='flex items-center gap-2'>
+                      <IoCheckmarkCircle className='text-success text-sm shrink-0' />
+                      <span className='text-sm font-onest text-black'>
+                        {values.country}
+                      </span>
+                    </div>
+                  )}
+                  {values.role && (
+                    <div className='flex items-center gap-2'>
+                      <IoCheckmarkCircle className='text-success text-sm shrink-0' />
+                      <span className='text-sm font-onest text-black capitalize'>
+                        {talentRoles.find(r => r.slug === values.role)?.title ||
+                          values.role}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Show country/role selects only if missing */}
+              {!values.country &&
+                talentSignUpV3FormFields
+                  .filter(f => f.name === "country")
+                  .map(({ name, label, ...props }) => (
+                    <CountrySelect
+                      key={name}
+                      value={null}
+                      {...{ name, label, ...props }}
+                      options={groupedCountries}
+                      error={errors[name]}
+                      touched={touched[name]}
+                    />
+                  ))}
+              {!values.role && (
+                <FormikField
+                  name='role'
+                  label='Role'
+                  type='select'
+                  placeholder='Data Analyst'
+                  value={values.role}
+                  error={errors.role}
+                  touched={touched.role}
+                  disablePasswordHelpers
+                  inputContainerClassName='min-h-10 h-10'
+                  selectFieldProps={{
+                    options: talentRoles.map(({ title, slug }) => ({
+                      label: title,
+                      value: slug,
+                    })),
+                  }}
+                />
+              )}
+
+              {/* Password field */}
+              {talentSignUpV3FormFields
+                .filter(f => f.name === "password1")
+                .map(({ name, label, ...props }) => (
+                  <FormikField
+                    key={name}
+                    {...{ name, label, ...props }}
+                    autoFocus
+                    value={values[name]}
+                    error={errors[name]}
+                    touched={touched[name]}
+                    disablePasswordHelpers
+                    inputContainerClassName='min-h-10 h-10'
+                  />
+                ))}
+            </>
+          ) : (
+            /* Standard signup form */
+            talentSignUpV3FormFields.map(({ name, label, ...props }, i) => {
+              if (name === "country")
+                return (
+                  <CountrySelect
+                    key={name}
+                    value={null}
+                    {...{ name, label, ...props }}
+                    options={groupedCountries}
+                    error={errors[name]}
+                    touched={touched[name]}
+                  />
+                );
               return (
-                <CountrySelect
+                <FormikField
                   key={name}
-                  value={null}
                   {...{ name, label, ...props }}
-                  options={groupedCountries}
+                  autoFocus={i === 0}
+                  value={values[name]}
                   error={errors[name]}
                   touched={touched[name]}
+                  disablePasswordHelpers
+                  inputContainerClassName='min-h-10 h-10'
+                  {...(props.type === "select" && {
+                    selectFieldProps: {
+                      options:
+                        name === "role"
+                          ? talentRoles.map(({ title, slug }) => ({
+                              label: title,
+                              value: slug,
+                            }))
+                          : undefined,
+                      ...props.selectFieldProps,
+                    },
+                  })}
                 />
               );
-            return (
-              <FormikField
-                key={name}
-                {...{ name, label, ...props }}
-                autoFocus={i === 0}
-                value={values[name]}
-                error={errors[name]}
-                touched={touched[name]}
-                disablePasswordHelpers
-                inputContainerClassName='min-h-10 h-10'
-                {...(props.type === "select" && {
-                  selectFieldProps: {
-                    options:
-                      name === "role"
-                        ? talentRoles.map(({ title, slug }) => ({
-                            label: title,
-                            value: slug,
-                          }))
-                        : undefined,
-                    ...props.selectFieldProps,
-                  },
-                })}
-              />
-            );
-          })}
+            })
+          )}
           <label className='flex gap-3 text-sm w-fit cursor-pointer mx-auto my-6'>
             <input
               type='checkbox'
@@ -185,7 +283,11 @@ const SignUpFormV3 = ({
             type='submit'
             disabled={!acceptedTerms || isSubmitting}
           >
-            {isSubmitting ? "Creating account..." : "Create account"}
+            {isSubmitting
+              ? "Creating account..."
+              : isFromInvite
+                ? "Create account & continue"
+                : "Create account"}
           </Button>
           <p className='font-onest text-sm text-[#5E6163] text-center'>
             Click{" "}
