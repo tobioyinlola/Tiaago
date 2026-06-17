@@ -68,6 +68,7 @@ INSTALLED_APPS = [
     "management",
     "marketing.apps.MarketingConfig",
     "emails_app.apps.EmailsAppConfig",
+    "sourcing.apps.SourcingConfig",
     # 3rd party apps
     "allauth",
     "allauth.account",

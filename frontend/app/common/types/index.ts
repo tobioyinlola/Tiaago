@@ -929,6 +929,15 @@ export type GetPipelineResponse = {
   entries: PipelineEntry[];
 };
 
+export type PipelineCategory = {
+  id: ID;
+  name: string;
+  description: string;
+  is_active: boolean;
+  candidate_count: number;
+  created_at: string;
+};
+
 export type SourcingSearchInput = {
   main_role: string;
   specializations: string[];

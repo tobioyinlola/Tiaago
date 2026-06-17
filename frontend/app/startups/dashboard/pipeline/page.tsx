@@ -2,9 +2,8 @@ import { handleServerApiCallError } from "@/app/common/utils";
 import DisplayErrorMessages, {
   DisplayErrorMessagesProps,
 } from "@/app/common/components/DisplayErrorMessages";
-import { getTalentRoles } from "@/app/common/services";
-import Pipeline from "./_components/Pipeline";
-import { getPipeline } from "@/app/common/services/sourcing";
+import { getCategories, getPipeline } from "@/app/common/services/sourcing";
+import PipelineCategories from "./_components/PipelineCategories";
 
 export const metadata = {
   title: "Pipeline",
@@ -13,15 +12,15 @@ export const metadata = {
 const PipelinePage = async () => {
   const errors: DisplayErrorMessagesProps["errors"] = [];
 
-  //   const roles = await getTalentRoles().catch(async e => {
-  //     const error = await handleServerApiCallError(e);
-  //     console.log("Get talent roles error (pipeline): ", error);
-  //     errors.push({
-  //       message: error,
-  //       title: "Error getting talent roles",
-  //     });
-  //     return [];
-  //   });
+  const categories = await getCategories().catch(async e => {
+    const error = await handleServerApiCallError(e);
+    console.log("Get categories error (pipeline): ", error);
+    errors.push({
+      message: error,
+      title: "Error getting pipeline categories",
+    });
+    return [];
+  });
 
   const pipeline = await getPipeline().catch(async e => {
     const error = await handleServerApiCallError(e);
@@ -35,7 +34,10 @@ const PipelinePage = async () => {
 
   return (
     <>
-      <Pipeline pipeline={pipeline} />
+      <PipelineCategories
+        categories={categories}
+        totalCandidates={pipeline?.total_in_pipeline ?? 0}
+      />
       <DisplayErrorMessages errors={errors} />
     </>
   );

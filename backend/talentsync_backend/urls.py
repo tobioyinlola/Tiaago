@@ -43,6 +43,7 @@ urlpatterns = [
     path("api/subscriptions/", include("subscriptions.urls")),
     path("api/work-experiences/", include("work_experience.urls")),
     path("api/management/", include("management.urls")),
+    path("api/sourcing/", include("sourcing.urls")),
     # Registered before the router include so it can never be shadowed.
     path("api/health/", health_status, name="health-status"),
     path("api/", include(router.urls)),

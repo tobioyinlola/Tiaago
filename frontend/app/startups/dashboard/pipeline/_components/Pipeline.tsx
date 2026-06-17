@@ -14,7 +14,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/app/common/components/ui/select";
-import { Search, Users, Filter, UserPlus, Send, Briefcase } from "lucide-react";
+import {
+  Search,
+  Users,
+  Filter,
+  UserPlus,
+  Send,
+  Briefcase,
+  ArrowLeft,
+  Download,
+} from "lucide-react";
 import { GetPipelineResponse, PipelineEntry } from "@/app/common/types";
 import { toast } from "sonner";
 import { CandidateProfileDialog } from "../../sourcing/_components/CandidateProfileDialog";
@@ -26,8 +35,12 @@ import { handleFormSubmissionError } from "@/app/common/utils";
 
 export default function Pipeline({
   pipeline,
+  categoryName,
+  categoryId,
 }: {
   pipeline: GetPipelineResponse | null;
+  categoryName?: string;
+  categoryId?: string;
 }) {
   const [candidates, setCandidates] = useState<PipelineEntry[]>(
     pipeline?.entries || []
@@ -151,15 +164,56 @@ export default function Pipeline({
       <div className='space-y-6'>
         {/* Page Header */}
         <div className='flex flex-col sm:flex-row sm:items-center justify-between gap-4'>
-          <div>
-            <h1 className='text-2xl font-bold text-foreground'>
-              Talent Pipeline
-            </h1>
-            <p className='text-muted-foreground'>
-              Manage your sourced candidates and track their status
-            </p>
+          <div className='flex items-center gap-3'>
+            <Button
+              variant='ghost'
+              size='icon'
+              onClick={() => router.push("/startups/dashboard/pipeline")}
+            >
+              <ArrowLeft className='h-5 w-5' />
+            </Button>
+            <div>
+              <h1 className='text-2xl font-bold text-foreground'>
+                {categoryName || "Talent Pipeline"}
+              </h1>
+              <p className='text-muted-foreground'>
+                Manage your sourced candidates and track their status
+              </p>
+            </div>
           </div>
           <div className='flex gap-2 sm:gap-3'>
+            <Button
+              variant='outline'
+              size='sm'
+              className='sm:size-default'
+              onClick={() => {
+                const csv = [
+                  "Name,Email,Role,Status,Country,Skills",
+                  ...candidates.map(c =>
+                    [
+                      c.name,
+                      c.email || "",
+                      c.role,
+                      c.status,
+                      c.country,
+                      `"${(c.skills || []).join(", ")}"`,
+                    ].join(",")
+                  ),
+                ].join("\n");
+                const blob = new Blob([csv], { type: "text/csv" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = "pipeline-export.csv";
+                a.click();
+                URL.revokeObjectURL(url);
+                toast.success("CSV exported");
+              }}
+              disabled={candidates.length === 0}
+            >
+              <Download className='h-4 w-4 sm:mr-2' />
+              <span className='hidden sm:inline'>Export CSV</span>
+            </Button>
             <Button
               variant='outline'
               size='sm'
@@ -328,7 +382,7 @@ export default function Pipeline({
             </p>
             <Button
               className='mt-4'
-              onClick={() => (window.location.href = "/sourcing")}
+              onClick={() => router.push("/startups/dashboard/sourcing")}
             >
               Start Sourcing
             </Button>

@@ -6,6 +6,7 @@ import { omit } from "lodash";
 import {
   GetPipelineResponse,
   ID,
+  PipelineCategory,
   PipelineEntry,
   ServerCandidate,
   SourcingSearchInput,
@@ -1471,9 +1472,68 @@ export const deletePipelineEntry = async (id: ID) => {
   }
 };
 
-export const getPipeline = async () => {
+export const getPipeline = async (categoryId?: string) => {
+  const url = categoryId
+    ? `sourcing/pipeline/?category=${categoryId}`
+    : "sourcing/pipeline/";
   const data = await serverKyInstance
-    .get<GetPipelineResponse>("sourcing/pipeline/")
+    .get<GetPipelineResponse>(url)
     .json();
   return data;
+};
+
+export const getCategories = async () => {
+  const data = await serverKyInstance
+    .get<PipelineCategory[]>("sourcing/categories/")
+    .json();
+  return data;
+};
+
+export const createCategory = async (name: string, description: string) => {
+  try {
+    const response = await axiosInstance.post("sourcing/categories/", {
+      name,
+      description,
+    });
+    return { success: true as const, data: response.data as PipelineCategory };
+  } catch (error) {
+    const [errMsg] = await _handleServerApiCallError(error);
+    return { success: false as const, error: errMsg };
+  }
+};
+
+export const updateCategory = async (
+  id: ID,
+  data: Partial<Pick<PipelineCategory, "name" | "description" | "is_active">>
+) => {
+  try {
+    const response = await axiosInstance.patch(`sourcing/categories/${id}/`, data);
+    return { success: true as const, data: response.data as PipelineCategory };
+  } catch (error) {
+    const [errMsg] = await _handleServerApiCallError(error);
+    return { success: false as const, error: errMsg };
+  }
+};
+
+export const deleteCategory = async (id: ID) => {
+  try {
+    await axiosInstance.delete(`sourcing/categories/${id}/`);
+    return { success: true as const };
+  } catch (error) {
+    const [errMsg] = await _handleServerApiCallError(error);
+    return { success: false as const, error: errMsg };
+  }
+};
+
+export const updatePipelineEntry = async (
+  id: ID,
+  data: { status?: string; category?: number | null }
+) => {
+  try {
+    const response = await axiosInstance.patch(`sourcing/pipeline/${id}/`, data);
+    return { success: true as const, data: response.data as PipelineEntry };
+  } catch (error) {
+    const [errMsg] = await _handleServerApiCallError(error);
+    return { success: false as const, error: errMsg };
+  }
 };
