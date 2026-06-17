@@ -138,12 +138,12 @@ export function TalentPoolInviteDialog({
             <div className="space-y-3">
               {/* Clickable URL bar */}
               <button
-                className="flex w-full min-w-0 items-center gap-2 rounded-lg border border-border bg-muted/50 px-3 py-2.5 text-left overflow-hidden hover:bg-muted transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                className="flex w-full items-center gap-2 rounded-lg border border-border bg-muted/50 px-3 py-2.5 text-left hover:bg-muted transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
                 onClick={handleCopy}
                 aria-label="Copy invite link to clipboard"
               >
-                <span className="flex-1 min-w-0 truncate text-xs sm:text-sm text-muted-foreground">
-                  {inviteData.invite_url}
+                <span className="text-xs sm:text-sm text-muted-foreground">
+                  {inviteData.invite_url.replace(/^https?:\/\/(www\.)?/, "").slice(0, 32)}...
                 </span>
                 {copied ? (
                   <Check className="h-4 w-4 shrink-0 text-success" />
