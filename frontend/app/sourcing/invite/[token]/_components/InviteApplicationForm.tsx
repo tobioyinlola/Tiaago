@@ -14,7 +14,7 @@ import {
   IoClose,
 } from "react-icons/io5";
 import { IoIosLink } from "react-icons/io";
-import { FaUsers, FaShieldAlt, FaFileAlt, FaCheck } from "react-icons/fa";
+import { FaShieldAlt, FaFileAlt, FaCheck } from "react-icons/fa";
 import { toast } from "sonner";
 import { useUserStore } from "@/app/common/store/useUser";
 import { submitInviteApplication } from "@/app/common/services/sourcing";
@@ -398,40 +398,14 @@ export function InviteApplicationForm({
                     : `You've been invited to join an exclusive ${categoryName.toLowerCase()} talent community. Complete your profile to get started.`}
                 </p>
               </div>
-              <div className='space-y-3 mt-10'>
-                <div className='bg-[#0f1a3d] border border-white/20 rounded-xl p-4 flex items-start gap-3'>
-                  <div className='w-9 h-9 rounded-lg bg-white/10 flex items-center justify-center shrink-0'>
-                    <IoSparkles className='h-4 w-4 text-white' />
-                  </div>
-                  <div>
-                    <h3 className='font-semibold text-sm font-onest text-white'>Early Access</h3>
-                    <p className='text-xs text-[#DEE1E3] font-onest mt-0.5'>
-                      Hear about roles before they&apos;re posted publicly.
-                    </p>
-                  </div>
-                </div>
-                <div className='bg-[#0f1a3d] border border-white/20 rounded-xl p-4 flex items-start gap-3'>
-                  <div className='w-9 h-9 rounded-lg bg-white/10 flex items-center justify-center shrink-0'>
-                    <FaUsers className='h-4 w-4 text-white' />
-                  </div>
-                  <div>
-                    <h3 className='font-semibold text-sm font-onest text-white'>Direct Connection</h3>
-                    <p className='text-xs text-[#DEE1E3] font-onest mt-0.5'>
-                      Connect directly with the recruiting team.
-                    </p>
-                  </div>
-                </div>
-                <div className='bg-[#0f1a3d] border border-white/20 rounded-xl p-4 flex items-start gap-3'>
-                  <div className='w-9 h-9 rounded-lg bg-white/10 flex items-center justify-center shrink-0'>
-                    <FaShieldAlt className='h-4 w-4 text-white' />
-                  </div>
-                  <div>
-                    <h3 className='font-semibold text-sm font-onest text-white'>Privacy First</h3>
-                    <p className='text-xs text-[#DEE1E3] font-onest mt-0.5'>
-                      Your data is secure and shared only with your consent.
-                    </p>
-                  </div>
-                </div>
+              {/* Animated Illustration */}
+              <div className='mt-10 flex items-center justify-center'>
+                <object
+                  type='image/svg+xml'
+                  data='/assets/illustrations/invite.svg'
+                  className='w-full max-w-[420px]'
+                  aria-label='Invite illustration'
+                />
               </div>
             </div>
           </div>
