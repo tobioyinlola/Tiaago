@@ -64,7 +64,7 @@ export default function Pipeline({
   const [showBulkOutreach, setShowBulkOutreach] = useState(false);
 
   // Get unique roles from candidates
-  const uniqueRoles = Array.from(new Set(candidates.map(c => c.role))).sort();
+  const uniqueRoles = Array.from(new Set(candidates.map(c => c.role).filter(Boolean))).sort();
 
   const handleRemove = (candidate: PipelineEntry) => {
     setAlert({
