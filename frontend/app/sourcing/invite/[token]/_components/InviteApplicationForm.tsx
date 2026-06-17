@@ -332,18 +332,27 @@ export function InviteApplicationForm({
             className='object-cover opacity-20'
             fill
           />
-          <div className='relative' />
-          <div className='relative space-y-6 max-w-sm'>
+          <div className='relative pt-4'>
             <BrandLink
               isAlt
               className='text-white'
               containerClassName='block w-fit mx-auto'
             />
+          </div>
+          <div className='relative space-y-4 max-w-sm'>
+            <div className='mx-auto w-48 h-48 animate-in fade-in zoom-in duration-700'>
+              <object
+                type='image/svg+xml'
+                data='/assets/Invite-amico.svg'
+                className='w-full h-full'
+                aria-label='Invite illustration'
+              />
+            </div>
             <div className='space-y-3'>
               <p className='text-primary-content/70 text-xs font-onest uppercase tracking-widest'>
                 Exclusive Invite
               </p>
-              <h1 className='text-white font-onest font-bold text-3xl leading-tight'>
+              <h1 className='text-white font-onest font-bold text-2xl leading-tight'>
                 {companyName
                   ? `Join ${companyName}'s ${categoryName} Talent Network`
                   : `Join the ${categoryName} Talent Network`}
@@ -353,22 +362,22 @@ export function InviteApplicationForm({
                 recruiting team, and be first in line for roles.
               </p>
             </div>
-            <div className='flex items-center justify-center gap-6 text-white/50 text-xs font-onest'>
-              <span className='flex items-center gap-1.5'>
-                <IoSparkles className='h-3.5 w-3.5' /> Early Access
-              </span>
-              <span className='flex items-center gap-1.5'>
-                <FaShieldAlt className='h-3 w-3' /> Privacy First
-              </span>
-            </div>
           </div>
-          <div className='relative'>
+          <div className='relative space-y-4'>
             <button
               onClick={dismissSplash}
               className='btn btn-white bg-white text-black border-0 w-full font-onest font-semibold'
             >
               Get Started
             </button>
+            <a
+              href='https://storyset.com/work'
+              target='_blank'
+              rel='noopener noreferrer'
+              className='text-white/30 text-[10px] font-onest block text-center'
+            >
+              Work illustrations by Storyset
+            </a>
           </div>
         </div>
       )}
