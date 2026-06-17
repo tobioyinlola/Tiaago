@@ -300,7 +300,12 @@ export function InviteApplicationForm({
     );
   }
 
-  const dismissSplash = () => setShowMobileSplash(false);
+  const [splashExiting, setSplashExiting] = useState(false);
+
+  const dismissSplash = () => {
+    setSplashExiting(true);
+    setTimeout(() => setShowMobileSplash(false), 500);
+  };
 
   const handleTouchStart = (e: React.TouchEvent) => {
     touchStartY.current = e.touches[0].clientY;
@@ -312,15 +317,23 @@ export function InviteApplicationForm({
 
   return (
     <>
-      {/* Mobile Splash — gradient, swipe up to dismiss */}
+      {/* Mobile Splash — gradient, rolls up on dismiss */}
       {showMobileSplash && (
         <div
-          className='fixed inset-0 z-50 md:hidden bg-gradient-to-br from-[#1a1a2e] via-[#16213e] to-primary flex flex-col items-center justify-between text-center px-6 py-12'
+          className={`fixed inset-0 z-50 md:hidden bg-gradient-to-br from-[#1a1a2e] via-[#16213e] to-primary flex flex-col items-center justify-between text-center px-6 py-12 transition-transform duration-500 ease-in-out ${
+            splashExiting ? "-translate-y-full" : "translate-y-0"
+          }`}
           onTouchStart={handleTouchStart}
           onTouchEnd={handleTouchEnd}
         >
-          <div />
-          <div className='space-y-6 max-w-sm'>
+          <Image
+            src='/assets/images/Auth Background pattern.png'
+            alt=''
+            className='object-cover opacity-20'
+            fill
+          />
+          <div className='relative' />
+          <div className='relative space-y-6 max-w-sm'>
             <BrandLink
               isAlt
               className='text-white'
@@ -349,16 +362,13 @@ export function InviteApplicationForm({
               </span>
             </div>
           </div>
-          <div className='space-y-3'>
+          <div className='relative'>
             <button
               onClick={dismissSplash}
               className='btn btn-white bg-white text-black border-0 w-full font-onest font-semibold'
             >
               Get Started
             </button>
-            <p className='text-white/40 text-xs font-onest animate-bounce'>
-              or swipe up
-            </p>
           </div>
         </div>
       )}
