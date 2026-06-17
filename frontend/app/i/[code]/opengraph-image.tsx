@@ -53,7 +53,7 @@ export default async function OGImage({ params }: Props) {
           display: "flex",
           flexDirection: "column",
           background:
-            "linear-gradient(135deg, #5465FF 0%, #3A47CC 50%, #2D3AA0 100%)",
+            "linear-gradient(135deg, #4455DD 0%, #2E3AB0 50%, #1E2878 100%)",
           padding: "60px 80px",
           fontFamily: "sans-serif",
           position: "relative",
@@ -70,7 +70,7 @@ export default async function OGImage({ params }: Props) {
             width: "100%",
             height: "100%",
             objectFit: "cover",
-            opacity: 0.08,
+            opacity: 0.55,
           }}
         />
 
@@ -82,7 +82,7 @@ export default async function OGImage({ params }: Props) {
             position: "relative",
           }}
         >
-          <img src={logoSrc} style={{ height: "36px" }} />
+          <img src={logoSrc} style={{ height: "64px" }} />
         </div>
 
         {/* Main content */}
@@ -96,33 +96,14 @@ export default async function OGImage({ params }: Props) {
             position: "relative",
           }}
         >
-          {/* Badge */}
-          <div style={{ display: "flex", alignItems: "center" }}>
-            <div
-              style={{
-                background: "rgba(255,255,255,0.2)",
-                borderRadius: "20px",
-                padding: "8px 20px",
-                fontSize: "16px",
-                fontWeight: 600,
-                color: "white",
-                letterSpacing: "1px",
-                textTransform: "uppercase" as const,
-                display: "flex",
-              }}
-            >
-              Talent Pipeline Invite
-            </div>
-          </div>
-
           {/* Headline */}
           <div
             style={{
-              fontSize: hasDetails ? "56px" : "64px",
-              fontWeight: 800,
+              fontSize: hasDetails ? "68px" : "80px",
+              fontWeight: 900,
               color: "white",
               lineHeight: 1.1,
-              letterSpacing: "-1.5px",
+              letterSpacing: "-2px",
               display: "flex",
               flexDirection: "column",
             }}
@@ -130,7 +111,7 @@ export default async function OGImage({ params }: Props) {
             {hasDetails ? (
               <>
                 <span>Join {companyName}&apos;s</span>
-                <span style={{ color: "rgba(255,255,255,0.85)" }}>
+                <span style={{ color: "rgba(255,255,255,0.9)" }}>
                   {categoryName} Pipeline
                 </span>
               </>
@@ -142,16 +123,17 @@ export default async function OGImage({ params }: Props) {
           {/* Subtitle */}
           <div
             style={{
-              fontSize: "22px",
-              color: "rgba(255,255,255,0.75)",
+              fontSize: "26px",
+              color: "rgba(255,255,255,0.85)",
               lineHeight: 1.5,
-              maxWidth: "700px",
+              fontWeight: 600,
+              maxWidth: "750px",
               display: "flex",
             }}
           >
             {hasDetails
               ? `${companyName} is hiring through TIAAGO. Apply now to get discovered.`
-              : "Join a talent pipeline and get discovered by top startups on TIAAGO."}
+              : "Join a talent pipeline and get discovered by top recruiters on TIAAGO."}
           </div>
         </div>
 
@@ -180,7 +162,7 @@ export default async function OGImage({ params }: Props) {
               fontWeight: 500,
             }}
           >
-            Hire Vetted Tech Talent in Africa
+            Hire Vetted Tech Talents in Africa
           </span>
         </div>
       </div>
