@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import {
   Mail,
@@ -37,16 +37,15 @@ export default function EmailIntegrationTab() {
   const [verifying, setVerifying] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-  const fetchConfig = useCallback(async () => {
-    setLoading(true);
-    const result = await getSmtpConfig();
-    if (result.success) setConfig(result.data);
-    setLoading(false);
-  }, []);
-
   useEffect(() => {
-    fetchConfig();
-  }, [fetchConfig]);
+    let cancelled = false;
+    getSmtpConfig().then((result) => {
+      if (cancelled) return;
+      if (result.success) setConfig(result.data);
+      setLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, []);
 
   const handleSave = async () => {
     if (!appPassword.trim()) {
@@ -76,7 +75,8 @@ export default function EmailIntegrationTab() {
     setVerifying(false);
     if (result.success) {
       toast.success("SMTP connection verified!");
-      fetchConfig();
+      const refreshed = await getSmtpConfig();
+      if (refreshed.success) setConfig(refreshed.data);
     } else {
       toast.error(result.error || "Verification failed.");
     }
