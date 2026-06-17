@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Image from "next/image";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   Dialog,
   DialogContent,
@@ -99,15 +100,25 @@ export function TalentPoolInviteDialog({
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="!max-w-[calc(100vw-2rem)] sm:!max-w-sm p-0 gap-0 overflow-hidden">
         {/* Illustration header */}
-        <div className="flex items-center justify-center bg-primary/5 pt-4 pb-2">
-          <Image
-            src="/assets/undraw_message-sent_iyz6.svg"
-            alt=""
-            width={140}
-            height={100}
-            className="h-[80px] sm:h-[100px] w-auto"
-            priority
-          />
+        <div className="flex items-center justify-center bg-primary/5 pt-4 sm:pt-6 pb-2 sm:pb-3 overflow-hidden">
+          <AnimatePresence>
+            {open && (
+              <motion.div
+                initial={{ opacity: 0, y: 20, scale: 0.9 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                transition={{ duration: 0.5, ease: "easeOut", delay: 0.1 }}
+              >
+                <Image
+                  src="/assets/undraw_message-sent_iyz6.svg"
+                  alt=""
+                  width={200}
+                  height={160}
+                  className="h-[80px] sm:h-[140px] w-auto"
+                  priority
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
 
         <div className="px-4 sm:px-6 pb-5 pt-3">
