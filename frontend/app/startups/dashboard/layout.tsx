@@ -72,7 +72,7 @@ const StartupDashboardLayout = async ({ children }: PropsWithChildren) => {
         lastName={splitCompanyName[1] || ""}
         profilePic={startup.profile_pic}
         email={startup.email}
-        className='bg-[#FDFDFD] border-[#F0F2F5]'
+        className='bg-sidebar border-b border-sidebar-border'
       />
       <div className='lg:flex'>
         <div className='max-lg:drawer'>

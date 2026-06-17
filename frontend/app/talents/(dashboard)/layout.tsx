@@ -87,7 +87,7 @@ const TalentDashboardLayout = async ({ children }: PropsWithChildren) => {
           ) : undefined
         }
         email={user.email}
-        className='bg-[#FDFDFD] border-[#F0F2F5]'
+        className='bg-sidebar border-b border-sidebar-border'
       />
       <div className='lg:flex'>
         <div className='max-lg:drawer'>

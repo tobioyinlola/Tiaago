@@ -84,7 +84,7 @@ const NavDropdown = ({
         )}
       </div>
       <div className='collapse-content pr-0'>
-        <ul className='ml-[10px] py-4 pl-4 flex flex-col gap-2 border-l border-gray-200'>
+        <ul className='ml-3 py-3 pl-4 flex flex-col gap-1 border-l border-sidebar-border'>
           {subLinks.map(({ href, name }) => (
             <li key={href}>
               <Link

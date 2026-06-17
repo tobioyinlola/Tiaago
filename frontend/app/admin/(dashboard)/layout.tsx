@@ -56,6 +56,7 @@ const AdminDashboardLayout = async ({ children }: PropsWithChildren) => {
           lastName={user.last_name}
           profilePic={user.profile_pic}
           email={user.email}
+          className='bg-sidebar border-b border-sidebar-border'
         />
         <div className='lg:flex'>
           <div className='max-lg:drawer'>
@@ -79,7 +80,7 @@ const AdminDashboardLayout = async ({ children }: PropsWithChildren) => {
               />
             </div>
           </div>
-          <ScrollArea className='h-[calc(100svh-5rem)] max-lg:drawer-content px-3 md:px-8 flex-1'>
+          <ScrollArea className='h-[calc(100svh-5rem)] max-lg:drawer-content bg-[#F8F9FA] px-3 md:px-8 flex-1'>
             <div className='h-8' />
             {children}
             <div className='h-8' />
