@@ -8,6 +8,7 @@ import { cn, isBasicUser } from "@/app/common/utils";
 import SlidePanel from "@/app/common/components/SlidePanel";
 import UserAvatar from "@/app/common/components/UserAvatar";
 import StatusBadge from "@/app/common/components/StatusBadge";
+import UserApplicationActions from "./UserApplicationActions";
 
 const Field = ({
   label,
@@ -43,7 +44,13 @@ const Section = ({
   </section>
 );
 
-const TalentDetailPanel = ({ talent }: { talent: Talent }) => {
+const TalentDetailPanel = ({
+  talent,
+  showActions,
+}: {
+  talent: Talent;
+  showActions?: boolean;
+}) => {
   const [open, setOpen] = useState(false);
 
   return (
@@ -51,7 +58,8 @@ const TalentDetailPanel = ({ talent }: { talent: Talent }) => {
       <button
         type='button'
         onClick={() => setOpen(true)}
-        className='inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors'
+        className='inline-flex items-center gap-1.5 rounded-md px-3 py-2 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+        aria-label={`View details for ${talent.first_name} ${talent.last_name}`}
       >
         <LuEye className='h-3.5 w-3.5' />
         View
@@ -85,11 +93,27 @@ const TalentDetailPanel = ({ talent }: { talent: Talent }) => {
                 {talent.email}
               </a>
             } />
+            <Field label='Phone' value={
+              talent.phone_number ? (
+                <a href={`tel:${talent.phone_number}`} className='text-primary hover:underline'>
+                  {talent.phone_number}
+                </a>
+              ) : null
+            } />
             <Field label='Country' value={talent.country} />
             <Field label='Role' value={<span className='capitalize'>{talent.role}</span>} />
             <Field label='Experience Level' value={<span className='capitalize'>{talent.experience_level}</span>} />
             <Field label='User ID' value={talent.pk} />
           </Section>
+
+          {/* Bio */}
+          {talent.bio && (
+            <Section title='Bio'>
+              <dd className='col-span-2 text-sm whitespace-pre-wrap text-muted-foreground leading-relaxed'>
+                {talent.bio}
+              </dd>
+            </Section>
+          )}
 
           {/* Portfolio & Resume */}
           <Section title='Portfolio & Resume'>
@@ -179,6 +203,13 @@ const TalentDetailPanel = ({ talent }: { talent: Talent }) => {
               <Field label='Account Number' value={talent.account_number} />
               <Field label='Bank' value={talent.bank_name} />
             </Section>
+          )}
+
+          {showActions && (
+            <div className='flex items-center justify-between pt-3 border-t border-border'>
+              <span className='text-sm text-muted-foreground'>Actions</span>
+              <UserApplicationActions id={talent.pk} />
+            </div>
           )}
         </div>
       </SlidePanel>
