@@ -7,7 +7,7 @@ export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
 const API_URL = (
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api"
 ).replace(/\/$/, "");
 
 function loadAsset(relativePath: string, mime: string): string {
@@ -30,7 +30,7 @@ export default async function OGImage({ params }: Props) {
   let categoryName = "";
   try {
     const res = await fetch(
-      `${API_URL}/api/sourcing/invite/resolve/${code}/`,
+      `${API_URL}/sourcing/invite/resolve/${code}/`,
       { cache: "force-cache" }
     );
     if (res.ok) {

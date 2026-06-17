@@ -1,14 +1,12 @@
 import { Metadata } from "next";
-import { redirect, notFound } from "next/navigation";
-
-const API_URL = (
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
-).replace(/\/$/, "");
+import { notFound } from "next/navigation";
+import { API_URL } from "@/app/common/constants";
+import ClientRedirect from "./ClientRedirect";
 
 async function resolveCode(code: string) {
   try {
     const res = await fetch(
-      `${API_URL}/api/sourcing/invite/resolve/${code}/`,
+      `${API_URL}/sourcing/invite/resolve/${code}/`,
       { cache: "force-cache" }
     );
     if (!res.ok) return null;
@@ -57,5 +55,5 @@ export default async function ShortLinkRedirect({ params }: Props) {
   const { code } = await params;
   const data = await resolveCode(code);
   if (!data) notFound();
-  redirect(`/sourcing/invite/${data.token}`);
+  return <ClientRedirect href={`/sourcing/invite/${data.token}`} />;
 }
