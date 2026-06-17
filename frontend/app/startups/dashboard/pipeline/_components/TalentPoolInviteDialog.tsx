@@ -97,28 +97,29 @@ export function TalentPoolInviteDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-[360px] p-0 gap-0 overflow-hidden">
+      <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-sm p-0 gap-0 overflow-hidden">
         {/* Illustration header */}
-        <div className="flex items-center justify-center bg-primary/5 px-6 pt-6 pb-4">
+        <div className="flex items-center justify-center bg-primary/5 pt-4 pb-2">
           <Image
             src="/assets/undraw_message-sent_iyz6.svg"
             alt=""
-            width={180}
-            height={140}
-            className="h-[120px] sm:h-[140px] w-auto"
+            width={140}
+            height={100}
+            className="h-[80px] sm:h-[100px] w-auto"
             priority
           />
         </div>
 
-        <div className="px-5 sm:px-6 pb-5 sm:pb-6 pt-4">
-          <DialogHeader className="pb-3 text-center sm:text-center">
-            <DialogTitle className="text-lg">Share Invite Link</DialogTitle>
-            <DialogDescription className="text-sm">
-              Invite candidates to join your{" "}
+        <div className="px-4 sm:px-6 pb-5 pt-3">
+          <DialogHeader className="pb-4 text-center sm:text-center">
+            <DialogTitle className="text-base sm:text-lg">
+              Share Invite Link
+            </DialogTitle>
+            <DialogDescription className="text-xs sm:text-sm">
+              Invite candidates to join{" "}
               <span className="font-medium text-foreground">
                 {categoryName}
-              </span>{" "}
-              pipeline
+              </span>
             </DialogDescription>
           </DialogHeader>
 
@@ -141,7 +142,7 @@ export function TalentPoolInviteDialog({
                 onClick={handleCopy}
                 aria-label="Copy invite link to clipboard"
               >
-                <span className="flex-1 truncate text-sm text-muted-foreground">
+                <span className="flex-1 truncate text-xs sm:text-sm text-muted-foreground">
                   {inviteData.invite_url}
                 </span>
                 {copied ? (
@@ -152,12 +153,8 @@ export function TalentPoolInviteDialog({
               </button>
 
               {/* Actions — grouped together */}
-              <div className="flex gap-2">
-                <Button
-                  onClick={handleCopy}
-                  className="flex-1"
-                  size="sm"
-                >
+              <div className="grid grid-cols-[1fr_auto] gap-2">
+                <Button onClick={handleCopy} size="sm">
                   {copied ? (
                     <>
                       <Check className="mr-1.5 h-3.5 w-3.5" />
@@ -178,8 +175,8 @@ export function TalentPoolInviteDialog({
                   }
                   aria-label="Preview invite page in new tab"
                 >
-                  <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
-                  Preview
+                  <ExternalLink className="h-3.5 w-3.5 sm:mr-1.5" />
+                  <span className="hidden sm:inline">Preview</span>
                 </Button>
               </div>
             </div>
