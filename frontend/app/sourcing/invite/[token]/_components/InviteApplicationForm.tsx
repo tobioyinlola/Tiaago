@@ -20,6 +20,7 @@ import { toast } from "sonner";
 import { useUserStore } from "@/app/common/store/useUser";
 import { submitInviteApplication } from "@/app/common/services/sourcing";
 import BrandLink from "@/app/common/components/BrandLink";
+import confetti from "canvas-confetti";
 import { TalentRole, CountryField } from "@/app/common/types";
 import Select, { GroupBase, StylesConfig } from "react-select";
 import { useGeoCountry } from "@/app/common/hooks/useGeoCountry";
@@ -298,6 +299,12 @@ export function InviteApplicationForm({
       const result = await submitInviteApplication(token, formData);
       if (result.success) {
         setIsSuccess(true);
+        const end = Date.now() + 2000;
+        const fire = () => {
+          confetti({ particleCount: 80, spread: 100, origin: { y: 0.6 } });
+          if (Date.now() < end) requestAnimationFrame(fire);
+        };
+        fire();
       } else {
         toast.error("Submission failed", {
           description: result.error || "Something went wrong.",
