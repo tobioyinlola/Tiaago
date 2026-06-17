@@ -1,7 +1,7 @@
-import { RxDashboard } from "react-icons/rx";
 import { RiCoupon2Line } from "react-icons/ri";
 import type { IconBaseProps } from "react-icons";
 import { PiClipboardText, PiExam, PiHandshake } from "react-icons/pi";
+import type { DashboardNavItemV3 } from "@/app/common/types";
 import {
   IoBusinessOutline,
   IoMailOutline,
@@ -22,12 +22,7 @@ export const jobSubLinks = [
   },
 ];
 
-export const navItems = [
-  {
-    name: "home",
-    href: baseHref,
-    Icon: RxDashboard,
-  },
+export const navItems: DashboardNavItemV3[] = [
   {
     name: "applications",
     href: `${baseHref}/applications`,

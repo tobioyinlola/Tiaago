@@ -53,7 +53,7 @@ const Nav = ({
         className
       )}
     >
-      <BrandLink className='max-lg:fill-white hover:fill-primary' />
+      <BrandLink className='max-lg:fill-white hover:fill-primary' href={dashboardLink} />
 
       {/* Search */}
       <SearchBar

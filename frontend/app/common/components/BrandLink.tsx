@@ -8,9 +8,10 @@ const BrandLink = ({
   containerClassName = "",
   isWhite = false,
   isAlt = false,
+  href = "/",
 }) => {
   return (
-    <Link href='/' className={containerClassName}>
+    <Link href={href} className={containerClassName}>
       {isWhite ? (
         <svg
           width='127'

@@ -13,6 +13,7 @@ import { BasePageProps } from "@/app/common/types";
 import { SUPPORT_EMAIL } from "@/app/common/constants";
 import { talentNavItems } from "@/app/talents/(dashboard)/constants/nav";
 import { startupNavItems } from "@/app/startups/dashboard/constants/nav";
+import { navItems as adminNavItems } from "@/app/admin/(dashboard)/constants/nav";
 import { usePersistedStore } from "@/app/common/store/usePersistedStore";
 import NavDropdown from "../../NavDropdown";
 
@@ -33,48 +34,60 @@ const SideNavV3 = ({
   const baseHref = as === "staff" ? "/admin" : `/${as}s`;
   const homeItem = {
     name: "home",
-    href: `${baseHref}/dashboard`,
+    href: as === "staff" ? baseHref : `${baseHref}/dashboard`,
     Icon: RxDashboard,
   };
 
-  const navItems = as === "talent" ? talentNavItems : startupNavItems;
+  const navItems =
+    as === "talent"
+      ? talentNavItems
+      : as === "staff"
+      ? adminNavItems
+      : startupNavItems;
 
   return (
     <ScrollArea
       id={`${as}-side-bar`}
-      className='px-2.5 flex w-auto flex-col font-poppins h-[calc(100svh-5rem) h-full bg-[#FDFDFD]'
+      className={cn(
+        "px-2.5 flex flex-col font-poppins h-full bg-[#FDFDFD] transition-[width] duration-300 overflow-hidden",
+        isExpanded ? "lg:w-[240px]" : "lg:w-[72px]"
+      )}
       verticalScrollClassName='!hidden'
       horizontalScrollClassName='!hidden'
     >
       <div className='p-2.5 pt-5'>
-        {/* <div
+        <div
           className={cn(
-            "flex w-full",
+            "flex w-full max-lg:hidden",
             isExpanded ? "justify-end" : "justify-center"
           )}
         >
           <button
             title={isExpanded ? "Collapse sidebar" : "Expand sidebar"}
             onClick={toggleExpansion}
-            className={cn("text-2xl text-primary", isExpanded && "rotate-180")}
+            className={cn(
+              "text-2xl text-primary transition-transform duration-300",
+              isExpanded && "rotate-180"
+            )}
           >
             <MdKeyboardDoubleArrowRight />
           </button>
-        </div> */}
+        </div>
         <NavLink
-          className='flex items-center group mt-8 text-[#6C757D] capitalize hover:bg-[#F1F3FF] rounded-[5px] px-2.5 py-[5px]'
+          className='flex items-center group mt-4 text-[#6C757D] capitalize hover:bg-[#F1F3FF] rounded-[5px] px-2.5 py-[5px]'
           href={homeItem.href}
           exact
           activeClassName='text-primary fill-primary bg-[#F1F3FF]'
           colsesMobileDrawer
           isProfileComplete={isProfileComplete}
+          title={!isExpanded ? homeItem.name : undefined}
         >
-          <homeItem.Icon className='text-2xl group-data-[active=false]:text-[#2E3031]' />
+          <homeItem.Icon className='text-2xl min-w-[24px] group-data-[active=false]:text-[#2E3031]' />
 
           <h2
             className={cn(
-              "ms-3 text-base font-medium",
-              !isExpanded && "hidden"
+              "ms-3 text-base font-medium whitespace-nowrap",
+              !isExpanded && "lg:hidden"
             )}
           >
             {homeItem.name}
@@ -87,9 +100,9 @@ const SideNavV3 = ({
         {navItems.map((item, i) =>
           item.type === "divider" ? (
             <hr key={i} className='pb-8' />
-          ) : item.subLinks ? (
+          ) : item.subLinks && isExpanded ? (
             <NavDropdown
-              key={i}
+              key={`${i}-dropdown`}
               href={item.href}
               subLinks={item.subLinks}
               colsesMobileDrawer
@@ -102,7 +115,7 @@ const SideNavV3 = ({
               <div className='w-6 h-6'>
                 <item.Icon className='text-2xl group-data-[active=false]:text-[#292D32]' />
               </div>
-              <h2 className='me-auto ms-3 text-base font-medium capitalize'>
+              <h2 className='me-auto ms-3 text-base font-medium capitalize whitespace-nowrap'>
                 {item.name}
               </h2>
             </NavDropdown>
@@ -114,14 +127,15 @@ const SideNavV3 = ({
               activeClassName='text-primary fill-primary bg-[#F1F3FF]'
               exact={item.exact}
               colsesMobileDrawer
-              badge={badges[item.name]}
+              badge={isExpanded ? badges[item.name] : undefined}
               isProfileComplete={isProfileComplete}
+              title={!isExpanded ? item.name : undefined}
             >
               <item.Icon className='text-2xl min-w-[24px] group-data-[active=false]:text-[#2E3031]' />
               <h2
                 className={cn(
-                  "me-auto ms-3 text-base font-medium capitalize",
-                  !isExpanded && "hidden"
+                  "me-auto ms-3 text-base font-medium capitalize whitespace-nowrap",
+                  !isExpanded && "lg:hidden"
                 )}
               >
                 {item.name}
@@ -141,15 +155,20 @@ const SideNavV3 = ({
 
       <div className='p-2.5 mt-8'>
         <Link
-          // href='https://tawk.to/chat/66dc833e50c10f7a00a561a8/1i76m1c39'
           href={`mailto:${SUPPORT_EMAIL}`}
           target='_blank'
           className='flex items-center gap-3 text-[#6C757D] px-2.5 py-[5px]'
+          title={!isExpanded ? "Support Center" : undefined}
         >
-          <div className='w-6 h-6 flex items-center justify-center rounded-full bg-primary'>
+          <div className='w-6 h-6 flex items-center justify-center rounded-full bg-primary shrink-0'>
             <BiSolidChat className='text-base text-white' />
           </div>
-          <h2 className={cn("text-sm font-medium", !isExpanded && "hidden")}>
+          <h2
+            className={cn(
+              "text-sm font-medium whitespace-nowrap",
+              !isExpanded && "lg:hidden"
+            )}
+          >
             Support Center
           </h2>
         </Link>
@@ -157,7 +176,7 @@ const SideNavV3 = ({
         <Logout
           className='px-2.5'
           as={as}
-          textClassName={cn(!isExpanded && "hidden")}
+          textClassName={cn(!isExpanded && "lg:hidden")}
         />
       </div>
     </ScrollArea>

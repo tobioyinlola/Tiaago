@@ -17,6 +17,7 @@ type NavLinkProps = {
   colsesDropdown?: boolean;
   badge?: number | boolean;
   isProfileComplete?: boolean;
+  title?: string;
 };
 
 const NavLink = ({
@@ -29,6 +30,7 @@ const NavLink = ({
   colsesDropdown,
   badge,
   isProfileComplete,
+  title,
 }: PropsWithChildren<NavLinkProps>) => {
   const setAlert = useAlert(s => s.setAlert);
   const pathName = usePathname();
@@ -45,6 +47,7 @@ const NavLink = ({
       href={href}
       className={cn("relative", className, _isActive && activeClassName)}
       data-active={_isActive}
+      title={title}
       onClick={e => {
         if (!isProfileComplete && href === "/talents/jobs/search") {
           setAlert({
