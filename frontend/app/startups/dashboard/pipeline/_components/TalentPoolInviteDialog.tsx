@@ -224,8 +224,11 @@ export function TalentPoolInviteDialog({
                   onClick={handleCopy}
                   aria-label="Copy invite link to clipboard"
                 >
-                  <span className="text-xs sm:text-sm text-muted-foreground">
-                    {inviteData.invite_url.replace(/^https?:\/\//, "")}
+                  <span className="text-xs text-muted-foreground">
+                    {inviteData.invite_url
+                      .replace(/^https?:\/\/(www\.)?/, "")
+                      .slice(0, 28)}
+                    ...
                   </span>
                   {copied ? (
                     <Check className="h-3.5 w-3.5 shrink-0 text-success" />
