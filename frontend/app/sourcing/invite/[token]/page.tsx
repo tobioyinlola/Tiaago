@@ -6,6 +6,7 @@ import { InviteApplicationForm } from "./_components/InviteApplicationForm";
 import { getCurrentUser } from "@/app/common/services/profile";
 import { useUserStore } from "@/app/common/store/useUser";
 import SetUserProfile from "@/app/common/components/Layout/SetUserProfile";
+import { getTalentRoles, getCountries } from "@/app/common/services";
 
 type Props = { params: Promise<{ token: string }> };
 
@@ -143,6 +144,8 @@ export default async function InvitePage({ params }: Props) {
         token={token}
         categoryName={result.data.category_name}
         companyName={result.data.company_name}
+        talentRoles={await getTalentRoles().catch(() => [])}
+        groupedCountries={await getCountries().catch(() => [])}
       />
     </>
   );

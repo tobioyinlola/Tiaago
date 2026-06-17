@@ -20,11 +20,15 @@ import { toast } from "sonner";
 import { useUserStore } from "@/app/common/store/useUser";
 import { submitInviteApplication } from "@/app/common/services/sourcing";
 import BrandLink from "@/app/common/components/BrandLink";
+import { TalentRole, CountryField } from "@/app/common/types";
+import { GroupBase } from "react-select";
 
 interface InviteApplicationFormProps {
   token: string;
   categoryName: string;
   companyName: string;
+  talentRoles: TalentRole[];
+  groupedCountries: GroupBase<CountryField>[];
 }
 
 const EXPERIENCE_LEVELS = [
@@ -84,7 +88,16 @@ export function InviteApplicationForm({
   token,
   categoryName,
   companyName,
+  talentRoles,
+  groupedCountries,
 }: InviteApplicationFormProps) {
+  const roleOptions = [
+    ...talentRoles.map((r) => ({ value: r.slug, label: r.title })),
+    { value: "other", label: "Other" },
+  ];
+  const countryOptions = groupedCountries.flatMap((g) =>
+    g.options.map((c) => ({ value: c.value, label: c.label }))
+  );
   const router = useRouter();
   const user = useUserStore((s) => s.profile);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -599,22 +612,13 @@ export function InviteApplicationForm({
             {/* Step 3: Portfolio & Resume */}
             {step === 3 && (
               <div className='space-y-5 animate-in fade-in duration-200'>
-                <div className='flex items-start justify-between'>
-                  <div>
-                    <h2 className='text-base font-semibold font-onest text-black'>
-                      Show your work
-                    </h2>
-                    <p className='text-xs text-[#5F6264] font-onest mt-0.5'>
-                      Optional — but helps the team learn about you faster
-                    </p>
-                  </div>
-                  <button
-                    type='button'
-                    onClick={handleNext}
-                    className='text-xs text-primary font-onest font-medium hover:underline shrink-0 pt-1'
-                  >
-                    Skip →
-                  </button>
+                <div>
+                  <h2 className='text-base font-semibold font-onest text-black'>
+                    Show your work
+                  </h2>
+                  <p className='text-xs text-[#5F6264] font-onest mt-0.5'>
+                    Optional — but helps the team learn about you faster
+                  </p>
                 </div>
                 <div>
                   <label className='label-text text-black font-medium font-onest mb-1 block'>
@@ -701,46 +705,37 @@ export function InviteApplicationForm({
             {/* Step 4: Professional Info */}
             {step === 4 && (
               <div className='space-y-5 animate-in fade-in duration-200'>
-                <div className='flex items-start justify-between'>
-                  <div>
-                    <div className='flex items-center gap-2 mb-0.5'>
-                      <h2 className='text-base font-semibold font-onest text-black'>
-                        Your professional background
-                      </h2>
-                      <span className='text-[10px] font-onest bg-primary/10 text-primary px-2 py-0.5 rounded-full'>
-                        {categoryName}
-                      </span>
-                    </div>
-                    <p className='text-xs text-[#5F6264] font-onest mt-0.5'>
-                      {companyName
-                      ? `Helps ${companyName} match you to the right roles`
-                      : "Helps the team match you to the right roles"}
-                    </p>
+                <div>
+                  <div className='flex items-center gap-2 mb-0.5'>
+                    <h2 className='text-base font-semibold font-onest text-black'>
+                      Your professional background
+                    </h2>
+                    <span className='text-[10px] font-onest bg-primary/10 text-primary px-2 py-0.5 rounded-full'>
+                      {categoryName}
+                    </span>
                   </div>
-                  <button
-                    type='button'
-                    onClick={handleNext}
-                    className='text-xs text-primary font-onest font-medium hover:underline shrink-0 pt-1'
+                  <p className='text-xs text-[#5F6264] font-onest mt-0.5'>
+                    {companyName
+                    ? `Helps ${companyName} match you to the right roles`
+                    : "Helps the team match you to the right roles"}
+                  </p>
+                </div>
+                <div>
+                  <label className='label-text text-black font-medium font-onest mb-1 block'>
+                    Role
+                  </label>
+                  <select
+                    value={form.current_role}
+                    onChange={(e) => update("current_role", e.target.value)}
+                    className='w-full bg-white input input-bordered border-[#D0D5DD] min-h-10 h-10 text-sm font-onest focus:shadow-none'
                   >
-                    Skip →
-                  </button>
+                    <option value='' disabled>Select your role</option>
+                    {roleOptions.map((r) => (
+                      <option key={r.value} value={r.value}>{r.label}</option>
+                    ))}
+                  </select>
                 </div>
                 <div className='grid grid-cols-2 gap-3'>
-                  <div>
-                    <label className='label-text text-black font-medium font-onest mb-1 block'>
-                      Current Role
-                    </label>
-                    {inputBox(
-                      <IoBriefcase className='text-base text-[#98A2B3]' />,
-                      <input
-                        placeholder='e.g. Software Engineer'
-                        value={form.current_role}
-                        onChange={(e) => update("current_role", e.target.value)}
-                        className='grow bg-transparent outline-none text-sm font-onest'
-                        autoFocus
-                      />
-                    )}
-                  </div>
                   <div>
                     <label className='label-text text-black font-medium font-onest mb-1 block'>
                       Experience Level
@@ -756,20 +751,21 @@ export function InviteApplicationForm({
                       ))}
                     </select>
                   </div>
-                </div>
-                <div>
-                  <label className='label-text text-black font-medium font-onest mb-1 block'>
-                    Location / Country
-                  </label>
-                  {inputBox(
-                    <IoLocation className='text-base text-[#98A2B3]' />,
-                    <input
-                      placeholder='e.g. Lagos, Nigeria'
+                  <div>
+                    <label className='label-text text-black font-medium font-onest mb-1 block'>
+                      Country
+                    </label>
+                    <select
                       value={form.location}
                       onChange={(e) => update("location", e.target.value)}
-                      className='grow bg-transparent outline-none text-sm font-onest'
-                    />
-                  )}
+                      className='w-full bg-white input input-bordered border-[#D0D5DD] min-h-10 h-10 text-sm font-onest focus:shadow-none'
+                    >
+                      <option value='' disabled>Select country</option>
+                      {countryOptions.map((c) => (
+                        <option key={c.value} value={c.value}>{c.label}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
                 <div className='flex gap-3'>
                   <button type='button' onClick={handleBack} className='btn btn-ghost flex-1'>
