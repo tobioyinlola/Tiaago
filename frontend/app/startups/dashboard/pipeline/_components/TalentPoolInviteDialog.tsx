@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Image from "next/image";
 import {
   Dialog,
   DialogContent,
@@ -96,71 +97,94 @@ export function TalentPoolInviteDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-w-sm gap-0">
-        <DialogHeader className="pb-4">
-          <DialogTitle>Invite Link</DialogTitle>
-          <DialogDescription>
-            Share with candidates to join{" "}
-            <span className="font-medium text-foreground">{categoryName}</span>
-          </DialogDescription>
-        </DialogHeader>
+      <DialogContent className="sm:max-w-[360px] p-0 gap-0 overflow-hidden">
+        {/* Illustration header */}
+        <div className="flex items-center justify-center bg-primary/5 px-6 pt-6 pb-4">
+          <Image
+            src="/assets/undraw_message-sent_iyz6.svg"
+            alt=""
+            width={180}
+            height={140}
+            className="h-[120px] sm:h-[140px] w-auto"
+            priority
+          />
+        </div>
 
-        {isLoading ? (
-          <div className="flex items-center justify-center py-10">
-            <Loader2 className="h-5 w-5 animate-spin text-primary" />
-          </div>
-        ) : error ? (
-          <div className="flex flex-col items-center gap-3 py-8">
-            <p className="text-sm text-destructive">{error}</p>
-            <Button variant="outline" size="sm" onClick={retry}>
-              Try Again
-            </Button>
-          </div>
-        ) : inviteData ? (
-          <div className="space-y-4">
-            <div
-              className="flex items-center gap-2 rounded-lg border border-border bg-muted/50 px-3 py-2.5 cursor-pointer hover:bg-muted transition-colors"
-              onClick={handleCopy}
-              role="button"
-              tabIndex={0}
-              onKeyDown={e => e.key === "Enter" && handleCopy()}
-              aria-label="Copy invite link"
-            >
-              <span className="flex-1 truncate text-sm text-muted-foreground select-all">
-                {inviteData.invite_url}
-              </span>
-              {copied ? (
-                <Check className="h-4 w-4 shrink-0 text-success" />
-              ) : (
-                <Copy className="h-4 w-4 shrink-0 text-muted-foreground" />
-              )}
+        <div className="px-5 sm:px-6 pb-5 sm:pb-6 pt-4">
+          <DialogHeader className="pb-3 text-center sm:text-center">
+            <DialogTitle className="text-lg">Share Invite Link</DialogTitle>
+            <DialogDescription className="text-sm">
+              Invite candidates to join your{" "}
+              <span className="font-medium text-foreground">
+                {categoryName}
+              </span>{" "}
+              pipeline
+            </DialogDescription>
+          </DialogHeader>
+
+          {isLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-5 w-5 animate-spin text-primary" />
             </div>
-
-            <div className="flex gap-2">
-              <Button onClick={handleCopy} className="flex-1" size="sm">
-                {copied ? (
-                  <>
-                    <Check className="mr-1.5 h-3.5 w-3.5" />
-                    Copied
-                  </>
-                ) : (
-                  <>
-                    <Copy className="mr-1.5 h-3.5 w-3.5" />
-                    Copy Link
-                  </>
-                )}
+          ) : error ? (
+            <div className="flex flex-col items-center gap-3 py-6">
+              <p className="text-sm text-destructive text-center">{error}</p>
+              <Button variant="outline" size="sm" onClick={retry}>
+                Try Again
               </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => window.open(inviteData.invite_url, "_blank")}
-                aria-label="Preview invite page"
+            </div>
+          ) : inviteData ? (
+            <div className="space-y-3">
+              {/* Clickable URL bar */}
+              <button
+                className="flex w-full items-center gap-2 rounded-lg border border-border bg-muted/50 px-3 py-2.5 text-left hover:bg-muted transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                onClick={handleCopy}
+                aria-label="Copy invite link to clipboard"
               >
-                <ExternalLink className="h-3.5 w-3.5" />
-              </Button>
+                <span className="flex-1 truncate text-sm text-muted-foreground">
+                  {inviteData.invite_url}
+                </span>
+                {copied ? (
+                  <Check className="h-4 w-4 shrink-0 text-success" />
+                ) : (
+                  <Copy className="h-4 w-4 shrink-0 text-muted-foreground" />
+                )}
+              </button>
+
+              {/* Actions — grouped together */}
+              <div className="flex gap-2">
+                <Button
+                  onClick={handleCopy}
+                  className="flex-1"
+                  size="sm"
+                >
+                  {copied ? (
+                    <>
+                      <Check className="mr-1.5 h-3.5 w-3.5" />
+                      Copied
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="mr-1.5 h-3.5 w-3.5" />
+                      Copy Link
+                    </>
+                  )}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    window.open(inviteData.invite_url, "_blank")
+                  }
+                  aria-label="Preview invite page in new tab"
+                >
+                  <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
+                  Preview
+                </Button>
+              </div>
             </div>
-          </div>
-        ) : null}
+          ) : null}
+        </div>
       </DialogContent>
     </Dialog>
   );
