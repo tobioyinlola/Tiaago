@@ -373,7 +373,7 @@ export function InviteApplicationForm({
       <div className='relative grid md:grid-cols-2 max-md:items-start h-full'>
         {/* Left Panel */}
         <div className='pl-5 py-[30px] flex max-md:hidden'>
-          <div className='bg-black rounded-[30px] flex-1 pt-[65px] pb-20 px-[60px] relative overflow-hidden'>
+          <div className='bg-gradient-to-br from-[#1a1a2e] via-[#16213e] to-primary rounded-[30px] flex-1 pt-[65px] pb-20 px-[60px] relative overflow-hidden'>
             <Image
               src='/assets/images/Auth Background pattern.png'
               alt='Bg'
@@ -399,7 +399,7 @@ export function InviteApplicationForm({
                 </p>
               </div>
               <div className='space-y-3 mt-10'>
-                <div className='bg-[#5F6264] rounded-xl p-4 flex items-start gap-3'>
+                <div className='bg-white/10 backdrop-blur-sm rounded-xl p-4 flex items-start gap-3'>
                   <div className='w-9 h-9 rounded-lg bg-white/10 flex items-center justify-center shrink-0'>
                     <IoSparkles className='h-4 w-4 text-white' />
                   </div>
@@ -410,7 +410,7 @@ export function InviteApplicationForm({
                     </p>
                   </div>
                 </div>
-                <div className='bg-[#5F6264] rounded-xl p-4 flex items-start gap-3'>
+                <div className='bg-white/10 backdrop-blur-sm rounded-xl p-4 flex items-start gap-3'>
                   <div className='w-9 h-9 rounded-lg bg-white/10 flex items-center justify-center shrink-0'>
                     <FaUsers className='h-4 w-4 text-white' />
                   </div>
@@ -421,7 +421,7 @@ export function InviteApplicationForm({
                     </p>
                   </div>
                 </div>
-                <div className='bg-[#5F6264] rounded-xl p-4 flex items-start gap-3'>
+                <div className='bg-white/10 backdrop-blur-sm rounded-xl p-4 flex items-start gap-3'>
                   <div className='w-9 h-9 rounded-lg bg-white/10 flex items-center justify-center shrink-0'>
                     <FaShieldAlt className='h-4 w-4 text-white' />
                   </div>
