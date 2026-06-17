@@ -8,7 +8,7 @@ SHORT_CODE_CHARS = string.ascii_letters + string.digits
 
 def populate_short_codes(apps, schema_editor):
     PipelineInviteLink = apps.get_model("sourcing", "PipelineInviteLink")
-    for link in PipelineInviteLink.objects.filter(short_code=""):
+    for link in PipelineInviteLink._default_manager.filter(short_code=""):
         link.short_code = get_random_string(7, SHORT_CODE_CHARS)
         link.save(update_fields=["short_code"])
 
