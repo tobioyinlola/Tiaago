@@ -143,8 +143,13 @@ export function PipelineCard({
               </span>
             </div>
 
-            {/* Skills */}
+            {/* Skills & Experience Level */}
             <div className='mt-3 flex flex-wrap gap-1.5'>
+              {candidate.experience_level && (
+                <Badge variant='default' className='text-xs'>
+                  {candidate.experience_level}
+                </Badge>
+              )}
               {candidate.skills.slice(0, 4).map(skill => (
                 <Badge key={skill} variant='secondary' className='text-xs'>
                   {skill}

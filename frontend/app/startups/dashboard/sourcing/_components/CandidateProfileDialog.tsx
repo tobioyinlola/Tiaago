@@ -17,6 +17,10 @@ import {
   UserPlus,
   Send,
   Clock,
+  Globe,
+  FileText,
+  DollarSign,
+  Award,
 } from "lucide-react";
 
 interface CandidateProfileDialogProps {
@@ -118,8 +122,57 @@ export function CandidateProfileDialog({
                   </a>
                 </div>
               )}
+              {!!candidate.portfolio_url && (
+                <div className='flex items-center gap-2'>
+                  <Globe className='h-4 w-4 text-muted-foreground' />
+                  <a
+                    href={candidate.portfolio_url}
+                    target='_blank'
+                    rel='noopener noreferrer'
+                    className='text-sm text-primary hover:underline'
+                  >
+                    Portfolio
+                  </a>
+                </div>
+              )}
+              {!!candidate.resume && (
+                <div className='flex items-center gap-2'>
+                  <FileText className='h-4 w-4 text-muted-foreground' />
+                  <a
+                    href={candidate.resume}
+                    target='_blank'
+                    rel='noopener noreferrer'
+                    className='text-sm text-primary hover:underline'
+                  >
+                    Download Resume
+                  </a>
+                </div>
+              )}
             </div>
           </div>
+
+          {/* Experience Level & Compensation */}
+          {(candidate.experience_level || candidate.current_pay) && (
+            <div className='flex flex-wrap gap-3'>
+              {candidate.experience_level && (
+                <div className='flex items-center gap-1.5 rounded-lg border border-border px-3 py-2'>
+                  <Award className='h-4 w-4 text-muted-foreground' />
+                  <span className='text-sm font-medium'>
+                    {candidate.experience_level}
+                  </span>
+                </div>
+              )}
+              {candidate.current_pay && (
+                <div className='flex items-center gap-1.5 rounded-lg border border-border px-3 py-2'>
+                  <DollarSign className='h-4 w-4 text-muted-foreground' />
+                  <span className='text-sm font-medium'>
+                    {candidate.pay_currency || "USD"}{" "}
+                    {Number(candidate.current_pay).toLocaleString()}/yr
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Summary */}
           <div>

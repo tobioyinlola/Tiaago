@@ -911,9 +911,13 @@ export type ServerCandidate = {
   current_company: string;
   education: string;
   skills: string[];
-  // ??
   avatar?: string;
   experience: ServerCandidateExperience[];
+  portfolio_url?: string;
+  resume?: string;
+  experience_level?: string;
+  current_pay?: string;
+  pay_currency?: string;
 };
 
 export type PipelineEntry = ServerCandidate & {
