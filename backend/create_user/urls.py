@@ -10,6 +10,7 @@ from .views import (
     AdminVerifyUserView,
     ConfirmEmailView,
     CustomRegisterView,
+    GoogleSignInView,
     CustomPasswordResetView,
     CustomPasswordResetConfirmView,
     CustomResendEmailVerificationView,
@@ -79,6 +80,7 @@ urlpatterns = [
         name="password_reset_confirm",
     ),
     path("login/", LoginView.as_view(), name="login"),
+    path("google/", GoogleSignInView.as_view(), name="google_signin"),
     # URLs that require a user to be logged in with a valid session / token.
     path("logout/", LogoutView.as_view(), name="logout"),
     path("password/change/", PasswordChangeView.as_view(), name="password_change"),

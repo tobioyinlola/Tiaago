@@ -307,6 +307,8 @@ DEFAULT_FROM_EMAIL = "Tiaago Dev <support@email.tiaago.com>"
 
 SITE_ID = 1
 
+GOOGLE_CLIENT_ID = env("GOOGLE_CLIENT_ID", default="")
+
 ACCOUNT_ADAPTER = "create_user.adapters.NoRedirectAccountAdapter"
 
 # ACCOUNT_ADAPTER = 'create_user.adapters.CustomAccountAdapter'

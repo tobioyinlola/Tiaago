@@ -20,6 +20,7 @@ import FormikField from "@/app/common/components/Forms/FormikField";
 import { trackSignup } from "@/app/common/services/mixpanel.services";
 import { publicAxiosInstance } from "@/app/common/utils/axios.instance";
 import CountrySelect from "@/app/common/components/Forms/CountrySelect";
+import GoogleSignInButton from "@/app/common/components/GoogleSignInButton";
 
 const SignUpFormV3 = ({
   groupedCountries,
@@ -88,6 +89,18 @@ const SignUpFormV3 = ({
     >
       {({ handleSubmit, isSubmitting, errors, touched, values }) => (
         <form onSubmit={handleSubmit} className='mt-8 mb-3'>
+          <GoogleSignInButton
+            userType="company"
+            next={next}
+            label="Sign up with Google"
+          />
+          <div className='flex items-center justify-center mb-6'>
+            <hr className='w-full bg-[#F0F2F5]' />
+            <span className='bg-white px-2 font-onest text-sm text-[#667185] whitespace-nowrap'>
+              Or sign up with email
+            </span>
+            <hr className='w-full bg-[#F0F2F5]' />
+          </div>
           {startupSignUpV3FormFields.map(({ name, label, ...props }, i) => {
             if (name === "country")
               return (

@@ -90,6 +90,98 @@ User = get_user_model()
 logger = logging.getLogger(__name__)
 
 
+class GoogleSignInView(APIView):
+    permission_classes = [AllowAny]
+    authentication_classes = []
+
+    def post(self, request):
+        import requests as http_requests
+
+        access_token = request.data.get("access_token")
+        user_type = request.data.get("user_type", "company")
+        if not access_token:
+            return Response(
+                {"error": "Google access token is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            resp = http_requests.get(
+                "https://www.googleapis.com/oauth2/v3/userinfo",
+                headers={"Authorization": f"Bearer {access_token}"},
+                timeout=10,
+            )
+            resp.raise_for_status()
+            payload = resp.json()
+        except Exception:
+            return Response(
+                {"error": "Failed to verify Google token."},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        email = payload.get("email", "").lower().strip()
+        if not email or not payload.get("email_verified"):
+            return Response(
+                {"error": "A verified Google email is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        first_name = payload.get("given_name", "")
+        last_name = payload.get("family_name", "")
+
+        is_new = False
+        try:
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            is_new = True
+            django_user_type = (
+                CustomUser.USER_TYPE.COMPANY_REP
+                if user_type == "company"
+                else CustomUser.USER_TYPE.TALENT
+            )
+            user = User.objects.create_user(
+                username=email,
+                email=email,
+                first_name=first_name,
+                last_name=last_name,
+                user_type=django_user_type,
+                is_verified=True,
+                verified=True,
+                password=None,
+            )
+            if django_user_type == CustomUser.USER_TYPE.COMPANY_REP:
+                Company.objects.create(
+                    company_rep=user,
+                    company_email=email,
+                )
+            else:
+                TalentProfile.objects.create(user=user)
+            send_after_commit(send_welcome_mail, user_pk=user.pk)
+
+        if not user.is_verified:
+            user.is_verified = True
+            user.verified = True
+            user.save(update_fields=["is_verified", "verified"])
+
+        refresh = RefreshToken.for_user(user)
+        access = refresh.access_token
+        return Response(
+            {
+                "access": str(access),
+                "refresh": str(refresh),
+                "access_expiration": datetime.fromtimestamp(
+                    access["exp"], tz=dt_timezone.utc
+                ).isoformat(),
+                "refresh_expiration": datetime.fromtimestamp(
+                    refresh["exp"], tz=dt_timezone.utc
+                ).isoformat(),
+                "user_type": user.user_type,
+                "is_new": is_new,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
 class CustomRegisterView(RegisterView):
     """Endpoint for registering"""
 
