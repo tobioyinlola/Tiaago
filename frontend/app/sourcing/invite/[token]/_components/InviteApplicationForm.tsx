@@ -167,6 +167,7 @@ export function InviteApplicationForm({
   }));
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isNavigating, setIsNavigating] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [splashExiting, setSplashExiting] = useState(false);
@@ -207,7 +208,11 @@ export function InviteApplicationForm({
 
   const handleNext = () => {
     if (!validateStep()) return;
-    if (step < 5) setStep(step + 1);
+    setIsNavigating(true);
+    setTimeout(() => {
+      if (step < 5) setStep(step + 1);
+      setIsNavigating(false);
+    }, 300);
   };
 
   const handleBack = () => {
@@ -576,9 +581,10 @@ export function InviteApplicationForm({
                 <button
                   type='button'
                   onClick={handleNext}
+                  disabled={isNavigating}
                   className='btn btn-primary text-white w-full'
                 >
-                  Continue
+                  {isNavigating ? <span className='loading loading-spinner loading-sm' /> : "Continue"}
                 </button>
               </div>
             )}
@@ -749,8 +755,8 @@ export function InviteApplicationForm({
                   <button type='button' onClick={handleBack} className='btn btn-ghost flex-1'>
                     Back
                   </button>
-                  <button type='button' onClick={handleNext} className='btn btn-primary text-white flex-1'>
-                    Continue
+                  <button type='button' onClick={handleNext} disabled={isNavigating} className='btn btn-primary text-white flex-1'>
+                    {isNavigating ? <span className='loading loading-spinner loading-sm' /> : "Continue"}
                   </button>
                 </div>
               </div>
@@ -816,8 +822,8 @@ export function InviteApplicationForm({
                   <button type='button' onClick={handleBack} className='btn btn-ghost flex-1'>
                     Back
                   </button>
-                  <button type='button' onClick={handleNext} className='btn btn-primary text-white flex-1'>
-                    Continue
+                  <button type='button' onClick={handleNext} disabled={isNavigating} className='btn btn-primary text-white flex-1'>
+                    {isNavigating ? <span className='loading loading-spinner loading-sm' /> : "Continue"}
                   </button>
                 </div>
               </div>
@@ -897,7 +903,7 @@ export function InviteApplicationForm({
                     className='btn btn-primary text-white flex-1'
                   >
                     {isSubmitting
-                      ? "Submitting..."
+                      ? <span className='loading loading-spinner loading-sm' />
                       : companyName ? `Join ${companyName}'s Network` : "Submit Application"}
                   </button>
                 </div>
