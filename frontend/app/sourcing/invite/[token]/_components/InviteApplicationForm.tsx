@@ -299,10 +299,27 @@ export function InviteApplicationForm({
       const result = await submitInviteApplication(token, formData);
       if (result.success) {
         setIsSuccess(true);
-        const end = Date.now() + 2000;
+        const end = Date.now() + 3000;
+        const colors = ["#a786ff", "#fd8bbc", "#eca184", "#f8deb1"];
         const fire = () => {
-          confetti({ particleCount: 80, spread: 100, origin: { y: 0.6 } });
-          if (Date.now() < end) requestAnimationFrame(fire);
+          if (Date.now() > end) return;
+          confetti({
+            particleCount: 2,
+            angle: 60,
+            spread: 55,
+            startVelocity: 60,
+            origin: { x: 0, y: 0.5 },
+            colors,
+          });
+          confetti({
+            particleCount: 2,
+            angle: 120,
+            spread: 55,
+            startVelocity: 60,
+            origin: { x: 1, y: 0.5 },
+            colors,
+          });
+          requestAnimationFrame(fire);
         };
         fire();
       } else {
