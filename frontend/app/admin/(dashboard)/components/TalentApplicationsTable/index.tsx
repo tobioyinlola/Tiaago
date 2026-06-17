@@ -4,7 +4,6 @@ import { Talent } from "@/app/common/types";
 import SearchBar from "@/app/common/components/SearchBar";
 import ScrollArea from "@/app/common/components/ScrollArea";
 import StatusBadge from "@/app/common/components/StatusBadge";
-import UserApplicationActions from "../UserApplicationActions";
 import TalentDetailPanel from "../TalentDetailPanel";
 import EmptyState from "@/app/common/components/dashboard/EmptyState";
 import { AvatarWithVerifiedBadge } from "@/app/common/components/UserAvatar";
@@ -132,15 +131,10 @@ const TalentApplicationsTable = ({ data = [] }: { data: Talent[] }) => {
                     />
                   </td>
                   <td>
-                    <div className='flex items-center gap-2'>
-                      <TalentDetailPanel
-                        talent={talent}
-                        showActions={!talent.verified}
-                      />
-                      {!talent.verified && (
-                        <UserApplicationActions id={talent.pk} />
-                      )}
-                    </div>
+                    <TalentDetailPanel
+                      talent={talent}
+                      showActions={!talent.verified}
+                    />
                   </td>
                 </tr>
               ))
