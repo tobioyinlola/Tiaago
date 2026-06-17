@@ -46,18 +46,27 @@ function getInitials(name: string) {
     .toUpperCase();
 }
 
-function getStatusBadgeClasses(status: string) {
+function statusLabel(status: string) {
+  switch (status) {
+    case "not-interested":
+      return "Not Interested";
+    default:
+      return status.charAt(0).toUpperCase() + status.slice(1);
+  }
+}
+
+function statusColor(status: string) {
   switch (status) {
     case "contacted":
-      return "bg-info/10 text-info border-info/20";
+      return "bg-[#EFF8FF] text-[#175CD3] border-[#B2DDFF]";
     case "interested":
-      return "bg-success/10 text-success border-success/20";
+      return "bg-[#ECFDF3] text-[#027A48] border-[#ABEFC6]";
     case "not-interested":
-      return "bg-destructive/10 text-destructive border-destructive/20";
+      return "bg-[#FEF3F2] text-[#B42318] border-[#FECDCA]";
     case "hired":
-      return "bg-primary/10 text-primary border-primary/20";
+      return "bg-[#F0F0FF] text-primary border-primary/20";
     default:
-      return "bg-secondary text-secondary-foreground";
+      return "bg-[#F2F4F7] text-[#344054] border-[#E4E7EC]";
   }
 }
 
@@ -364,9 +373,9 @@ export default function Pipeline({
 
         {/* Pipeline Table */}
         {filteredCandidates.length > 0 ? (
-          <div className='border rounded-lg overflow-x-auto'>
-            <table className='table table-zebra w-full'>
-              <thead>
+          <div className='border border-t-0 rounded-b-lg overflow-x-auto'>
+            <table className='table table-zebra w-full text-sm'>
+              <thead className='bg-primary/5'>
                 <tr>
                   <th className='w-10'>
                     <Checkbox
@@ -378,12 +387,12 @@ export default function Pipeline({
                       aria-label='Select all candidates'
                     />
                   </th>
-                  <th>Candidate</th>
-                  <th className='max-md:hidden'>Role</th>
-                  <th className='max-lg:hidden'>Country</th>
-                  <th className='max-sm:hidden'>Skills</th>
-                  <th>Status</th>
-                  <th className='max-md:hidden'>Sourced</th>
+                  <th className='font-semibold text-foreground'>Candidate</th>
+                  <th className='font-semibold text-foreground max-md:hidden'>Role</th>
+                  <th className='font-semibold text-foreground max-lg:hidden'>Country</th>
+                  <th className='font-semibold text-foreground max-sm:hidden'>Skills</th>
+                  <th className='font-semibold text-foreground'>Status</th>
+                  <th className='font-semibold text-foreground max-md:hidden'>Sourced</th>
                   <th className='w-10'></th>
                 </tr>
               </thead>
@@ -417,15 +426,15 @@ export default function Pipeline({
                       {/* Candidate: avatar + name + email */}
                       <td>
                         <div className='flex items-center gap-3'>
-                          <div className='flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary text-xs font-bold'>
+                          <div className='flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-400/80 text-white text-xs font-bold'>
                             {getInitials(candidate.name)}
                           </div>
                           <div className='min-w-0'>
-                            <p className='text-sm font-medium text-foreground truncate capitalize'>
+                            <p className='font-medium text-foreground truncate capitalize'>
                               {candidate.name}
                             </p>
                             <p className='text-xs text-muted-foreground truncate'>
-                              {candidate.email || "No email"}
+                              {candidate.email || "—"}
                             </p>
                           </div>
                         </div>
@@ -433,46 +442,51 @@ export default function Pipeline({
 
                       {/* Role */}
                       <td className='max-md:hidden'>
-                        <span className='text-sm capitalize'>
-                          {candidate.role}
+                        <span className='capitalize'>
+                          {candidate.role || "—"}
                         </span>
                       </td>
 
                       {/* Country */}
                       <td className='max-lg:hidden'>
-                        <span className='text-sm capitalize'>
-                          {candidate.country || "--"}
+                        <span className='capitalize'>
+                          {candidate.country || "—"}
                         </span>
                       </td>
 
                       {/* Skills (first 3) */}
                       <td className='max-sm:hidden'>
                         <div className='flex flex-wrap gap-1'>
-                          {candidate.skills.slice(0, 3).map(skill => (
-                            <Badge
-                              key={skill}
-                              variant='secondary'
-                              className='text-xs'
-                            >
-                              {skill}
-                            </Badge>
-                          ))}
-                          {candidate.skills.length > 3 && (
-                            <Badge variant='outline' className='text-xs'>
-                              +{candidate.skills.length - 3}
-                            </Badge>
+                          {candidate.skills.length > 0 ? (
+                            <>
+                              {candidate.skills.slice(0, 3).map(skill => (
+                                <Badge
+                                  key={skill}
+                                  variant='secondary'
+                                  className='text-xs'
+                                >
+                                  {skill}
+                                </Badge>
+                              ))}
+                              {candidate.skills.length > 3 && (
+                                <Badge variant='outline' className='text-xs'>
+                                  +{candidate.skills.length - 3}
+                                </Badge>
+                              )}
+                            </>
+                          ) : (
+                            <span className='text-muted-foreground'>—</span>
                           )}
                         </div>
                       </td>
 
                       {/* Status */}
                       <td>
-                        <Badge
-                          variant='outline'
-                          className={`capitalize text-xs ${getStatusBadgeClasses(candidate.status)}`}
+                        <span
+                          className={`inline-flex items-center whitespace-nowrap rounded-full border px-2.5 py-0.5 text-xs font-medium ${statusColor(candidate.status)}`}
                         >
-                          {candidate.status.replace("-", " ")}
-                        </Badge>
+                          {statusLabel(candidate.status)}
+                        </span>
                       </td>
 
                       {/* Sourced date */}
@@ -487,7 +501,7 @@ export default function Pipeline({
                         <button
                           type='button'
                           onClick={() => setDetailCandidate(candidate)}
-                          className='inline-flex items-center gap-1.5 rounded-md px-3 py-2 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+                          className='inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors'
                           aria-label={`View details for ${candidate.name}`}
                         >
                           <Eye className='h-3.5 w-3.5' />
