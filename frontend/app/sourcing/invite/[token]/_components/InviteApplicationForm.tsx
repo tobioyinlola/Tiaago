@@ -324,13 +324,14 @@ export function InviteApplicationForm({
                   containerClassName='block w-fit'
                 />
                 <h2 className='text-white font-onest font-semibold text-[60px] leading-[110%] max-w-[562px] mt-[60px] mb-8'>
-                  Join {companyName}&apos;s Talent Network
+                  {companyName
+                    ? `Join ${companyName}'s Talent Network`
+                    : `Join the ${categoryName} Talent Network`}
                 </h2>
                 <p className='text-[#E4DBDB] font-onest text-xl max-w-[480px]'>
-                  You&apos;ve been invited to join the{" "}
-                  {categoryName.toLowerCase()} talent community. Get early
-                  access to opportunities and connect directly with the
-                  recruiting team.
+                  {companyName
+                    ? `You've been invited to join the ${categoryName.toLowerCase()} talent community. Get early access to opportunities and connect directly with the recruiting team.`
+                    : `You've been invited to join an exclusive ${categoryName.toLowerCase()} talent community. Complete your profile to get started.`}
                 </p>
               </div>
               <div className='space-y-3 mt-10'>
@@ -373,11 +374,27 @@ export function InviteApplicationForm({
         </div>
 
         {/* Right Panel */}
-        <main className='min-h-[100svh] overflow-y-auto'>
-          <div className='px-3.5 py-5 md:hidden'>
+        <main className='min-h-[100svh] overflow-y-auto flex flex-col'>
+          <div className='px-4 py-5 md:hidden'>
             <BrandLink containerClassName='block w-fit' />
           </div>
-          <div className='w-full md:max-w-[454px] mx-auto px-4 pt-8 md:pt-16 pb-12'>
+
+          {/* Mobile intro — hidden on desktop where left panel shows */}
+          <div className='px-4 pt-2 pb-4 md:hidden'>
+            <p className='text-xs font-medium text-primary font-onest mb-1'>
+              Exclusive Invite
+            </p>
+            <h2 className='text-lg font-semibold font-onest text-black'>
+              {companyName
+                ? `${companyName} invited you to join their ${categoryName.toLowerCase()} talent network`
+                : `You're invited to join the ${categoryName.toLowerCase()} talent network`}
+            </h2>
+            <p className='text-xs text-[#5F6264] font-onest mt-1'>
+              Complete your profile below to get early access to roles and connect with the team.
+            </p>
+          </div>
+
+          <div className='w-full md:max-w-[454px] mx-auto px-4 md:pt-16 pb-12 flex-1 flex flex-col justify-center'>
             <h1 className='text-2xl md:text-4xl font-semibold text-left font-onest text-black'>
               Create Your Profile
             </h1>
@@ -415,7 +432,9 @@ export function InviteApplicationForm({
                     What&apos;s your name?
                   </h2>
                   <p className='text-xs text-[#5F6264] font-onest mt-0.5'>
-                    This is how {companyName}&apos;s team will know you
+                    {companyName
+                    ? `This is how ${companyName}'s team will know you`
+                    : "This is how the recruiting team will know you"}
                   </p>
                 </div>
                 <div>
@@ -637,7 +656,9 @@ export function InviteApplicationForm({
                     Your professional background
                   </h2>
                   <p className='text-xs text-[#5F6264] font-onest mt-0.5'>
-                    Helps {companyName} match you to the right roles
+                    {companyName
+                    ? `Helps ${companyName} match you to the right roles`
+                    : "Helps the team match you to the right roles"}
                   </p>
                 </div>
                 <div>
@@ -782,12 +803,15 @@ export function InviteApplicationForm({
                   >
                     {isSubmitting
                       ? "Submitting..."
-                      : `Join ${companyName}'s Network`}
+                      : companyName ? `Join ${companyName}'s Network` : "Submit Application"}
                   </button>
                 </div>
                 <p className='text-xs text-[#7E8285] text-center font-onest'>
                   By submitting, you agree to share your information with{" "}
-                  {companyName}&apos;s recruiting team through TIAAGO.
+                  {companyName
+                    ? `${companyName}'s recruiting team`
+                    : "the recruiting team"}{" "}
+                  through TIAAGO.
                 </p>
               </div>
             )}
