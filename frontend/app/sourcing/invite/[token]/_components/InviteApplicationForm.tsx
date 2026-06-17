@@ -329,7 +329,7 @@ export function InviteApplicationForm({
           <Image
             src='/assets/images/Auth Background pattern.png'
             alt=''
-            className='object-cover opacity-20'
+            className='object-cover opacity-40'
             fill
           />
           <div className='relative pt-4'>
