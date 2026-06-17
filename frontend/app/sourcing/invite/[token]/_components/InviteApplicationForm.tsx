@@ -399,7 +399,7 @@ export function InviteApplicationForm({
                 </p>
               </div>
               <div className='space-y-3 mt-10'>
-                <div className='bg-white/10 backdrop-blur-sm rounded-xl p-4 flex items-start gap-3'>
+                <div className='bg-[#0f1a3d] border border-white/20 rounded-xl p-4 flex items-start gap-3'>
                   <div className='w-9 h-9 rounded-lg bg-white/10 flex items-center justify-center shrink-0'>
                     <IoSparkles className='h-4 w-4 text-white' />
                   </div>
@@ -410,7 +410,7 @@ export function InviteApplicationForm({
                     </p>
                   </div>
                 </div>
-                <div className='bg-white/10 backdrop-blur-sm rounded-xl p-4 flex items-start gap-3'>
+                <div className='bg-[#0f1a3d] border border-white/20 rounded-xl p-4 flex items-start gap-3'>
                   <div className='w-9 h-9 rounded-lg bg-white/10 flex items-center justify-center shrink-0'>
                     <FaUsers className='h-4 w-4 text-white' />
                   </div>
@@ -421,7 +421,7 @@ export function InviteApplicationForm({
                     </p>
                   </div>
                 </div>
-                <div className='bg-white/10 backdrop-blur-sm rounded-xl p-4 flex items-start gap-3'>
+                <div className='bg-[#0f1a3d] border border-white/20 rounded-xl p-4 flex items-start gap-3'>
                   <div className='w-9 h-9 rounded-lg bg-white/10 flex items-center justify-center shrink-0'>
                     <FaShieldAlt className='h-4 w-4 text-white' />
                   </div>
