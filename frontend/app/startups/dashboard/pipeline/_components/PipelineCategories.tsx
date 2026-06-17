@@ -210,9 +210,9 @@ export default function PipelineCategories({
         </div>
 
         {/* KPI Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <Card>
-            <CardHeader className="pb-2">
+        <div className="grid grid-cols-3 gap-3 sm:gap-4">
+          <Card className="p-3 sm:p-0">
+            <CardHeader className="hidden sm:flex pb-2">
               <CardTitle className="text-sm font-medium">
                 <div className="flex size-7 items-center justify-center rounded-lg border bg-muted text-muted-foreground">
                   <FolderKanban className="size-4" />
@@ -220,15 +220,18 @@ export default function PipelineCategories({
               </CardTitle>
               <CardDescription>Total Pipelines</CardDescription>
             </CardHeader>
-            <CardContent>
-              <div className="font-space-grotesk text-4xl font-medium tabular-nums leading-none tracking-tight">
+            <CardContent className="p-0 sm:p-6 sm:pt-0">
+              <p className="text-xs text-muted-foreground sm:hidden mb-1">
+                Total Pipelines
+              </p>
+              <div className="font-space-grotesk text-2xl sm:text-4xl font-medium tabular-nums leading-none tracking-tight">
                 {categories.length}
               </div>
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader className="pb-2">
+          <Card className="p-3 sm:p-0">
+            <CardHeader className="hidden sm:flex pb-2">
               <CardTitle className="text-sm font-medium">
                 <div className="flex size-7 items-center justify-center rounded-lg border bg-muted text-muted-foreground">
                   <Users className="size-4" />
@@ -236,15 +239,18 @@ export default function PipelineCategories({
               </CardTitle>
               <CardDescription>Total Candidates</CardDescription>
             </CardHeader>
-            <CardContent>
-              <div className="font-space-grotesk text-4xl font-medium tabular-nums leading-none tracking-tight">
+            <CardContent className="p-0 sm:p-6 sm:pt-0">
+              <p className="text-xs text-muted-foreground sm:hidden mb-1">
+                Total Candidates
+              </p>
+              <div className="font-space-grotesk text-2xl sm:text-4xl font-medium tabular-nums leading-none tracking-tight">
                 {totalCandidates}
               </div>
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader className="pb-2">
+          <Card className="p-3 sm:p-0">
+            <CardHeader className="hidden sm:flex pb-2">
               <CardTitle className="text-sm font-medium">
                 <div className="flex size-7 items-center justify-center rounded-lg border bg-badge-green-bg text-badge-green-text">
                   <FolderKanban className="size-4" />
@@ -252,8 +258,11 @@ export default function PipelineCategories({
               </CardTitle>
               <CardDescription>Active Pipelines</CardDescription>
             </CardHeader>
-            <CardContent>
-              <div className="font-space-grotesk text-4xl font-medium tabular-nums leading-none tracking-tight">
+            <CardContent className="p-0 sm:p-6 sm:pt-0">
+              <p className="text-xs text-muted-foreground sm:hidden mb-1">
+                Active Pipelines
+              </p>
+              <div className="font-space-grotesk text-2xl sm:text-4xl font-medium tabular-nums leading-none tracking-tight">
                 {activePipelines}
               </div>
             </CardContent>
@@ -264,22 +273,22 @@ export default function PipelineCategories({
         <button
           onClick={() => router.push("/startups/dashboard/pipeline/all")}
           aria-label="View all candidates across all pipelines"
-          className="w-full rounded-xl bg-gradient-to-r from-primary/5 to-card border border-border p-5 shadow-sm hover:shadow-card-hover transition-all text-left flex items-center gap-4 group"
+          className="w-full rounded-xl bg-gradient-to-r from-primary/5 to-card border border-border p-4 sm:p-5 shadow-sm hover:shadow-card-hover transition-all text-left flex items-center gap-3 sm:gap-4 group"
         >
-          <div className="rounded-full bg-primary/10 p-3">
-            <Users className="h-5 w-5 text-primary" />
+          <div className="rounded-full bg-primary/10 p-2.5 sm:p-3 shrink-0">
+            <Users className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
           </div>
           <div className="flex-1 min-w-0">
-            <h3 className="text-base font-semibold text-foreground">
+            <h3 className="text-sm sm:text-base font-semibold text-foreground">
               All Candidates
             </h3>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-xs sm:text-sm text-muted-foreground max-sm:hidden">
               View all candidates across pipelines
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-primary">
-              {totalCandidates} candidate{totalCandidates !== 1 ? "s" : ""}
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            <span className="text-xs sm:text-sm font-medium text-primary">
+              {totalCandidates}
             </span>
             <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
           </div>
@@ -295,21 +304,21 @@ export default function PipelineCategories({
                   {filteredCategories.length} of {categories.length} pipeline{categories.length !== 1 ? "s" : ""}
                 </CardDescription>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
                     placeholder="Search pipelines..."
                     value={searchQuery}
                     onChange={e => setSearchQuery(e.target.value)}
-                    className="pl-9 w-[200px] sm:w-[240px]"
+                    className="pl-9 w-full sm:w-[240px]"
                   />
                 </div>
                 <Select
                   value={statusFilter}
                   onValueChange={v => setStatusFilter(v as "all" | "active" | "inactive")}
                 >
-                  <SelectTrigger className="w-[130px]">
+                  <SelectTrigger className="w-full sm:w-[130px]">
                     <SelectValue placeholder="Status" />
                   </SelectTrigger>
                   <SelectContent>
@@ -347,18 +356,21 @@ export default function PipelineCategories({
                       >
                         <TableCell>
                           <div className="flex items-center gap-3">
-                            <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10">
-                              <FolderKanban className="size-4 text-primary" />
+                            <div className="flex size-8 sm:size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                              <FolderKanban className="size-3.5 sm:size-4 text-primary" />
                             </div>
                             <div className="min-w-0">
-                              <p className="font-medium text-foreground truncate">
+                              <p className="font-medium text-foreground truncate text-sm sm:text-base">
                                 {cat.name}
                               </p>
                               {cat.description && (
-                                <p className="text-sm text-muted-foreground truncate max-w-[280px]">
+                                <p className="text-xs sm:text-sm text-muted-foreground truncate max-w-[180px] sm:max-w-[280px] max-sm:hidden">
                                   {cat.description}
                                 </p>
                               )}
+                              <p className="text-xs text-muted-foreground sm:hidden">
+                                {cat.candidate_count} candidate{cat.candidate_count !== 1 ? "s" : ""}
+                              </p>
                             </div>
                           </div>
                         </TableCell>
@@ -391,6 +403,7 @@ export default function PipelineCategories({
                               checked={cat.is_active}
                               onCheckedChange={() => handleToggleActive(cat)}
                               aria-label={`Toggle ${cat.name} active status`}
+                              className="max-sm:hidden"
                             />
                           </div>
                         </TableCell>
