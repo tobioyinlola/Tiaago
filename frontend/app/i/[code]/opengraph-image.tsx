@@ -1,6 +1,7 @@
 import { ImageResponse } from "next/og";
+import { readFileSync } from "fs";
+import { join } from "path";
 
-export const runtime = "edge";
 export const alt = "TIAAGO Talent Pipeline Invite";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
@@ -9,10 +10,21 @@ const API_URL = (
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
 ).replace(/\/$/, "");
 
+function loadAsset(relativePath: string, mime: string): string {
+  const buf = readFileSync(join(process.cwd(), "public", relativePath));
+  return `data:${mime};base64,${buf.toString("base64")}`;
+}
+
 type Props = { params: Promise<{ code: string }> };
 
 export default async function OGImage({ params }: Props) {
   const { code } = await params;
+
+  const logoSrc = loadAsset("emails/assets/Tiaago_logo_white.png", "image/png");
+  const patternSrc = loadAsset(
+    "assets/images/Auth Background pattern.png",
+    "image/png"
+  );
 
   let companyName = "";
   let categoryName = "";
@@ -40,36 +52,25 @@ export default async function OGImage({ params }: Props) {
           height: "100%",
           display: "flex",
           flexDirection: "column",
-          background: "linear-gradient(135deg, #5465FF 0%, #3A47CC 50%, #2D3AA0 100%)",
+          background:
+            "linear-gradient(135deg, #5465FF 0%, #3A47CC 50%, #2D3AA0 100%)",
           padding: "60px 80px",
           fontFamily: "sans-serif",
           position: "relative",
           overflow: "hidden",
         }}
       >
-        {/* Decorative circles */}
-        <div
+        {/* Background pattern overlay */}
+        <img
+          src={patternSrc}
           style={{
             position: "absolute",
-            top: "-80px",
-            right: "-80px",
-            width: "320px",
-            height: "320px",
-            borderRadius: "50%",
-            background: "rgba(255,255,255,0.06)",
-            display: "flex",
-          }}
-        />
-        <div
-          style={{
-            position: "absolute",
-            bottom: "-120px",
-            left: "-60px",
-            width: "400px",
-            height: "400px",
-            borderRadius: "50%",
-            background: "rgba(255,255,255,0.04)",
-            display: "flex",
+            top: 0,
+            right: 0,
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+            opacity: 0.08,
           }}
         />
 
@@ -78,36 +79,10 @@ export default async function OGImage({ params }: Props) {
           style={{
             display: "flex",
             alignItems: "center",
-            gap: "14px",
+            position: "relative",
           }}
         >
-          {/* T icon circle */}
-          <div
-            style={{
-              width: "48px",
-              height: "48px",
-              borderRadius: "12px",
-              background: "rgba(255,255,255,0.15)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: "26px",
-              fontWeight: 700,
-              color: "white",
-            }}
-          >
-            T
-          </div>
-          <span
-            style={{
-              fontSize: "28px",
-              fontWeight: 700,
-              color: "white",
-              letterSpacing: "-0.5px",
-            }}
-          >
-            TIAAGO
-          </span>
+          <img src={logoSrc} style={{ height: "36px" }} />
         </div>
 
         {/* Main content */}
@@ -118,16 +93,11 @@ export default async function OGImage({ params }: Props) {
             flex: 1,
             justifyContent: "center",
             gap: "16px",
+            position: "relative",
           }}
         >
           {/* Badge */}
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-            }}
-          >
+          <div style={{ display: "flex", alignItems: "center" }}>
             <div
               style={{
                 background: "rgba(255,255,255,0.2)",
@@ -191,6 +161,7 @@ export default async function OGImage({ params }: Props) {
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
+            position: "relative",
           }}
         >
           <span
