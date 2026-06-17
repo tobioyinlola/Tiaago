@@ -214,9 +214,7 @@ export default function PipelineCategories({
           <Card className="p-3 sm:p-0">
             <CardHeader className="hidden sm:flex pb-2">
               <CardTitle className="text-sm font-medium">
-                <div className="flex size-7 items-center justify-center rounded-lg border bg-muted text-muted-foreground">
-                  <FolderKanban className="size-4" />
-                </div>
+                <FolderKanban className="size-4 text-muted-foreground" />
               </CardTitle>
               <CardDescription>Total Pipelines</CardDescription>
             </CardHeader>
@@ -233,9 +231,7 @@ export default function PipelineCategories({
           <Card className="p-3 sm:p-0">
             <CardHeader className="hidden sm:flex pb-2">
               <CardTitle className="text-sm font-medium">
-                <div className="flex size-7 items-center justify-center rounded-lg border bg-muted text-muted-foreground">
-                  <Users className="size-4" />
-                </div>
+                <Users className="size-4 text-muted-foreground" />
               </CardTitle>
               <CardDescription>Total Candidates</CardDescription>
             </CardHeader>
@@ -252,9 +248,7 @@ export default function PipelineCategories({
           <Card className="p-3 sm:p-0">
             <CardHeader className="hidden sm:flex pb-2">
               <CardTitle className="text-sm font-medium">
-                <div className="flex size-7 items-center justify-center rounded-lg border bg-badge-green-bg text-badge-green-text">
-                  <FolderKanban className="size-4" />
-                </div>
+                <FolderKanban className="size-4 text-badge-green-text" />
               </CardTitle>
               <CardDescription>Active Pipelines</CardDescription>
             </CardHeader>
