@@ -2,7 +2,14 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Users, FolderKanban } from "lucide-react";
+import {
+  Plus,
+  Users,
+  FolderKanban,
+  MoreVertical,
+  Pencil,
+  Trash2,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/app/common/components/ui/button";
@@ -13,12 +20,20 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from "@/app/common/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/app/common/components/ui/dropdown-menu";
 import { PipelineCategory } from "@/app/common/types";
 import {
   createCategory,
   updateCategory,
+  deleteCategory,
 } from "@/app/common/services/sourcing";
 
 export default function PipelineCategories({
@@ -35,6 +50,61 @@ export default function PipelineCategories({
   const [newName, setNewName] = useState("");
   const [newDescription, setNewDescription] = useState("");
   const [creating, setCreating] = useState(false);
+
+  const [editCategory, setEditCategory] = useState<PipelineCategory | null>(
+    null
+  );
+  const [editName, setEditName] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const [deleteTarget, setDeleteTarget] = useState<PipelineCategory | null>(
+    null
+  );
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [deleting, setDeleting] = useState(false);
+
+  const openEdit = (cat: PipelineCategory) => {
+    setEditCategory(cat);
+    setEditName(cat.name);
+    setEditDescription(cat.description);
+  };
+
+  const handleEdit = async () => {
+    if (!editCategory || !editName.trim()) return;
+    setSaving(true);
+    const res = await updateCategory(editCategory.id, {
+      name: editName.trim(),
+      description: editDescription.trim(),
+    });
+    setSaving(false);
+    if (res.success) {
+      setCategories(prev =>
+        prev.map(c => (c.id === editCategory.id ? res.data : c))
+      );
+      setEditCategory(null);
+      toast.success("Pipeline updated");
+    } else {
+      toast.error("Failed to update", { description: res.error });
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteTarget || deleteConfirmText !== "delete") return;
+    setDeleting(true);
+    const res = await deleteCategory(deleteTarget.id);
+    setDeleting(false);
+    if (res.success) {
+      setCategories(prev => prev.filter(c => c.id !== deleteTarget.id));
+      setDeleteTarget(null);
+      setDeleteConfirmText("");
+      toast.success("Pipeline deleted", {
+        description: `"${deleteTarget.name}" has been deleted.`,
+      });
+    } else {
+      toast.error("Failed to delete", { description: res.error });
+    }
+  };
 
   const handleCreate = async () => {
     if (!newName.trim()) return;
@@ -133,13 +203,13 @@ export default function PipelineCategories({
                     onClick={() =>
                       router.push(`/startups/dashboard/pipeline/${cat.id}`)
                     }
-                    className='flex items-center gap-3 text-left'
+                    className='flex items-center gap-3 text-left flex-1 min-w-0'
                   >
-                    <div className='rounded-lg bg-primary/10 p-2'>
+                    <div className='rounded-lg bg-primary/10 p-2 shrink-0'>
                       <FolderKanban className='h-5 w-5 text-primary' />
                     </div>
-                    <div>
-                      <h3 className='font-semibold text-foreground'>
+                    <div className='min-w-0'>
+                      <h3 className='font-semibold text-foreground truncate'>
                         {cat.name}
                       </h3>
                       {cat.description && (
@@ -149,6 +219,29 @@ export default function PipelineCategories({
                       )}
                     </div>
                   </button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button className='p-1.5 rounded-md hover:bg-secondary/50 text-muted-foreground shrink-0'>
+                        <MoreVertical className='h-4 w-4' />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align='end'>
+                      <DropdownMenuItem onClick={() => openEdit(cat)}>
+                        <Pencil className='h-4 w-4 mr-2' />
+                        Edit
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => {
+                          setDeleteTarget(cat);
+                          setDeleteConfirmText("");
+                        }}
+                        className='text-destructive focus:text-destructive'
+                      >
+                        <Trash2 className='h-4 w-4 mr-2' />
+                        Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
                 <div className='flex items-center justify-between pt-3 border-t border-border'>
                   <span className='text-sm text-muted-foreground'>
@@ -224,6 +317,105 @@ export default function PipelineCategories({
               disabled={!newName.trim() || creating}
             >
               {creating ? "Creating..." : "Create"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Pipeline Dialog */}
+      <Dialog
+        open={!!editCategory}
+        onOpenChange={open => !open && setEditCategory(null)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Pipeline</DialogTitle>
+          </DialogHeader>
+          <div className='space-y-4 py-4'>
+            <div>
+              <label className='text-sm font-medium'>Name</label>
+              <Input
+                placeholder='e.g., Frontend Engineers'
+                value={editName}
+                onChange={e => setEditName(e.target.value)}
+                className='mt-1'
+              />
+            </div>
+            <div>
+              <label className='text-sm font-medium'>Description</label>
+              <Input
+                placeholder='e.g., React, Vue, Angular specialists'
+                value={editDescription}
+                onChange={e => setEditDescription(e.target.value)}
+                className='mt-1'
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant='outline' onClick={() => setEditCategory(null)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleEdit}
+              disabled={!editName.trim() || saving}
+            >
+              {saving ? "Saving..." : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Pipeline Confirmation Dialog */}
+      <Dialog
+        open={!!deleteTarget}
+        onOpenChange={open => {
+          if (!open) {
+            setDeleteTarget(null);
+            setDeleteConfirmText("");
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Pipeline</DialogTitle>
+            <DialogDescription>
+              This will permanently delete{" "}
+              <span className='font-semibold text-foreground'>
+                &ldquo;{deleteTarget?.name}&rdquo;
+              </span>{" "}
+              and remove all candidates from this pipeline. This action cannot be
+              undone.
+            </DialogDescription>
+          </DialogHeader>
+          <div className='py-4'>
+            <label className='text-sm font-medium'>
+              Type <span className='font-bold text-destructive'>delete</span> to
+              confirm
+            </label>
+            <Input
+              placeholder='delete'
+              value={deleteConfirmText}
+              onChange={e => setDeleteConfirmText(e.target.value)}
+              className='mt-1'
+              autoFocus
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              variant='outline'
+              onClick={() => {
+                setDeleteTarget(null);
+                setDeleteConfirmText("");
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant='destructive'
+              onClick={handleDelete}
+              disabled={deleteConfirmText !== "delete" || deleting}
+            >
+              {deleting ? "Deleting..." : "Delete Pipeline"}
             </Button>
           </DialogFooter>
         </DialogContent>
