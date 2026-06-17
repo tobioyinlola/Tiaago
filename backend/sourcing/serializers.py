@@ -111,7 +111,7 @@ class PipelineInviteLinkSerializer(serializers.ModelSerializer):
 
     def get_invite_url(self, obj):
         frontend = getattr(settings, "FRONTEND_URL", "http://localhost:3000").rstrip("/")
-        return f"{frontend}/sourcing/invite/{obj.token}"
+        return f"{frontend}/i/{obj.short_code}"
 
 
 class InviteTokenValidationSerializer(serializers.Serializer):

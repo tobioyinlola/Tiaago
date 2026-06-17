@@ -7,6 +7,7 @@ from .views import (
     GenerateInviteLinkView,
     PipelineListView,
     RemoveFromPipelineView,
+    ResolveShortCodeView,
     SubmitInviteApplicationView,
     UpdatePipelineEntryView,
     ValidateInviteTokenView,
@@ -20,6 +21,7 @@ urlpatterns = [
     path("categories/", CategoryListCreateView.as_view(), name="category-list-create"),
     path("categories/<int:pk>/", CategoryDetailView.as_view(), name="category-detail"),
     path("categories/<int:pk>/invite-link/", GenerateInviteLinkView.as_view(), name="generate-invite-link"),
+    path("invite/resolve/<str:code>/", ResolveShortCodeView.as_view(), name="resolve-short-code"),
     path("invite/<uuid:token>/", ValidateInviteTokenView.as_view(), name="validate-invite-token"),
     path("invite/<uuid:token>/submit/", SubmitInviteApplicationView.as_view(), name="submit-invite-application"),
 ]

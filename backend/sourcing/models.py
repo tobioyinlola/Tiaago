@@ -1,10 +1,18 @@
+import string
 import uuid
 
 from django.db import models
 from django.conf import settings
+from django.utils.crypto import get_random_string
 
 from base.models import TimeStampedModel
 from create_user.models import Company
+
+SHORT_CODE_CHARS = string.ascii_letters + string.digits
+
+
+def generate_short_code():
+    return get_random_string(7, SHORT_CODE_CHARS)
 
 
 class PipelineCategory(TimeStampedModel):
@@ -44,6 +52,9 @@ class PipelineInviteLink(TimeStampedModel):
         related_name="pipeline_invite_links",
     )
     token = models.UUIDField(unique=True, default=uuid.uuid4, editable=False)
+    short_code = models.CharField(
+        max_length=10, unique=True, default=generate_short_code, editable=False,
+    )
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,

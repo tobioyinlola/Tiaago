@@ -166,6 +166,14 @@ class GenerateInviteLinkView(APIView):
         )
 
 
+class ResolveShortCodeView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request, code):
+        invite = get_object_or_404(PipelineInviteLink, short_code=code)
+        return Response({"token": str(invite.token)})
+
+
 class ValidateInviteTokenView(APIView):
     permission_classes = [AllowAny]
 
