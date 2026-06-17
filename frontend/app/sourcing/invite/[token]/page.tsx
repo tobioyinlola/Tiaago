@@ -14,9 +14,24 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { token } = await params;
   const result = await validateInviteToken(token);
   if (result.success && result.data.is_active) {
+    const title = `Join ${result.data.company_name}'s Talent Network | TIAAGO`;
+    const description = `You've been invited to join ${result.data.company_name}'s ${result.data.category_name} talent pipeline. Apply now on TIAAGO.`;
     return {
-      title: `Join ${result.data.company_name}'s Talent Network | TIAAGO`,
-      description: `You've been invited to join ${result.data.company_name}'s ${result.data.category_name} talent community.`,
+      title,
+      description,
+      openGraph: {
+        title,
+        description,
+        siteName: "TIAAGO",
+        type: "website",
+        images: [{ url: "/opengraph-image.png", width: 1200, height: 630 }],
+      },
+      twitter: {
+        card: "summary_large_image",
+        title,
+        description,
+        images: ["/opengraph-image.png"],
+      },
     };
   }
   return { title: "Talent Network Invite | TIAAGO" };

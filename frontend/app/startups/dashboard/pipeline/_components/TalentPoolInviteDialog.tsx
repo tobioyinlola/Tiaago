@@ -69,11 +69,8 @@ export function TalentPoolInviteDialog({
     is_active: boolean;
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [canNativeShare, setCanNativeShare] = useState(false);
-
-  useEffect(() => {
-    setCanNativeShare(typeof navigator !== "undefined" && !!navigator.share);
-  }, []);
+  const canNativeShare =
+    typeof navigator !== "undefined" && !!navigator.share;
 
   const handleOpenChange = (nextOpen: boolean) => {
     if (nextOpen) {

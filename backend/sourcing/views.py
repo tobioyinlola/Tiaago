@@ -170,8 +170,15 @@ class ResolveShortCodeView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request, code):
-        invite = get_object_or_404(PipelineInviteLink, short_code=code)
-        return Response({"token": str(invite.token)})
+        invite = get_object_or_404(
+            PipelineInviteLink.objects.select_related("category", "company"),
+            short_code=code,
+        )
+        return Response({
+            "token": str(invite.token),
+            "category_name": invite.category.name,
+            "company_name": invite.company.company_name,
+        })
 
 
 class ValidateInviteTokenView(APIView):
