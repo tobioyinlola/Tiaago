@@ -88,6 +88,8 @@ export function InviteApplicationForm({
   const user = useUserStore((s) => s.profile);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const [showMobileSplash, setShowMobileSplash] = useState(true);
+  const touchStartY = useRef(0);
   const [step, setStep] = useState(1);
   const [form, setForm] = useState<FormState>(() => ({
     ...INITIAL_FORM,
@@ -298,7 +300,69 @@ export function InviteApplicationForm({
     );
   }
 
+  const dismissSplash = () => setShowMobileSplash(false);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartY.current = e.touches[0].clientY;
+  };
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    const delta = touchStartY.current - e.changedTouches[0].clientY;
+    if (delta > 60) dismissSplash();
+  };
+
   return (
+    <>
+      {/* Mobile Splash — gradient, swipe up to dismiss */}
+      {showMobileSplash && (
+        <div
+          className='fixed inset-0 z-50 md:hidden bg-gradient-to-br from-[#1a1a2e] via-[#16213e] to-primary flex flex-col items-center justify-between text-center px-6 py-12'
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
+        >
+          <div />
+          <div className='space-y-6 max-w-sm'>
+            <BrandLink
+              isAlt
+              className='text-white'
+              containerClassName='block w-fit mx-auto'
+            />
+            <div className='space-y-3'>
+              <p className='text-primary-content/70 text-xs font-onest uppercase tracking-widest'>
+                Exclusive Invite
+              </p>
+              <h1 className='text-white font-onest font-bold text-3xl leading-tight'>
+                {companyName
+                  ? `Join ${companyName}'s ${categoryName} Talent Network`
+                  : `Join the ${categoryName} Talent Network`}
+              </h1>
+              <p className='text-white/60 text-sm font-onest'>
+                Get early access to opportunities, connect directly with the
+                recruiting team, and be first in line for roles.
+              </p>
+            </div>
+            <div className='flex items-center justify-center gap-6 text-white/50 text-xs font-onest'>
+              <span className='flex items-center gap-1.5'>
+                <IoSparkles className='h-3.5 w-3.5' /> Early Access
+              </span>
+              <span className='flex items-center gap-1.5'>
+                <FaShieldAlt className='h-3 w-3' /> Privacy First
+              </span>
+            </div>
+          </div>
+          <div className='space-y-3'>
+            <button
+              onClick={dismissSplash}
+              className='btn btn-white bg-white text-black border-0 w-full font-onest font-semibold'
+            >
+              Get Started
+            </button>
+            <p className='text-white/40 text-xs font-onest animate-bounce'>
+              or swipe up
+            </p>
+          </div>
+        </div>
+      )}
+
     <div className='h-[100svh] w-[100svw] bg-white scrollbar-none md:scrollbar-thin relative overflow-x-hidden'>
       <Image
         src='/assets/images/Pricing Background pattern.png'
@@ -377,21 +441,6 @@ export function InviteApplicationForm({
         <main className='min-h-[100svh] overflow-y-auto flex flex-col'>
           <div className='px-4 py-5 md:hidden'>
             <BrandLink containerClassName='block w-fit' />
-          </div>
-
-          {/* Mobile intro — hidden on desktop where left panel shows */}
-          <div className='px-4 pt-2 pb-4 md:hidden'>
-            <p className='text-xs font-medium text-primary font-onest mb-1'>
-              Exclusive Invite
-            </p>
-            <h2 className='text-lg font-semibold font-onest text-black'>
-              {companyName
-                ? `${companyName} invited you to join their ${categoryName.toLowerCase()} talent network`
-                : `You're invited to join the ${categoryName.toLowerCase()} talent network`}
-            </h2>
-            <p className='text-xs text-[#5F6264] font-onest mt-1'>
-              Complete your profile below to get early access to roles and connect with the team.
-            </p>
           </div>
 
           <div className='w-full md:max-w-[454px] mx-auto px-4 md:pt-16 pb-12 flex-1 flex flex-col justify-center'>
@@ -819,5 +868,6 @@ export function InviteApplicationForm({
         </main>
       </div>
     </div>
+    </>
   );
 }
