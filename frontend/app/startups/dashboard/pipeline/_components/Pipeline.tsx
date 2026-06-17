@@ -115,7 +115,7 @@ export default function Pipeline({
       icon: "warning",
       title: "Are you sure?",
       message:
-        "You are about to remove this candidate from your pipeline. This action cannot be undone.",
+        "You are about to remove this candidate from your pipeline. They will no longer appear in your dashboard.",
       buttonText: "Remove",
       buttonClassName: "btn btn-error",
       buttonAction: async () => {
@@ -137,6 +137,7 @@ export default function Pipeline({
         if (detailCandidate?.id === candidate.id) {
           setDetailCandidate(null);
         }
+        router.refresh();
         toast.success("Removed from Pipeline", {
           description: `${candidate.name} has been removed from your pipeline.`,
         });

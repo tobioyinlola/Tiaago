@@ -1454,9 +1454,12 @@ export const bulkAddToPipeline = async (candidates: ServerCandidate[]) => {
 
 export const deletePipelineEntry = async (id: ID) => {
   try {
-    const response = await axiosInstance.delete<{ message: string }>(
-      `sourcing/remove-from-pipeline/${id}/`
-    );
+    const response = await axiosInstance.delete<{
+      message: string;
+      total_in_pipeline: number;
+      category_id: number | null;
+      category_candidate_count: number | null;
+    }>(`sourcing/remove-from-pipeline/${id}/`);
     return {
       success: true as const,
       data: response.data,

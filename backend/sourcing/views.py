@@ -108,8 +108,20 @@ class RemoveFromPipelineView(APIView):
     def delete(self, request, pk):
         company = _get_company(request)
         entry = get_object_or_404(PipelineCandidate, pk=pk, company=company)
-        entry.delete()
-        return Response({"message": "Removed from pipeline."}, status=status.HTTP_200_OK)
+        entry.deleted_at = timezone.now()
+        entry.save(update_fields=["deleted_at"])
+        updated_count = PipelineCandidate.objects.filter(company=company).count()
+        category_count = None
+        if entry.category_id:
+            category_count = PipelineCandidate.objects.filter(
+                category_id=entry.category_id
+            ).count()
+        return Response({
+            "message": "Removed from pipeline.",
+            "total_in_pipeline": updated_count,
+            "category_id": entry.category_id,
+            "category_candidate_count": category_count,
+        }, status=status.HTTP_200_OK)
 
 
 class UpdatePipelineEntryView(APIView):

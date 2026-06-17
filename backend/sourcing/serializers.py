@@ -89,7 +89,7 @@ class PipelineCategorySerializer(serializers.ModelSerializer):
         read_only_fields = ("id", "candidate_count", "created_at")
 
     def get_candidate_count(self, obj):
-        return obj.candidates.count()
+        return obj.candidates.filter(deleted_at__isnull=True).count()
 
 
 class PipelineInviteLinkSerializer(serializers.ModelSerializer):
