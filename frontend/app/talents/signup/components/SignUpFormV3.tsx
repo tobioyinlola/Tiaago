@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { toast } from "sonner";
 import { Formik } from "formik";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "react-daisyui";
 import { GroupBase } from "react-select";
 import { useRouter } from "next/navigation";
@@ -54,19 +54,24 @@ const SignUpFormV3 = ({
   if (next) urlSearchParams.set("next", next);
   else urlSearchParams.set("next", "/talents/verification");
 
-  const [preFill] = useState<InvitePreFill | null>(() => {
-    if (typeof window === "undefined" || !next) return null;
+  const [preFill, setPreFill] = useState<InvitePreFill | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    if (!next) return;
     const match = next.match(/\/sourcing\/invite\/([^/?]+)/);
-    if (!match) return null;
+    if (!match) return;
     try {
       const raw = sessionStorage.getItem(`invite_form_${match[1]}`);
-      return raw ? JSON.parse(raw) : null;
+      if (raw) setPreFill(JSON.parse(raw));
     } catch {
-      return null;
+      // ignore
     }
-  });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  const isFromInvite = !!preFill?.first_name;
+  const isFromInvite = mounted && !!preFill?.first_name;
 
   const initialValues = preFill
     ? {
