@@ -12,6 +12,7 @@ import {
   IoLocation,
   IoSparkles,
   IoClose,
+  IoCode,
 } from "react-icons/io5";
 import { IoIosLink } from "react-icons/io";
 import { FaShieldAlt, FaFileAlt, FaCheck } from "react-icons/fa";
@@ -470,36 +471,40 @@ export function InviteApplicationForm({
                     : "This is how the recruiting team will know you"}
                   </p>
                 </div>
-                <div>
-                  <label className='label-text text-black font-medium font-onest mb-1 block'>
-                    First Name <span className='text-error'>*</span>
-                  </label>
-                  {inputBox(
-                    <IoPersonSharp className='text-base text-[#98A2B3]' />,
-                    <input
-                      placeholder='John'
-                      value={form.first_name}
-                      onChange={(e) => update("first_name", e.target.value)}
-                      className='grow bg-transparent outline-none text-sm font-onest'
-                      autoFocus
-                    />,
-                    errors.first_name
-                  )}
-                </div>
-                <div>
-                  <label className='label-text text-black font-medium font-onest mb-1 block'>
-                    Last Name <span className='text-error'>*</span>
-                  </label>
-                  {inputBox(
-                    <IoPersonSharp className='text-base text-[#98A2B3]' />,
-                    <input
-                      placeholder='Doe'
-                      value={form.last_name}
-                      onChange={(e) => update("last_name", e.target.value)}
-                      className='grow bg-transparent outline-none text-sm font-onest'
-                    />,
-                    errors.last_name
-                  )}
+                <div className='grid grid-cols-2 gap-3'>
+                  <div>
+                    <label className='label-text text-black font-medium font-onest mb-1 block'>
+                      First Name <span className='text-error'>*</span>
+                    </label>
+                    {inputBox(
+                      <IoPersonSharp className='text-base text-[#98A2B3]' />,
+                      <input
+                        placeholder='John'
+                        value={form.first_name}
+                        onChange={(e) => update("first_name", e.target.value)}
+                        onKeyDown={(e) => e.key === "Enter" && handleNext()}
+                        className='grow bg-transparent outline-none text-sm font-onest'
+                        autoFocus
+                      />,
+                      errors.first_name
+                    )}
+                  </div>
+                  <div>
+                    <label className='label-text text-black font-medium font-onest mb-1 block'>
+                      Last Name <span className='text-error'>*</span>
+                    </label>
+                    {inputBox(
+                      <IoPersonSharp className='text-base text-[#98A2B3]' />,
+                      <input
+                        placeholder='Doe'
+                        value={form.last_name}
+                        onChange={(e) => update("last_name", e.target.value)}
+                        onKeyDown={(e) => e.key === "Enter" && handleNext()}
+                        className='grow bg-transparent outline-none text-sm font-onest'
+                      />,
+                      errors.last_name
+                    )}
+                  </div>
                 </div>
                 <button
                   type='button'
@@ -533,41 +538,44 @@ export function InviteApplicationForm({
                       placeholder='john@example.com'
                       value={form.email}
                       onChange={(e) => update("email", e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && handleNext()}
                       className='grow bg-transparent outline-none text-sm font-onest'
                       autoFocus
                     />,
                     errors.email
                   )}
                 </div>
-                <div>
-                  <label className='label-text text-black font-medium font-onest mb-1 block'>
-                    Phone
-                  </label>
-                  {inputBox(
-                    <IoCall className='text-base text-[#98A2B3]' />,
-                    <input
-                      type='tel'
-                      placeholder='+234 800 000 0000'
-                      value={form.phone}
-                      onChange={(e) => update("phone", e.target.value)}
-                      className='grow bg-transparent outline-none text-sm font-onest'
-                    />
-                  )}
-                </div>
-                <div>
-                  <label className='label-text text-black font-medium font-onest mb-1 block'>
-                    LinkedIn
-                  </label>
-                  {inputBox(
-                    <IoIosLink className='text-base text-[#98A2B3]' />,
-                    <input
-                      type='url'
-                      placeholder='https://linkedin.com/in/johndoe'
-                      value={form.linkedin}
-                      onChange={(e) => update("linkedin", e.target.value)}
-                      className='grow bg-transparent outline-none text-sm font-onest'
-                    />
-                  )}
+                <div className='grid grid-cols-2 gap-3'>
+                  <div>
+                    <label className='label-text text-black font-medium font-onest mb-1 block'>
+                      Phone
+                    </label>
+                    {inputBox(
+                      <IoCall className='text-base text-[#98A2B3]' />,
+                      <input
+                        type='tel'
+                        placeholder='+234 800 000 0000'
+                        value={form.phone}
+                        onChange={(e) => update("phone", e.target.value)}
+                        className='grow bg-transparent outline-none text-sm font-onest'
+                      />
+                    )}
+                  </div>
+                  <div>
+                    <label className='label-text text-black font-medium font-onest mb-1 block'>
+                      LinkedIn
+                    </label>
+                    {inputBox(
+                      <IoIosLink className='text-base text-[#98A2B3]' />,
+                      <input
+                        type='url'
+                        placeholder='linkedin.com/in/you'
+                        value={form.linkedin}
+                        onChange={(e) => update("linkedin", e.target.value)}
+                        className='grow bg-transparent outline-none text-sm font-onest'
+                      />
+                    )}
+                  </div>
                 </div>
                 <div className='flex gap-3'>
                   <button
@@ -591,13 +599,22 @@ export function InviteApplicationForm({
             {/* Step 3: Portfolio & Resume */}
             {step === 3 && (
               <div className='space-y-5 animate-in fade-in duration-200'>
-                <div>
-                  <h2 className='text-base font-semibold font-onest text-black'>
-                    Show your work
-                  </h2>
-                  <p className='text-xs text-[#5F6264] font-onest mt-0.5'>
-                    Optional — but helps the team learn about you faster
-                  </p>
+                <div className='flex items-start justify-between'>
+                  <div>
+                    <h2 className='text-base font-semibold font-onest text-black'>
+                      Show your work
+                    </h2>
+                    <p className='text-xs text-[#5F6264] font-onest mt-0.5'>
+                      Optional — but helps the team learn about you faster
+                    </p>
+                  </div>
+                  <button
+                    type='button'
+                    onClick={handleNext}
+                    className='text-xs text-primary font-onest font-medium hover:underline shrink-0 pt-1'
+                  >
+                    Skip →
+                  </button>
                 </div>
                 <div>
                   <label className='label-text text-black font-medium font-onest mb-1 block'>
@@ -684,55 +701,60 @@ export function InviteApplicationForm({
             {/* Step 4: Professional Info */}
             {step === 4 && (
               <div className='space-y-5 animate-in fade-in duration-200'>
-                <div>
-                  <h2 className='text-base font-semibold font-onest text-black'>
-                    Your professional background
-                  </h2>
-                  <p className='text-xs text-[#5F6264] font-onest mt-0.5'>
-                    {companyName
-                    ? `Helps ${companyName} match you to the right roles`
-                    : "Helps the team match you to the right roles"}
-                  </p>
-                </div>
-                <div>
-                  <label className='label-text text-black font-medium font-onest mb-1 block'>
-                    Current Role
-                  </label>
-                  {inputBox(
-                    <IoBriefcase className='text-base text-[#98A2B3]' />,
-                    <input
-                      placeholder='e.g. Senior Software Engineer'
-                      value={form.current_role}
-                      onChange={(e) => update("current_role", e.target.value)}
-                      className='grow bg-transparent outline-none text-sm font-onest'
-                      autoFocus
-                    />
-                  )}
-                </div>
-                <div>
-                  <label className='label-text text-black font-medium font-onest mb-1 block'>
-                    Experience Level
-                  </label>
-                  <select
-                    value={form.experience_level}
-                    onChange={(e) => update("experience_level", e.target.value)}
-                    className='w-full bg-white input input-bordered border-[#D0D5DD] min-h-10 h-10 text-sm font-onest focus:shadow-none'
+                <div className='flex items-start justify-between'>
+                  <div>
+                    <div className='flex items-center gap-2 mb-0.5'>
+                      <h2 className='text-base font-semibold font-onest text-black'>
+                        Your professional background
+                      </h2>
+                      <span className='text-[10px] font-onest bg-primary/10 text-primary px-2 py-0.5 rounded-full'>
+                        {categoryName}
+                      </span>
+                    </div>
+                    <p className='text-xs text-[#5F6264] font-onest mt-0.5'>
+                      {companyName
+                      ? `Helps ${companyName} match you to the right roles`
+                      : "Helps the team match you to the right roles"}
+                    </p>
+                  </div>
+                  <button
+                    type='button'
+                    onClick={handleNext}
+                    className='text-xs text-primary font-onest font-medium hover:underline shrink-0 pt-1'
                   >
-                    <option value='' disabled>Select level</option>
-                    {EXPERIENCE_LEVELS.map((level) => (
-                      <option key={level} value={level}>{level}</option>
-                    ))}
-                  </select>
+                    Skip →
+                  </button>
                 </div>
-                <div>
-                  <label className='label-text text-black font-medium font-onest mb-1 block'>
-                    Applying For
-                  </label>
-                  <div className='w-full bg-[#F9FAFB] input input-bordered border-[#D0D5DD] flex items-center gap-2 min-h-10 h-10 cursor-not-allowed'>
-                    <IoBriefcase className='text-base text-[#98A2B3]' />
-                    <span className='text-sm font-onest text-[#5F6264]'>
-                      {categoryName}
-                    </span>
+                <div className='grid grid-cols-2 gap-3'>
+                  <div>
+                    <label className='label-text text-black font-medium font-onest mb-1 block'>
+                      Current Role
+                    </label>
+                    {inputBox(
+                      <IoBriefcase className='text-base text-[#98A2B3]' />,
+                      <input
+                        placeholder='e.g. Software Engineer'
+                        value={form.current_role}
+                        onChange={(e) => update("current_role", e.target.value)}
+                        className='grow bg-transparent outline-none text-sm font-onest'
+                        autoFocus
+                      />
+                    )}
+                  </div>
+                  <div>
+                    <label className='label-text text-black font-medium font-onest mb-1 block'>
+                      Experience Level
+                    </label>
+                    <select
+                      value={form.experience_level}
+                      onChange={(e) => update("experience_level", e.target.value)}
+                      className='w-full bg-white input input-bordered border-[#D0D5DD] min-h-10 h-10 text-sm font-onest focus:shadow-none'
+                    >
+                      <option value='' disabled>Select level</option>
+                      {EXPERIENCE_LEVELS.map((level) => (
+                        <option key={level} value={level}>{level}</option>
+                      ))}
+                    </select>
                   </div>
                 </div>
                 <div>
@@ -768,7 +790,7 @@ export function InviteApplicationForm({
                     Almost done!
                   </h2>
                   <p className='text-xs text-[#5F6264] font-onest mt-0.5'>
-                    Optional details to strengthen your profile
+                    Optional — strengthen your profile or skip to submit
                   </p>
                 </div>
                 <div>
@@ -793,7 +815,6 @@ export function InviteApplicationForm({
                         value={form.current_pay}
                         onChange={(e) => update("current_pay", e.target.value)}
                         className='grow bg-transparent outline-none text-sm font-onest w-full'
-                        autoFocus
                       />
                     </div>
                   </div>
@@ -803,7 +824,7 @@ export function InviteApplicationForm({
                     Frameworks / Tools
                   </label>
                   {inputBox(
-                    <IoBriefcase className='text-base text-[#98A2B3]' />,
+                    <IoCode className='text-base text-[#98A2B3]' />,
                     <input
                       placeholder='e.g. React, Node.js, Python (comma-separated)'
                       value={form.frameworks}
