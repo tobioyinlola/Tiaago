@@ -2,7 +2,7 @@ export async function register() {
   const token = process.env.NEXT_PUBLIC_BETTERSTACK_SOURCE_TOKEN;
   if (!token) return;
 
-  const { Logtail } = await import("@logtail/node");
+  const { Logtail } = await import("@logtail/browser");
   const host = process.env.NEXT_PUBLIC_BETTERSTACK_HOST;
   const options = host ? { endpoint: `https://${host}` } : undefined;
   const logtail = new Logtail(token, options);
