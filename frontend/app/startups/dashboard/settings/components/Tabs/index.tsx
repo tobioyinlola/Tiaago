@@ -1,5 +1,6 @@
 import TeamMembersTab from "./Team";
 import ProfileTab from "./ProfileTab";
+import EmailIntegrationTab from "./EmailIntegrationTab";
 import { settingsTabs } from "../../constants";
 import { useStartupStore } from "../../../store";
 import NotificationsTab from "./NotificationsTab";
@@ -34,6 +35,7 @@ const Tab = ({ tab, groupedCountries, startupRoles }: TabProps) => {
     //     email={profile.email}
     //   />
     // ),
+    email: <EmailIntegrationTab />,
     notifications: <NotificationsTab />,
     team: <TeamMembersTab />,
   };

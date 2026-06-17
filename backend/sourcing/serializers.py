@@ -200,7 +200,7 @@ class GmailSmtpConfigSerializer(serializers.ModelSerializer):
 
 
 class GmailSmtpSetupSerializer(serializers.Serializer):
-    gmail_address = serializers.EmailField()
+    gmail_address = serializers.EmailField(required=False, default="")
     app_password = serializers.CharField(min_length=8, max_length=64)
 
 

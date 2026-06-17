@@ -12,6 +12,10 @@ export const settingsTabs = [
   //   label: "Subscription & Billing",
   // },
   {
+    name: "email" as const,
+    label: "Email Integration",
+  },
+  {
     name: "notifications" as const,
     label: "Notifications",
   },

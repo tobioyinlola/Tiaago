@@ -279,7 +279,7 @@ class SmtpConfigView(APIView):
         serializer = GmailSmtpSetupSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        gmail_address = serializer.validated_data["gmail_address"]
+        gmail_address = serializer.validated_data["gmail_address"] or request.user.email
         app_password = serializer.validated_data["app_password"]
 
         ok, error_msg = _test_smtp_connection(gmail_address, app_password)
