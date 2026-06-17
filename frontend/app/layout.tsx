@@ -16,9 +16,9 @@ import { cn } from "./common/utils";
 import Providers from "./common/components/Layout/Providers";
 import { TailwindIndicator } from "./common/components/TailwindIndicator";
 
-const title = "Tiaago";
+const title = "TIAAGO";
 const description =
-  "AI-Powered Hiring Infrastructure for Recruiters and Recruitment Agencies.";
+  "Source/Screen candidates, run assessments, build talent pipelines, and customize your hiring workflow end to end.";
 
 export const dynamic = "force-dynamic";
 export const fetchCache = "default-no-store";
@@ -30,6 +30,32 @@ export const metadata: Metadata = {
   },
   description,
   metadataBase: new URL(process.env.NEXT_PUBLIC_VERCEL ?? "https://tiaago.com"),
+  openGraph: {
+    title: "TIAAGO: The OS for Hiring",
+    description:
+      "Source/Screen candidates, run assessments, build talent pipelines, and customize your hiring workflow end to end.",
+    siteName: "TIAAGO",
+    type: "website",
+    locale: "en_US",
+    url: "https://tiaago.com",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "TIAAGO: The OS for Hiring",
+    description:
+      "Source/Screen candidates, run assessments, build talent pipelines, and customize your hiring workflow end to end.",
+    creator: "@TiaagoHq",
+  },
+  keywords: [
+    "hire developers Africa",
+    "tech talent Africa",
+    "AI hiring platform",
+    "recruitment software",
+    "talent pipeline",
+    "skill assessments",
+    "remote developers",
+  ],
+  robots: { index: true, follow: true },
 };
 
 const RootLayout = ({ children }: PropsWithChildren<{}>) => {
