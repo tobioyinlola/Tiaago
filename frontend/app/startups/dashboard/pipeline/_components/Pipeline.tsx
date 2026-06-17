@@ -272,10 +272,12 @@ export default function Pipeline({
             <Button
               size='sm'
               className='sm:size-default'
-              onClick={() => router.push("/startups/dashboard/sourcing")}
+              onClick={() => setShowBulkOutreach(true)}
+              disabled={selectedIds.size === 0}
             >
-              <Users className='h-4 w-4 sm:mr-2' />
-              <span className='hidden sm:inline'>Source More</span>
+              <Send className='h-4 w-4 sm:mr-2' />
+              <span className='hidden sm:inline'>Outreach</span>
+              {selectedIds.size > 0 && ` (${selectedIds.size})`}
             </Button>
           </div>
         </div>
@@ -357,18 +359,6 @@ export default function Pipeline({
             </Badge>
           </div>
 
-          {/* Bulk Actions */}
-          {selectedIds.size > 0 && (
-            <Button
-              onClick={() => setShowBulkOutreach(true)}
-              size='sm'
-              className='sm:size-default'
-            >
-              <Send className='h-4 w-4 sm:mr-2' />
-              <span className='hidden sm:inline'>Bulk Outreach</span> (
-              {selectedIds.size})
-            </Button>
-          )}
         </div>
 
         {/* Pipeline Table */}
