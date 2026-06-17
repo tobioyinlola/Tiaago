@@ -22,6 +22,7 @@ import { submitInviteApplication } from "@/app/common/services/sourcing";
 import BrandLink from "@/app/common/components/BrandLink";
 import { TalentRole, CountryField } from "@/app/common/types";
 import Select, { GroupBase, StylesConfig } from "react-select";
+import { useGeoCountry } from "@/app/common/hooks/useGeoCountry";
 
 const selectStyles: StylesConfig = {
   control: (base, state) => ({
@@ -171,6 +172,17 @@ export function InviteApplicationForm({
   const [isSuccess, setIsSuccess] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [splashExiting, setSplashExiting] = useState(false);
+  const geoCountry = useGeoCountry();
+
+  useEffect(() => {
+    if (geoCountry && !form.location) {
+      const match = countryOptions.find(
+        (c) => c.value.toLowerCase() === geoCountry.toLowerCase()
+      );
+      if (match) update("location", match.value);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [geoCountry]);
 
   useEffect(() => {
     try {
