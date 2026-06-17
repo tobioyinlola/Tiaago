@@ -382,8 +382,8 @@ export function InviteApplicationForm({
       />
       <div className='relative grid md:grid-cols-2 max-md:items-start h-full'>
         {/* Left Panel */}
-        <div className='pl-5 py-[30px] flex max-md:hidden'>
-          <div className='bg-gradient-to-br from-[#1a1a2e] via-[#16213e] to-primary rounded-[30px] flex-1 pt-[65px] pb-20 px-[60px] relative overflow-hidden'>
+        <div className='pl-5 py-5 flex max-md:hidden'>
+          <div className='bg-gradient-to-br from-[#1a1a2e] via-[#16213e] to-primary rounded-[30px] flex-1 py-10 lg:py-14 px-10 lg:px-[60px] relative overflow-hidden'>
             <Image
               src='/assets/images/Auth Background pattern.png'
               alt='Bg'
@@ -397,23 +397,23 @@ export function InviteApplicationForm({
                   className='text-white'
                   containerClassName='block w-fit'
                 />
-                <h2 className='text-white font-onest font-semibold text-[60px] leading-[110%] max-w-[562px] mt-[60px] mb-8'>
+                <h2 className='text-white font-onest font-semibold text-3xl lg:text-[48px] xl:text-[60px] leading-[110%] max-w-[562px] mt-8 lg:mt-12 mb-4 lg:mb-6'>
                   {companyName
                     ? `Join ${companyName}'s Talent Network`
                     : `Join the ${categoryName} Talent Network`}
                 </h2>
-                <p className='text-[#E4DBDB] font-onest text-xl max-w-[480px]'>
+                <p className='text-[#E4DBDB] font-onest text-base lg:text-lg max-w-[480px]'>
                   {companyName
                     ? `You've been invited to join the ${categoryName.toLowerCase()} talent community. Get early access to opportunities and connect directly with the recruiting team.`
                     : `You've been invited to join an exclusive ${categoryName.toLowerCase()} talent community. Complete your profile to get started.`}
                 </p>
               </div>
               {/* Animated Illustration */}
-              <div className='mt-10 flex items-center justify-center animate-in fade-in zoom-in duration-700'>
+              <div className='mt-6 flex items-center justify-center animate-in fade-in zoom-in duration-700'>
                 <object
                   type='image/svg+xml'
                   data='/assets/Invite-amico.svg'
-                  className='w-full max-w-[420px]'
+                  className='w-full max-w-[280px] lg:max-w-[350px] xl:max-w-[420px]'
                   aria-label='Invite illustration'
                 />
               </div>
@@ -422,12 +422,12 @@ export function InviteApplicationForm({
         </div>
 
         {/* Right Panel */}
-        <main className='min-h-[100svh] overflow-y-auto flex flex-col'>
+        <main className='h-[100svh] overflow-y-auto flex flex-col'>
           <div className='px-4 py-5 md:hidden'>
             <BrandLink containerClassName='block w-fit' />
           </div>
 
-          <div className='w-full md:max-w-[454px] mx-auto px-4 md:pt-16 pb-12 flex-1 flex flex-col justify-center'>
+          <div className='w-full md:max-w-[454px] mx-auto px-4 md:py-10 lg:py-16 pb-12 flex-1 flex flex-col justify-center'>
             <h1 className='text-2xl md:text-4xl font-semibold text-left font-onest text-black'>
               Create Your Profile
             </h1>
