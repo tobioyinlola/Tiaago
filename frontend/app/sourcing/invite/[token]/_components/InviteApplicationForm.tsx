@@ -329,7 +329,7 @@ export function InviteApplicationForm({
           <Image
             src='/assets/images/Auth Background pattern.png'
             alt=''
-            className='object-cover opacity-40'
+            className='object-cover opacity-80'
             fill
           />
           <div className='relative pt-4'>
@@ -348,16 +348,16 @@ export function InviteApplicationForm({
                 aria-label='Invite illustration'
               />
             </div>
-            <div className='space-y-3'>
+            <div className='space-y-3 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-300 fill-mode-both'>
               <p className='text-primary-content/70 text-xs font-onest uppercase tracking-widest'>
                 Exclusive Invite
               </p>
-              <h1 className='text-white font-onest font-bold text-2xl leading-tight'>
+              <h1 className='text-white font-onest font-bold text-2xl leading-tight animate-in fade-in slide-in-from-bottom-2 duration-500 delay-500 fill-mode-both'>
                 {companyName
                   ? `Join ${companyName}'s ${categoryName} Talent Network`
                   : `Join the ${categoryName} Talent Network`}
               </h1>
-              <p className='text-white/60 text-sm font-onest'>
+              <p className='text-white/60 text-sm font-onest animate-in fade-in slide-in-from-bottom-2 duration-500 delay-700 fill-mode-both'>
                 Get early access to opportunities, connect directly with the
                 recruiting team, and be first in line for roles.
               </p>
