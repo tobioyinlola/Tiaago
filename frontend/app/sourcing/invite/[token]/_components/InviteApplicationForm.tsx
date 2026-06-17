@@ -21,7 +21,61 @@ import { useUserStore } from "@/app/common/store/useUser";
 import { submitInviteApplication } from "@/app/common/services/sourcing";
 import BrandLink from "@/app/common/components/BrandLink";
 import { TalentRole, CountryField } from "@/app/common/types";
-import { GroupBase } from "react-select";
+import Select, { GroupBase, StylesConfig } from "react-select";
+
+const selectStyles: StylesConfig = {
+  control: (base, state) => ({
+    ...base,
+    minHeight: 40,
+    borderColor: state.isFocused ? "var(--primary)" : "#D0D5DD",
+    boxShadow: "none",
+    borderRadius: 8,
+    fontSize: 14,
+    fontFamily: "var(--font-onest)",
+    "&:hover": { borderColor: "#98A2B3" },
+  }),
+  option: (base, state) => ({
+    ...base,
+    fontSize: 14,
+    fontFamily: "var(--font-onest)",
+    padding: "10px 14px",
+    backgroundColor: state.isSelected
+      ? "var(--primary)"
+      : state.isFocused
+        ? "#F2F4FF"
+        : "#fff",
+    color: state.isSelected ? "#fff" : "#263238",
+    cursor: "pointer",
+  }),
+  placeholder: (base) => ({
+    ...base,
+    color: "#7E8285",
+    fontSize: 14,
+  }),
+  singleValue: (base) => ({
+    ...base,
+    fontSize: 14,
+    fontFamily: "var(--font-onest)",
+  }),
+  menu: (base) => ({
+    ...base,
+    borderRadius: 8,
+    overflow: "hidden",
+    zIndex: 20,
+  }),
+  menuList: (base) => ({
+    ...base,
+    maxHeight: 200,
+  }),
+  groupHeading: (base) => ({
+    ...base,
+    fontSize: 11,
+    fontWeight: 600,
+    textTransform: "uppercase",
+    color: "#98A2B3",
+    padding: "8px 14px 4px",
+  }),
+};
 
 interface InviteApplicationFormProps {
   token: string;
@@ -724,47 +778,41 @@ export function InviteApplicationForm({
                   <label className='label-text text-black font-medium font-onest mb-1 block'>
                     Role
                   </label>
-                  <select
-                    value={form.current_role}
-                    onChange={(e) => update("current_role", e.target.value)}
-                    className='w-full bg-white input input-bordered border-[#D0D5DD] min-h-10 h-10 text-sm font-onest focus:shadow-none'
-                  >
-                    <option value='' disabled>Select your role</option>
-                    {roleOptions.map((r) => (
-                      <option key={r.value} value={r.value}>{r.label}</option>
-                    ))}
-                  </select>
+                  <Select
+                    options={roleOptions}
+                    value={roleOptions.find((r) => r.value === form.current_role) || null}
+                    onChange={(opt) => update("current_role", (opt as { value: string })?.value || "")}
+                    placeholder='Search or select your role...'
+                    isSearchable
+                    styles={selectStyles}
+                  />
                 </div>
                 <div className='space-y-5'>
                   <div>
                     <label className='label-text text-black font-medium font-onest mb-1 block'>
                       Experience Level
                     </label>
-                    <select
-                      value={form.experience_level}
-                      onChange={(e) => update("experience_level", e.target.value)}
-                      className='w-full bg-white input input-bordered border-[#D0D5DD] min-h-10 h-10 text-sm font-onest focus:shadow-none'
-                    >
-                      <option value='' disabled>Select level</option>
-                      {EXPERIENCE_LEVELS.map((level) => (
-                        <option key={level} value={level}>{level}</option>
-                      ))}
-                    </select>
+                    <Select
+                      options={EXPERIENCE_LEVELS.map((l) => ({ value: l, label: l }))}
+                      value={form.experience_level ? { value: form.experience_level, label: form.experience_level } : null}
+                      onChange={(opt) => update("experience_level", (opt as { value: string })?.value || "")}
+                      placeholder='Select level...'
+                      isSearchable={false}
+                      styles={selectStyles}
+                    />
                   </div>
                   <div>
                     <label className='label-text text-black font-medium font-onest mb-1 block'>
                       Country
                     </label>
-                    <select
-                      value={form.location}
-                      onChange={(e) => update("location", e.target.value)}
-                      className='w-full bg-white input input-bordered border-[#D0D5DD] min-h-10 h-10 text-sm font-onest focus:shadow-none'
-                    >
-                      <option value='' disabled>Select country</option>
-                      {countryOptions.map((c) => (
-                        <option key={c.value} value={c.value}>{c.label}</option>
-                      ))}
-                    </select>
+                    <Select
+                      options={groupedCountries}
+                      value={countryOptions.find((c) => c.value === form.location) || null}
+                      onChange={(opt) => update("location", (opt as CountryField)?.value || "")}
+                      placeholder='Search country...'
+                      isSearchable
+                      styles={selectStyles}
+                    />
                   </div>
                 </div>
                 <div className='flex gap-3'>
@@ -794,15 +842,15 @@ export function InviteApplicationForm({
                     Current Pay (Annual)
                   </label>
                   <div className='flex gap-2'>
-                    <select
-                      value={form.currency}
-                      onChange={(e) => update("currency", e.target.value)}
-                      className='bg-white input input-bordered border-[#D0D5DD] min-h-10 h-10 text-sm font-onest focus:shadow-none w-20 shrink-0 px-2'
-                    >
-                      {CURRENCIES.map((c) => (
-                        <option key={c} value={c}>{c}</option>
-                      ))}
-                    </select>
+                    <div className='w-[90px] shrink-0'>
+                      <Select
+                        options={CURRENCIES.map((c) => ({ value: c, label: c }))}
+                        value={{ value: form.currency, label: form.currency }}
+                        onChange={(opt) => update("currency", (opt as { value: string })?.value || "USD")}
+                        isSearchable={false}
+                        styles={selectStyles}
+                      />
+                    </div>
                     <div className='flex-1 bg-white input input-bordered border-[#D0D5DD] placeholder:text-[#7E8285] flex items-center focus-within:shadow-none min-h-10 h-10'>
                       <input
                         type='number'
