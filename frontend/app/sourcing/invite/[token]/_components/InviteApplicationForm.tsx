@@ -101,6 +101,7 @@ export function InviteApplicationForm({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [splashExiting, setSplashExiting] = useState(false);
 
   useEffect(() => {
     try {
@@ -299,8 +300,6 @@ export function InviteApplicationForm({
       </div>
     );
   }
-
-  const [splashExiting, setSplashExiting] = useState(false);
 
   const dismissSplash = () => {
     setSplashExiting(true);
