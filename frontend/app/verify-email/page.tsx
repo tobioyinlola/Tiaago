@@ -28,7 +28,9 @@ const EmailVerification = async ({
         email={email}
         loginUrl={`/${role}s/signin${next ? `?next=${next}` : ""}`}
         autoLoginRedirect={
-          role === "startup" ? next || "/startups/onboarding" : undefined
+          role === "startup"
+            ? next || "/startups/onboarding"
+            : next || "/talents/dashboard"
         }
       />
     </AuthFormPageWrapper>
