@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Image from "next/image";
-import { motion, AnimatePresence } from "framer-motion";
+import { m, AnimatePresence } from "framer-motion";
 import {
   Dialog,
   DialogContent,
@@ -11,10 +11,42 @@ import {
   DialogDescription,
 } from "@/app/common/components/ui/dialog";
 import { Button } from "@/app/common/components/ui/button";
-import { Copy, Check, Loader2, ExternalLink } from "lucide-react";
+import { Copy, Check, Loader2, Share2, Mail } from "lucide-react";
 import { toast } from "sonner";
 import { generateInviteLink } from "@/app/common/services/sourcing";
 import { ID } from "@/app/common/types";
+
+const SHARE_PLATFORMS = [
+  {
+    name: "LinkedIn",
+    icon: "/assets/icons/social/linkedin.svg",
+    getUrl: (url: string) =>
+      `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(url)}`,
+  },
+  {
+    name: "X",
+    icon: "/assets/icons/social/x.svg",
+    getUrl: (url: string, text: string) =>
+      `https://x.com/intent/tweet?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`,
+  },
+  {
+    name: "WhatsApp",
+    icon: "/assets/icons/social/whatsapp.svg",
+    getUrl: (url: string, text: string) =>
+      `https://wa.me/?text=${encodeURIComponent(text + " " + url)}`,
+  },
+  {
+    name: "Telegram",
+    icon: "/assets/icons/social/telegram.svg",
+    getUrl: (url: string, text: string) =>
+      `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`,
+  },
+  {
+    name: "Slack",
+    icon: "/assets/icons/social/slack.svg",
+    getUrl: (url: string) => `https://slack.com/share?url=${encodeURIComponent(url)}`,
+  },
+] as const;
 
 interface TalentPoolInviteDialogProps {
   open: boolean;
@@ -37,6 +69,11 @@ export function TalentPoolInviteDialog({
     is_active: boolean;
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [canNativeShare, setCanNativeShare] = useState(false);
+
+  useEffect(() => {
+    setCanNativeShare(typeof navigator !== "undefined" && !!navigator.share);
+  }, []);
 
   const handleOpenChange = (nextOpen: boolean) => {
     if (nextOpen) {
@@ -72,12 +109,45 @@ export function TalentPoolInviteDialog({
     };
   }, [open, categoryId]);
 
+  const shareText = `Join our ${categoryName} talent pipeline on TIAAGO`;
+
   const handleCopy = () => {
     if (!inviteData?.invite_url) return;
     navigator.clipboard.writeText(inviteData.invite_url);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
     toast.success("Link copied to clipboard");
+  };
+
+  const handleNativeShare = async () => {
+    if (!inviteData?.invite_url) return;
+    try {
+      await navigator.share({
+        title: `Join ${categoryName} on TIAAGO`,
+        text: shareText,
+        url: inviteData.invite_url,
+      });
+    } catch {
+      // user cancelled share — ignore
+    }
+  };
+
+  const handleSocialShare = (platform: (typeof SHARE_PLATFORMS)[number]) => {
+    if (!inviteData?.invite_url) return;
+    window.open(
+      platform.getUrl(inviteData.invite_url, shareText),
+      "_blank",
+      "noopener,noreferrer,width=600,height=500"
+    );
+  };
+
+  const handleEmailShare = () => {
+    if (!inviteData?.invite_url) return;
+    const subject = encodeURIComponent(`Join ${categoryName} on TIAAGO`);
+    const body = encodeURIComponent(
+      `${shareText}\n\nApply here: ${inviteData.invite_url}`
+    );
+    window.open(`mailto:?subject=${subject}&body=${body}`);
   };
 
   const retry = async () => {
@@ -103,7 +173,7 @@ export function TalentPoolInviteDialog({
         <div className="flex items-center justify-center bg-primary/5 pt-4 sm:pt-6 pb-2 sm:pb-3 overflow-hidden">
           <AnimatePresence>
             {open && (
-              <motion.div
+              <m.div
                 initial={{ opacity: 0, y: 20, scale: 0.9 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 transition={{ duration: 0.5, ease: "easeOut", delay: 0.1 }}
@@ -116,7 +186,7 @@ export function TalentPoolInviteDialog({
                   className="h-[80px] sm:h-[140px] w-auto"
                   priority
                 />
-              </motion.div>
+              </m.div>
             )}
           </AnimatePresence>
         </div>
@@ -146,49 +216,76 @@ export function TalentPoolInviteDialog({
               </Button>
             </div>
           ) : inviteData ? (
-            <div className="space-y-3">
-              {/* Clickable URL bar */}
-              <button
-                className="flex w-full items-center gap-2 rounded-lg border border-border bg-muted/50 px-3 py-2.5 text-left hover:bg-muted transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-                onClick={handleCopy}
-                aria-label="Copy invite link to clipboard"
-              >
-                <span className="text-xs sm:text-sm text-muted-foreground">
-                  {inviteData.invite_url.replace(/^https?:\/\/(www\.)?/, "").slice(0, 32)}...
-                </span>
-                {copied ? (
-                  <Check className="h-4 w-4 shrink-0 text-success" />
-                ) : (
-                  <Copy className="h-4 w-4 shrink-0 text-muted-foreground" />
-                )}
-              </button>
-
-              {/* Actions — grouped together */}
-              <div className="grid grid-cols-[1fr_auto] gap-2">
-                <Button onClick={handleCopy} size="sm">
-                  {copied ? (
-                    <>
-                      <Check className="mr-1.5 h-3.5 w-3.5" />
-                      Copied
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="mr-1.5 h-3.5 w-3.5" />
-                      Copy Link
-                    </>
-                  )}
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() =>
-                    window.open(inviteData.invite_url, "_blank")
-                  }
-                  aria-label="Preview invite page in new tab"
+            <div className="space-y-4">
+              {/* URL bar + copy */}
+              <div className="flex gap-2">
+                <button
+                  className="flex flex-1 items-center gap-2 rounded-lg border border-border bg-muted/50 px-3 py-2 text-left hover:bg-muted transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                  onClick={handleCopy}
+                  aria-label="Copy invite link to clipboard"
                 >
-                  <ExternalLink className="h-3.5 w-3.5 sm:mr-1.5" />
-                  <span className="hidden sm:inline">Preview</span>
+                  <span className="text-xs text-muted-foreground">
+                    {inviteData.invite_url
+                      .replace(/^https?:\/\/(www\.)?/, "")
+                      .slice(0, 28)}
+                    ...
+                  </span>
+                  {copied ? (
+                    <Check className="h-3.5 w-3.5 shrink-0 text-success" />
+                  ) : (
+                    <Copy className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  )}
+                </button>
+                <Button onClick={handleCopy} size="sm" className="shrink-0">
+                  {copied ? "Copied" : "Copy"}
                 </Button>
+              </div>
+
+              {/* Share via section */}
+              <div>
+                <p className="text-xs text-muted-foreground mb-2.5 text-center">
+                  Share via
+                </p>
+
+                {/* Native share for mobile */}
+                {canNativeShare && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full mb-3 sm:hidden"
+                    onClick={handleNativeShare}
+                  >
+                    <Share2 className="mr-1.5 h-3.5 w-3.5" />
+                    Share to App
+                  </Button>
+                )}
+
+                {/* Social icons */}
+                <div className="flex items-center justify-center gap-3">
+                  {SHARE_PLATFORMS.map(platform => (
+                    <button
+                      key={platform.name}
+                      onClick={() => handleSocialShare(platform)}
+                      className="flex size-9 items-center justify-center rounded-full border border-border bg-card hover:bg-muted transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                      aria-label={`Share on ${platform.name}`}
+                    >
+                      <Image
+                        src={platform.icon}
+                        alt={platform.name}
+                        width={18}
+                        height={18}
+                        className="size-[18px]"
+                      />
+                    </button>
+                  ))}
+                  <button
+                    onClick={handleEmailShare}
+                    className="flex size-9 items-center justify-center rounded-full border border-border bg-card hover:bg-muted transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                    aria-label="Share via Email"
+                  >
+                    <Mail className="size-[18px] text-muted-foreground" />
+                  </button>
+                </div>
               </div>
             </div>
           ) : null}
