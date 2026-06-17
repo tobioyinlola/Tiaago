@@ -1,6 +1,4 @@
 import { ImageResponse } from "next/og";
-import { readFileSync } from "fs";
-import { join } from "path";
 
 export const alt = "TIAAGO Talent Pipeline Invite";
 export const size = { width: 1200, height: 630 };
@@ -10,8 +8,14 @@ const API_URL = (
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api"
 ).replace(/\/$/, "");
 
-function loadAsset(relativePath: string, mime: string): string {
-  const buf = readFileSync(join(process.cwd(), "public", relativePath));
+function getSiteUrl(): string {
+  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
+  return "http://localhost:3000";
+}
+
+async function loadAsset(relativePath: string, mime: string): Promise<string> {
+  const res = await fetch(`${getSiteUrl()}/${relativePath}`);
+  const buf = Buffer.from(await res.arrayBuffer());
   return `data:${mime};base64,${buf.toString("base64")}`;
 }
 
@@ -20,8 +24,8 @@ type Props = { params: Promise<{ code: string }> };
 export default async function OGImage({ params }: Props) {
   const { code } = await params;
 
-  const logoSrc = loadAsset("emails/assets/Tiaago_logo_white.png", "image/png");
-  const patternSrc = loadAsset(
+  const logoSrc = await loadAsset("emails/assets/Tiaago_logo_white.png", "image/png");
+  const patternSrc = await loadAsset(
     "assets/images/Auth Background pattern.png",
     "image/png"
   );
