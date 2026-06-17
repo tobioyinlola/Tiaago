@@ -1,3 +1,9 @@
+import smtplib
+import logging
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.generics import (
     ListCreateAPIView,
@@ -8,17 +14,23 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
 
-from .models import PipelineCandidate, PipelineCategory, PipelineInviteLink
+from .models import GmailSmtpConfig, OutreachEmail, PipelineCandidate, PipelineCategory, PipelineInviteLink
 from .serializers import (
     AddToPipelineSerializer,
     BulkAddToPipelineSerializer,
+    GmailSmtpConfigSerializer,
+    GmailSmtpSetupSerializer,
     InviteSubmissionSerializer,
     InviteTokenValidationSerializer,
+    OutreachEmailSerializer,
     PipelineCandidateSerializer,
     PipelineCategorySerializer,
     PipelineInviteLinkSerializer,
+    SendOutreachSerializer,
     UpdatePipelineEntrySerializer,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def _get_company(request):
@@ -227,3 +239,235 @@ class SubmitInviteApplicationView(APIView):
             },
             status=status.HTTP_201_CREATED,
         )
+
+
+# ── Gmail SMTP Config ──────────────────────────────────────────────
+
+def _test_smtp_connection(gmail_address: str, app_password: str) -> tuple[bool, str]:
+    try:
+        with smtplib.SMTP("smtp.gmail.com", 587, timeout=10) as server:
+            server.ehlo()
+            server.starttls()
+            server.ehlo()
+            server.login(gmail_address, app_password)
+        return True, ""
+    except smtplib.SMTPAuthenticationError:
+        return False, "Invalid email or App Password. Please double-check your credentials."
+    except Exception as e:
+        return False, f"Connection failed: {str(e)}"
+
+
+class SmtpConfigView(APIView):
+    def get(self, request):
+        company = _get_company(request)
+        if not company:
+            return Response({"data": None})
+        try:
+            config = company.smtp_config
+            return Response({"data": GmailSmtpConfigSerializer(config).data})
+        except GmailSmtpConfig.DoesNotExist:
+            return Response({"data": None})
+
+    def post(self, request):
+        company = _get_company(request)
+        if not company:
+            return Response(
+                {"error": "Company profile required."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        serializer = GmailSmtpSetupSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        gmail_address = serializer.validated_data["gmail_address"]
+        app_password = serializer.validated_data["app_password"]
+
+        ok, error_msg = _test_smtp_connection(gmail_address, app_password)
+        if not ok:
+            return Response({"error": error_msg}, status=status.HTTP_400_BAD_REQUEST)
+
+        config, created = GmailSmtpConfig.objects.update_or_create(
+            company=company,
+            defaults={
+                "gmail_address": gmail_address,
+                "is_verified": True,
+                "verified_at": timezone.now(),
+                "created_by": request.user,
+            },
+        )
+        config.app_password = app_password
+        config.save(update_fields=["encrypted_app_password"])
+
+        return Response(
+            {"success": True, "data": GmailSmtpConfigSerializer(config).data},
+            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
+        )
+
+    def delete(self, request):
+        company = _get_company(request)
+        if not company:
+            return Response(
+                {"error": "Company profile required."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        try:
+            company.smtp_config.delete()
+        except GmailSmtpConfig.DoesNotExist:
+            pass
+        return Response({"success": True})
+
+
+class SmtpVerifyView(APIView):
+    def post(self, request):
+        company = _get_company(request)
+        if not company:
+            return Response(
+                {"error": "Company profile required."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        try:
+            config = company.smtp_config
+        except GmailSmtpConfig.DoesNotExist:
+            return Response(
+                {"error": "No SMTP configuration found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        ok, error_msg = _test_smtp_connection(config.gmail_address, config.app_password)
+        if ok:
+            config.is_verified = True
+            config.verified_at = timezone.now()
+            config.save(update_fields=["is_verified", "verified_at"])
+            return Response({"success": True, "message": "SMTP connection verified."})
+        else:
+            config.is_verified = False
+            config.save(update_fields=["is_verified"])
+            return Response({"error": error_msg}, status=status.HTTP_400_BAD_REQUEST)
+
+
+# ── Outreach Sending ───────────────────────────────────────────────
+
+class SendOutreachView(APIView):
+    def post(self, request):
+        company = _get_company(request)
+        if not company:
+            return Response(
+                {"error": "Company profile required."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        try:
+            smtp_config = company.smtp_config
+        except GmailSmtpConfig.DoesNotExist:
+            return Response(
+                {"error": "Gmail SMTP is not configured. Set it up in Settings first."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if not smtp_config.is_verified:
+            return Response(
+                {"error": "Gmail SMTP is not verified. Please re-verify in Settings."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        serializer = SendOutreachSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        candidate_ids = serializer.validated_data["candidate_ids"]
+        subject = serializer.validated_data["subject"]
+        body = serializer.validated_data["body"]
+
+        candidates = PipelineCandidate.objects.filter(
+            id__in=candidate_ids, company=company,
+        ).exclude(email="")
+
+        if not candidates.exists():
+            return Response(
+                {"error": "No candidates with email addresses found."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        outreach_records = []
+        for candidate in candidates:
+            outreach_records.append(OutreachEmail(
+                candidate=candidate,
+                company=company,
+                subject=subject,
+                body=body,
+                recipient_email=candidate.email,
+                sent_by=request.user,
+            ))
+        OutreachEmail.objects.bulk_create(outreach_records)
+
+        sent_count = 0
+        failed_count = 0
+        try:
+            with smtplib.SMTP("smtp.gmail.com", 587, timeout=15) as server:
+                server.ehlo()
+                server.starttls()
+                server.ehlo()
+                server.login(smtp_config.gmail_address, smtp_config.app_password)
+
+                for record in outreach_records:
+                    try:
+                        personalized_body = body.replace(
+                            "{{candidateName}}", record.candidate.name
+                        ).replace(
+                            "{{company}}", company.company_name or ""
+                        ).replace(
+                            "{{role}}", record.candidate.role or ""
+                        ).replace(
+                            "{{recruiterName}}", request.user.get_full_name()
+                        )
+
+                        msg = MIMEMultipart("alternative")
+                        msg["From"] = smtp_config.gmail_address
+                        msg["To"] = record.recipient_email
+                        msg["Subject"] = subject
+                        msg.attach(MIMEText(personalized_body, "html"))
+
+                        server.sendmail(
+                            smtp_config.gmail_address,
+                            record.recipient_email,
+                            msg.as_string(),
+                        )
+                        record.status = OutreachEmail.Status.SENT
+                        record.sent_at = timezone.now()
+                        sent_count += 1
+                    except Exception as e:
+                        record.status = OutreachEmail.Status.FAILED
+                        record.error_reason = str(e)[:500]
+                        failed_count += 1
+                        logger.warning("Outreach send failed to %s: %s", record.recipient_email, e)
+
+            smtp_config.last_used_at = timezone.now()
+            smtp_config.save(update_fields=["last_used_at"])
+
+        except smtplib.SMTPAuthenticationError:
+            OutreachEmail.objects.filter(
+                id__in=[r.id for r in outreach_records], status=OutreachEmail.Status.QUEUED,
+            ).update(status=OutreachEmail.Status.FAILED, error_reason="SMTP authentication failed")
+            smtp_config.is_verified = False
+            smtp_config.save(update_fields=["is_verified"])
+            return Response(
+                {"error": "Gmail authentication failed. Please update your App Password in Settings."},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+        except Exception as e:
+            logger.error("SMTP connection error: %s", e)
+            return Response(
+                {"error": f"Failed to connect to Gmail: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        OutreachEmail.objects.bulk_update(outreach_records, ["status", "sent_at", "error_reason"])
+
+        PipelineCandidate.objects.filter(
+            id__in=[r.candidate_id for r in outreach_records if r.status == OutreachEmail.Status.SENT],
+        ).update(status=PipelineCandidate.Status.CONTACTED)
+
+        return Response({
+            "success": True,
+            "sent": sent_count,
+            "failed": failed_count,
+            "total": len(outreach_records),
+        })

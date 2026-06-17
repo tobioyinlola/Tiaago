@@ -1569,3 +1569,66 @@ export const generateInviteLink = async (categoryId: ID) => {
     return { success: false as const, error: errMsg };
   }
 };
+
+// ── Gmail SMTP Config ──────────────────────────────────────────
+
+export type SmtpConfig = {
+  id: number;
+  gmail_address: string;
+  is_verified: boolean;
+  verified_at: string | null;
+  last_used_at: string | null;
+  created_at: string;
+};
+
+export const getSmtpConfig = async () => {
+  try {
+    const res = await axiosInstance.get("sourcing/smtp-config/");
+    return { success: true as const, data: res.data.data as SmtpConfig | null };
+  } catch (error) {
+    const [errMsg] = await _handleServerApiCallError(error);
+    return { success: false as const, error: errMsg };
+  }
+};
+
+export const saveSmtpConfig = async (data: { gmail_address: string; app_password: string }) => {
+  try {
+    const res = await axiosInstance.post("sourcing/smtp-config/", data);
+    return { success: true as const, data: res.data.data as SmtpConfig };
+  } catch (error) {
+    const [errMsg] = await _handleServerApiCallError(error);
+    return { success: false as const, error: errMsg };
+  }
+};
+
+export const verifySmtpConfig = async () => {
+  try {
+    const res = await axiosInstance.post("sourcing/smtp-config/verify/");
+    return { success: true as const, message: res.data.message as string };
+  } catch (error) {
+    const [errMsg] = await _handleServerApiCallError(error);
+    return { success: false as const, error: errMsg };
+  }
+};
+
+export const deleteSmtpConfig = async () => {
+  try {
+    await axiosInstance.delete("sourcing/smtp-config/");
+    return { success: true as const };
+  } catch (error) {
+    const [errMsg] = await _handleServerApiCallError(error);
+    return { success: false as const, error: errMsg };
+  }
+};
+
+// ── Outreach Sending ──────────────────────────────────────────
+
+export const sendOutreach = async (data: { candidate_ids: number[]; subject: string; body: string }) => {
+  try {
+    const res = await axiosInstance.post("sourcing/send-outreach/", data);
+    return { success: true as const, data: res.data as { sent: number; failed: number; total: number } };
+  } catch (error) {
+    const [errMsg] = await _handleServerApiCallError(error);
+    return { success: false as const, error: errMsg };
+  }
+};

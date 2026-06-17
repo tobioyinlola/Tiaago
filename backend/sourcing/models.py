@@ -142,3 +142,66 @@ class PipelineCandidate(TimeStampedModel):
 
     def __str__(self):
         return f"{self.name} ({self.status})"
+
+
+class GmailSmtpConfig(TimeStampedModel):
+    company = models.OneToOneField(
+        Company, on_delete=models.CASCADE, related_name="smtp_config",
+    )
+    gmail_address = models.EmailField()
+    encrypted_app_password = models.TextField()
+    is_verified = models.BooleanField(default=False)
+    verified_at = models.DateTimeField(null=True, blank=True)
+    last_used_at = models.DateTimeField(null=True, blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True,
+    )
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"SMTP: {self.gmail_address} ({self.company})"
+
+    @property
+    def app_password(self):
+        from utils.encryption import decrypt_value
+        return decrypt_value(self.encrypted_app_password)
+
+    @app_password.setter
+    def app_password(self, value):
+        from utils.encryption import encrypt_value
+        self.encrypted_app_password = encrypt_value(value)
+
+
+class OutreachEmail(TimeStampedModel):
+    class Status(models.TextChoices):
+        QUEUED = "queued", "Queued"
+        SENT = "sent", "Sent"
+        FAILED = "failed", "Failed"
+
+    candidate = models.ForeignKey(
+        PipelineCandidate, on_delete=models.CASCADE, related_name="outreach_emails",
+    )
+    company = models.ForeignKey(
+        Company, on_delete=models.CASCADE, related_name="outreach_emails",
+    )
+    subject = models.CharField(max_length=500)
+    body = models.TextField()
+    recipient_email = models.EmailField()
+    status = models.CharField(
+        max_length=10, choices=Status.choices, default=Status.QUEUED,
+    )
+    sent_at = models.DateTimeField(null=True, blank=True)
+    error_reason = models.TextField(blank=True, default="")
+    sent_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True,
+    )
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"Outreach to {self.recipient_email} ({self.status})"

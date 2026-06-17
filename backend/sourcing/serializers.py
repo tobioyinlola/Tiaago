@@ -3,7 +3,7 @@ import mimetypes
 from django.conf import settings
 from rest_framework import serializers
 
-from .models import PipelineCandidate, PipelineCategory, PipelineInviteLink
+from .models import GmailSmtpConfig, OutreachEmail, PipelineCandidate, PipelineCategory, PipelineInviteLink
 
 
 class PipelineCandidateSerializer(serializers.ModelSerializer):
@@ -190,3 +190,30 @@ class InviteSubmissionSerializer(serializers.Serializer):
             invite_link=invite_link,
         )
         return candidate
+
+
+class GmailSmtpConfigSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = GmailSmtpConfig
+        fields = ("id", "gmail_address", "is_verified", "verified_at", "last_used_at", "created_at")
+        read_only_fields = ("id", "is_verified", "verified_at", "last_used_at", "created_at")
+
+
+class GmailSmtpSetupSerializer(serializers.Serializer):
+    gmail_address = serializers.EmailField()
+    app_password = serializers.CharField(min_length=8, max_length=64)
+
+
+class SendOutreachSerializer(serializers.Serializer):
+    candidate_ids = serializers.ListField(child=serializers.IntegerField(), min_length=1)
+    subject = serializers.CharField(max_length=500)
+    body = serializers.CharField()
+
+
+class OutreachEmailSerializer(serializers.ModelSerializer):
+    candidate_name = serializers.CharField(source="candidate.name", read_only=True)
+
+    class Meta:
+        model = OutreachEmail
+        fields = ("id", "candidate_name", "recipient_email", "subject", "status", "sent_at", "error_reason", "created_at")
+        read_only_fields = fields

@@ -8,6 +8,9 @@ from .views import (
     PipelineListView,
     RemoveFromPipelineView,
     ResolveShortCodeView,
+    SendOutreachView,
+    SmtpConfigView,
+    SmtpVerifyView,
     SubmitInviteApplicationView,
     UpdatePipelineEntryView,
     ValidateInviteTokenView,
@@ -24,4 +27,9 @@ urlpatterns = [
     path("invite/resolve/<str:code>/", ResolveShortCodeView.as_view(), name="resolve-short-code"),
     path("invite/<uuid:token>/", ValidateInviteTokenView.as_view(), name="validate-invite-token"),
     path("invite/<uuid:token>/submit/", SubmitInviteApplicationView.as_view(), name="submit-invite-application"),
+    # SMTP config
+    path("smtp-config/", SmtpConfigView.as_view(), name="smtp-config"),
+    path("smtp-config/verify/", SmtpVerifyView.as_view(), name="smtp-verify"),
+    # Outreach
+    path("send-outreach/", SendOutreachView.as_view(), name="send-outreach"),
 ]
