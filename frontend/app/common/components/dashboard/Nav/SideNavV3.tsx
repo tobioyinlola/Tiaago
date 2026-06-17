@@ -46,18 +46,30 @@ const SideNavV3 = ({
       : startupNavItems;
 
   return (
-    <ScrollArea
-      id={`${as}-side-bar`}
-      className={cn(
-        "px-3 flex flex-col h-full bg-sidebar border-r border-sidebar-border transition-[width] duration-300 overflow-hidden",
-        isExpanded ? "lg:w-[240px]" : "lg:w-[72px]"
-      )}
-      verticalScrollClassName='!hidden'
-      horizontalScrollClassName='!hidden'
-    >
-      <div className='px-1.5 pt-3 flex items-center justify-between'>
+    <div className={cn(
+      "relative transition-[width] duration-300",
+      isExpanded ? "lg:w-[240px]" : "lg:w-[72px]"
+    )}>
+      {/* Collapse/expand toggle on the sidebar edge */}
+      <button
+        title={isExpanded ? "Collapse sidebar" : "Expand sidebar"}
+        aria-label={isExpanded ? "Collapse sidebar" : "Expand sidebar"}
+        onClick={toggleExpansion}
+        className='absolute top-4 -right-4 z-20 max-lg:hidden w-8 h-8 flex items-center justify-center rounded-full border-2 border-primary/30 bg-primary text-white hover:bg-primary/90 shadow-md transition-colors cursor-pointer'
+      >
+        <MdKeyboardDoubleArrowRight className={cn("text-base transition-transform duration-300", isExpanded && "rotate-180")} />
+      </button>
+
+      <ScrollArea
+        id={`${as}-side-bar`}
+        className='px-3 flex flex-col h-full bg-sidebar border-r border-sidebar-border overflow-hidden'
+        verticalScrollClassName='!hidden'
+        horizontalScrollClassName='!hidden'
+      >
+
+      <div className='px-1.5 pt-3'>
         <NavLink
-          className='flex items-center group flex-1 text-sidebar-foreground capitalize hover:bg-sidebar-accent rounded-md px-2.5 py-2'
+          className='flex items-center group text-sidebar-foreground capitalize hover:bg-sidebar-accent rounded-md px-2.5 py-2'
           href={homeItem.href}
           exact
           activeClassName='text-sidebar-accent-foreground fill-sidebar-accent-foreground bg-sidebar-accent border-l-[3px] border-primary'
@@ -76,17 +88,6 @@ const SideNavV3 = ({
             {homeItem.name}
           </h2>
         </NavLink>
-        <button
-          title={isExpanded ? "Collapse sidebar" : "Expand sidebar"}
-          aria-label={isExpanded ? "Collapse sidebar" : "Expand sidebar"}
-          onClick={toggleExpansion}
-          className={cn(
-            "text-xl text-muted-foreground transition-transform duration-300 hover:text-foreground max-lg:hidden p-1",
-            isExpanded && "rotate-180"
-          )}
-        >
-          <MdKeyboardDoubleArrowRight />
-        </button>
       </div>
       <div className='mx-1.5 my-2 border-t border-sidebar-border' />
 
@@ -186,6 +187,7 @@ const SideNavV3 = ({
         />
       </div>
     </ScrollArea>
+    </div>
   );
 };
 
