@@ -412,7 +412,7 @@ export function InviteApplicationForm({
               <div className='mt-10 flex items-center justify-center'>
                 <object
                   type='image/svg+xml'
-                  data='/assets/illustrations/invite.svg'
+                  data='/assets/Invite-amico.svg'
                   className='w-full max-w-[420px]'
                   aria-label='Invite illustration'
                 />
