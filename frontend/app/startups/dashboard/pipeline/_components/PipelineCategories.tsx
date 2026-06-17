@@ -16,7 +16,7 @@ import {
 import { toast } from "sonner";
 import { format } from "date-fns";
 
-import { cn } from "@/app/common/lib/utils";
+import { EmptyStateV3 } from "@/app/common/components/dashboard/EmptyState";
 import { Button } from "@/app/common/components/ui/button";
 import { Input } from "@/app/common/components/ui/input";
 import { Badge } from "@/app/common/components/ui/badge";
@@ -196,7 +196,7 @@ export default function PipelineCategories({
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-switzer font-bold text-foreground">
+            <h1 className="text-2xl font-switzer font-semibold text-foreground">
               Pipeline Categories
             </h1>
             <p className="text-sm text-muted-foreground">
@@ -221,7 +221,7 @@ export default function PipelineCategories({
               <CardDescription>Total Pipelines</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="font-space-grotesk text-3xl font-medium tabular-nums leading-none tracking-tight">
+              <div className="font-space-grotesk text-4xl font-medium tabular-nums leading-none tracking-tight">
                 {categories.length}
               </div>
             </CardContent>
@@ -237,7 +237,7 @@ export default function PipelineCategories({
               <CardDescription>Total Candidates</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="font-space-grotesk text-3xl font-medium tabular-nums leading-none tracking-tight">
+              <div className="font-space-grotesk text-4xl font-medium tabular-nums leading-none tracking-tight">
                 {totalCandidates}
               </div>
             </CardContent>
@@ -253,7 +253,7 @@ export default function PipelineCategories({
               <CardDescription>Active Pipelines</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="font-space-grotesk text-3xl font-medium tabular-nums leading-none tracking-tight">
+              <div className="font-space-grotesk text-4xl font-medium tabular-nums leading-none tracking-tight">
                 {activePipelines}
               </div>
             </CardContent>
@@ -263,6 +263,7 @@ export default function PipelineCategories({
         {/* All Candidates Banner */}
         <button
           onClick={() => router.push("/startups/dashboard/pipeline/all")}
+          aria-label="View all candidates across all pipelines"
           className="w-full rounded-xl bg-gradient-to-r from-primary/5 to-card border border-border p-5 shadow-sm hover:shadow-card-hover transition-all text-left flex items-center gap-4 group"
         >
           <div className="rounded-full bg-primary/10 p-3">
@@ -428,27 +429,20 @@ export default function PipelineCategories({
                   </TableBody>
                 </Table>
               ) : (
-                <div className="flex flex-col items-center justify-center py-12 text-center">
-                  <Search className="h-8 w-8 text-muted-foreground/50" />
-                  <p className="mt-3 text-sm font-medium text-foreground">
-                    No pipelines found
-                  </p>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    Try adjusting your search or filter
-                  </p>
-                </div>
+                <EmptyStateV3
+                  text="No pipelines found"
+                  subText="Try adjusting your search or filter"
+                  className="py-12"
+                />
               )
             ) : (
-              <div className="flex flex-col items-center justify-center py-16 text-center">
-                <div className="rounded-full bg-primary/10 p-4">
-                  <FolderKanban className="h-8 w-8 text-primary" />
-                </div>
-                <h3 className="mt-4 text-lg font-semibold">No Pipelines Yet</h3>
-                <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-                  Create your first pipeline to start organizing candidates by
-                  role or team
-                </p>
-                <Button className="mt-4" onClick={() => setShowCreate(true)}>
+              <div className="flex flex-col items-center">
+                <EmptyStateV3
+                  text="No Pipelines Yet"
+                  subText="Create your first pipeline to start organizing candidates by role or team"
+                  className="pb-4"
+                />
+                <Button className="mb-12" onClick={() => setShowCreate(true)}>
                   <Plus className="h-4 w-4 mr-2" />
                   Create Pipeline
                 </Button>
