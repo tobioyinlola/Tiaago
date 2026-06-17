@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { toast } from "sonner";
 import { Formik } from "formik";
-import { useState, useSyncExternalStore, useCallback } from "react";
+import { useState } from "react";
 import { Button } from "react-daisyui";
 import { GroupBase } from "react-select";
 import { useRouter } from "next/navigation";
@@ -54,8 +54,8 @@ const SignUpFormV3 = ({
   if (next) urlSearchParams.set("next", next);
   else urlSearchParams.set("next", "/talents/verification");
 
-  const getPreFill = useCallback((): InvitePreFill | null => {
-    if (!next) return null;
+  const [preFill] = useState<InvitePreFill | null>(() => {
+    if (typeof window === "undefined" || !next) return null;
     const match = next.match(/\/sourcing\/invite\/([^/?]+)/);
     if (!match) return null;
     try {
@@ -64,13 +64,7 @@ const SignUpFormV3 = ({
     } catch {
       return null;
     }
-  }, [next]);
-
-  const preFill = useSyncExternalStore(
-    () => () => {},
-    getPreFill,
-    () => null
-  );
+  });
 
   const isFromInvite = !!preFill?.first_name;
 

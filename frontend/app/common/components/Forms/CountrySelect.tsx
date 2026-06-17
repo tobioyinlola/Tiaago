@@ -28,7 +28,6 @@ const CountrySelect = ({ options, ...props }: Props) => {
     }
   }, [geoCountry, currentValue, fieldName, options, setFieldValue]);
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const formatGroupLabel = (data: any) => (
     <div className='flex justify-between'>
       <span className='font-onest'>{data.label}</span>
