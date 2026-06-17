@@ -1,9 +1,14 @@
+import logging
 import mimetypes
 
+import requests as http_requests
 from django.conf import settings
+from django.core.cache import cache
 from rest_framework import serializers
 
 from .models import PipelineCandidate, PipelineCategory, PipelineInviteLink
+
+logger = logging.getLogger(__name__)
 
 
 class PipelineCandidateSerializer(serializers.ModelSerializer):
@@ -111,7 +116,27 @@ class PipelineInviteLinkSerializer(serializers.ModelSerializer):
 
     def get_invite_url(self, obj):
         frontend = getattr(settings, "FRONTEND_URL", "http://localhost:3000").rstrip("/")
-        return f"{frontend}/sourcing/invite/{obj.token}"
+        long_url = f"{frontend}/sourcing/invite/{obj.token}"
+
+        cache_key = f"tinyurl:{obj.token}"
+        short_url = cache.get(cache_key)
+        if short_url:
+            return short_url
+
+        try:
+            resp = http_requests.get(
+                "https://tinyurl.com/api-create.php",
+                params={"url": long_url},
+                timeout=5,
+            )
+            if resp.status_code == 200 and resp.text.startswith("https://"):
+                short_url = resp.text.strip()
+                cache.set(cache_key, short_url, timeout=60 * 60 * 24 * 30)
+                return short_url
+        except Exception:
+            logger.warning("TinyURL shortening failed for %s", obj.token)
+
+        return long_url
 
 
 class InviteTokenValidationSerializer(serializers.Serializer):
