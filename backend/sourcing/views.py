@@ -3,16 +3,20 @@ from rest_framework.generics import (
     ListCreateAPIView,
     RetrieveUpdateDestroyAPIView,
 )
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
 
-from .models import PipelineCandidate, PipelineCategory
+from .models import PipelineCandidate, PipelineCategory, PipelineInviteLink
 from .serializers import (
     AddToPipelineSerializer,
     BulkAddToPipelineSerializer,
+    InviteSubmissionSerializer,
+    InviteTokenValidationSerializer,
     PipelineCandidateSerializer,
     PipelineCategorySerializer,
+    PipelineInviteLinkSerializer,
     UpdatePipelineEntrySerializer,
 )
 
@@ -135,3 +139,76 @@ class CategoryDetailView(RetrieveUpdateDestroyAPIView):
         if not company:
             return PipelineCategory.objects.none()
         return PipelineCategory.objects.filter(company=company)
+
+
+class GenerateInviteLinkView(APIView):
+    def post(self, request, pk):
+        company = _get_company(request)
+        if not company:
+            return Response(
+                {"error": "Company profile required."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        category = get_object_or_404(PipelineCategory, pk=pk, company=company)
+
+        invite_link, created = PipelineInviteLink.objects.get_or_create(
+            category=category,
+            company=company,
+            is_active=True,
+            defaults={"created_by": request.user},
+        )
+
+        serializer = PipelineInviteLinkSerializer(invite_link)
+        return Response(
+            {"success": True, "data": serializer.data},
+            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
+        )
+
+
+class ValidateInviteTokenView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request, token):
+        invite = get_object_or_404(PipelineInviteLink, token=token)
+
+        data = {
+            "category_name": invite.category.name,
+            "company_name": invite.company.company_name,
+            "is_active": invite.is_active and invite.category.is_active,
+        }
+        serializer = InviteTokenValidationSerializer(data)
+        return Response(serializer.data)
+
+
+class SubmitInviteApplicationView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, token):
+        invite = get_object_or_404(PipelineInviteLink, token=token)
+
+        if not invite.is_active:
+            return Response(
+                {"error": "This invite link is no longer active."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if not invite.category.is_active:
+            return Response(
+                {"error": "This pipeline category is no longer accepting applications."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        serializer = InviteSubmissionSerializer(
+            data=request.data,
+            context={"invite_link": invite, "user": request.user},
+        )
+        serializer.is_valid(raise_exception=True)
+        candidate = serializer.save()
+
+        return Response(
+            {
+                "success": True,
+                "data": PipelineCandidateSerializer(candidate).data,
+            },
+            status=status.HTTP_201_CREATED,
+        )

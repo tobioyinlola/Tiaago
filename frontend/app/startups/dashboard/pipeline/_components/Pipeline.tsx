@@ -442,6 +442,8 @@ export default function Pipeline({
       <TalentPoolInviteDialog
         open={showTalentPoolInvite}
         onOpenChange={setShowTalentPoolInvite}
+        categoryId={categoryId || ""}
+        categoryName={categoryName || "Talent Pipeline"}
       />
     </>
   );

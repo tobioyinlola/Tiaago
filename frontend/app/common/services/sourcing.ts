@@ -1,6 +1,6 @@
 "use server";
 
-import axiosInstance from "../utils/axios.instance";
+import axiosInstance, { publicAxiosInstance } from "../utils/axios.instance";
 import serverKyInstance from "../utils/server-ky.instance";
 import { omit } from "lodash";
 import {
@@ -1532,6 +1532,38 @@ export const updatePipelineEntry = async (
   try {
     const response = await axiosInstance.patch(`sourcing/pipeline/${id}/`, data);
     return { success: true as const, data: response.data as PipelineEntry };
+  } catch (error) {
+    const [errMsg] = await _handleServerApiCallError(error);
+    return { success: false as const, error: errMsg };
+  }
+};
+
+export const validateInviteToken = async (token: string) => {
+  try {
+    const res = await publicAxiosInstance.get(`sourcing/invite/${token}/`);
+    return { success: true as const, data: res.data as { category_name: string; company_name: string; is_active: boolean } };
+  } catch (error) {
+    const [errMsg] = await _handleServerApiCallError(error);
+    return { success: false as const, error: errMsg };
+  }
+};
+
+export const submitInviteApplication = async (token: string, data: FormData) => {
+  try {
+    const res = await axiosInstance.post(`sourcing/invite/${token}/submit/`, data, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+    return { success: true as const, data: res.data };
+  } catch (error) {
+    const [errMsg] = await _handleServerApiCallError(error);
+    return { success: false as const, error: errMsg };
+  }
+};
+
+export const generateInviteLink = async (categoryId: ID) => {
+  try {
+    const res = await axiosInstance.post(`sourcing/categories/${categoryId}/invite-link/`);
+    return { success: true as const, data: res.data.data as { id: number; token: string; invite_url: string; category_name: string; is_active: boolean } };
   } catch (error) {
     const [errMsg] = await _handleServerApiCallError(error);
     return { success: false as const, error: errMsg };

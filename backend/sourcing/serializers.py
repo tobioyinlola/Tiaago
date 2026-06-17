@@ -1,6 +1,9 @@
+import mimetypes
+
+from django.conf import settings
 from rest_framework import serializers
 
-from .models import PipelineCandidate, PipelineCategory
+from .models import PipelineCandidate, PipelineCategory, PipelineInviteLink
 
 
 class PipelineCandidateSerializer(serializers.ModelSerializer):
@@ -82,3 +85,104 @@ class PipelineCategorySerializer(serializers.ModelSerializer):
 
     def get_candidate_count(self, obj):
         return obj.candidates.count()
+
+
+class PipelineInviteLinkSerializer(serializers.ModelSerializer):
+    invite_url = serializers.SerializerMethodField()
+    category_name = serializers.CharField(source="category.name", read_only=True)
+
+    class Meta:
+        model = PipelineInviteLink
+        fields = (
+            "id",
+            "token",
+            "category",
+            "category_name",
+            "is_active",
+            "invite_url",
+            "created_at",
+        )
+        read_only_fields = ("id", "token", "invite_url", "created_at")
+
+    def get_invite_url(self, obj):
+        frontend = getattr(settings, "FRONTEND_URL", "http://localhost:3000").rstrip("/")
+        return f"{frontend}/sourcing/invite/{obj.token}"
+
+
+class InviteTokenValidationSerializer(serializers.Serializer):
+    category_name = serializers.CharField()
+    company_name = serializers.CharField()
+    is_active = serializers.BooleanField()
+
+
+class InviteSubmissionSerializer(serializers.Serializer):
+    first_name = serializers.CharField(max_length=255)
+    last_name = serializers.CharField(max_length=255)
+    email = serializers.EmailField()
+    phone = serializers.CharField(max_length=50, required=False, default="")
+    linkedin_profile = serializers.URLField(max_length=500, required=False, default="")
+    portfolio_url = serializers.URLField(required=False, default="")
+    resume = serializers.FileField(required=False, allow_null=True, default=None)
+    current_role = serializers.CharField(max_length=255, required=False, default="")
+    experience_level = serializers.CharField(max_length=50, required=False, default="")
+    country = serializers.CharField(max_length=100, required=False, default="")
+    current_pay = serializers.CharField(max_length=50, required=False, default="")
+    pay_currency = serializers.CharField(max_length=10, required=False, default="USD")
+    skills = serializers.CharField(required=False, default="", allow_blank=True)
+    summary = serializers.CharField(required=False, default="", allow_blank=True)
+
+    def validate_resume(self, value):
+        if value:
+            if value.size > settings.UPLOAD_FILE_MAX_SIZE:
+                raise serializers.ValidationError(
+                    "Resume file size too large. Max size is 2MB."
+                )
+            file_extension = value.name.split(".")[-1].lower()
+            if file_extension not in settings.WHITELISTED_RESUME_FORMAT.keys():
+                raise serializers.ValidationError(
+                    "Only PDF, DOCX, and DOC files are allowed."
+                )
+            mime_type, _ = mimetypes.guess_type(value.name)
+            allowed_mimes = list(settings.WHITELISTED_RESUME_FORMAT.values())
+            if (
+                mime_type not in allowed_mimes
+                and value.content_type not in allowed_mimes
+            ):
+                raise serializers.ValidationError("Invalid resume mime-type.")
+        return value
+
+    def create(self, validated_data):
+        invite_link = self.context["invite_link"]
+        user = self.context["user"]
+
+        first_name = validated_data.pop("first_name")
+        last_name = validated_data.pop("last_name")
+        name = f"{first_name} {last_name}".strip()
+
+        skills_str = validated_data.pop("skills", "")
+        skills = [s.strip() for s in skills_str.split(",") if s.strip()] if skills_str else []
+
+        phone = validated_data.pop("phone", "")
+        current_role = validated_data.pop("current_role", "")
+
+        candidate = PipelineCandidate.objects.create(
+            name=name,
+            email=validated_data.get("email", ""),
+            phone_number=phone,
+            role=current_role,
+            country=validated_data.get("country", ""),
+            linkedin_profile=validated_data.get("linkedin_profile", ""),
+            portfolio_url=validated_data.get("portfolio_url", ""),
+            resume=validated_data.get("resume"),
+            experience_level=validated_data.get("experience_level", ""),
+            current_pay=validated_data.get("current_pay", ""),
+            pay_currency=validated_data.get("pay_currency", "USD"),
+            skills=skills,
+            summary=validated_data.get("summary", ""),
+            status=PipelineCandidate.Status.NEW,
+            category=invite_link.category,
+            company=invite_link.company,
+            user=user,
+            invite_link=invite_link,
+        )
+        return candidate

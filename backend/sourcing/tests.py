@@ -1,9 +1,11 @@
+import uuid
+
 from django.test import TestCase
 from django.contrib.auth import get_user_model
 from rest_framework.test import APIClient
 
 from create_user.models import Company
-from .models import PipelineCandidate, PipelineCategory
+from .models import PipelineCandidate, PipelineCategory, PipelineInviteLink
 
 User = get_user_model()
 
@@ -183,3 +185,147 @@ class PipelineAPITests(TestCase):
         }, format="json")
         self.assertEqual(resp.status_code, 201)
         self.assertEqual(len(resp.data["data"]), 2)
+
+
+class PipelineInviteLinkAPITests(TestCase):
+    def setUp(self):
+        self.recruiter = User.objects.create_user(
+            username="recruiter",
+            email="recruiter@company.dev",
+            password="testpass123",
+            user_type="CR",
+        )
+        self.recruiter.verified = True
+        self.recruiter.is_verified = True
+        self.recruiter.save()
+        self.company = Company.objects.create(
+            company_rep=self.recruiter,
+            company_name="Invite Corp",
+            company_email="recruiter@company.dev",
+        )
+        self.category = PipelineCategory.objects.create(
+            name="Backend Devs",
+            description="Python engineers",
+            company=self.company,
+            created_by=self.recruiter,
+        )
+
+        self.talent = User.objects.create_user(
+            username="talent",
+            email="talent@dev.com",
+            password="testpass123",
+            user_type="T",
+        )
+        self.talent.verified = True
+        self.talent.is_verified = True
+        self.talent.save()
+
+        self.recruiter_client = APIClient()
+        self.recruiter_client.force_authenticate(user=self.recruiter)
+
+        self.talent_client = APIClient()
+        self.talent_client.force_authenticate(user=self.talent)
+
+    def test_generate_invite_link(self):
+        resp = self.recruiter_client.post(
+            f"/api/sourcing/categories/{self.category.pk}/invite-link/",
+        )
+        self.assertEqual(resp.status_code, 201)
+        self.assertTrue(resp.data["success"])
+        self.assertIn("token", resp.data["data"])
+        self.assertIn("invite_url", resp.data["data"])
+        self.assertEqual(resp.data["data"]["category_name"], "Backend Devs")
+
+    def test_generate_invite_link_idempotent(self):
+        resp1 = self.recruiter_client.post(
+            f"/api/sourcing/categories/{self.category.pk}/invite-link/",
+        )
+        resp2 = self.recruiter_client.post(
+            f"/api/sourcing/categories/{self.category.pk}/invite-link/",
+        )
+        self.assertEqual(resp1.data["data"]["token"], resp2.data["data"]["token"])
+        self.assertEqual(resp2.status_code, 200)
+        self.assertEqual(PipelineInviteLink.objects.filter(category=self.category).count(), 1)
+
+    def test_validate_token_public(self):
+        invite = PipelineInviteLink.objects.create(
+            category=self.category,
+            company=self.company,
+            created_by=self.recruiter,
+        )
+        anon_client = APIClient()
+        resp = anon_client.get(f"/api/sourcing/invite/{invite.token}/")
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.data["category_name"], "Backend Devs")
+        self.assertEqual(resp.data["company_name"], "Invite Corp")
+        self.assertTrue(resp.data["is_active"])
+
+    def test_validate_inactive_token(self):
+        invite = PipelineInviteLink.objects.create(
+            category=self.category,
+            company=self.company,
+            created_by=self.recruiter,
+            is_active=False,
+        )
+        anon_client = APIClient()
+        resp = anon_client.get(f"/api/sourcing/invite/{invite.token}/")
+        self.assertEqual(resp.status_code, 200)
+        self.assertFalse(resp.data["is_active"])
+
+    def test_validate_nonexistent_token(self):
+        anon_client = APIClient()
+        fake_token = uuid.uuid4()
+        resp = anon_client.get(f"/api/sourcing/invite/{fake_token}/")
+        self.assertEqual(resp.status_code, 404)
+
+    def test_submit_application(self):
+        invite = PipelineInviteLink.objects.create(
+            category=self.category,
+            company=self.company,
+            created_by=self.recruiter,
+        )
+        resp = self.talent_client.post(
+            f"/api/sourcing/invite/{invite.token}/submit/",
+            {
+                "first_name": "Jane",
+                "last_name": "Doe",
+                "email": "jane@dev.com",
+                "phone": "+234801234567",
+                "current_role": "Backend Engineer",
+                "experience_level": "Senior",
+                "country": "Nigeria",
+                "skills": "Python, Django, PostgreSQL",
+                "summary": "5 years building APIs.",
+            },
+            format="json",
+        )
+        self.assertEqual(resp.status_code, 201)
+        self.assertTrue(resp.data["success"])
+        self.assertEqual(resp.data["data"]["name"], "Jane Doe")
+        self.assertEqual(resp.data["data"]["status"], "new")
+
+        candidate = PipelineCandidate.objects.get(pk=resp.data["data"]["id"])
+        self.assertEqual(candidate.company, self.company)
+        self.assertEqual(candidate.category, self.category)
+        self.assertEqual(candidate.user, self.talent)
+        self.assertEqual(candidate.invite_link, invite)
+        self.assertEqual(candidate.skills, ["Python", "Django", "PostgreSQL"])
+
+    def test_submit_to_inactive_invite(self):
+        invite = PipelineInviteLink.objects.create(
+            category=self.category,
+            company=self.company,
+            created_by=self.recruiter,
+            is_active=False,
+        )
+        resp = self.talent_client.post(
+            f"/api/sourcing/invite/{invite.token}/submit/",
+            {
+                "first_name": "Jane",
+                "last_name": "Doe",
+                "email": "jane@dev.com",
+            },
+            format="json",
+        )
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn("error", resp.data)
