@@ -55,27 +55,9 @@ const SideNavV3 = ({
       verticalScrollClassName='!hidden'
       horizontalScrollClassName='!hidden'
     >
-      <div className='px-1.5 pt-5'>
-        <div
-          className={cn(
-            "flex w-full max-lg:hidden",
-            isExpanded ? "justify-end" : "justify-center"
-          )}
-        >
-          <button
-            title={isExpanded ? "Collapse sidebar" : "Expand sidebar"}
-            aria-label={isExpanded ? "Collapse sidebar" : "Expand sidebar"}
-            onClick={toggleExpansion}
-            className={cn(
-              "text-2xl text-primary transition-transform duration-300 hover:text-primary/80",
-              isExpanded && "rotate-180"
-            )}
-          >
-            <MdKeyboardDoubleArrowRight />
-          </button>
-        </div>
+      <div className='px-1.5 pt-3 flex items-center justify-between'>
         <NavLink
-          className='flex items-center group mt-4 text-sidebar-foreground capitalize hover:bg-sidebar-accent rounded-md px-2.5 py-2'
+          className='flex items-center group flex-1 text-sidebar-foreground capitalize hover:bg-sidebar-accent rounded-md px-2.5 py-2'
           href={homeItem.href}
           exact
           activeClassName='text-sidebar-accent-foreground fill-sidebar-accent-foreground bg-sidebar-accent border-l-[3px] border-primary'
@@ -94,8 +76,19 @@ const SideNavV3 = ({
             {homeItem.name}
           </h2>
         </NavLink>
+        <button
+          title={isExpanded ? "Collapse sidebar" : "Expand sidebar"}
+          aria-label={isExpanded ? "Collapse sidebar" : "Expand sidebar"}
+          onClick={toggleExpansion}
+          className={cn(
+            "text-xl text-muted-foreground transition-transform duration-300 hover:text-foreground max-lg:hidden p-1",
+            isExpanded && "rotate-180"
+          )}
+        >
+          <MdKeyboardDoubleArrowRight />
+        </button>
       </div>
-      <div className='mx-1.5 my-3 border-t border-sidebar-border' />
+      <div className='mx-1.5 my-2 border-t border-sidebar-border' />
 
       <div className='px-1.5 space-y-1'>
         {isExpanded && (
