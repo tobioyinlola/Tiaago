@@ -760,13 +760,10 @@ export function InviteApplicationForm({
             {step === 4 && (
               <div className='space-y-5 animate-in fade-in duration-200'>
                 <div>
-                  <div className='flex items-center gap-2 mb-0.5'>
+                  <div className='mb-0.5'>
                     <h2 className='text-base font-semibold font-onest text-black'>
                       Your professional background
                     </h2>
-                    <span className='text-[10px] font-onest bg-primary/10 text-primary px-2 py-0.5 rounded-full'>
-                      {categoryName}
-                    </span>
                   </div>
                   <p className='text-xs text-[#5F6264] font-onest mt-0.5'>
                     {companyName
