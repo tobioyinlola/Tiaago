@@ -24,13 +24,14 @@ import {
   ArrowLeft,
   Download,
   Eye,
+  FileText,
 } from "lucide-react";
 import { GetPipelineResponse, PipelineEntry } from "@/app/common/types";
 import { toast } from "sonner";
 import { OutreachDialog } from "../../sourcing/_components/OutreachDialog";
 import { useRouter } from "next/navigation";
 import { useAlert } from "@/app/common/store/useAlert";
-import { deletePipelineEntry } from "@/app/common/services/sourcing";
+import { deletePipelineEntry, updatePipelineEntry } from "@/app/common/services/sourcing";
 import { handleFormSubmissionError } from "@/app/common/utils";
 import { formatDistanceToNow } from "date-fns";
 
@@ -143,7 +144,7 @@ export default function Pipeline({
     });
   };
 
-  const handleSendOutreach = (
+  const handleSendOutreach = async (
     outreachCandidates: PipelineEntry[],
     subject: string,
     body: string
@@ -160,6 +161,11 @@ export default function Pipeline({
     );
     setCandidates(updated);
     setSelectedIds(new Set());
+    for (const c of outreachCandidates) {
+      if (c.status !== "contacted") {
+        await updatePipelineEntry(c.id, { status: "contacted" }).catch(() => {});
+      }
+    }
   };
 
   const handleSelectCandidate = (candidateId: string, checked: boolean) => {
@@ -420,9 +426,16 @@ export default function Pipeline({
                             {getInitials(candidate.name)}
                           </div>
                           <div className='min-w-0'>
-                            <p className='font-medium text-foreground truncate capitalize'>
-                              {candidate.name}
-                            </p>
+                            <div className='flex items-center gap-1'>
+                              <p className='font-medium text-foreground truncate capitalize'>
+                                {candidate.name}
+                              </p>
+                              {candidate.resume && (
+                                <span title='Resume uploaded'>
+                                  <FileText className='h-3 w-3 text-primary shrink-0' />
+                                </span>
+                              )}
+                            </div>
                             <p className='text-xs text-muted-foreground truncate'>
                               {candidate.email || "—"}
                             </p>
@@ -545,6 +558,16 @@ export default function Pipeline({
           setOutreachCandidate(candidate);
         }}
         onRemove={handleRemove}
+        onStatusChange={(id, newStatus) => {
+          setCandidates(prev =>
+            prev.map(c => (c.id === id ? { ...c, status: newStatus } : c))
+          );
+          if (detailCandidate?.id === id) {
+            setDetailCandidate(prev =>
+              prev ? { ...prev, status: newStatus } : prev
+            );
+          }
+        }}
       />
 
       {/* Single Outreach Dialog */}

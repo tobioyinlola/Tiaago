@@ -138,22 +138,21 @@ class InviteSubmissionSerializer(serializers.Serializer):
 
     def validate_resume(self, value):
         if value:
-            if value.size > settings.UPLOAD_FILE_MAX_SIZE:
+            if value.size > 5 * 1024 * 1024:
                 raise serializers.ValidationError(
-                    "Resume file size too large. Max size is 2MB."
+                    "Resume file size too large. Max size is 5MB."
                 )
             file_extension = value.name.split(".")[-1].lower()
-            if file_extension not in settings.WHITELISTED_RESUME_FORMAT.keys():
+            if file_extension != "pdf":
                 raise serializers.ValidationError(
-                    "Only PDF, DOCX, and DOC files are allowed."
+                    "Only PDF files are allowed."
                 )
             mime_type, _ = mimetypes.guess_type(value.name)
-            allowed_mimes = list(settings.WHITELISTED_RESUME_FORMAT.values())
             if (
-                mime_type not in allowed_mimes
-                and value.content_type not in allowed_mimes
+                mime_type != "application/pdf"
+                and value.content_type != "application/pdf"
             ):
-                raise serializers.ValidationError("Invalid resume mime-type.")
+                raise serializers.ValidationError("Only PDF files are allowed.")
         return value
 
     def create(self, validated_data):

@@ -240,13 +240,8 @@ export function InviteApplicationForm({
       e.target.value = "";
       return;
     }
-    const allowed = [
-      "application/pdf",
-      "application/msword",
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    ];
-    if (!allowed.includes(file.type)) {
-      toast.error("Invalid file type", { description: "PDF, DOC, or DOCX only." });
+    if (file.type !== "application/pdf") {
+      toast.error("Invalid file type", { description: "Only PDF files are accepted." });
       e.target.value = "";
       return;
     }
@@ -737,7 +732,7 @@ export function InviteApplicationForm({
                     CV / Resume
                   </label>
                   <p className='text-xs text-[#7E8285] font-onest mb-1.5'>
-                    PDF, DOC, or DOCX (max 5MB)
+                    PDF only (max 5MB)
                   </p>
                   {selectedFile ? (
                     <div className='flex items-center gap-3 rounded-lg border border-[#D0D5DD] bg-white p-3'>
@@ -774,7 +769,7 @@ export function InviteApplicationForm({
                           Click to upload
                         </p>
                         <p className='text-xs text-[#7E8285] font-onest'>
-                          PDF, DOC, or DOCX up to 5MB
+                          PDF up to 5MB
                         </p>
                       </div>
                     </button>
@@ -782,7 +777,7 @@ export function InviteApplicationForm({
                   <input
                     ref={fileInputRef}
                     type='file'
-                    accept='.pdf,.doc,.docx'
+                    accept='.pdf,application/pdf'
                     onChange={handleFileChange}
                     className='hidden'
                   />
