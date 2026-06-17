@@ -170,20 +170,20 @@ export function TalentPoolInviteDialog({
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="!max-w-[calc(100vw-2rem)] sm:!max-w-sm p-0 gap-0 overflow-hidden">
         {/* Illustration header */}
-        <div className="flex items-center justify-center bg-primary/5 pt-4 sm:pt-6 pb-2 sm:pb-3 overflow-hidden">
+        <div className="flex items-center justify-center bg-primary/5 pt-5 sm:pt-6 pb-3 overflow-hidden">
           <AnimatePresence>
             {open && (
               <m.div
-                initial={{ opacity: 0, y: 20, scale: 0.9 }}
+                initial={{ opacity: 0, y: 24, scale: 0.85 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
-                transition={{ duration: 0.5, ease: "easeOut", delay: 0.1 }}
+                transition={{ duration: 0.6, ease: "easeOut", delay: 0.1 }}
               >
                 <Image
                   src="/assets/undraw_message-sent_iyz6.svg"
                   alt=""
-                  width={200}
-                  height={160}
-                  className="h-[80px] sm:h-[140px] w-auto"
+                  width={220}
+                  height={180}
+                  className="h-[120px] sm:h-[150px] w-auto"
                   priority
                 />
               </m.div>
