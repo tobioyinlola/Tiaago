@@ -28,7 +28,7 @@ export function TalentPoolInviteDialog({
   categoryId,
   categoryName,
 }: TalentPoolInviteDialogProps) {
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [copied, setCopied] = useState(false);
   const [inviteData, setInviteData] = useState<{
     invite_url: string;
@@ -37,24 +37,35 @@ export function TalentPoolInviteDialog({
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (open && categoryId) {
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (nextOpen) {
       setIsLoading(true);
       setError(null);
       setInviteData(null);
-      generateInviteLink(categoryId).then(result => {
-        if (result.success) {
-          setInviteData({
-            invite_url: result.data.invite_url,
-            category_name: result.data.category_name,
-            is_active: result.data.is_active,
-          });
-        } else {
-          setError(result.error || "Failed to generate invite link.");
-        }
-        setIsLoading(false);
-      });
     }
+    onOpenChange(nextOpen);
+  };
+
+  useEffect(() => {
+    if (!open || !categoryId) return;
+
+    let cancelled = false;
+    const fetchLink = async () => {
+      const result = await generateInviteLink(categoryId);
+      if (cancelled) return;
+      if (result.success) {
+        setInviteData({
+          invite_url: result.data.invite_url,
+          category_name: result.data.category_name,
+          is_active: result.data.is_active,
+        });
+      } else {
+        setError(result.error || "Failed to generate invite link.");
+      }
+      setIsLoading(false);
+    };
+    fetchLink();
+    return () => { cancelled = true; };
   }, [open, categoryId]);
 
   const handleCopy = () => {
@@ -66,7 +77,7 @@ export function TalentPoolInviteDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
