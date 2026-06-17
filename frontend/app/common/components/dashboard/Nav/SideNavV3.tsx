@@ -47,7 +47,7 @@ const SideNavV3 = ({
 
   return (
     <div className={cn(
-      "relative transition-[width] duration-300",
+      "relative transition-[width] duration-300 max-lg:w-[260px] max-lg:h-full",
       isExpanded ? "lg:w-[240px]" : "lg:w-[72px]"
     )}>
       {/* Collapse/expand toggle on the sidebar edge */}
