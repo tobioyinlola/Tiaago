@@ -305,6 +305,13 @@ ul > li.slick-active {
     --sidebar-border: 214 32% 91%;
     --sidebar-ring: 221 83% 53%;
 
+    /* Chart tokens (used by Recharts ChartContainer — mapped to TIAAGO brand) */
+    --chart-1: 221 83% 53%;
+    --chart-2: 199 65% 52%;
+    --chart-3: 142 71% 45%;
+    --chart-4: 38 92% 50%;
+    --chart-5: 0 84% 60%;
+
     /* Custom tokens */
     --score-high: 142 71% 45%;
     --score-medium: 38 92% 50%;
@@ -351,6 +358,13 @@ ul > li.slick-active {
     --border: 217 33% 17%;
     --input: 217 33% 17%;
     --ring: 213 27% 84%;
+
+    /* Chart tokens (brighter for dark backgrounds) */
+    --chart-1: 221 83% 60%;
+    --chart-2: 199 65% 58%;
+    --chart-3: 142 71% 52%;
+    --chart-4: 38 92% 57%;
+    --chart-5: 0 84% 67%;
 
     --sidebar-background: 222 47% 11%;
     --sidebar-foreground: 215 20% 65%;
