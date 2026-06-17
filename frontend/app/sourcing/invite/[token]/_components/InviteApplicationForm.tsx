@@ -370,14 +370,6 @@ export function InviteApplicationForm({
             >
               Get Started
             </button>
-            <a
-              href='https://storyset.com/work'
-              target='_blank'
-              rel='noopener noreferrer'
-              className='text-white/30 text-[10px] font-onest block text-center'
-            >
-              Work illustrations by Storyset
-            </a>
           </div>
         </div>
       )}
@@ -418,7 +410,7 @@ export function InviteApplicationForm({
                 </p>
               </div>
               {/* Animated Illustration */}
-              <div className='mt-10 flex items-center justify-center'>
+              <div className='mt-10 flex items-center justify-center animate-in fade-in zoom-in duration-700'>
                 <object
                   type='image/svg+xml'
                   data='/assets/Invite-amico.svg'
