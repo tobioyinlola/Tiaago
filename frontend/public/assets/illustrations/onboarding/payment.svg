@@ -1,0 +1,89 @@
+<svg viewBox="0 0 400 300" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background shapes -->
+  <circle cx="60" cy="60" r="28" fill="#F0F2FF"/>
+  <circle cx="345" cy="235" r="35" fill="#F0F2FF"/>
+  <circle cx="330" cy="55" r="16" fill="#E8EBFF"/>
+  <circle cx="65" cy="230" r="12" fill="#E8EBFF"/>
+
+  <!-- Main card (credit card) -->
+  <rect x="95" y="75" width="210" height="130" rx="16" fill="white" filter="url(#shadow4)"/>
+  <rect x="95" y="75" width="210" height="130" rx="16" stroke="#E8EBFF" stroke-width="1.5"/>
+
+  <!-- Card gradient top band -->
+  <rect x="95" y="75" width="210" height="45" rx="16" fill="#5465FF"/>
+  <rect x="95" y="104" width="210" height="16" fill="#5465FF"/>
+
+  <!-- Card chip -->
+  <rect x="120" y="90" width="30" height="22" rx="4" fill="white" opacity="0.25"/>
+  <line x1="120" y1="98" x2="150" y2="98" stroke="white" stroke-width="0.75" opacity="0.3"/>
+  <line x1="120" y1="105" x2="150" y2="105" stroke="white" stroke-width="0.75" opacity="0.3"/>
+  <line x1="135" y1="90" x2="135" y2="112" stroke="white" stroke-width="0.75" opacity="0.3"/>
+
+  <!-- WiFi/contactless icon -->
+  <g transform="translate(170, 98)">
+    <path d="M-5 3C-3 0 3 0 5 3" stroke="white" stroke-width="1.5" stroke-linecap="round" fill="none" opacity="0.5"/>
+    <path d="M-8 0C-4-5 4-5 8 0" stroke="white" stroke-width="1.5" stroke-linecap="round" fill="none" opacity="0.35"/>
+    <path d="M-11-3C-6-10 6-10 11-3" stroke="white" stroke-width="1.5" stroke-linecap="round" fill="none" opacity="0.2"/>
+  </g>
+
+  <!-- Card number dots -->
+  <g transform="translate(120, 140)">
+    <circle cx="0" cy="0" r="2.5" fill="#E8EBFF"/>
+    <circle cx="8" cy="0" r="2.5" fill="#E8EBFF"/>
+    <circle cx="16" cy="0" r="2.5" fill="#E8EBFF"/>
+    <circle cx="24" cy="0" r="2.5" fill="#E8EBFF"/>
+    <circle cx="40" cy="0" r="2.5" fill="#E8EBFF"/>
+    <circle cx="48" cy="0" r="2.5" fill="#E8EBFF"/>
+    <circle cx="56" cy="0" r="2.5" fill="#E8EBFF"/>
+    <circle cx="64" cy="0" r="2.5" fill="#E8EBFF"/>
+    <circle cx="80" cy="0" r="2.5" fill="#E8EBFF"/>
+    <circle cx="88" cy="0" r="2.5" fill="#E8EBFF"/>
+    <circle cx="96" cy="0" r="2.5" fill="#E8EBFF"/>
+    <circle cx="104" cy="0" r="2.5" fill="#E8EBFF"/>
+    <text x="120" y="4" fill="#5465FF" font-size="11" font-weight="600" font-family="system-ui" opacity="0.6">4521</text>
+  </g>
+
+  <!-- Name and expiry -->
+  <rect x="120" y="162" width="60" height="6" rx="3" fill="#E8EBFF"/>
+  <rect x="240" y="162" width="35" height="6" rx="3" fill="#E8EBFF"/>
+  <text x="120" y="185" fill="#9CA3AF" font-size="8" font-family="system-ui">CARDHOLDER</text>
+  <text x="240" y="185" fill="#9CA3AF" font-size="8" font-family="system-ui">EXP</text>
+
+  <!-- Shield badge - floating top right -->
+  <g transform="translate(325, 100)">
+    <circle r="28" fill="white" filter="url(#shadow4)"/>
+    <circle r="28" stroke="#E8EBFF" stroke-width="1"/>
+    <path d="M0-14C-8-14-14-10-14-6C-14 4-6 12 0 16C6 12 14 4 14-6C14-10 8-14 0-14Z" fill="#00B849" opacity="0.15"/>
+    <path d="M0-10C-6-10-10-7-10-4C-10 3-4 9 0 12C4 9 10 3 10-4C10-7 6-10 0-10Z" stroke="#00B849" stroke-width="1.5" fill="none"/>
+    <path d="M-4 0L-1 3L5-3" stroke="#00B849" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+
+  <!-- Lock icon - floating left -->
+  <g transform="translate(68, 140)">
+    <circle r="22" fill="white" filter="url(#shadow4)"/>
+    <circle r="22" stroke="#E8EBFF" stroke-width="1"/>
+    <rect x="-8" y="-2" width="16" height="12" rx="3" fill="#5465FF" opacity="0.7"/>
+    <path d="M-4-2V-6C-4-8-2-10 0-10S4-8 4-6V-2" stroke="#5465FF" stroke-width="2" stroke-linecap="round" fill="none" opacity="0.5"/>
+    <circle cx="0" cy="5" r="2" fill="white"/>
+  </g>
+
+  <!-- Floating coin/dollar -->
+  <g transform="translate(180, 240)">
+    <circle r="18" fill="white" filter="url(#shadow4)"/>
+    <circle r="18" stroke="#E8EBFF" stroke-width="1"/>
+    <circle r="12" fill="#5465FF" opacity="0.1"/>
+    <text x="0" y="5" text-anchor="middle" fill="#5465FF" font-size="14" font-weight="700" font-family="system-ui">$</text>
+  </g>
+
+  <!-- Small dots -->
+  <circle cx="90" cy="250" r="4" fill="#5465FF" opacity="0.1"/>
+  <circle cx="340" cy="170" r="3" fill="#5465FF" opacity="0.08"/>
+  <circle cx="160" cy="48" r="3" fill="#E8EBFF"/>
+  <circle cx="250" cy="260" r="4" fill="#5465FF" opacity="0.12"/>
+
+  <defs>
+    <filter id="shadow4" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="#5465FF" flood-opacity="0.08"/>
+    </filter>
+  </defs>
+</svg>

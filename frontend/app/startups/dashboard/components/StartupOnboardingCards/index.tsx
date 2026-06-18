@@ -168,8 +168,8 @@ function StartupOnboardingCards() {
         modalRef={onboardingModalRef}
         disableBackdropClick
         disableClose
-        className='md:max-w-4xl w-[90svw]'
-        scrollAreaClassName='max-w-4xl'
+        className='md:max-w-2xl w-[90svw]'
+        scrollAreaClassName='max-w-2xl'
         scrollAreaId={scrollAreaId}
       >
         {renderCurrentCard()}
