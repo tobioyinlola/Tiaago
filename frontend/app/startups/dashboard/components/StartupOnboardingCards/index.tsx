@@ -34,7 +34,7 @@ function StartupOnboardingCards() {
   const confirmationModalRef = useRef<HTMLDialogElement>(null);
   const onboardingModalRef = useRef<HTMLDialogElement>(null);
   const subscriptionModalRef = useRef<HTMLDialogElement>(null);
-  const userName = profile?.first_name ?? "";
+  const userName = profile?.first_name || "there";
   const router = useRouter();
 
   const handleCloseModal = () => {

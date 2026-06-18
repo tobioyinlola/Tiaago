@@ -72,6 +72,10 @@ const config: Config = {
           DEFAULT: "hsl(var(--destructive))",
           foreground: "hsl(var(--destructive-foreground))",
         },
+        success: {
+          DEFAULT: "hsl(var(--success))",
+          foreground: "hsl(var(--success-foreground))",
+        },
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
@@ -180,6 +184,10 @@ const config: Config = {
           from: { transform: "translateX(100%)" },
           to: { transform: "translateX(0)" },
         },
+        draw: {
+          from: { strokeDashoffset: "24" },
+          to: { strokeDashoffset: "0" },
+        },
       },
       animation: {
         "pulse-slow": "pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite",
@@ -190,6 +198,7 @@ const config: Config = {
         "scale-in": "scale-in 0.2s ease-out",
         shimmer: "shimmer 2s infinite linear",
         "slide-in-from-right": "slide-in-from-right 0.25s ease-out",
+        draw: "draw 0.5s ease-out 0.3s forwards",
       },
       transitionDuration: {
         "1s": "1s",

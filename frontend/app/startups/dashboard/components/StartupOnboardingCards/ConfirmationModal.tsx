@@ -29,7 +29,7 @@ export default function ConfirmationModal({
           >
             <path
               d="M5 12L10 17L19 7"
-              className="animate-[draw_0.5s_ease-out_0.3s_forwards]"
+              className="animate-draw"
               style={{
                 strokeDasharray: 24,
                 strokeDashoffset: 24,
@@ -51,14 +51,14 @@ export default function ConfirmationModal({
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-sm">
         <button
           onClick={onUsageBased}
-          className="flex items-center justify-center gap-2 px-5 py-3 bg-primary text-primary-foreground rounded-md font-medium hover:bg-primary/90 transition-all min-h-[44px]"
+          className="flex items-center justify-center gap-2 px-5 py-3 bg-primary text-primary-foreground rounded-md font-medium hover:bg-primary/90 transition-all min-h-[44px] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         >
           <DollarSign size={18} />
           Usage-Based
         </button>
         <button
           onClick={onSubscription}
-          className="flex items-center justify-center gap-2 px-5 py-3 bg-secondary text-secondary-foreground rounded-md font-medium hover:bg-secondary/80 transition-colors min-h-[44px]"
+          className="flex items-center justify-center gap-2 px-5 py-3 bg-secondary text-secondary-foreground rounded-md font-medium hover:bg-secondary/80 transition-colors min-h-[44px] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         >
           <Users size={18} />
           Subscription

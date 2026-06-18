@@ -1,6 +1,8 @@
 import React from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
+import { cn } from "@/app/common/utils";
+
 interface OnboardingCardProps {
   children: React.ReactNode;
   currentStep: number;
@@ -27,13 +29,12 @@ export default function OnboardingCard({
         {Array.from({ length: totalSteps }, (_, i) => (
           <div
             key={i}
-            className={`rounded-full transition-all duration-300 ${
-              i + 1 === currentStep
-                ? "w-6 h-2.5 bg-primary"
-                : i + 1 < currentStep
-                  ? "w-2.5 h-2.5 bg-primary opacity-40"
-                  : "w-2.5 h-2.5 bg-muted"
-            }`}
+            className={cn(
+              "rounded-full transition-all duration-300",
+              i + 1 === currentStep && "w-6 h-2.5 bg-primary",
+              i + 1 < currentStep && "w-2.5 h-2.5 bg-primary opacity-40",
+              i + 1 > currentStep && "w-2.5 h-2.5 bg-muted",
+            )}
           />
         ))}
       </div>
@@ -48,11 +49,12 @@ export default function OnboardingCard({
         <button
           onClick={onPrevious}
           disabled={currentStep === 1}
-          className={`flex items-center gap-1 px-3 py-2.5 rounded-md text-sm font-medium transition-colors min-h-[44px] ${
+          className={cn(
+            "flex items-center gap-1 px-3 py-2.5 rounded-md text-sm font-medium transition-colors min-h-[44px] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
             currentStep === 1
-              ? "text-muted-foreground/30 cursor-not-allowed"
-              : "text-muted-foreground hover:text-foreground hover:bg-muted"
-          }`}
+              ? "text-muted-foreground/40 cursor-not-allowed"
+              : "text-muted-foreground hover:text-foreground hover:bg-muted",
+          )}
         >
           <ChevronLeft size={18} />
           Back
@@ -62,7 +64,7 @@ export default function OnboardingCard({
           {onSkip && (
             <button
               onClick={onSkip}
-              className="px-3 py-2.5 text-muted-foreground hover:text-foreground text-sm font-medium transition-colors min-h-[44px]"
+              className="px-3 py-2.5 text-muted-foreground hover:text-foreground text-sm font-medium transition-colors min-h-[44px] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-md"
             >
               Skip
             </button>
@@ -70,7 +72,7 @@ export default function OnboardingCard({
           {onNext && (
             <button
               onClick={onNext}
-              className="flex items-center gap-1 px-5 py-2.5 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 transition-all min-h-[44px]"
+              className="flex items-center gap-1 px-5 py-2.5 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 transition-all min-h-[44px] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
               {nextLabel}
               <ChevronRight size={18} />
