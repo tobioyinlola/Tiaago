@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/app/common/components/ui/button";
 import { Badge } from "@/app/common/components/ui/badge";
+import { GoogleIcon } from "@/app/common/icons/GoogleIcon";
 import {
   getSmtpConfig,
   saveSmtpConfig,
@@ -353,6 +354,7 @@ export default function EmailIntegrationTab() {
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-2 text-sm font-medium text-primary hover:text-primary/80 transition-colors"
                   >
+                    <GoogleIcon className="h-4 w-4" />
                     Open Google 2-Step Verification
                     <ExternalLink className="h-3.5 w-3.5" />
                   </a>
@@ -415,6 +417,7 @@ export default function EmailIntegrationTab() {
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-2 text-sm font-medium text-primary hover:text-primary/80 transition-colors"
                   >
+                    <GoogleIcon className="h-4 w-4" />
                     Open Google App Passwords
                     <ExternalLink className="h-3.5 w-3.5" />
                   </a>
@@ -454,8 +457,9 @@ export default function EmailIntegrationTab() {
                   <div className="space-y-2">
                     <label
                       htmlFor="app-password"
-                      className="block text-sm font-medium text-foreground"
+                      className="flex items-center gap-1.5 text-sm font-medium text-foreground"
                     >
+                      <GoogleIcon className="h-4 w-4" />
                       Gmail App Password
                     </label>
                     <div className="relative">

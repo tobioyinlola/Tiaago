@@ -22,6 +22,7 @@ class CustomUserSerializer(serializers.ModelSerializer):
             "verified",
             "created",
             "referral_code",
+            "auth_provider",
         )
     def get_profile_pic_url(self, obj):
         if obj.profile_pic and hasattr(obj.profile_pic, 'url'):

@@ -148,6 +148,7 @@ class GoogleSignInView(APIView):
                 is_verified=True,
                 verified=True,
                 password=None,
+                auth_provider=CustomUser.AuthProvider.GOOGLE,
             )
             if django_user_type == CustomUser.USER_TYPE.COMPANY_REP:
                 Company.objects.create(
@@ -158,10 +159,16 @@ class GoogleSignInView(APIView):
                 TalentProfile.objects.create(user=user)
             send_after_commit(send_welcome_mail, user_pk=user.pk)
 
+        update_fields = []
         if not user.is_verified:
             user.is_verified = True
             user.verified = True
-            user.save(update_fields=["is_verified", "verified"])
+            update_fields += ["is_verified", "verified"]
+        if user.auth_provider != CustomUser.AuthProvider.GOOGLE:
+            user.auth_provider = CustomUser.AuthProvider.GOOGLE
+            update_fields.append("auth_provider")
+        if update_fields:
+            user.save(update_fields=update_fields)
 
         refresh = RefreshToken.for_user(user)
         access = refresh.access_token

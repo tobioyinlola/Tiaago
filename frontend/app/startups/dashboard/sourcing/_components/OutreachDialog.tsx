@@ -9,6 +9,7 @@ import {
   DialogContent,
 } from "@/app/common/components/ui/dialog";
 import { Button } from "@/app/common/components/ui/button";
+import { GoogleIcon } from "@/app/common/icons/GoogleIcon";
 import { Label } from "@/app/common/components/ui/label";
 import { Input } from "@/app/common/components/ui/input";
 import { Textarea } from "@/app/common/components/ui/textarea";
@@ -252,6 +253,7 @@ function InlineSmtpWizard({
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:text-primary/80"
               >
+                <GoogleIcon className="h-4 w-4" />
                 Open Google 2-Step Verification
                 <ExternalLink className="h-3.5 w-3.5" />
               </a>
@@ -295,6 +297,7 @@ function InlineSmtpWizard({
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:text-primary/80"
               >
+                <GoogleIcon className="h-4 w-4" />
                 Open Google App Passwords
                 <ExternalLink className="h-3.5 w-3.5" />
               </a>
@@ -333,7 +336,8 @@ function InlineSmtpWizard({
                 </p>
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="wizard-app-password" className="text-xs">
+                <Label htmlFor="wizard-app-password" className="text-xs flex items-center gap-1.5">
+                  <GoogleIcon className="h-4 w-4" />
                   Gmail App Password
                 </Label>
                 <div className="relative">

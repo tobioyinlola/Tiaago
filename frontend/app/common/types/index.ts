@@ -131,6 +131,7 @@ export type BaseUser = {
   phone_number: string;
   country: string;
   verified: boolean;
+  auth_provider?: "email" | "google";
   is_staff: boolean;
   is_superuser: boolean;
   subscribed_plan: null | {

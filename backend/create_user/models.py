@@ -40,6 +40,16 @@ class CustomUser(AbstractUser):
     updated = models.DateTimeField(auto_now=True)
     is_verified = models.BooleanField(default=False)
 
+    class AuthProvider(models.TextChoices):
+        EMAIL = "email", "Email"
+        GOOGLE = "google", "Google"
+
+    auth_provider = models.CharField(
+        max_length=10,
+        choices=AuthProvider.choices,
+        default=AuthProvider.EMAIL,
+    )
+
     objects = managers.CustomUserManager()
     staff_objects = managers.StaffManager()
     talent_objects = managers.TalentManager()
