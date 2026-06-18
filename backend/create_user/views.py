@@ -60,6 +60,7 @@ from .api.serializers import (
     CompanyOnboardingSerializer,
     CompanySerializer,
     CompanyTeamInviteSerializer,
+    CompanyTeamMemberSerializer,
     TalentSerializer,
     CustomUserSerializer,
     CompanyForUserProfileSerializer,
@@ -1014,6 +1015,26 @@ class CompanyOnboardingAPIView(APIView):
             company.save(update_fields=update_fields)
 
         return Response(CompanyOnboardingSerializer(company).data)
+
+
+class CompanyTeamListAPIView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        membership = CompanyTeamMember.objects.filter(user=request.user).first()
+        if not membership:
+            return Response({"detail": "Not a team member of any company."}, status=status.HTTP_403_FORBIDDEN)
+
+        company = membership.company
+        members = CompanyTeamMember.objects.filter(company=company).select_related("user", "invited_by")
+        invites = CompanyTeamInvite.objects.filter(company=company, status=CompanyTeamInvite.STATUS_PENDING).select_related("invited_by")
+
+        return Response({
+            "members": CompanyTeamMemberSerializer(members, many=True).data,
+            "invites": CompanyTeamInviteSerializer(invites, many=True).data,
+            "company_id": company.id,
+            "user_role": membership.role,
+        })
 
 
 class CompanyTeamInviteCreateAPIView(APIView):

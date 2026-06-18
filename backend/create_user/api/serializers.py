@@ -743,11 +743,18 @@ class CompanyForUserProfileSerializer(serializers.ModelSerializer):
 class CompanyTeamMemberSerializer(serializers.ModelSerializer):
     user_full_name = serializers.CharField(source="user.get_full_name", read_only=True)
     user_email = serializers.EmailField(source="user.email", read_only=True)
+    user_profile_pic = serializers.SerializerMethodField()
 
     class Meta:
         model = CompanyTeamMember
-        fields = ["id", "company", "user", "user_full_name", "user_email", "role"]
+        fields = ["id", "company", "user", "user_full_name", "user_email", "user_profile_pic", "role", "created_at"]
         read_only_fields = ["created_at", "invited_by"]
+
+    def get_user_profile_pic(self, obj):
+        pic = getattr(obj.user, "profile_pic", None)
+        if pic and hasattr(pic, "url"):
+            return pic.url
+        return None
 
 
 

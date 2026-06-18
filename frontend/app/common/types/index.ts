@@ -192,6 +192,38 @@ export type Staff = BaseUser & {
 
 export type User = Talent | Startup | Staff;
 
+export type TeamMemberRole = "admin" | "recruiter" | "viewer";
+
+export type TeamMember = {
+  id: ID;
+  company: ID;
+  user: ID;
+  user_full_name: string;
+  user_email: string;
+  user_profile_pic?: string | null;
+  role: TeamMemberRole;
+  created_at: string;
+};
+
+export type TeamInvite = {
+  id: ID;
+  company: ID;
+  email: string;
+  role: TeamMemberRole;
+  token: string;
+  status: "pending" | "accepted" | "revoked";
+  created_at: string;
+  is_expired: boolean;
+  inviter_name: string;
+};
+
+export type TeamListResponse = {
+  members: TeamMember[];
+  invites: TeamInvite[];
+  company_id: number;
+  user_role: TeamMemberRole;
+};
+
 export type TalentPortfolioWorkExperience = {
   id: ID;
   portfolio?: ID;
