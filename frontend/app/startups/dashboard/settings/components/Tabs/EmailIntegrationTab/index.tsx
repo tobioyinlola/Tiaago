@@ -49,51 +49,70 @@ function StepIndicator({ current }: { current: WizardStep }) {
   if (currentIdx === -1) return null;
 
   return (
-    <div className="flex items-center gap-1.5 sm:gap-2">
-      {STEPS.map((step, i) => {
-        const isActive = i === currentIdx;
-        const isCompleted = i < currentIdx;
-        return (
-          <div key={step.key} className="flex items-center gap-1.5 sm:gap-2">
-            {i > 0 && (
-              <div
-                className={`h-px w-4 sm:w-8 transition-colors ${
-                  isCompleted ? "bg-primary" : "bg-border"
-                }`}
-              />
-            )}
-            <div className="flex items-center gap-1.5">
-              <div
-                className={`flex items-center justify-center w-6 h-6 rounded-full text-xs font-semibold transition-all ${
-                  isActive
-                    ? "bg-primary text-white shadow-sm shadow-primary/30"
-                    : isCompleted
-                      ? "bg-primary text-white"
-                      : "bg-muted text-muted-foreground"
-                }`}
-              >
-                {isCompleted ? (
-                  <CheckCircle2 className="h-3.5 w-3.5" />
-                ) : (
-                  i + 1
-                )}
+    <>
+      {/* Mobile: simple dots */}
+      <div className="flex sm:hidden items-center gap-1.5">
+        {STEPS.map((step, i) => (
+          <div
+            key={step.key}
+            className={`h-2 rounded-full transition-all ${
+              i === currentIdx
+                ? "w-6 bg-primary"
+                : i < currentIdx
+                  ? "w-2 bg-primary"
+                  : "w-2 bg-border"
+            }`}
+          />
+        ))}
+      </div>
+
+      {/* Desktop: numbered steps with labels */}
+      <div className="hidden sm:flex items-center gap-2">
+        {STEPS.map((step, i) => {
+          const isActive = i === currentIdx;
+          const isCompleted = i < currentIdx;
+          return (
+            <div key={step.key} className="flex items-center gap-2">
+              {i > 0 && (
+                <div
+                  className={`h-px w-8 transition-colors ${
+                    isCompleted ? "bg-primary" : "bg-border"
+                  }`}
+                />
+              )}
+              <div className="flex items-center gap-1.5">
+                <div
+                  className={`flex items-center justify-center w-6 h-6 rounded-full text-xs font-semibold transition-all ${
+                    isActive
+                      ? "bg-primary text-white shadow-sm shadow-primary/30"
+                      : isCompleted
+                        ? "bg-primary text-white"
+                        : "bg-muted text-muted-foreground"
+                  }`}
+                >
+                  {isCompleted ? (
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                  ) : (
+                    i + 1
+                  )}
+                </div>
+                <span
+                  className={`text-xs font-medium ${
+                    isActive
+                      ? "text-foreground"
+                      : isCompleted
+                        ? "text-primary"
+                        : "text-muted-foreground"
+                  }`}
+                >
+                  {step.label}
+                </span>
               </div>
-              <span
-                className={`text-xs font-medium hidden sm:inline ${
-                  isActive
-                    ? "text-foreground"
-                    : isCompleted
-                      ? "text-primary"
-                      : "text-muted-foreground"
-                }`}
-              >
-                {step.label}
-              </span>
             </div>
-          </div>
-        );
-      })}
-    </div>
+          );
+        })}
+      </div>
+    </>
   );
 }
 
@@ -199,8 +218,8 @@ export default function EmailIntegrationTab() {
 
         {/* Success state — full-width centered */}
         {wizardStep === "success" ? (
-          <div className="flex flex-col items-center justify-center py-14 px-6 text-center">
-            <div className="w-48 h-48 mb-6">
+          <div className="flex flex-col items-center justify-center py-8 sm:py-14 px-6 text-center">
+            <div className="w-32 h-32 sm:w-48 sm:h-48 mb-4 sm:mb-6">
               <Image
                 src={STEP_ILLUSTRATIONS.success}
                 alt="Success"
@@ -225,8 +244,19 @@ export default function EmailIntegrationTab() {
           </div>
         ) : (
           /* Split layout for wizard steps */
-          <div className="flex flex-col md:flex-row min-h-[400px]">
-            {/* Left — Illustration panel */}
+          <div className="flex flex-col md:flex-row md:min-h-[400px]">
+            {/* Mobile illustration */}
+            <div className="flex md:hidden justify-center pt-4 pb-2 px-4">
+              <Image
+                src={STEP_ILLUSTRATIONS[wizardStep]}
+                alt=""
+                width={120}
+                height={120}
+                className="w-24 h-24 object-contain opacity-80"
+              />
+            </div>
+
+            {/* Desktop — Illustration panel */}
             <div className="hidden md:flex md:w-2/5 items-center justify-center p-8 bg-gradient-to-br from-primary/[0.04] to-primary/[0.08]">
               <Image
                 src={STEP_ILLUSTRATIONS[wizardStep]}
@@ -238,9 +268,9 @@ export default function EmailIntegrationTab() {
             </div>
 
             {/* Right — Step content */}
-            <div className="flex-1 p-5 sm:p-8 flex flex-col justify-center">
+            <div className="flex-1 p-4 sm:p-8 flex flex-col justify-center">
               {wizardStep === "intro" && (
-                <div className="space-y-5">
+                <div className="space-y-3 sm:space-y-5">
                   <div>
                     <h3 className="text-lg font-semibold text-foreground">
                       How it works
@@ -248,7 +278,7 @@ export default function EmailIntegrationTab() {
                     <p className="text-sm text-muted-foreground mt-1">
                       To send outreach emails from your Gmail, you&apos;ll create a
                       Gmail <strong className="text-foreground">App Password</strong>{" "}
-                      — a special 16-character key that lets TIAAGO send on your
+                      , a special 16-character key that lets TIAAGO send on your
                       behalf without exposing your Google password.
                     </p>
                   </div>
@@ -257,7 +287,7 @@ export default function EmailIntegrationTab() {
                     {[
                       "Enable 2-Step Verification on your Google account",
                       "Create an App Password in your Google settings",
-                      "Paste the App Password here — we'll test the connection",
+                      "Paste the App Password here and we'll test the connection",
                     ].map((text, i) => (
                       <div key={i} className="flex items-start gap-3">
                         <span className="flex items-center justify-center w-7 h-7 rounded-lg bg-primary/10 text-primary text-xs font-bold shrink-0 mt-0.5">
@@ -274,7 +304,7 @@ export default function EmailIntegrationTab() {
                     text.
                   </div>
 
-                  <div className="flex gap-3 pt-2">
+                  <div className="flex flex-col-reverse sm:flex-row gap-2 sm:gap-3 pt-2">
                     <Button onClick={() => setWizardStep("2fa")}>
                       Get Started
                       <ArrowRight className="ml-2 h-4 w-4" />
@@ -287,7 +317,7 @@ export default function EmailIntegrationTab() {
               )}
 
               {wizardStep === "2fa" && (
-                <div className="space-y-5">
+                <div className="space-y-3 sm:space-y-5">
                   <div>
                     <Badge variant="secondary" className="mb-2 text-xs">
                       Step 1 of 3
@@ -327,7 +357,7 @@ export default function EmailIntegrationTab() {
                     <ExternalLink className="h-3.5 w-3.5" />
                   </a>
 
-                  <div className="flex gap-3 pt-2">
+                  <div className="flex flex-col-reverse sm:flex-row gap-2 sm:gap-3 pt-2">
                     <Button
                       variant="ghost"
                       size="sm"
@@ -345,7 +375,7 @@ export default function EmailIntegrationTab() {
               )}
 
               {wizardStep === "app-password" && (
-                <div className="space-y-5">
+                <div className="space-y-3 sm:space-y-5">
                   <div>
                     <Badge variant="secondary" className="mb-2 text-xs">
                       Step 2 of 3
@@ -355,7 +385,7 @@ export default function EmailIntegrationTab() {
                     </h3>
                     <p className="text-sm text-muted-foreground mt-1">
                       Create an App Password specifically for TIAAGO. Google will
-                      give you a 16-character password — copy it for the next step.
+                      give you a 16-character password. Copy it for the next step.
                     </p>
                   </div>
 
@@ -389,7 +419,7 @@ export default function EmailIntegrationTab() {
                     <ExternalLink className="h-3.5 w-3.5" />
                   </a>
 
-                  <div className="flex gap-3 pt-2">
+                  <div className="flex flex-col-reverse sm:flex-row gap-2 sm:gap-3 pt-2">
                     <Button
                       variant="ghost"
                       size="sm"
@@ -407,7 +437,7 @@ export default function EmailIntegrationTab() {
               )}
 
               {wizardStep === "enter-password" && (
-                <div className="space-y-5">
+                <div className="space-y-3 sm:space-y-5">
                   <div>
                     <Badge variant="secondary" className="mb-2 text-xs">
                       Step 3 of 3
@@ -452,11 +482,11 @@ export default function EmailIntegrationTab() {
                     </div>
                     <p className="text-xs text-muted-foreground flex items-center gap-1.5">
                       <Lock className="h-3 w-3" />
-                      Encrypted before storage — never stored in plain text
+                      Encrypted before storage. Never stored in plain text.
                     </p>
                   </div>
 
-                  <div className="flex gap-3 pt-2">
+                  <div className="flex flex-col-reverse sm:flex-row gap-2 sm:gap-3 pt-2">
                     <Button
                       variant="ghost"
                       size="sm"

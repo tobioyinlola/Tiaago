@@ -169,7 +169,7 @@ function InlineSmtpWizard({
             Connect Gmail to Send Outreach
           </h3>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Quick one-time setup — takes about 2 minutes
+            Quick one-time setup, takes about 2 minutes
           </p>
         </div>
         <button
@@ -203,7 +203,7 @@ function InlineSmtpWizard({
                 <p className="text-sm text-muted-foreground mt-1">
                   Create a Gmail{" "}
                   <strong className="text-foreground">App Password</strong> so
-                  TIAAGO can send emails on your behalf — without exposing your
+                  TIAAGO can send emails on your behalf without exposing your
                   Google password.
                 </p>
               </div>
@@ -211,7 +211,7 @@ function InlineSmtpWizard({
                 {[
                   "Enable 2-Step Verification",
                   "Create an App Password",
-                  "Paste it here — we test the connection",
+                  "Paste it here and we test the connection",
                 ].map((text, i) => (
                   <div key={i} className="flex items-center gap-2.5">
                     <span className="flex items-center justify-center w-6 h-6 rounded-md bg-primary/10 text-primary text-xs font-bold shrink-0">
@@ -221,7 +221,7 @@ function InlineSmtpWizard({
                   </div>
                 ))}
               </div>
-              <div className="flex gap-2.5 pt-1">
+              <div className="flex flex-col-reverse sm:flex-row gap-2 sm:gap-2.5 pt-1">
                 <Button size="sm" onClick={() => setStep("2fa")}>
                   Get Started
                   <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
@@ -255,7 +255,7 @@ function InlineSmtpWizard({
                 Open Google 2-Step Verification
                 <ExternalLink className="h-3.5 w-3.5" />
               </a>
-              <div className="flex gap-2.5 pt-1">
+              <div className="flex flex-col-reverse sm:flex-row gap-2 sm:gap-2.5 pt-1">
                 <Button
                   size="sm"
                   variant="ghost"
@@ -298,7 +298,7 @@ function InlineSmtpWizard({
                 Open Google App Passwords
                 <ExternalLink className="h-3.5 w-3.5" />
               </a>
-              <div className="flex gap-2.5 pt-1">
+              <div className="flex flex-col-reverse sm:flex-row gap-2 sm:gap-2.5 pt-1">
                 <Button
                   size="sm"
                   variant="ghost"
@@ -363,7 +363,7 @@ function InlineSmtpWizard({
                   Encrypted before storage
                 </p>
               </div>
-              <div className="flex gap-2.5 pt-1">
+              <div className="flex flex-col-reverse sm:flex-row gap-2 sm:gap-2.5 pt-1">
                 <Button
                   size="sm"
                   variant="ghost"
@@ -515,10 +515,10 @@ export function OutreachDialog({
   return (
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent
-        className={`p-0 gap-0 overflow-hidden ${
+        className={`p-0 gap-0 overflow-hidden max-sm:max-w-[95vw] max-sm:rounded-xl ${
           smtpStatus === "not-configured"
-            ? "max-w-2xl"
-            : "max-w-4xl"
+            ? "sm:max-w-2xl"
+            : "sm:max-w-4xl"
         }`}
       >
         {/* Loading state */}
@@ -554,7 +554,7 @@ export function OutreachDialog({
                   </p>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="hidden md:flex items-center gap-2">
                 <Button
                   variant="ghost"
                   size="sm"
@@ -566,7 +566,7 @@ export function OutreachDialog({
                   ) : (
                     <Eye className="h-3.5 w-3.5" />
                   )}
-                  <span className="hidden sm:inline">Preview</span>
+                  Preview
                 </Button>
               </div>
             </div>
@@ -574,7 +574,7 @@ export function OutreachDialog({
             {/* Body: compose + preview */}
             <div className="flex flex-1 min-h-0 overflow-hidden">
               {/* Left — Compose */}
-              <div className="flex-1 overflow-y-auto p-5 space-y-4">
+              <div className="flex-1 overflow-y-auto p-3 sm:p-5 space-y-3 sm:space-y-4">
                 {/* Recipients */}
                 <div className="rounded-lg bg-muted/40 border border-border p-3">
                   <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
@@ -612,13 +612,13 @@ export function OutreachDialog({
                   <Label className="text-xs text-muted-foreground">
                     Quick Templates
                   </Label>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <div className="flex sm:grid sm:grid-cols-3 gap-2 overflow-x-auto pb-1 -mx-1 px-1 sm:mx-0 sm:px-0 sm:overflow-visible">
                     {emailTemplates.map((template) => (
                       <button
                         key={template.id}
                         type="button"
                         onClick={() => handleTemplateSelect(template.id)}
-                        className={`text-left p-2.5 rounded-lg border transition-all ${
+                        className={`text-left p-2.5 rounded-lg border transition-all shrink-0 sm:shrink min-w-[140px] sm:min-w-0 ${
                           selectedTemplate === template.id
                             ? "border-primary bg-primary/5 ring-1 ring-primary/20"
                             : "border-border hover:border-primary/30 hover:bg-muted/30"
@@ -668,8 +668,8 @@ export function OutreachDialog({
                     value={body}
                     onChange={(e) => setBody(e.target.value)}
                     placeholder="Write your message..."
-                    rows={8}
-                    className="resize-none text-sm"
+                    rows={6}
+                    className="resize-none text-sm max-sm:rows-4"
                   />
                   <div className="flex flex-wrap gap-1.5">
                     {[
@@ -708,12 +708,13 @@ export function OutreachDialog({
             </div>
 
             {/* Footer */}
-            <div className="flex items-center justify-between px-5 py-3 border-t border-border bg-muted/20">
+            <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-2 px-3 sm:px-5 py-3 border-t border-border bg-muted/20">
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => handleClose(false)}
                 disabled={sending}
+                className="sm:w-auto"
               >
                 Cancel
               </Button>
@@ -721,6 +722,7 @@ export function OutreachDialog({
                 size="sm"
                 onClick={handleSend}
                 disabled={sending || candidatesWithEmail.length === 0}
+                className="sm:w-auto"
               >
                 {sending ? (
                   <>
