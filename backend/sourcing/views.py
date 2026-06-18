@@ -425,20 +425,22 @@ class SendOutreachView(APIView):
 
                 for record in outreach_records:
                     try:
-                        personalized_body = body.replace(
-                            "{{candidateName}}", record.candidate.name
-                        ).replace(
-                            "{{company}}", company.company_name or ""
-                        ).replace(
-                            "{{role}}", record.candidate.role or ""
-                        ).replace(
-                            "{{recruiterName}}", request.user.get_full_name()
-                        )
+                        replacements = {
+                            "{{candidateName}}": record.candidate.name,
+                            "{{company}}": company.company_name or "",
+                            "{{role}}": record.candidate.role or "",
+                            "{{recruiterName}}": request.user.get_full_name(),
+                        }
+                        personalized_body = body
+                        personalized_subject = subject
+                        for placeholder, value in replacements.items():
+                            personalized_body = personalized_body.replace(placeholder, value)
+                            personalized_subject = personalized_subject.replace(placeholder, value)
 
                         msg = MIMEMultipart("alternative")
                         msg["From"] = smtp_config.gmail_address
                         msg["To"] = record.recipient_email
-                        msg["Subject"] = subject
+                        msg["Subject"] = personalized_subject
                         msg.attach(MIMEText(personalized_body, "html"))
 
                         server.sendmail(

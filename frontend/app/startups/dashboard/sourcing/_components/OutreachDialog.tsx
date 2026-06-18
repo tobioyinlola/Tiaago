@@ -68,9 +68,7 @@ function EmailPreview({
       .replace(/\{\{candidateName\}\}/g, recipientName || "John")
       .replace(/\{\{company\}\}/g, "Your Company")
       .replace(/\{\{role\}\}/g, "Software Engineer")
-      .replace(/\{\{recruiterName\}\}/g, "You")
-      .replace(/\{\{skills\}\}/g, "React, TypeScript")
-      .replace(/\{\{jobLink\}\}/g, "#");
+      .replace(/\{\{recruiterName\}\}/g, "You");
     return text;
   }, [body, recipientName]);
 

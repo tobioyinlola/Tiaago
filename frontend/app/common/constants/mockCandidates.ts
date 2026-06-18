@@ -339,61 +339,41 @@ export const emailTemplates: EmailTemplate[] = [
   {
     id: "1",
     name: "Initial Outreach",
-    subject: "Invitation to Apply: {{role}} at {{company}}",
+    subject: "{{role}} opportunity at {{company}}",
     body: `Hi {{candidateName}},
 
-I'm {{recruiterName}} from the hiring team at {{company}}. We're currently looking for a talented {{role}} to join our team, and your background in {{skills}} caught my attention.
+I'm {{recruiterName}} from {{company}}. We're looking for a {{role}} and your profile stood out.
 
-We believe you could be a great fit for this role and would love to invite you to apply.
+Would you be open to a quick conversation about the role? Happy to share more details.
 
-You can view the full job details and apply here: {{jobLink}}
-
-If you have any questions, I'd be happy to share more details about the position.
-
-Looking forward to hearing from you!
-
-Best regards,
-{{recruiterName}}
-{{company}}`,
+Best,
+{{recruiterName}}`,
   },
   {
     id: "2",
     name: "Follow Up",
-    subject: "Still interested? {{role}} position at {{company}}",
+    subject: "Following up: {{role}} at {{company}}",
     body: `Hi {{candidateName}},
 
-I wanted to follow up on my previous invitation regarding the {{role}} position at {{company}}.
+Just following up on my previous message about the {{role}} position at {{company}}.
 
-We're still actively looking for the right candidate, and I believe your experience would be valuable to our team. If you haven't had a chance to review the opportunity, here's the link again: {{jobLink}}
-
-Would you be open to a brief conversation this week to discuss the role?
+We're still looking for the right person and I think you'd be a great fit. Would you be available for a brief chat this week?
 
 Best,
-{{recruiterName}}
-{{company}}`,
+{{recruiterName}}`,
   },
   {
     id: "3",
-    name: "Pipeline Re-engagement",
-    subject: "We're hiring again - {{role}} at {{company}}",
+    name: "Re-engagement",
+    subject: "New opening: {{role}} at {{company}}",
     body: `Hi {{candidateName}},
 
-I hope this message finds you well! We connected in the past, and I wanted to reach out because we have a new {{role}} opening at {{company}} that I think would be perfect for you.
+We have a new {{role}} opening at {{company}} and I thought of you right away.
 
-Given your expertise in {{skills}}, I immediately thought you'd be an excellent fit for this role. We'd love to invite you to apply and explore this opportunity with us.
+Would you be interested in learning more? I'd love to set up a quick call at your convenience.
 
-The position offers:
-• Exciting challenges aligned with your skillset
-• A supportive and innovative work environment
-• Competitive package and growth opportunities
-
-Would you be interested in learning more? I'd be happy to schedule a quick call at your convenience.
-
-Looking forward to reconnecting!
-
-Best regards,
-{{recruiterName}}
-{{company}}`,
+Best,
+{{recruiterName}}`,
   },
 ];
 
