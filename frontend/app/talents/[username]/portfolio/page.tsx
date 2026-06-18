@@ -40,7 +40,7 @@ export async function generateMetadata({
   if (!result?.success || !result.data)
     return { title: "Talent Portfolio" };
   const p = result.data;
-  const title = `${p.full_name} — ${p.role?.title ?? "Tech Talent"}`;
+  const title = `${p.full_name} - ${p.role?.title ?? "Tech Talent"}`;
   const description = p.about
     ? p.about.slice(0, 160)
     : `View ${p.full_name}'s portfolio on TIAAGO.`;

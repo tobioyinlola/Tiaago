@@ -19,7 +19,7 @@ export async function generateMetadata({
   const profile = await getPublicCompanyProfile(id).catch(() => null);
   if (!profile)
     return { title: "Company Profile" };
-  const title = `${profile.company_name} — Careers`;
+  const title = `${profile.company_name} - Careers`;
   const description = profile.bio
     ? profile.bio.slice(0, 160)
     : `Explore career opportunities at ${profile.company_name} on TIAAGO.`;
