@@ -673,7 +673,7 @@ export function OutreachDialog({
                     onChange={(e) => setBody(e.target.value)}
                     placeholder="Write your message..."
                     rows={6}
-                    className="resize-none text-sm max-sm:rows-4"
+                    className="resize-none text-sm max-sm:max-h-[120px]"
                   />
                   <div className="flex flex-wrap gap-1.5">
                     {[

@@ -278,8 +278,8 @@ export default function EmailIntegrationTab() {
                     </h3>
                     <p className="text-sm text-muted-foreground mt-1">
                       To send outreach emails from your Gmail, you&apos;ll create a
-                      Gmail <strong className="text-foreground">App Password</strong>{" "}
-                      , a special 16-character key that lets TIAAGO send on your
+                      Gmail <strong className="text-foreground">App Password</strong>,
+                      a special 16-character key that lets TIAAGO send on your
                       behalf without exposing your Google password.
                     </p>
                   </div>

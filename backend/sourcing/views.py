@@ -107,7 +107,9 @@ class AddToPipelineView(APIView):
 class RemoveFromPipelineView(APIView):
     def delete(self, request, pk):
         company = _get_company(request)
-        entry = get_object_or_404(PipelineCandidate, pk=pk, company=company)
+        entry = get_object_or_404(
+            PipelineCandidate.objects.filter(company=company), pk=pk
+        )
         entry.deleted_at = timezone.now()
         entry.save(update_fields=["deleted_at"])
         updated_count = PipelineCandidate.objects.filter(company=company).count()
@@ -127,7 +129,9 @@ class RemoveFromPipelineView(APIView):
 class UpdatePipelineEntryView(APIView):
     def patch(self, request, pk):
         company = _get_company(request)
-        entry = get_object_or_404(PipelineCandidate, pk=pk, company=company)
+        entry = get_object_or_404(
+            PipelineCandidate.objects.filter(company=company), pk=pk
+        )
         serializer = UpdatePipelineEntrySerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
