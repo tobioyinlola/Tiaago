@@ -1,3 +1,4 @@
+import { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
 import { notFound } from "next/navigation";
@@ -29,7 +30,27 @@ import DisplayErrorMessages, {
 } from "@/app/common/components/DisplayErrorMessages";
 import { getTalentAssessmentCerts } from "@/app/common/services/assessment";
 
-export const metadata = { title: "Talent Portfolio" };
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ username: string }>;
+}): Promise<Metadata> {
+  const { username } = await params;
+  const result = await getTalentPortfolio(username).catch(() => null);
+  if (!result?.success || !result.data)
+    return { title: "Talent Portfolio" };
+  const p = result.data;
+  const title = `${p.full_name} — ${p.role?.title ?? "Tech Talent"}`;
+  const description = p.about
+    ? p.about.slice(0, 160)
+    : `View ${p.full_name}'s portfolio on TIAAGO.`;
+  return {
+    title,
+    description,
+    openGraph: { title, description, siteName: "TIAAGO", type: "profile" },
+    twitter: { card: "summary_large_image", title, description },
+  };
+}
 
 const TalentPublicPortfolioPage = async ({
   params,

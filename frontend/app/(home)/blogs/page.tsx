@@ -1,7 +1,15 @@
+import { Metadata } from "next";
 import { BlogsItems } from "./constant/blogContent";
 
 import Image from "next/image";
 import Link from "next/link";
+
+export const metadata: Metadata = {
+  title: "Blog",
+  description: "Insights on hiring, talent acquisition, AI in recruitment, and building remote teams in Africa.",
+  openGraph: { title: "TIAAGO Blog", description: "Insights on hiring, talent acquisition, and AI in recruitment.", siteName: "TIAAGO", type: "website" },
+  twitter: { card: "summary_large_image", title: "TIAAGO Blog", description: "Insights on hiring, talent acquisition, and AI in recruitment." },
+};
 
 // import { FaChevronLeft, FaChevronRight } from "react-icons/fa6";
 

@@ -1,12 +1,25 @@
+import { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { getJob } from "@/app/common/services/jobs";
 import JobDetails from "@/app/common/components/dashboard/JobDetails";
 import JobApplicationModal from "@/app/talents/(dashboard)/(requires-verification)/jobs/components/JobApplicationModal";
 
-export const metadata = {
-  title: "Job Details",
-};
+type Props = { params: Promise<{ job_id: string }> };
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { job_id } = await params;
+  const job = await getJob(job_id).catch(() => null);
+  if (!job) return { title: "Job Details" };
+  const title = `${job.title} at ${job.company?.company_name || "TIAAGO"}`;
+  const description = `Apply for ${job.title}${job.location ? ` in ${job.location}` : ""} on TIAAGO.`;
+  return {
+    title,
+    description,
+    openGraph: { title, description, siteName: "TIAAGO", type: "website" },
+    twitter: { card: "summary_large_image", title, description },
+  };
+}
 
 const JobDetailsPage = async ({ params }: { params: Promise<{ job_id: string }> }) => {
   //   const { currentUser } = await getCurrentUser(undefined, {

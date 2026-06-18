@@ -1,3 +1,4 @@
+import { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
 import { notFound } from "next/navigation";
@@ -11,9 +12,24 @@ import { getPublicCompanyProfile } from "@/app/common/services/profile";
 import { htmlToPlainText, handleServerApiCallError } from "@/app/common/utils";
 import PublicCompanyProfileJobList from "./_components/PublicCompanyProfileJobList";
 
-export const metadata = {
-  title: "Public Company Page",
-};
+export async function generateMetadata({
+  params,
+}: PublicCompanyPageProps): Promise<Metadata> {
+  const { id } = await params;
+  const profile = await getPublicCompanyProfile(id).catch(() => null);
+  if (!profile)
+    return { title: "Company Profile" };
+  const title = `${profile.company_name} — Careers`;
+  const description = profile.bio
+    ? profile.bio.slice(0, 160)
+    : `Explore career opportunities at ${profile.company_name} on TIAAGO.`;
+  return {
+    title,
+    description,
+    openGraph: { title, description, siteName: "TIAAGO", type: "website" },
+    twitter: { card: "summary_large_image", title, description },
+  };
+}
 
 interface PublicCompanyPageProps {
   params: Promise<{ id: string }>;

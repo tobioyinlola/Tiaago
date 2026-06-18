@@ -1,5 +1,13 @@
+import { Metadata } from "next";
 import Image from "next/image";
 import { Users, Target, Globe, Award } from "lucide-react";
+
+export const metadata: Metadata = {
+  title: "About TIAAGO",
+  description: "TIAAGO is an AI-powered hiring infrastructure for recruiters and recruitment agencies. Learn about our mission to connect African tech talent with global opportunities.",
+  openGraph: { title: "About TIAAGO", description: "AI-powered hiring infrastructure for recruiters and agencies.", siteName: "TIAAGO", type: "website" },
+  twitter: { card: "summary_large_image", title: "About TIAAGO", description: "AI-powered hiring infrastructure for recruiters and agencies." },
+};
 
 import Footer from "@/app/common/components/Layout/Footer";
 
