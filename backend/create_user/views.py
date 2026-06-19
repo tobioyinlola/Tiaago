@@ -1023,7 +1023,12 @@ class CompanyTeamListAPIView(APIView):
     def get(self, request):
         membership = CompanyTeamMember.objects.filter(user=request.user).first()
         if not membership:
-            return Response({"detail": "Not a team member of any company."}, status=status.HTTP_403_FORBIDDEN)
+            company = Company.objects.filter(company_rep=request.user).first()
+            if not company:
+                return Response({"detail": "Not a team member of any company."}, status=status.HTTP_403_FORBIDDEN)
+            membership = CompanyTeamMember.objects.create(
+                company=company, user=request.user, role=CompanyTeamMember.ROLE.ADMIN
+            )
 
         company = membership.company
         members = CompanyTeamMember.objects.filter(company=company).select_related("user", "invited_by")
@@ -1043,6 +1048,12 @@ class CompanyTeamInviteCreateAPIView(APIView):
     def post(self, request):
         # Ensure inviter is a company admin and derive the company from their membership
         membership = CompanyTeamMember.objects.filter(user=request.user).first()
+        if not membership:
+            company = Company.objects.filter(company_rep=request.user).first()
+            if company:
+                membership = CompanyTeamMember.objects.create(
+                    company=company, user=request.user, role=CompanyTeamMember.ROLE.ADMIN
+                )
         if not membership or membership.role != CompanyTeamMember.ROLE.ADMIN:
             return Response({"detail": "Only company admins can invite."}, status=status.HTTP_403_FORBIDDEN)
 
