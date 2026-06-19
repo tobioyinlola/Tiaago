@@ -1,8 +1,43 @@
 "use server";
 
 import { TeamListResponse, TeamMemberRole } from "../types";
-import axiosInstance from "../utils/axios.instance";
+import axiosInstance, { publicAxiosInstance } from "../utils/axios.instance";
 import { _handleServerApiCallError } from "../utils";
+
+export type TeamInviteValidation = {
+  email: string;
+  company: string;
+  company_id: number;
+  role: TeamMemberRole;
+  status: "pending" | "accepted" | "revoked";
+  is_expired: boolean;
+  existing_user?: boolean;
+  message?: string;
+};
+
+export const validateTeamInvite = async (token: string) => {
+  try {
+    const { data } = await publicAxiosInstance.get<TeamInviteValidation>(
+      `auth/invite/validate/${token}/`
+    );
+    return { success: true as const, data };
+  } catch (error) {
+    const [errMsg] = await _handleServerApiCallError(error);
+    return { success: false as const, error: errMsg };
+  }
+};
+
+export const acceptTeamInvite = async (token: string) => {
+  try {
+    const { data } = await axiosInstance.post<{ detail: string; member_id?: number }>(
+      `auth/invite/accept/${token}/`
+    );
+    return { success: true as const, data };
+  } catch (error) {
+    const [errMsg] = await _handleServerApiCallError(error);
+    return { success: false as const, error: errMsg };
+  }
+};
 
 export const getTeamList = async (): Promise<TeamListResponse> => {
   const { data } = await axiosInstance.get<TeamListResponse>(
