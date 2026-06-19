@@ -368,6 +368,9 @@ CELERY_TASK_TIME_LIMIT = 30 * 60
 CELERY_BROKER_URL = env("REDIS_URL", default="redis://localhost:6379")  # Use Redis as broker
 CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
+if ENV == "development":
+    CELERY_TASK_ALWAYS_EAGER = True
+    CELERY_TASK_EAGER_PROPAGATES = True
 
 PHONENUMBER_DEFAULT_REGION = "NG"
 
