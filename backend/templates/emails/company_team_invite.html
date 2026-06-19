@@ -1,14 +1,37 @@
 {% extends "emails/base.html" %}
 {% block title %}Join {{ company_name|default:"your team" }} on Tiaago{% endblock %}
-{% block preheader %}{{ inviter|default:"A teammate" }} invited you to join {{ company_name|default:"their team" }} on Tiaago.{% endblock %}
+{% block preheader %}{{ inviter|default:"A teammate" }} invited you to join {{ company_name|default:"their team" }} on Tiaago as {{ role|default:"a team member" }}.{% endblock %}
 {% block content %}
-  <h1 class="h1" style="margin:0 0 14px; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:33px; line-height:1.15; letter-spacing:-0.6px; font-weight:800; color:#0F172A;">Join {{ company_name|default:"your team" }} on Tiaago</h1>
+  <h1 class="h1" style="margin:0 0 14px; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:33px; line-height:1.15; letter-spacing:-0.6px; font-weight:800; color:#0F172A;">You're in. {{ company_name|default:"Your team" }} wants you.</h1>
 
-  <p style="margin:0 0 14px; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:16px; line-height:1.65; color:#475569;">{{ inviter|default:"A teammate" }} invited you to join {{ company_name|default:"their team" }} on Tiaago. Accept the invitation below to get started.</p>
+  <p style="margin:0 0 22px; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:16px; line-height:1.65; color:#475569;">{{ inviter|default:"A teammate" }} has invited you to join <strong style="color:#0F172A;">{{ company_name|default:"their team" }}</strong> on Tiaago as <strong style="color:#0F172A;">{{ role|default:"a team member" }}</strong>. One click and you're part of the team.</p>
+
+  <!-- hero illustration -->
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 26px;">
+    <tr><td>
+      <img src="{{ asset_url }}/team-invite-hero.svg" width="520" alt="Team collaboration illustration" style="display:block; width:100%; max-width:520px; height:auto; border:1px solid #E2E8F0;" />
+    </td></tr>
+  </table>
+
+  <!-- what you get bullets -->
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 24px;">
+    <tr>
+      <td valign="top" width="22" style="padding:5px 0;"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td bgcolor="#5465FF" width="7" height="7" style="background-color:#5465FF; width:7px; height:7px; border-radius:0; font-size:0; line-height:0;">&nbsp;</td></tr></table></td>
+      <td style="padding:0 0 10px; font-family:'Inter',Arial,sans-serif; font-size:15px; line-height:1.6; color:#475569;">Access the dashboard, candidates, and hiring pipeline</td>
+    </tr>
+    <tr>
+      <td valign="top" width="22" style="padding:5px 0;"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td bgcolor="#5465FF" width="7" height="7" style="background-color:#5465FF; width:7px; height:7px; border-radius:0; font-size:0; line-height:0;">&nbsp;</td></tr></table></td>
+      <td style="padding:0 0 10px; font-family:'Inter',Arial,sans-serif; font-size:15px; line-height:1.6; color:#475569;">Review AI-powered screening scores and interviews</td>
+    </tr>
+    <tr>
+      <td valign="top" width="22" style="padding:5px 0;"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td bgcolor="#5465FF" width="7" height="7" style="background-color:#5465FF; width:7px; height:7px; border-radius:0; font-size:0; line-height:0;">&nbsp;</td></tr></table></td>
+      <td style="padding:0 0 10px; font-family:'Inter',Arial,sans-serif; font-size:15px; line-height:1.6; color:#475569;">Collaborate with your team on every hire</td>
+    </tr>
+  </table>
 
   <!-- detail box -->
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:24px 0 28px; background-color:#F8FAFC; border:1px solid #E2E8F0; border-radius:0;">
-    <tr><td style="padding:18px 22px 4px; font-family:'Inter',Arial,sans-serif; font-size:11px; font-weight:700; letter-spacing:1.2px; text-transform:uppercase; color:#64748B;">Invitation details</td></tr>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 28px; background-color:#F8FAFC; border:1px solid #E2E8F0; border-radius:0;">
+    <tr><td style="padding:18px 22px 4px; font-family:'Inter',Arial,sans-serif; font-size:11px; font-weight:700; letter-spacing:1.2px; text-transform:uppercase; color:#64748B;">Your invitation</td></tr>
     <tr><td style="padding:0 22px;">
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
         <tr>
@@ -20,12 +43,8 @@
           <td align="right" style="padding:10px 0; font-family:'Inter',Arial,sans-serif; font-size:14px; font-weight:600; color:#0F172A; border-bottom:1px solid #EAEEF5;">{{ inviter|default:"A teammate" }}</td>
         </tr>
         <tr>
-          <td style="padding:10px 0; font-family:'Inter',Arial,sans-serif; font-size:14px; color:#64748B; border-bottom:1px solid #EAEEF5;">Role</td>
-          <td align="right" style="padding:10px 0; font-family:'Inter',Arial,sans-serif; font-size:14px; font-weight:600; color:#0F172A; border-bottom:1px solid #EAEEF5;">{{ role|default:"Team member" }}</td>
-        </tr>
-        <tr>
-          <td style="padding:10px 0 18px; font-family:'Inter',Arial,sans-serif; font-size:14px; color:#64748B;">Expires</td>
-          <td align="right" style="padding:10px 0 18px; font-family:'Inter',Arial,sans-serif; font-size:14px; font-weight:600; color:#0F172A;">{{ expiry_days|default:"5" }} days</td>
+          <td style="padding:10px 0 18px; font-family:'Inter',Arial,sans-serif; font-size:14px; color:#64748B;">Your role</td>
+          <td align="right" style="padding:10px 0 18px; font-family:'Inter',Arial,sans-serif; font-size:14px; font-weight:600; color:#0F172A;">{{ role|default:"Team member" }}</td>
         </tr>
       </table>
     </td></tr>
@@ -33,9 +52,9 @@
 
   <!-- CTA -->
   <table role="presentation" class="cta-table" cellpadding="0" cellspacing="0" border="0"><tr>
-    <td align="center" bgcolor="#1C3477" style="background-color:#1C3477; border-radius:0;"><a href="{{ invite_url|default:'https://app.tiaago.com' }}" target="_blank" class="cta-a" style="display:inline-block; padding:15px 30px; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:15px; font-weight:700; line-height:20px; color:#FFFFFF; text-decoration:none; border-radius:0;">Accept invitation&nbsp;&rarr;</a></td>
+    <td align="center" bgcolor="#1C3477" style="background-color:#1C3477; border-radius:0;"><a href="{{ invite_url|default:'https://app.tiaago.com' }}" target="_blank" class="cta-a" style="display:inline-block; padding:15px 30px; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:15px; font-weight:700; line-height:20px; color:#FFFFFF; text-decoration:none; border-radius:0;">Accept and join the team&nbsp;&rarr;</a></td>
   </tr></table>
 
-  <p style="margin:18px 0 0; font-family:'Inter',Arial,sans-serif; font-size:13px; line-height:1.6; color:#64748B;">This invitation expires in {{ expiry_days|default:"5" }} days.</p>
+  <p style="margin:18px 0 0; font-family:'Inter',Arial,sans-serif; font-size:13px; line-height:1.6; color:#64748B;">This invitation expires in {{ expiry_days|default:"5" }} days. After that, ask {{ inviter|default:"your teammate" }} to resend it.</p>
 
 {% endblock %}

@@ -1,20 +1,26 @@
 {% autoescape off %}TEAM INVITATION
 
-Join {{ company_name|default:"your team" }} on Tiaago.
+You're in. {{ company_name|default:"Your team" }} wants you.
 
-{{ inviter|default:"A teammate" }} invited you to join
-{{ company_name|default:"their team" }} on Tiaago. Accept the invitation below
-to get started.
+{{ inviter|default:"A teammate" }} has invited you to join
+{{ company_name|default:"their team" }} on Tiaago as {{ role|default:"a team member" }}.
+One click and you're part of the team.
 
+What you'll get:
+- Access the dashboard, candidates, and hiring pipeline
+- Review AI-powered screening scores and interviews
+- Collaborate with your team on every hire
+
+YOUR INVITATION
   Company:    {{ company_name|default:"Tiaago" }}
   Invited by: {{ inviter|default:"A teammate" }}
-  Role:       {{ role|default:"Team member" }}
-  Expires:    {{ expiry_days|default:"5" }} days
+  Your role:  {{ role|default:"Team member" }}
 
-Accept invitation:
+Accept and join the team:
 {{ invite_url|default:"https://app.tiaago.com" }}
 
 This invitation expires in {{ expiry_days|default:"5" }} days.
+After that, ask {{ inviter|default:"your teammate" }} to resend it.
 
 --
 Tiaago - AI-powered end-to-end hiring platform for modern teams.

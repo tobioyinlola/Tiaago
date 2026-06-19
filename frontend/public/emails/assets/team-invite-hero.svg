@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 200" fill="none">
+  <rect width="520" height="200" fill="#F0F2FF"/>
+
+  <!-- Left decorative circles -->
+  <circle cx="60" cy="100" r="50" fill="#E8EBFF"/>
+  <circle cx="460" cy="100" r="50" fill="#E8EBFF"/>
+
+  <!-- Center group of 3 people -->
+  <!-- Person 1 (center, larger - represents the inviter) -->
+  <g>
+    <circle cx="260" cy="72" r="28" fill="#1C3477"/>
+    <circle cx="260" cy="60" r="15" fill="white" opacity="0.9"/>
+    <path d="M238 88 a22 16 0 0 1 44 0" fill="white" opacity="0.9"/>
+  </g>
+
+  <!-- Person 2 (left) -->
+  <g opacity="0.85">
+    <circle cx="175" cy="90" r="22" fill="#5465FF"/>
+    <circle cx="175" cy="80" r="12" fill="white" opacity="0.9"/>
+    <path d="M157 102 a18 13 0 0 1 36 0" fill="white" opacity="0.9"/>
+  </g>
+
+  <!-- Person 3 (right) -->
+  <g opacity="0.85">
+    <circle cx="345" cy="90" r="22" fill="#5465FF"/>
+    <circle cx="345" cy="80" r="12" fill="white" opacity="0.9"/>
+    <path d="M327 102 a18 13 0 0 1 36 0" fill="white" opacity="0.9"/>
+  </g>
+
+  <!-- Connecting dashed lines -->
+  <line x1="230" y1="80" x2="197" y2="88" stroke="#5465FF" stroke-width="1.5" stroke-dasharray="5 4" opacity="0.25"/>
+  <line x1="290" y1="80" x2="323" y2="88" stroke="#5465FF" stroke-width="1.5" stroke-dasharray="5 4" opacity="0.25"/>
+
+  <!-- Envelope with plus badge (bottom center) -->
+  <g transform="translate(235, 120)">
+    <rect x="0" y="0" width="50" height="36" rx="5" fill="white" stroke="#1C3477" stroke-width="2"/>
+    <path d="M3 3 L25 20 L47 3" fill="none" stroke="#1C3477" stroke-width="2" stroke-linecap="round"/>
+    <circle cx="44" cy="6" r="10" fill="#00B849"/>
+    <line x1="40" y1="6" x2="48" y2="6" stroke="white" stroke-width="2" stroke-linecap="round"/>
+    <line x1="44" y1="2" x2="44" y2="10" stroke="white" stroke-width="2" stroke-linecap="round"/>
+  </g>
+
+  <!-- Sparkle dots -->
+  <circle cx="100" cy="50" r="4" fill="#5465FF" opacity="0.15"/>
+  <circle cx="420" cy="50" r="4" fill="#5465FF" opacity="0.15"/>
+  <circle cx="130" cy="150" r="3" fill="#5465FF" opacity="0.15"/>
+  <circle cx="390" cy="150" r="3" fill="#5465FF" opacity="0.15"/>
+  <circle cx="260" cy="170" r="3" fill="#3E92CC" opacity="0.2"/>
+
+  <!-- Bottom text area hint -->
+  <text x="260" y="190" text-anchor="middle" font-family="Inter,sans-serif" font-size="11" font-weight="600" fill="#5465FF" opacity="0.5">You're invited to collaborate</text>
+</svg>
