@@ -55,7 +55,7 @@ To get started with Docker:
 
 - The base folder contains mixins, abstract models, permissions and some utility functions that are used throughout the project
 - The logs folder contains logs
-- The utils folder contains utility functions
+- The utils folder contains utility functions.
 
 ### APPS
 
