@@ -1,0 +1,81 @@
+services:
+  web:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    env_file: ./backend/.env
+    environment:
+      - ROLE=web
+      - PORT=8000
+      - ENV=production
+      - DEBUG=0
+      - MIGRATE_ON_START=1
+    expose:
+      - "8000"
+    volumes:
+      - static_files:/home/app/web/staticfiles
+      - media_files:/home/app/web/media
+    depends_on:
+      - ai
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    env_file: ./backend/.env
+    environment:
+      - ROLE=worker
+      - ENV=production
+      - DEBUG=0
+      - CELERY_CONCURRENCY=2
+      - CELERY_MAX_TASKS_PER_CHILD=100
+      - CELERY_LOGLEVEL=info
+    depends_on:
+      - web
+    restart: unless-stopped
+
+  beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    env_file: ./backend/.env
+    environment:
+      - ROLE=beat
+      - ENV=production
+      - DEBUG=0
+      - CELERY_LOGLEVEL=info
+    depends_on:
+      - web
+    restart: unless-stopped
+
+  ai:
+    build:
+      context: ./ai
+      dockerfile: Dockerfile
+    env_file: ./ai/.env
+    expose:
+      - "8000"
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - static_files:/var/www/staticfiles:ro
+      - media_files:/var/www/media:ro
+      - certbot_www:/var/www/certbot:ro
+      - certbot_conf:/etc/letsencrypt:ro
+    depends_on:
+      - web
+      - ai
+    restart: unless-stopped
+
+volumes:
+  static_files:
+  media_files:
+  certbot_www:
+  certbot_conf:
