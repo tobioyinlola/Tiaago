@@ -39,6 +39,13 @@ export const acceptTeamInvite = async (token: string) => {
   }
 };
 
+export const getTeamRole = async (): Promise<{ role: TeamMemberRole | null }> => {
+  const { data } = await axiosInstance.get<{ role: TeamMemberRole | null }>(
+    "auth/companies/team/role/"
+  );
+  return data;
+};
+
 export const getTeamList = async (): Promise<TeamListResponse> => {
   const { data } = await axiosInstance.get<TeamListResponse>(
     "auth/companies/team/"

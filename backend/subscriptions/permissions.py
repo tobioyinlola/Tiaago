@@ -102,3 +102,27 @@ class IsStaffUserOrCompanyRepOrTalentUser(permissions.BasePermission):
             or (request.user.user_type == CustomUser.USER_TYPE.TALENT) or \
             (request.user.user_type == CustomUser.USER_TYPE.STAFF)
         return bool(accepted)
+
+
+class IsCompanyTeamAdmin(permissions.BasePermission):
+    """Only allows access to users who are admins of their company team."""
+
+    message = "Only company admins can access this resource."
+
+    def has_permission(self, request, view):
+        from create_user.models import CompanyTeamMember, Company
+
+        if not bool(request.user and request.user.is_authenticated):
+            return False
+
+        membership = CompanyTeamMember.objects.filter(user=request.user).first()
+        if not membership:
+            # Auto-promote company owner to admin (matches existing behavior)
+            company = Company.objects.filter(company_rep=request.user).first()
+            if company:
+                membership = CompanyTeamMember.objects.create(
+                    company=company, user=request.user, role=CompanyTeamMember.ROLE.ADMIN
+                )
+        if not membership:
+            return False
+        return membership.role == CompanyTeamMember.ROLE.ADMIN

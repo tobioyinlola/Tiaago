@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Metadata } from "next";
 import { Fragment } from "react";
 import { capitalize } from "lodash";
+import { redirect } from "next/navigation";
 
 import Tab from "./components/Tabs";
 import { cn } from "@/app/common/utils";
@@ -9,6 +10,7 @@ import { settingsTabs } from "./constants";
 import { useStartupStore } from "../store";
 import { getCountries, getTalentRoles } from "@/app/common/services";
 import { getCurrentUser } from "@/app/common/services/profile";
+import { getTeamRole } from "@/app/common/services/team";
 
 const getTab = (tab: string = "profile") => {
   if (
@@ -33,6 +35,12 @@ type Props = {
 };
 
 const StartupSettingsPage = async ({ searchParams }: Props) => {
+  // Route guard: only admins can access settings
+  const teamRoleData = await getTeamRole().catch(() => null);
+  if (teamRoleData && teamRoleData.role !== "admin") {
+    redirect("/startups/dashboard");
+  }
+
   const resolvedSearchParams = await searchParams;
   let currentUser = useStartupStore.getState().profile;
   if (!currentUser) {

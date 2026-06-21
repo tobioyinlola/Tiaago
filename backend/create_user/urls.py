@@ -27,6 +27,7 @@ from .views import (
     GenerateReferralCodeAPIView,
     CompanyOnboardingAPIView,
     CompanyTeamListAPIView,
+    CompanyTeamRoleAPIView,
     CompanyTeamInviteCreateAPIView,
     ComapnayTeamInviteValidateAPIView,
     CompanyTeamInviteAcceptAPIView,
@@ -117,6 +118,7 @@ urlpatterns = [
     ),
     # Company team
     path("companies/team/", CompanyTeamListAPIView.as_view(), name="company_team_list"),
+    path("companies/team/role/", CompanyTeamRoleAPIView.as_view(), name="company_team_role"),
     path("companies/invite/", CompanyTeamInviteCreateAPIView.as_view(), name="company_invite_create"),
     path("invite/validate/<uuid:token>/", ComapnayTeamInviteValidateAPIView.as_view(), name="company_invite_validate"),
     path("invite/accept/<uuid:token>/", CompanyTeamInviteAcceptAPIView.as_view(), name="company_invite_accept"),

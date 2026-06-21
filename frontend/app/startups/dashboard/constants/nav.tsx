@@ -198,6 +198,7 @@ export const startupNavItems: DashboardNavItemV3[] = [
     name: "settings",
     href: `${baseHref}/settings`,
     Icon: IoSettingsOutline,
+    requiredRoles: ["admin"],
     // subLinks: [
     //   {
     //     name: "Profile",

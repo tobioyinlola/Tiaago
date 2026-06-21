@@ -21,10 +21,12 @@ const SideNavV3 = ({
   badges = {},
   as,
   isProfileComplete,
+  teamRole,
 }: {
   badges?: Record<string, number | boolean>;
   as: BasePageProps["as"];
   isProfileComplete?: boolean;
+  teamRole?: string | null;
 }) => {
   const [isExpanded, toggleExpansion] = usePersistedStore(state => [
     state.isSideBarExpanded,
@@ -38,12 +40,19 @@ const SideNavV3 = ({
     Icon: RxDashboard,
   };
 
-  const navItems =
+  const rawNavItems =
     as === "talent"
       ? talentNavItems
       : as === "staff"
       ? adminNavItems
       : startupNavItems;
+
+  // Filter nav items based on team role (only applies to startup nav)
+  const navItems = rawNavItems.filter(item => {
+    if (item.type === "divider") return true;
+    if (!item.requiredRoles || !teamRole) return true;
+    return item.requiredRoles.includes(teamRole as any);
+  });
 
   return (
     <div className={cn(

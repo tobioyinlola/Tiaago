@@ -11,6 +11,7 @@ import { handleServerApiCallError } from "@/app/common/utils";
 import SetStartupProfile from "./components/SetStartupProfile";
 import { getCurrentUser } from "@/app/common/services/profile";
 import { getUnreadMessageCounts } from "@/app/common/services/chat";
+import { getTeamRole } from "@/app/common/services/team";
 import SideNavV3 from "@/app/common/components/dashboard/Nav/SideNavV3";
 import SetUserProfile from "@/app/common/components/Layout/SetUserProfile";
 import FinishOnboardingBanner from "./components/FinishOnboardingBanner";
@@ -42,6 +43,12 @@ const StartupDashboardLayout = async ({ children }: PropsWithChildren) => {
   const showFinishOnboardingBanner =
     !!onboarding && !onboarding.has_completed_onboarding;
   const splitCompanyName = startup.company_name.split(" ");
+  const teamRoleData = await getTeamRole().catch(e => {
+    console.log("Get team role error (startup dashboard layout): ", e?.message);
+    return null;
+  });
+  const teamRole = teamRoleData?.role ?? null;
+
   const unreadMessageCounts = !IS_CHAT_HIDDEN
     ? await getUnreadMessageCounts().catch(async e => {
         const error = await handleServerApiCallError(e);
@@ -88,6 +95,7 @@ const StartupDashboardLayout = async ({ children }: PropsWithChildren) => {
               badges={{
                 Inbox: unreadMessageCount,
               }}
+              teamRole={teamRole}
             />
           </div>
         </div>

@@ -52,6 +52,7 @@ export type DashboardNavItemV3 =
       type?: "item";
       tag?: string;
       exact?: boolean;
+      requiredRoles?: TeamMemberRole[];
       subLinks?: {
         name: string;
         href: string;
