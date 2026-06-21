@@ -86,9 +86,20 @@ export default function AcceptInviteClient({
   useEffect(() => {
     if (isLoggedIn && emailMatches && !accepted && !accepting && !hasAutoAccepted.current) {
       hasAutoAccepted.current = true;
-      handleAccept();
+      const accept = async () => {
+        const result = await acceptTeamInvite(token);
+        if (result.success) {
+          toast.success("Invitation accepted!");
+          router.push(dashboardUrl);
+        } else {
+          toast.error("Failed to accept invitation", {
+            description: result.error,
+          });
+        }
+      };
+      accept();
     }
-  }, [isLoggedIn, emailMatches]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isLoggedIn, emailMatches, accepted, accepting, token, dashboardUrl, router]);
 
   const loginUrl = `/startups/signin?next=${encodeURIComponent(`/invite/accept?token=${token}`)}`;
   const signupUrl = `/startups/signup?next=${encodeURIComponent(`/invite/accept?token=${token}`)}&email=${encodeURIComponent(email)}`;
