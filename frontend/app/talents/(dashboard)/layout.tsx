@@ -39,37 +39,29 @@ const TalentDashboardLayout = async ({ children }: PropsWithChildren) => {
   });
   const isProfileComplete = Object.values(profileStatus).every(Boolean);
 
-  const schedule = isProfileComplete
-    ? await getSchedule().catch(async e => {
-        const error = await handleServerApiCallError(e);
-        console.log("Get schedule error (talent dashboard layout): ", error);
-        errors.push({
-          message: error,
-          title: "Error getting schedule",
-        });
-        return [];
-      })
-    : [];
-  const noOfScheduleRequests = schedule.filter(
-    meeting => typeof meeting.accepted !== "boolean"
-  ).length;
-  const unreadMessageCounts =
-    !IS_CHAT_HIDDEN && isProfileComplete
-      ? await getUnreadMessageCounts().catch(async e => {
+  const [schedule, unreadMessageCounts] = isProfileComplete
+    ? await Promise.all([
+        getSchedule().catch(async e => {
           const error = await handleServerApiCallError(e);
-          console.log(
-            "Get unread message counts error (talent dashboard layout): ",
-            error
-          );
-          errors.push({
-            message: error,
-            title: "Error getting unread message counts",
-          });
+          console.log("Get schedule error (talent dashboard layout): ", error);
+          errors.push({ message: error, title: "Error getting schedule" });
           return [];
-        })
-      : [];
+        }),
+        !IS_CHAT_HIDDEN
+          ? getUnreadMessageCounts().catch(async e => {
+              const error = await handleServerApiCallError(e);
+              console.log("Get unread message counts error (talent dashboard layout): ", error);
+              errors.push({ message: error, title: "Error getting unread message counts" });
+              return [];
+            })
+          : ([] as any[]),
+      ])
+    : [[], []];
+  const noOfScheduleRequests = schedule.filter(
+    (meeting: any) => typeof meeting.accepted !== "boolean"
+  ).length;
   const unreadMessageCount = unreadMessageCounts.reduce(
-    (acc, curr) => acc + curr.unread_messages,
+    (acc: number, curr: any) => acc + curr.unread_messages,
     0
   );
   return (

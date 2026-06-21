@@ -28,55 +28,37 @@ export const metadata: Metadata = {
 
 const TalentDashboard = async () => {
   const errors: DisplayErrorMessagesProps["errors"] = [];
-  const currentUser = (await getCurrentUser("talent")).currentUser;
-  const applicationsRes = await getJobApplications(1, 5).catch(async e => {
-    const error = await handleServerApiCallError(e);
-    console.log("Get job appications error (talent dashboard): ", error);
-    errors.push({
-      message: error,
-      title: "Error getting job appications",
-    });
-    return {
-      results: [],
-    };
-  });
+  const [{ currentUser }, applicationsRes, assessmentsRes, schedule, certificatesRes] =
+    await Promise.all([
+      getCurrentUser("talent"),
+      getJobApplications(1, 5).catch(async e => {
+        const error = await handleServerApiCallError(e);
+        console.log("Get job appications error (talent dashboard): ", error);
+        errors.push({ message: error, title: "Error getting job appications" });
+        return { results: [] };
+      }),
+      getCompanyAssessments(1, 3).catch(async e => {
+        const error = await handleServerApiCallError(e);
+        console.log("Get skill assessments error (talent dashboard): ", error);
+        errors.push({ message: error, title: "Error getting skill assessments" });
+        return { results: [] };
+      }),
+      getSchedule().catch(async e => {
+        const error = await handleServerApiCallError(e);
+        console.log("Get schedule error (talent dashboard): ", error);
+        errors.push({ message: error, title: "Error getting schedule" });
+        return [];
+      }),
+      getAssessmentCerts(1, 3).catch(async e => {
+        const error = await handleServerApiCallError(e);
+        console.log("Get certificates error (talent dashboard): ", error);
+        errors.push({ message: error, title: "Error getting certificates" });
+        return { count: 0, next: null, previous: null, results: [] };
+      }),
+    ]);
   const applications = applicationsRes.results || [];
-  const assessmentsRes = await getCompanyAssessments(1, 3).catch(async e => {
-    const error = await handleServerApiCallError(e);
-    console.log("Get skill assessments error (talent dashboard): ", error);
-    errors.push({
-      message: error,
-      title: "Error getting skill assessments",
-    });
-    return {
-      results: [],
-    };
-  });
   const assessments = assessmentsRes.results || [];
-  const schedule = await getSchedule().catch(async e => {
-    const error = await handleServerApiCallError(e);
-    console.log("Get schedule error (talent dashboard): ", error);
-    errors.push({
-      message: error,
-      title: "Error getting schedule",
-    });
-    return [];
-  });
-  const scheduledEvents = schedule.filter(meeting => meeting.accepted);
-  const certificatesRes = await getAssessmentCerts(1, 3).catch(async e => {
-    const error = await handleServerApiCallError(e);
-    console.log("Get certificates error (talent dashboard): ", error);
-    errors.push({
-      message: error,
-      title: "Error getting certificates",
-    });
-    return {
-      count: 0,
-      next: null,
-      previous: null,
-      results: [],
-    };
-  });
+  const scheduledEvents = schedule.filter((meeting: any) => meeting.accepted);
   const certificates = certificatesRes.results;
 
   return (

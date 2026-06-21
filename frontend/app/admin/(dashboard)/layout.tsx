@@ -20,32 +20,22 @@ const AdminDashboardLayout = async ({ children }: PropsWithChildren) => {
   const { currentUser: user } = await getCurrentUser("staff");
   useAdminStore.setState({ profile: user });
   const as = "staff";
-  const noOfUnverifiedTalents = (
-    await getAllTalents(1, false).catch(async e => {
+  const [talentsRes, startupsRes] = await Promise.all([
+    getAllTalents(1, false).catch(async e => {
       const error = await handleServerApiCallError(e);
       console.log("Get talents error (admin dashboard layout): ", error);
-      errors.push({
-        message: error,
-        title: "Error getting talents",
-      });
-      return {
-        count: 0,
-      };
-    })
-  ).count;
-  const noOfUnverifiedStartups = (
-    await getAllStartups(1, false).catch(async e => {
+      errors.push({ message: error, title: "Error getting talents" });
+      return { count: 0 };
+    }),
+    getAllStartups(1, false).catch(async e => {
       const error = await handleServerApiCallError(e);
       console.log("Get startups error (admin dashboard layout): ", error);
-      errors.push({
-        message: error,
-        title: "Error getting startups",
-      });
-      return {
-        count: 0,
-      };
-    })
-  ).count;
+      errors.push({ message: error, title: "Error getting startups" });
+      return { count: 0 };
+    }),
+  ]);
+  const noOfUnverifiedTalents = talentsRes.count;
+  const noOfUnverifiedStartups = startupsRes.count;
   return (
     <>
       <BackendWarmupPing />

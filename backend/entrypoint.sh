@@ -46,8 +46,13 @@ case "${ROLE}" in
       echo "==> Starting Django dev server on 0.0.0.0:${PORT}"
       exec python manage.py runserver 0.0.0.0:"${PORT}"
     else
-      echo "==> Starting Daphne (ASGI) on 0.0.0.0:${PORT}"
-      exec daphne -b 0.0.0.0 -p "${PORT}" "${CELERY_APP}.asgi:application"
+      echo "==> Starting Uvicorn (ASGI) on 0.0.0.0:${PORT}"
+      exec uvicorn "${CELERY_APP}.asgi:application" \
+        --host 0.0.0.0 \
+        --port "${PORT}" \
+        --workers 2 \
+        --timeout-keep-alive 65 \
+        --proxy-headers
     fi
     ;;
 

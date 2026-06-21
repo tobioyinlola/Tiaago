@@ -44,28 +44,23 @@ const StartupDashboardLayout = async ({ children }: PropsWithChildren) => {
   const showFinishOnboardingBanner =
     !!onboarding && !onboarding.has_completed_onboarding;
   const splitCompanyName = startup.company_name.split(" ");
-  const teamRoleData = await getTeamRole().catch(e => {
-    console.log("Get team role error (startup dashboard layout): ", e?.message);
-    return null;
-  });
+  const [teamRoleData, unreadMessageCounts] = await Promise.all([
+    getTeamRole().catch(e => {
+      console.log("Get team role error (startup dashboard layout): ", e?.message);
+      return null;
+    }),
+    !IS_CHAT_HIDDEN
+      ? getUnreadMessageCounts().catch(async e => {
+          const error = await handleServerApiCallError(e);
+          console.log("Get unread message counts error (startup dashboard layout): ", error);
+          errors.push({ message: error, title: "Error getting unread message counts" });
+          return [];
+        })
+      : ([] as any[]),
+  ]);
   const teamRole = teamRoleData?.role ?? null;
-
-  const unreadMessageCounts = !IS_CHAT_HIDDEN
-    ? await getUnreadMessageCounts().catch(async e => {
-        const error = await handleServerApiCallError(e);
-        console.log(
-          "Get unread message counts error (startup dashboard layout): ",
-          error
-        );
-        errors.push({
-          message: error,
-          title: "Error getting unread message counts",
-        });
-        return [];
-      })
-    : [];
   const unreadMessageCount = unreadMessageCounts.reduce(
-    (acc, curr) => acc + curr.unread_messages,
+    (acc: number, curr: any) => acc + curr.unread_messages,
     0
   );
   return (
