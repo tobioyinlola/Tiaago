@@ -4,7 +4,8 @@ import { useUserStore } from "../common/store/useUser";
 import Navbar from "../common/components/Layout/Navbar";
 // import Footer from "../common/components/Layout/Footer";
 import ScrollArea from "../common/components/ScrollArea";
-import { ALLOW_NULL_ARGS, getCurrentUser } from "../common/services/profile";
+import { getCurrentUser } from "../common/services/profile";
+import { ALLOW_NULL_ARGS } from "../common/constants";
 import ScrollToTop from "../common/components/Layout/ScrollToTop";
 import SetUserProfile from "../common/components/Layout/SetUserProfile";
 

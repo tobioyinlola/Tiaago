@@ -4,7 +4,8 @@ import DisplayErrorMessages, {
 import Pricing from "./_components/Pricing";
 import Footer from "@/app/common/components/Layout/Footer";
 import { handleServerApiCallError } from "@/app/common/utils";
-import { ALLOW_NULL_ARGS, getCurrentUser } from "@/app/common/services/profile";
+import { getCurrentUser } from "@/app/common/services/profile";
+import { ALLOW_NULL_ARGS } from "@/app/common/constants";
 import { getSubscriptionPlansBasedOnCountry } from "@/app/common/services/subscription";
 import { SubscriptionPlanV3 } from "@/app/common/types";
 

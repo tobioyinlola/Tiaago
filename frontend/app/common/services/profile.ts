@@ -32,9 +32,6 @@ export type GetCurrentUserReturnType<T> = {
   currentUser: T;
 };
 
-/** Stable reference for React.cache() deduplication. */
-export const ALLOW_NULL_ARGS: GetProfileArgs = { allowNull: true };
-
 const _getCurrentUserImpl = cache(async function getCurrentUserImpl(
   requiredUserType?: BasePageProps["as"],
   getProfileArgs?: GetProfileArgs

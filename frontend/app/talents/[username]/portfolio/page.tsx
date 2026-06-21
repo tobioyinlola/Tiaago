@@ -17,7 +17,8 @@ import {
 } from "@/app/common/utils";
 import BrandLink from "@/app/common/components/BrandLink";
 import ScrollArea from "@/app/common/components/ScrollArea";
-import { ALLOW_NULL_ARGS, getCurrentUser } from "@/app/common/services/profile";
+import { getCurrentUser } from "@/app/common/services/profile";
+import { ALLOW_NULL_ARGS } from "@/app/common/constants";
 import { getTalentPortfolio } from "@/app/common/services/talents";
 import TalentToolDisplay from "@/app/common/components/TalentToolDisplay";
 import WorkExperienceDisplay from "@/app/common/components/WorkExperienceDisplay";

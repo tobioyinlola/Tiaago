@@ -1,4 +1,7 @@
 import { Facebook, Twitter, Linkedin, Instagram } from "lucide-react";
+import type { GetProfileArgs } from "../types";
+
+export const ALLOW_NULL_ARGS: GetProfileArgs = { allowNull: true };
 
 export const BASE_URL =
   process.env.NODE_ENV === "development"
