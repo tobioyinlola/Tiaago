@@ -4,7 +4,7 @@ import DisplayErrorMessages, {
 import Pricing from "./_components/Pricing";
 import Footer from "@/app/common/components/Layout/Footer";
 import { handleServerApiCallError } from "@/app/common/utils";
-import { getCurrentUser } from "@/app/common/services/profile";
+import { ALLOW_NULL_ARGS, getCurrentUser } from "@/app/common/services/profile";
 import { getSubscriptionPlansBasedOnCountry } from "@/app/common/services/subscription";
 import { SubscriptionPlanV3 } from "@/app/common/types";
 
@@ -15,7 +15,7 @@ export const metadata = {
 const PricingPage = async () => {
   const errors: DisplayErrorMessagesProps["errors"] = [];
 
-  const currentUser = (await getCurrentUser(undefined, { allowNull: true }))
+  const currentUser = (await getCurrentUser(undefined, ALLOW_NULL_ARGS))
     ?.currentUser;
   const subscriptionPlansRes = await getSubscriptionPlansBasedOnCountry(
     currentUser?.country

@@ -97,7 +97,7 @@ class JobPagination(PageNumberPagination):
     max_page_size = 100
 
 
-@method_decorator(cache_page(300), name="dispatch")
+@method_decorator(cache_page(60), name="dispatch")
 class JobDetailView(RetrieveAPIView):
 
     permission_classes = [AllowAny]
@@ -1079,7 +1079,7 @@ class ApplyToPendingJobView(APIView):
         }, status=HTTP_201_CREATED)
 
 
-@method_decorator(cache_page(300), name="dispatch")
+@method_decorator(cache_page(60), name="dispatch")
 class CompanyProfileView(RetrieveAPIView):
     """
     Public endpoint to display a company's profile and their active jobs.

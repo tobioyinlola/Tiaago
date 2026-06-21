@@ -55,6 +55,7 @@ from django.conf import settings as django_settings
 from .models import CustomUser, Company, TalentProfile, OneTimePassword, Referral, ReferralWallet, WithdrawalRequest, CompanyTeamInvite, CompanyTeamMember
 from payments.models import WalletTransaction
 from django.db import IntegrityError
+from subscriptions.models import FreePlan
 from subscriptions.permissions import IsCompanyRepOrStaffUser, IsTalentOrStaffUser
 from .api.serializers import (
     CompanyOnboardingSerializer,
@@ -152,9 +153,12 @@ class GoogleSignInView(APIView):
                 auth_provider=CustomUser.AuthProvider.GOOGLE,
             )
             if django_user_type == CustomUser.USER_TYPE.COMPANY_REP:
-                Company.objects.create(
+                company = Company.objects.create(
                     company_rep=user,
                     company_email=email,
+                )
+                FreePlan.objects.get_or_create(
+                    company=company, defaults={"company_email": email}
                 )
             else:
                 TalentProfile.objects.create(user=user)

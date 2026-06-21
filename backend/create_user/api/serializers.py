@@ -576,13 +576,6 @@ class CustomUserSerializer(serializers.ModelSerializer):
             return None
         return get_wallet_balance(company)
     
-    def check_free_tier(self, obj):
-        try:
-            FreePlan.objects.get_or_create(company=obj.company, company_email=obj.email)
-        except Exception:
-            return False
-        return True
-    
     def to_representation(self, instance):
         representation = super().to_representation(instance)
         return representation

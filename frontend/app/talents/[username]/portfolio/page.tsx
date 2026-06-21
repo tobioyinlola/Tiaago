@@ -17,7 +17,7 @@ import {
 } from "@/app/common/utils";
 import BrandLink from "@/app/common/components/BrandLink";
 import ScrollArea from "@/app/common/components/ScrollArea";
-import { getCurrentUser } from "@/app/common/services/profile";
+import { ALLOW_NULL_ARGS, getCurrentUser } from "@/app/common/services/profile";
 import { getTalentPortfolio } from "@/app/common/services/talents";
 import TalentToolDisplay from "@/app/common/components/TalentToolDisplay";
 import WorkExperienceDisplay from "@/app/common/components/WorkExperienceDisplay";
@@ -59,7 +59,7 @@ const TalentPublicPortfolioPage = async ({
 }) => {
   const { username } = await params;
   const errors: DisplayErrorMessagesProps["errors"] = [];
-  const currentUser = (await getCurrentUser(undefined, { allowNull: true }))
+  const currentUser = (await getCurrentUser(undefined, ALLOW_NULL_ARGS))
     .currentUser;
   const portfolioRes = await getTalentPortfolio(username).catch(() => {
     notFound();

@@ -50,7 +50,7 @@ case "${ROLE}" in
       exec uvicorn "${CELERY_APP}.asgi:application" \
         --host 0.0.0.0 \
         --port "${PORT}" \
-        --workers 2 \
+        --workers 1 \
         --timeout-keep-alive 65 \
         --proxy-headers
     fi

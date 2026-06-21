@@ -7,11 +7,10 @@ import { addMinutes } from "date-fns";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 
-const CodeMirror = dynamic(() => import("@uiw/react-codemirror"), {
+const CodeMirrorEditor = dynamic(() => import("./CodeMirrorEditor"), {
   ssr: false,
   loading: () => <div className="h-[400px] animate-pulse bg-gray-100 rounded" />,
 });
-import { javascript } from "@codemirror/lang-javascript";
 import ReactCountdown, { zeroPad } from "react-countdown";
 import { Countdown as DaisyuiCountdown, Button } from "react-daisyui";
 
@@ -302,13 +301,12 @@ const AssessmentCodingTask = ({
                 {coding_task?.description ?? "No description"}
               </p>
             </div>
-            <CodeMirror
+            <CodeMirrorEditor
               value={code}
               onPaste={handleCodeMirrorPaste}
               onDrop={handleCodeMirrorDrop}
               onContextMenu={handleContextMenu}
               className='min-h-[300px] w-full flex-1'
-              extensions={[javascript({ jsx: true })]}
               onChange={disabled ? undefined : setCode}
               placeholder='Please enter your code.'
             />

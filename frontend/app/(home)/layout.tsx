@@ -4,7 +4,7 @@ import { useUserStore } from "../common/store/useUser";
 import Navbar from "../common/components/Layout/Navbar";
 // import Footer from "../common/components/Layout/Footer";
 import ScrollArea from "../common/components/ScrollArea";
-import { getCurrentUser } from "../common/services/profile";
+import { ALLOW_NULL_ARGS, getCurrentUser } from "../common/services/profile";
 import ScrollToTop from "../common/components/Layout/ScrollToTop";
 import SetUserProfile from "../common/components/Layout/SetUserProfile";
 
@@ -13,9 +13,7 @@ export const dynamic = "force-dynamic";
 const scrollElId = "root-scroll-area";
 
 const HomeLayout = async ({ children }: PropsWithChildren) => {
-  const { currentUser, removeAuthCookies } = await getCurrentUser(undefined, {
-    allowNull: true,
-  });
+  const { currentUser, removeAuthCookies } = await getCurrentUser(undefined, ALLOW_NULL_ARGS);
   useUserStore.setState({ profile: currentUser });
   return (
     <ScrollArea id={scrollElId} className='h-screen font-poppins'>
