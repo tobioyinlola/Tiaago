@@ -7,15 +7,19 @@ export async function register() {
   const options = host ? { endpoint: `https://${host}` } : undefined;
   const logtail = new Logtail(token, options);
 
+  const IGNORED = ["DeprecationWarning", "DEP0169"];
+  const shouldIgnore = (args: unknown[]) =>
+    IGNORED.some((k) => args.some((a) => String(a).includes(k)));
+
   const originalConsoleError = console.error;
   console.error = (...args: unknown[]) => {
-    logtail.error(args.map(String).join(" "));
+    if (!shouldIgnore(args)) logtail.error(args.map(String).join(" "));
     originalConsoleError.apply(console, args);
   };
 
   const originalConsoleWarn = console.warn;
   console.warn = (...args: unknown[]) => {
-    logtail.warn(args.map(String).join(" "));
+    if (!shouldIgnore(args)) logtail.warn(args.map(String).join(" "));
     originalConsoleWarn.apply(console, args);
   };
 }
