@@ -508,8 +508,8 @@ export function InviteApplicationForm({
                 </h2>
                 <p className='text-[#E4DBDB] font-onest text-base lg:text-lg max-w-[480px]'>
                   {companyName
-                    ? `You've been invited to join the ${categoryName.toLowerCase()} talent community. Get early access to opportunities and connect directly with the recruiting team.`
-                    : `You've been invited to join an exclusive ${categoryName.toLowerCase()} talent community. Complete your profile to get started.`}
+                    ? `You've been invited to join the ${categoryName.toLowerCase()} talent pipeline. Get early access to opportunities and connect directly with the recruiting team.`
+                    : `You've been invited to join an exclusive ${categoryName.toLowerCase()} talent pipeline. Complete your profile to get started.`}
                 </p>
               </div>
               {/* Animated Illustration */}
@@ -533,10 +533,10 @@ export function InviteApplicationForm({
 
           <div className='w-full md:max-w-[454px] mx-auto px-4 md:py-10 lg:py-16 pb-12 flex-1 flex flex-col justify-center'>
             <h1 className='text-2xl md:text-4xl font-semibold text-left font-onest text-black'>
-              Create Your Profile
+              Tell Us About Yourself
             </h1>
             <p className='text-[#5F6264] text-sm font-onest mt-2 mb-6'>
-              Step {step} of 5 &mdash; {STEP_LABELS[step - 1]}.{" "}
+              Step {step} of 5: {STEP_LABELS[step - 1]}.{" "}
               <Link
                 href='/talents/signin'
                 className='font-semibold text-primary hover:underline'
