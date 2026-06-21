@@ -1,5 +1,7 @@
 from warnings import filters
 from django.db.models import Prefetch
+from django.utils.decorators import method_decorator
+from django.views.decorators.cache import cache_page
 from django.db.models.query import Q
 from django.contrib.auth import get_user_model
 from django.shortcuts import get_object_or_404
@@ -95,6 +97,7 @@ class JobPagination(PageNumberPagination):
     max_page_size = 100
 
 
+@method_decorator(cache_page(300), name="dispatch")
 class JobDetailView(RetrieveAPIView):
 
     permission_classes = [AllowAny]
@@ -1076,6 +1079,7 @@ class ApplyToPendingJobView(APIView):
         }, status=HTTP_201_CREATED)
 
 
+@method_decorator(cache_page(300), name="dispatch")
 class CompanyProfileView(RetrieveAPIView):
     """
     Public endpoint to display a company's profile and their active jobs.

@@ -68,26 +68,22 @@ class CustomUser(AbstractUser):
         return f"{self.first_name} {self.last_name}"
 
     def is_company(self):
-        """
-        Returns True if the user has an associated company profile
-        and user_type is Company
-        """
-        try:
-            company_profile = self.company
-        except CustomUser.company.RelatedObjectDoesNotExist:
-            return False
-        return self.user_type == CustomUser.USER_TYPE.COMPANY_REP
+        if not hasattr(self, "_is_company_cache"):
+            try:
+                self.company
+                self._is_company_cache = self.user_type == CustomUser.USER_TYPE.COMPANY_REP
+            except CustomUser.company.RelatedObjectDoesNotExist:
+                self._is_company_cache = False
+        return self._is_company_cache
 
     def is_talent(self):
-        """
-        Returns True if the user has an associated talent profile
-        and user_type is Talent
-        """
-        try:
-            talent_profile = self.profile
-        except CustomUser.profile.RelatedObjectDoesNotExist:
-            return False
-        return self.user_type == CustomUser.USER_TYPE.TALENT
+        if not hasattr(self, "_is_talent_cache"):
+            try:
+                self.profile
+                self._is_talent_cache = self.user_type == CustomUser.USER_TYPE.TALENT
+            except CustomUser.profile.RelatedObjectDoesNotExist:
+                self._is_talent_cache = False
+        return self._is_talent_cache
 
     def is_subscribed(self):
         # TODO: check if a user subscription is currently active
