@@ -1,73 +1,56 @@
-# talentsync-v2-backend
+# TIAAGO Backend
 
-backend development for talentsync v2 product
+Django 4.2 + DRF + Celery + Channels (Daphne ASGI).
 
-set up your .env file to look similar to .env.dist
+## Setup
 
-To get started with a python virtual environment:
+```bash
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env   # fill DB_URL, REDIS_URL, SECRET_KEY
+python manage.py migrate
+python manage.py runserver
+```
 
-1. Create a virtual environment and activate it
-2. Install the required packages with `pip install -r requirements.txt`
-3. Run `python manage.py new-setup`
-4. After running that, you should have some dummy data to work with:
+Celery (separate terminal):
+```bash
+celery -A talentsync_backend worker -l info
+celery -A talentsync_backend beat -l info
+```
 
-   - All passwords are `Tiaago1234#`
-   - A staff user with email `admin@tiaago.com`. This user is also a superuser (Django Admin)
-   - 2 talent users.
+Seed data:
+```bash
+python manage.py new-setup
+```
 
-     `unsubscribedbisola@tiaago.com` and `subscribedbisola@tiaago.com`.
+Default credentials after seeding: password `Tiaago1234#`, admin `admin@tiaago.com`, talents `unsubscribedbisola@tiaago.com` / `subscribedbisola@tiaago.com`, companies `subscribedcompany@shadex.com` / `unsubscribedcompany@shadex.com`.
 
-   - 2 companies. One is subscribed to the premium plan while the other isn't subscribed to any plan
+## Production
 
-     The emails for the company reps are `subscribedcompany@shadex.com` and `unsubscribedcompany@shadex.com`
+Runs on EC2 via Docker Compose. One Docker image, three services dispatched by `ROLE` env var (`web`, `worker`, `beat`) in `entrypoint.sh`. Nginx handles SSL and static files. GitHub Actions deploys on push to `main`.
 
-5. Run `python manage.py runserver`
-6. You can login to django admin with username `admin` and password `Tiaago1234#`
+## Apps
 
-To get started with Docker:
+- `create_user` - auth, custom user model
+- `jobs` - job listings, portfolios
+- `payments` - Stripe, Paystack, Flutterwave
+- `subscriptions` - plans, permissions
+- `skill_assessment` - AI interviews, assessments
+- `quiz` - quizzes
+- `case_study_projects` - case studies
+- `chats` - WebSocket messaging (Channels)
+- `scheduler` - scheduling
+- `contract` - contracts
+- `roles` - role definitions
+- `work_experience` - work history
+- `marketing` - ConvertKit integration
+- `management` - admin tools
+- `sourcing` - talent pipeline
+- `emails_app` - email templates
 
-1. Set `REDIS_HOST='tiaago_redis_server'` in your .env file
-2. If you're using a mac, replace instances of `localhost` in your .env file with `host.docker.internal`
-3. Run `docker-compose -f docker-compose.dev.yml up`
-4. Exec into the container
-5. Run `python manage.py new-setup`
-6. After running that, you should have some dummy data to work with:
+## Tests
 
-   - All passwords are `Tiaago1234#`
-   - A staff user with email `admin@tiaago.com`. This user is also a superuser (Django Admin)
-   - 2 talent users.
-
-     `unsubscribedbisola@tiaago.com` and `subscribedbisola@tiaago.com`.
-
-   - 2 companies. One is subscribed to the premium plan while the other isn't subscribed to any plan
-
-     The emails for the company reps are `subscribedcompany@shadex.com` and `unsubscribedcompany@shadex.com`
-
-7. Run `python manage.py runserver`
-8. You can login to django admin with username `admin` and password `Tiaago1234#`
-
-#
-
-# NOTE
-
-- This Django project currently has too many apps than it needs, so please
-  try to avoid creating new apps as much as you can
-
-- The base folder contains mixins, abstract models, permissions and some utility functions that are used throughout the project
-- The logs folder contains logs
-- The utils folder contains utility functions.
-
-### APPS
-
-- `case_study_project` - for case study projects
-- `chats` - handles everything relating to chats
-- `contract` - app for contracts
-- `create_user` - for authentication, user creation etc.
-- `jobs` - for jobs and portfolio
-- `management` - app for admins (Tiaago admins)
-- `payments` - app to handle payments
-- `quiz` - ??
-- `roles` - ??
-- `scheduler` - ??
-- `subscriptions` - ??
-- `work_experience` - ??
+```bash
+python manage.py test jobs
+python manage.py test jobs.tests.SomeTestCase.test_method
+```

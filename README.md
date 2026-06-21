@@ -2,160 +2,81 @@
 
 [![Better Stack Badge](https://uptime.betterstack.com/status-badges/v2/monitor/2p25o.svg)](https://uptime.betterstack.com/?utm_source=status_badge)
 
-Talent marketplace connecting African developers with startups. Candidates build a profile, take assessments, and run live AI interviews; recruiters post jobs, screen applicants, and hire.
-
-This monorepo holds the three services that make up the product.
+Talent marketplace connecting African developers with startups. Candidates build profiles, take assessments, and run live AI interviews; recruiters post jobs, screen applicants, and hire.
 
 ## Services
 
-| Service | Path | Stack | Port (dev) | Deploy |
+| Service | Path | Stack | Dev port | Production |
 | --- | --- | --- | --- | --- |
-| **Frontend** | `frontend/` | Next.js 15 (App Router) + React 19 + TypeScript + Tailwind + shadcn/ui | 3000 | Vercel |
-| **Backend** | `backend/` | Django 4.2 + DRF + Celery + Channels (Daphne ASGI) | 8000 | Render (web + worker + beat) |
-| **AI** | `ai/` | FastAPI + LangChain + OpenAI | 9000 | Render (or local) |
-
-```
-tiaago-monorepo/
-├── frontend/      # Next.js app
-├── backend/       # Django + Celery + Channels
-├── ai/            # FastAPI resume-screening & assessment service
-└── render.yaml    # Render Blueprint — provisions backend web/worker/beat + AI
-```
+| **Frontend** | `frontend/` | Next.js 15, React 19, TypeScript, Tailwind, shadcn/ui | 3000 | Vercel |
+| **Backend** | `backend/` | Django 4.2, DRF, Celery, Channels (Daphne ASGI) | 8000 | EC2 (Docker Compose) |
+| **AI** | `ai/` | FastAPI, LangChain, OpenAI | 9000 | EC2 (Docker Compose) |
 
 ## Architecture
 
 ```
-                  ┌──────────────────┐
-                  │   Frontend       │
-                  │   (Next.js)      │
-                  └────────┬─────────┘
-                           │  REST + JWT cookies
-                           │  WebSocket (?token=jwt)
-                           ▼
-                  ┌──────────────────┐
-                  │   Backend        │
-                  │   (Django)       │
-                  │                  │      ┌──────────────────┐
-                  │   web  ────────► │─────►│   AI             │
-                  │   worker         │ X-Service-Key │   (FastAPI)      │
-                  │   beat           │      └──────────────────┘
-                  └────┬─────────────┘
-                       │ Redis (broker + cache + channels)
-                       ▼
-                  ┌──────────────────┐
-                  │  Postgres + Redis│
-                  └──────────────────┘
+Frontend (Vercel)
+    |
+    | REST + JWT cookies / WebSocket
+    v
+Nginx (SSL termination)
+    |
+    +---> Backend (Django/Daphne)  ---> AI service (FastAPI)
+    |         |                          X-Service-Key auth
+    |         v
+    |    Redis (broker + cache + channels)
+    |    Postgres (Supabase)
+    v
+Static + Media files
 ```
 
-- **Frontend ↔ Backend**: JWT in httpOnly cookies (`tiaago_access`, `tiaago_refresh`); WebSocket auth via `?token=<jwt>`.
-- **Backend ↔ AI**: Backend calls the AI service with an `X-Service-Key` shared secret.
-- **Backend → Postgres / Redis**: standard env-var URL config.
+- **Frontend -> Backend**: JWT in httpOnly cookies; WebSocket auth via `?token=<jwt>`.
+- **Backend -> AI**: `X-Service-Key` shared secret. Frontend never calls AI directly.
+- **Production**: EC2 t3.small, Docker Compose (web, worker, beat, ai, nginx). GitHub Actions deploys on push to `main`.
 
 ## Local development
 
-You need three terminals (or use `tmux` / your IDE's run configs).
-
-### 1. Backend
+### Backend
 
 ```bash
 cd backend
-python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
+python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env                                 # fill in DB_URL, REDIS_URL, SECRET_KEY
+cp .env.example .env   # fill DB_URL, REDIS_URL, SECRET_KEY
 python manage.py migrate
-python manage.py runserver                           # → http://localhost:8000
+python manage.py runserver
 ```
 
-In a second terminal, start Celery:
-
+Celery (separate terminal):
 ```bash
-cd backend
-source .venv/bin/activate
 celery -A talentsync_backend worker -l info
-celery -A talentsync_backend beat   -l info
+celery -A talentsync_backend beat -l info
 ```
 
-### 2. AI service
-
-See `ai/README.md` for full details. Short version:
+### AI service
 
 ```bash
 cd ai
-python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 export OPENAI_API_KEY=...
-uvicorn app.main:app --reload --port 9000           # → http://localhost:9000
+uvicorn app.main:app --reload --port 9000
 ```
 
-### 3. Frontend
+### Frontend
 
 ```bash
 cd frontend
 pnpm install
-cp .env.example .env.local                           # set NEXT_PUBLIC_API_BASE_URL
-pnpm dev                                             # → http://localhost:3000
+cp .env.example .env.local   # set NEXT_PUBLIC_API_URL
+pnpm dev
 ```
-
-The frontend expects the backend at `http://localhost:8000` and the AI service (called indirectly via the backend) at `http://localhost:9000` by default.
 
 ## Deployment
 
-The monorepo is wired for two hosts:
-
-- **Vercel** for the frontend (root directory = `frontend`)
-- **Render Blueprint** for the backend (one image, three services: web, worker, beat — distinguished by the `ROLE` env var) and the AI service
-
-End-to-step-by-step runbook lives at the repo root: `../DEPLOY-GUIDE.md`. It covers where to get every required env var (Stripe, Paystack, Flutterwave, ConvertKit, Daily.co, ElevenLabs, Deepgram, Sentry), and how to wire payments and external services per-provider.
-
-A consolidated map of every env var, every workflow, and every cross-service integration lives at `../ENV-AND-WORKFLOWS.md`.
-
-## Project layout (detail)
-
-```
-tiaago-monorepo/
-├── frontend/
-│   ├── app/                 # Next.js App Router pages
-│   ├── components/          # shared UI
-│   ├── lib/                 # axios client, auth helpers
-│   ├── public/              # static assets
-│   ├── package.json
-│   └── .env.example
-│
-├── backend/
-│   ├── talentsync_backend/  # Django project (settings, urls, celery, asgi)
-│   ├── case_study_projects/ # Django app
-│   ├── chats/               # Django app (Channels consumers)
-│   ├── contract/            # Django app
-│   ├── create_user/         # Django app (auth + CustomUser)
-│   ├── jobs/                # Django app
-│   ├── payments/            # Django app (Stripe / Paystack / Flutterwave)
-│   ├── quiz/                # Django app
-│   ├── roles/               # Django app
-│   ├── scheduler/           # Django app
-│   ├── skill_assessment/    # Django app
-│   ├── subscriptions/       # Django app
-│   ├── work_experience/     # Django app
-│   ├── management/          # custom management commands
-│   ├── marketing/           # ConvertKit glue
-│   ├── manage.py
-│   ├── requirements.txt
-│   ├── Dockerfile           # used by Render
-│   └── .env.example
-│
-├── ai/
-│   ├── app/
-│   │   ├── api/             # FastAPI routes
-│   │   ├── models/          # Pydantic schemas
-│   │   ├── services/        # resume analyzer, assessment generator
-│   │   └── main.py
-│   ├── tests/
-│   ├── Dockerfile           # used by Render (optional)
-│   ├── requirements.txt
-│   └── README.md            # full AI service docs
-│
-├── render.yaml              # Render Blueprint (backend + AI)
-└── .gitignore
-```
+- **Frontend**: Vercel auto-deploys on push to `main` (public repo, Git integration).
+- **Backend + AI**: EC2 instance running Docker Compose behind Nginx with Let's Encrypt SSL. GitHub Actions CI/CD (`.github/workflows/deploy-backend.yml`) SSHes into EC2 on push to `main` when `backend/`, `ai/`, `docker-compose.yml`, or `nginx/` change.
+- **Database**: Supabase (Postgres, transaction pooler port 6543).
+- **Redis**: Render managed Redis (external access).
 
 ## License
 
