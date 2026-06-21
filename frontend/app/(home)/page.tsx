@@ -156,6 +156,7 @@ const Recruiters = () => {
             alt='Hero image'
             className='object-cover'
             fill
+            priority
           />
 
           <div className='md:container mx-auto pt-[77px] md:pt-[142px] px-4 sm:px-6 lg:px-8 mt-[84px] relative border-x border-white/10'>

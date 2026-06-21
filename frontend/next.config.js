@@ -2,6 +2,14 @@
 const nextConfig = {
   experimental: {
     instrumentationHook: true,
+    optimizePackageImports: [
+      "react-icons",
+      "lucide-react",
+      "date-fns",
+      "react-daisyui",
+      "formik",
+      "yup",
+    ],
   },
   images: {
     remotePatterns: [

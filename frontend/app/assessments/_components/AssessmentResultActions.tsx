@@ -1,10 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { jsPDF } from "jspdf";
 import { toast } from "sonner";
 import { useState } from "react";
-import html2canvas from "html2canvas-pro";
 
 import { ID } from "@/app/common/types";
 import { cn, handleFormSubmissionError } from "@/app/common/utils";
@@ -78,11 +76,12 @@ const AssessmentResultActions = ({
         tempDiv.style.left = "-9999px";
         tempDiv.innerHTML = htmlString;
         document.body.appendChild(tempDiv);
+        const { default: html2canvas } = await import("html2canvas-pro");
+        const { jsPDF } = await import("jspdf");
         const canvas = await html2canvas(tempDiv, {
           scale: 2,
         });
         const imgData = canvas.toDataURL("image/png");
-        // console.log(imgData);
         const doc = new jsPDF({
           format: [870, 616],
           unit: "px",

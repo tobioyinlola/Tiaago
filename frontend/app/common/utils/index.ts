@@ -16,6 +16,9 @@ import {
 
 export const cn = (...inputs: ClassValue[]) => twMerge(clsx(inputs));
 
+export const isNullOrUndef = (v: unknown): v is null | undefined =>
+  v === null || v === undefined;
+
 export const altFromImgUrl = (url: string) =>
   url.split("/").pop()?.split(".").pop() || url;
 

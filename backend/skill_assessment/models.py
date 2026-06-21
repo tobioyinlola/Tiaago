@@ -435,6 +435,12 @@ class CandidateAssessmentSubmission(TimeStampedModel):
         default=MarkStatusChoices.PENDING,
     )
 
+    class Meta:
+        indexes = [
+            models.Index(fields=["candidate", "is_completed"]),
+            models.Index(fields=["candidate", "skill_assessment"]),
+        ]
+
     def __str__(self):
         return f"{self.candidate} - {self.skill_assessment.title}"
 

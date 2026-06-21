@@ -60,6 +60,10 @@ class Message(models.Model):
     class Meta:
         ordering = ("-timestamp",)
         verbose_name_plural = "chat messages"
+        indexes = [
+            models.Index(fields=["conversation", "read"]),
+            models.Index(fields=["conversation", "-timestamp"]),
+        ]
 
     def __str__(self):
         return f"{self.sender.username} send message to {self.conversation.receiver.username} on {self.timestamp.strftime('%Y-%m-%d:%H:%M:%S')}"

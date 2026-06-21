@@ -117,8 +117,9 @@ class SkillAssessmentView(ListCreateAPIView):
 
     def get_queryset(self):
         user = self.request.user
-        queryset = super().get_queryset()
-        # remember to set permission_classes to talent or staff user
+        queryset = SkillAssessment.objects.select_related(
+            "talent", "talent__user",
+        )
         if user.is_talent():
             queryset = queryset.filter(talent=user.profile)
 

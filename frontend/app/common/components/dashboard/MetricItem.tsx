@@ -5,7 +5,7 @@ import {
 } from "react-icons/pi";
 import { BsDash } from "react-icons/bs";
 
-import { isNullOrUndef } from "chart.js/helpers";
+import { isNullOrUndef } from "@/app/common/utils";
 import DashboardAreaChart from "./charts/DashboardAreaChart";
 
 export type MetricItemProps = {

@@ -129,7 +129,7 @@ class Job(models.Model):
     
     # Status and metadata
     job_status = models.CharField(
-        max_length=10, choices=JobStatus.choices, default=JobStatus.ACTIVE
+        max_length=10, choices=JobStatus.choices, default=JobStatus.ACTIVE, db_index=True
     )
     date_created = models.DateTimeField(auto_now_add=True)
     last_updated = models.DateTimeField(auto_now=True)
@@ -139,7 +139,7 @@ class Job(models.Model):
 
     no_of_applications = models.PositiveIntegerField(default=0, help_text="Number of applications for this job")
 
-    apply_token = models.UUIDField(default=uuid4, editable=False)
+    apply_token = models.UUIDField(default=uuid4, editable=False, unique=True)
     external_apply_token_expires = models.DateTimeField(null=True, blank=True)
     external_skip_verification = models.BooleanField(default=False)
     
@@ -252,6 +252,13 @@ class JobApplication(models.Model):
     last_updated = models.DateTimeField(auto_now=True)
 
    
+
+    class Meta:
+        unique_together = ("applicant", "job")
+        indexes = [
+            models.Index(fields=["job", "status"]),
+            models.Index(fields=["applicant", "-applied_date"]),
+        ]
 
     def save(self, *args, **kwargs):
         if not self.pk:

@@ -24,7 +24,7 @@ class CustomUser(AbstractUser):
         STAFF = "ST", _("STAFF")
 
     user_type = models.CharField(
-        max_length=2, choices=USER_TYPE.choices, default=USER_TYPE.STAFF
+        max_length=2, choices=USER_TYPE.choices, default=USER_TYPE.STAFF, db_index=True
     )
     phone_number = PhoneNumberField()
     country = models.CharField(max_length=100)
@@ -124,7 +124,7 @@ class TalentProfile(models.Model):
         null=True,
         on_delete=models.SET_NULL,
     )
-    referral_code = models.CharField(max_length=6, blank=True, null=True)
+    referral_code = models.CharField(max_length=6, blank=True, null=True, unique=True)
     referred_by = models.ForeignKey(
         "self", blank=True, null=True, on_delete=models.SET_NULL
     )
@@ -206,7 +206,7 @@ class Company(models.Model):
         settings.AUTH_USER_MODEL, related_name="company", on_delete=models.CASCADE
     )
     company_name = models.CharField(max_length=255, blank=True)
-    company_email = models.CharField(max_length=50)
+    company_email = models.CharField(max_length=50, db_index=True)
     country = models.CharField(max_length=100, null=True, blank=True)
     logo = models.ImageField(upload_to="company_logos/%Y/%m/%d/")
     role = models.ForeignKey(

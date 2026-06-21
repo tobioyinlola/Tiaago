@@ -38,10 +38,8 @@ import sentry_sdk
 if SENTRY_DSN:
     sentry_sdk.init(
         dsn=SENTRY_DSN,
-        traces_sample_rate=1.0,
-        _experiments={
-            "continuous_profiling_auto_start": True,
-        },
+        traces_sample_rate=0.05,
+        profiles_sample_rate=0.05,
         environment="production",
     )
 
@@ -70,7 +68,8 @@ CORS_ALLOWED_ORIGINS = CSRF_TRUSTED_ORIGINS
 CORS_ALLOWED_ORIGIN_REGEXES = [
     r"^https://([a-z0-9-]+\.)?tiaago\.com$",
 ]
-CORS_ALLOW_CREDENTIALS = False
+CORS_ALLOW_CREDENTIALS = True
+CORS_PREFLIGHT_MAX_AGE = 86400
 
 
 SESSION_COOKIE_SAMESITE = "None"
@@ -85,10 +84,12 @@ SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 DATABASES = {
     "default": dj_database_url.config(
         default=DATABASE_URL,
-        conn_max_age=600,
+        conn_max_age=0,
         ssl_require=True,
     )
 }
+DATABASES["default"]["DISABLE_SERVER_SIDE_CURSORS"] = True
+DATABASES["default"]["CONN_HEALTH_CHECKS"] = True
 
 # Redis Caching for Production
 CACHES = {

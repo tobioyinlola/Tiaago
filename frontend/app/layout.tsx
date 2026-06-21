@@ -20,9 +20,6 @@ const title = "TIAAGO";
 const description =
   "Source/Screen candidates, run assessments, build talent pipelines, and customize your hiring workflow end to end.";
 
-export const dynamic = "force-dynamic";
-export const fetchCache = "default-no-store";
-
 export const metadata: Metadata = {
   title: {
     default: title + ": " + description,

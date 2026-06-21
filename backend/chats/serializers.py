@@ -34,8 +34,9 @@ class ConversationListSerializer(serializers.ModelSerializer):
 
     def get_last_message(self, obj):
         """Returns the last message in the conversation."""
-        message = Message.objects.filter(conversation=obj).order_by('-timestamp').first()
-        if message:
+        messages = obj.messages.all()
+        if messages:
+            message = messages[0]
             return {
                 "id": message.id,
                 "text": message.text,

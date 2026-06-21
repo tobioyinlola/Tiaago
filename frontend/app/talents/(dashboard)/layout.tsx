@@ -15,6 +15,7 @@ import SideNavV3 from "@/app/common/components/dashboard/Nav/SideNavV3";
 import SetUserProfile from "@/app/common/components/Layout/SetUserProfile";
 import { VerifiedBadgeIndicator } from "@/app/common/components/UserAvatar";
 import HideOnPathnames from "@/app/common/components/Layout/HideOnPathnames";
+import BackendWarmupPing from "@/app/common/components/Layout/BackendWarmupPing";
 import { IS_CHAT_HIDDEN } from "@/app/common/constants";
 
 const TalentDashboardLayout = async ({ children }: PropsWithChildren) => {
@@ -73,6 +74,7 @@ const TalentDashboardLayout = async ({ children }: PropsWithChildren) => {
   );
   return (
     <div className='bg-white min-h-[100svh]'>
+      <BackendWarmupPing />
       <DisplayErrorMessages errors={errors} />
       <SetTalentProfile profile={user} isVerified={isProfileComplete} />
       <SetUserProfile profile={user} removeAuthCookies={removeAuthCookies} />

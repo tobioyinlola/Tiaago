@@ -36,8 +36,10 @@ class ContractListView(generics.ListAPIView):
     
     def get_queryset(self):
         user = self.request.user
-        queryset = Contract.objects.all()
-        
+        queryset = Contract.objects.select_related(
+            "talent", "talent__user", "company", "company__company_rep", "role"
+        )
+
         if user.user_type == CustomUser.USER_TYPE.TALENT:
             queryset = queryset.filter(talent=user.profile)
         elif user.user_type == CustomUser.USER_TYPE.COMPANY_REP:

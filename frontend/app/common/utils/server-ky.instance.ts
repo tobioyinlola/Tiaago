@@ -6,7 +6,6 @@ import { ACCESS_TOKEN_KEY, API_URL } from "../constants";
 
 const serverKyInstance = ky.create({
   prefixUrl: API_URL,
-  cache: "no-cache",
   timeout: 25000,
   hooks: {
     beforeRequest: [

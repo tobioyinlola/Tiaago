@@ -1,4 +1,5 @@
 "use server";
+import { cache } from "react";
 import { AxiosError } from "axios";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
@@ -31,25 +32,7 @@ export type GetCurrentUserReturnType<T> = {
   currentUser: T;
 };
 
-export async function getCurrentUser(): Promise<GetCurrentUserReturnType<User>>;
-export async function getCurrentUser(
-  requiredUserType: undefined,
-  getProfileArgs?: GetProfileArgs
-): Promise<GetCurrentUserReturnType<User>>;
-export async function getCurrentUser(
-  requiredUserType: "talent",
-  getProfileArgs?: GetProfileArgs
-): Promise<GetCurrentUserReturnType<Talent>>;
-export async function getCurrentUser(
-  requiredUserType: "startup",
-  getProfileArgs?: GetProfileArgs
-): Promise<GetCurrentUserReturnType<Startup>>;
-export async function getCurrentUser(
-  requiredUserType: "staff",
-  getProfileArgs?: GetProfileArgs
-): Promise<GetCurrentUserReturnType<Staff>>;
-
-export async function getCurrentUser(
+const _getCurrentUserImpl = cache(async function getCurrentUserImpl(
   requiredUserType?: BasePageProps["as"],
   getProfileArgs?: GetProfileArgs
 ) {
@@ -107,6 +90,30 @@ export async function getCurrentUser(
         : validUserRedirect
     );
   return { removeAuthCookies, currentUser };
+});
+
+export async function getCurrentUser(): Promise<GetCurrentUserReturnType<User>>;
+export async function getCurrentUser(
+  requiredUserType: undefined,
+  getProfileArgs?: GetProfileArgs
+): Promise<GetCurrentUserReturnType<User>>;
+export async function getCurrentUser(
+  requiredUserType: "talent",
+  getProfileArgs?: GetProfileArgs
+): Promise<GetCurrentUserReturnType<Talent>>;
+export async function getCurrentUser(
+  requiredUserType: "startup",
+  getProfileArgs?: GetProfileArgs
+): Promise<GetCurrentUserReturnType<Startup>>;
+export async function getCurrentUser(
+  requiredUserType: "staff",
+  getProfileArgs?: GetProfileArgs
+): Promise<GetCurrentUserReturnType<Staff>>;
+export async function getCurrentUser(
+  requiredUserType?: BasePageProps["as"],
+  getProfileArgs?: GetProfileArgs
+) {
+  return _getCurrentUserImpl(requiredUserType, getProfileArgs);
 }
 
 export const getAllUsers = async (includeUnverifiedUsers?: boolean) => {

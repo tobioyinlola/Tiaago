@@ -30,7 +30,7 @@ services:
       - key: PORT
         value: "10000"
       - key: MIGRATE_ON_START
-        value: "1"
+        value: "0"
       - key: COLLECTSTATIC_ON_START
         value: "1"
       # Shared secret for /api/health/ — copy the generated value from the

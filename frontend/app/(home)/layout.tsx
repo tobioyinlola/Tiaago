@@ -8,6 +8,8 @@ import { getCurrentUser } from "../common/services/profile";
 import ScrollToTop from "../common/components/Layout/ScrollToTop";
 import SetUserProfile from "../common/components/Layout/SetUserProfile";
 
+export const dynamic = "force-dynamic";
+
 const scrollElId = "root-scroll-area";
 
 const HomeLayout = async ({ children }: PropsWithChildren) => {

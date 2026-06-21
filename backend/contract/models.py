@@ -20,7 +20,7 @@ class Contract(models.Model):
     )
     value = models.PositiveIntegerField()
     mode = models.TextField(default="", blank=True)
-    expires = models.DateTimeField()
+    expires = models.DateTimeField(db_index=True)
     created = models.DateTimeField(auto_now_add=True)
     updated = models.DateTimeField(auto_now=True)
 

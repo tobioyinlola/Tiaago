@@ -1,5 +1,4 @@
-import { isNullOrUndef } from "chart.js/helpers";
-import "react-big-calendar/lib/css/react-big-calendar.css";
+import { isNullOrUndef } from "@/app/common/utils";
 
 import MeetingRequests from "./components/MeetingRequests";
 import CalendarV2 from "@/app/common/components/Calendar/V2";

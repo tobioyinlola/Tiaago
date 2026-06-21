@@ -13,6 +13,7 @@ import DisplayErrorMessages, {
   DisplayErrorMessagesProps,
 } from "@/app/common/components/DisplayErrorMessages";
 import { handleServerApiCallError } from "@/app/common/utils";
+import BackendWarmupPing from "@/app/common/components/Layout/BackendWarmupPing";
 
 const AdminDashboardLayout = async ({ children }: PropsWithChildren) => {
   const errors: DisplayErrorMessagesProps["errors"] = [];
@@ -47,6 +48,7 @@ const AdminDashboardLayout = async ({ children }: PropsWithChildren) => {
   ).count;
   return (
     <>
+      <BackendWarmupPing />
       <DisplayErrorMessages errors={errors} />
       <div className='bg-white min-h-[100svh]'>
         <Nav

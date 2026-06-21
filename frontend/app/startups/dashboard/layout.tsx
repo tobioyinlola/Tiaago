@@ -16,6 +16,7 @@ import SideNavV3 from "@/app/common/components/dashboard/Nav/SideNavV3";
 import SetUserProfile from "@/app/common/components/Layout/SetUserProfile";
 import FinishOnboardingBanner from "./components/FinishOnboardingBanner";
 import { getCompanyOnboarding } from "@/app/common/services/company-onboarding";
+import BackendWarmupPing from "@/app/common/components/Layout/BackendWarmupPing";
 
 const StartupDashboardLayout = async ({ children }: PropsWithChildren) => {
   const errors: DisplayErrorMessagesProps["errors"] = [];
@@ -69,6 +70,7 @@ const StartupDashboardLayout = async ({ children }: PropsWithChildren) => {
   );
   return (
     <div className='bg-white min-h-[100svh]'>
+      <BackendWarmupPing />
       <DisplayErrorMessages errors={errors} />
       <SetStartupProfile profile={startup} />
       <SetUserProfile profile={startup} removeAuthCookies={false} />

@@ -1,7 +1,5 @@
 import Link from "next/link";
 import { Metadata } from "next";
-import "react-big-calendar/lib/css/react-big-calendar.css";
-
 import DisplayErrorMessages, {
   DisplayErrorMessagesProps,
 } from "@/app/common/components/DisplayErrorMessages";

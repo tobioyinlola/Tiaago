@@ -385,8 +385,7 @@ class CompanySerializer(RegisterSerializer):
             # avoid raising registration errors for membership creation failures
             pass
 
-        # subscripe all companies to free plan on signup
-        # FreePlan.objects.create(company=user.company, company_email=user.email)
+        FreePlan.objects.get_or_create(company=user.company, company_email=user.email)
         return user
 
     def validate(self, data):
@@ -586,10 +585,7 @@ class CustomUserSerializer(serializers.ModelSerializer):
     
     def to_representation(self, instance):
         representation = super().to_representation(instance)
-        # Ensure free tier exists for company users
-        if instance.is_company():
-            self.check_free_tier(instance)
-        return representation   
+        return representation
 
     def get_subscribed_plan(self, obj):
         try:

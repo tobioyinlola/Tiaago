@@ -1,4 +1,5 @@
 from warnings import filters
+from django.db.models import Prefetch
 from django.db.models.query import Q
 from django.contrib.auth import get_user_model
 from django.shortcuts import get_object_or_404
@@ -100,8 +101,8 @@ class JobDetailView(RetrieveAPIView):
     serializer_class = GenericJobSerializer
 
     def get_queryset(self):
-        return Job.approved.all()
-    
+        return Job.approved.select_related("company", "role").all()
+
 
 class JobFilter(filters.FilterSet):
     role = filters.CharFilter(field_name='role__title', lookup_expr='icontains')
@@ -290,8 +291,8 @@ class JobListCreateView(ListCreateAPIView):
 
 
 class JobRetrieveUpdateView(RetrieveUpdateAPIView):
-    queryset = Job.objects.all()
-    permission_classes = [IsJobCreatorOrReadOnly] 
+    queryset = Job.objects.select_related("company", "role").all()
+    permission_classes = [IsJobCreatorOrReadOnly]
     
     def get_serializer_class(self):
         if self.request.method in ["PUT", "PATCH"]:
@@ -342,13 +343,17 @@ class JobApplicationListView(ListAPIView):
 
     def get_queryset(self):
         user = self.request.user
+        qs = JobApplication.objects.select_related(
+            "job", "job__company", "job__role",
+            "applicant", "applicant__user",
+        )
 
         if user.user_type == CustomUser.USER_TYPE.COMPANY_REP:
-            return self.queryset.filter(job__company__company_rep=user)
+            return qs.filter(job__company__company_rep=user)
         elif user.user_type == CustomUser.USER_TYPE.TALENT:
-            return self.queryset.filter(applicant__user=user)
+            return qs.filter(applicant__user=user)
         else:
-            return self.queryset
+            return qs
 
 
 class JobApplicationRetrieveUpdateView(RetrieveUpdateAPIView):
@@ -1083,6 +1088,11 @@ class CompanyProfileView(RetrieveAPIView):
 
     def get(self, request, *args, **kwargs):
         company_name = self.kwargs.get("company_name")
-        company = get_object_or_404(Company, company_name__iexact=company_name)
+        company = get_object_or_404(
+            Company.objects.select_related("company_rep").prefetch_related(
+                Prefetch("jobs", queryset=Job.objects.filter(job_status="ACTIVE").select_related("role"))
+            ),
+            company_name__iexact=company_name,
+        )
         serializer = self.get_serializer(company)
         return Response(serializer.data)
