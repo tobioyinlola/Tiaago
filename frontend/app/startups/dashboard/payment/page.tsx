@@ -13,12 +13,10 @@ import {
 import { handleServerApiCallError } from "@/app/common/utils";
 
 const AddStripeCard = dynamic(
-  () => import("./_components/AddStripeCard"),
-  { ssr: false }
+  () => import("./_components/AddStripeCard")
 );
 const AddPaystackCard = dynamic(
-  () => import("./_components/AddPaystackCard"),
-  { ssr: false }
+  () => import("./_components/AddPaystackCard")
 );
 import InfoCircleIcon from "@/app/common/icons/InfoCircleIcon";
 import { getCurrentUser } from "@/app/common/services/profile";
