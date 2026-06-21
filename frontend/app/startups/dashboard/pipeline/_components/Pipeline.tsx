@@ -527,13 +527,13 @@ export default function Pipeline({
               Your Pipeline is Empty
             </h3>
             <p className='mt-1 max-w-sm text-sm text-muted-foreground'>
-              Start sourcing candidates to build your talent pipeline
+              Share your invite link to start building your talent pipeline
             </p>
             <Button
               className='mt-4'
-              onClick={() => router.push("/startups/dashboard/sourcing")}
+              onClick={() => setShowTalentPoolInvite(true)}
             >
-              Start Sourcing
+              Invite to Pool
             </Button>
           </div>
         ) : (
