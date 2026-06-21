@@ -68,7 +68,7 @@ services:
       - static_files:/var/www/staticfiles:ro
       - media_files:/var/www/media:ro
       - certbot_www:/var/www/certbot:ro
-      - certbot_conf:/etc/letsencrypt:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
     depends_on:
       - web
       - ai
@@ -78,4 +78,3 @@ volumes:
   static_files:
   media_files:
   certbot_www:
-  certbot_conf:
