@@ -26,10 +26,12 @@ const SignUpFormV3 = ({
   groupedCountries,
   next,
   referral_code,
+  initialEmail,
 }: {
   groupedCountries: GroupBase<CountryField>[];
   next?: string;
   referral_code?: string;
+  initialEmail?: string;
 }) => {
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const router = useRouter();
@@ -37,9 +39,15 @@ const SignUpFormV3 = ({
   const urlSearchParams = new URLSearchParams();
   if (referral_code) urlSearchParams.set("referral_code", referral_code);
   if (next) urlSearchParams.set("next", next);
+
+  const initialValues = {
+    ...startupSignUpV3InitialFormValues,
+    ...(initialEmail ? { email: initialEmail } : {}),
+  };
+
   return (
     <Formik
-      initialValues={startupSignUpV3InitialFormValues}
+      initialValues={initialValues}
       onSubmit={(values, { setSubmitting, resetForm, setFieldError }) => {
         const input = {
           ...values,

@@ -17,10 +17,10 @@ export const metadata = {
 const Signup = async ({
   searchParams,
 }: {
-  searchParams: Promise<{ next?: string; referral_code?: string }>;
+  searchParams: Promise<{ next?: string; referral_code?: string; email?: string }>;
 }) => {
   const errors: DisplayErrorMessagesProps["errors"] = [];
-  const { next, referral_code } = await searchParams;
+  const { next, referral_code, email } = await searchParams;
   await getCurrentUser(undefined, {
     allowNull: true,
     validUserRedirect: "dashboard",
@@ -48,6 +48,7 @@ const Signup = async ({
         groupedCountries={groupedCountries}
         next={next}
         referral_code={referral_code}
+        initialEmail={email}
       />
       <DisplayErrorMessages errors={errors} />
     </AuthFormPageWrapper>

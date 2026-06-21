@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -33,6 +33,17 @@ const ROLE_DESCRIPTIONS: Record<TeamMemberRole, string> = {
   viewer: "Read-only access to the dashboard and candidate profiles",
 };
 
+function getDashboardUrl(role: TeamMemberRole): string {
+  switch (role) {
+    case "recruiter":
+      return "/startups/dashboard/jobs";
+    case "admin":
+    case "viewer":
+    default:
+      return "/startups/dashboard";
+  }
+}
+
 export default function AcceptInviteClient({
   token,
   companyName,
@@ -44,10 +55,13 @@ export default function AcceptInviteClient({
   const router = useRouter();
   const [accepting, setAccepting] = useState(false);
   const [accepted, setAccepted] = useState(false);
+  const hasAutoAccepted = useRef(false);
 
   const isLoggedIn = !!currentUser;
   const emailMatches =
     isLoggedIn && currentUser.email.toLowerCase() === email.toLowerCase();
+
+  const dashboardUrl = getDashboardUrl(role);
 
   const handleAccept = async () => {
     setAccepting(true);
@@ -57,6 +71,10 @@ export default function AcceptInviteClient({
     if (result.success) {
       setAccepted(true);
       toast.success("Invitation accepted!");
+      // Auto-redirect after a brief moment so user sees success state
+      setTimeout(() => {
+        router.push(dashboardUrl);
+      }, 1500);
     } else {
       toast.error("Failed to accept invitation", {
         description: result.error,
@@ -64,8 +82,16 @@ export default function AcceptInviteClient({
     }
   };
 
-  const loginUrl = `/talents/signin?next=${encodeURIComponent(`/invite/accept?token=${token}`)}`;
-  const signupUrl = `/talents/signup?next=${encodeURIComponent(`/invite/accept?token=${token}`)}&email=${encodeURIComponent(email)}`;
+  // Auto-accept when logged in and email matches
+  useEffect(() => {
+    if (isLoggedIn && emailMatches && !accepted && !accepting && !hasAutoAccepted.current) {
+      hasAutoAccepted.current = true;
+      handleAccept();
+    }
+  }, [isLoggedIn, emailMatches]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const loginUrl = `/startups/signin?next=${encodeURIComponent(`/invite/accept?token=${token}`)}`;
+  const signupUrl = `/startups/signup?next=${encodeURIComponent(`/invite/accept?token=${token}`)}&email=${encodeURIComponent(email)}`;
 
   if (accepted) {
     return (
@@ -85,11 +111,10 @@ export default function AcceptInviteClient({
               Welcome to {companyName}!
             </h1>
             <p className="text-muted-foreground text-sm">
-              You have joined as a {ROLE_LABELS[role]}. Head to the dashboard to
-              get started.
+              You have joined as a {ROLE_LABELS[role]}. Redirecting to your dashboard...
             </p>
             <Button
-              onClick={() => router.push("/startups/dashboard")}
+              onClick={() => router.push(dashboardUrl)}
               className="w-full"
             >
               Go to Dashboard
@@ -154,15 +179,10 @@ export default function AcceptInviteClient({
 
           {/* Actions */}
           {isLoggedIn && emailMatches ? (
-            <Button
-              onClick={handleAccept}
-              disabled={accepting}
-              className="w-full"
-              size="lg"
-            >
-              {accepting && <Loader2 className="h-4 w-4 animate-spin" />}
-              Accept Invitation
-            </Button>
+            <div className="flex flex-col items-center gap-2">
+              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+              <p className="text-sm text-muted-foreground">Accepting invitation...</p>
+            </div>
           ) : isLoggedIn && !emailMatches ? (
             <div className="space-y-3">
               <div className="bg-warning/10 border border-warning/20 rounded-lg p-4">

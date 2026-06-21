@@ -1042,6 +1042,22 @@ class CompanyTeamListAPIView(APIView):
         })
 
 
+class CompanyTeamRoleAPIView(APIView):
+    """Lightweight endpoint that returns just the user's team role."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        membership = CompanyTeamMember.objects.filter(user=request.user).first()
+        if not membership:
+            company = Company.objects.filter(company_rep=request.user).first()
+            if not company:
+                return Response({"role": None}, status=status.HTTP_200_OK)
+            membership = CompanyTeamMember.objects.create(
+                company=company, user=request.user, role=CompanyTeamMember.ROLE.ADMIN
+            )
+        return Response({"role": membership.role}, status=status.HTTP_200_OK)
+
+
 class CompanyTeamInviteCreateAPIView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
@@ -1179,6 +1195,10 @@ class CompanyTeamInviteAcceptAPIView(APIView):
                 user=request.user,
                 defaults={"role": invite.role, "invited_by": invite.invited_by}
             )
+            # Upgrade user_type if currently a talent
+            if request.user.user_type == CustomUser.USER_TYPE.TALENT:
+                request.user.user_type = CustomUser.USER_TYPE.COMPANY_REP
+                request.user.save(update_fields=["user_type"])
             invite.mark_accepted()
             return Response({"detail": "Invite accepted successfully", "member_id": member.id}, status=status.HTTP_200_OK)
 
