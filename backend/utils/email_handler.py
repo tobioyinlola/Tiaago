@@ -124,13 +124,17 @@ class EmailHandler:
                 pass
         return None
 
-    def _send_via_resend(self, subject, html, security=False, text_body=None):
+    def _send_via_resend(self, subject, html, security=False, text_body=None, from_override=None, headers=None):
         """Send through the Resend HTTP API.
 
         Returns the Resend message id (str) on 2xx, None on failure.
         """
+        if from_override:
+            from_addr = from_override
+        else:
+            from_addr = RESEND_SECURITY_EMAIL if security else RESEND_FROM_EMAIL
         payload = {
-            "from": RESEND_SECURITY_EMAIL if security else RESEND_FROM_EMAIL,
+            "from": from_addr,
             "to": self.recipients,
             "subject": subject,
             "text": text_body or "See HTML version for full content.",
@@ -138,6 +142,8 @@ class EmailHandler:
         }
         if RESEND_REPLY_TO:
             payload["reply_to"] = RESEND_REPLY_TO
+        if headers:
+            payload["headers"] = headers
         response = requests.post(
             "https://api.resend.com/emails",
             headers={"Authorization": f"Bearer {RESEND_API_KEY}"},
@@ -180,17 +186,25 @@ class EmailHandler:
         self, subject, context, template, email_type=None,
         from_email="Tiaago <support@email.tiaago.com>",
         security=False,
+        from_name=None,
+        headers=None,
     ):
         """Send an email: Resend first (2 attempts), Mailgun as fallback.
 
-        `security=True` sends from the security identity (verify@...) —
+        `security=True` sends from the security identity (verify@...) -
         use for OTP and password-reset emails so users and mail filters can
         distinguish them from general mail. Replies always route to
         RESEND_REPLY_TO regardless of identity.
 
-        `from_email` only applies to the Mailgun fallback — Resend requires
+        `from_email` only applies to the Mailgun fallback - Resend requires
         the from address to be on its verified domain, so it picks the
         identity from the security flag.
+
+        `from_name` overrides the display name in the From header while
+        keeping the verified email address (e.g. "Jane via Tiaago").
+
+        `headers` is an optional dict of custom email headers to include
+        (e.g. {"X-Entity-Ref-ID": "..."} for deliverability).
         """
         frontend = getattr(settings, "FRONTEND_URL", "https://www.tiaago.com/").rstrip("/")
         asset_url = f"{frontend}/emails/assets"
@@ -209,14 +223,25 @@ class EmailHandler:
         if settings.IS_DEV:
             subject = f"Dev : {subject}"
 
+        # Build from_override for Resend if from_name was provided
+        from_override = None
+        if from_name and not security:
+            import re
+            match = re.search(r'<(.+)>', RESEND_FROM_EMAIL)
+            base_email = match.group(1) if match else RESEND_FROM_EMAIL
+            from_override = f"{from_name} <{base_email}>"
+
         success = False
         provider_message_id = ""
-        delivery_status = None  # pending → updated by Resend webhooks
+        delivery_status = None  # pending - updated by Resend webhooks
 
         if RESEND_API_KEY:
             for attempt in range(2):
                 try:
-                    message_id = self._send_via_resend(subject, html, security=security, text_body=text_body)
+                    message_id = self._send_via_resend(
+                        subject, html, security=security, text_body=text_body,
+                        from_override=from_override, headers=headers,
+                    )
                     if message_id is not None:
                         success = True
                         provider_message_id = message_id

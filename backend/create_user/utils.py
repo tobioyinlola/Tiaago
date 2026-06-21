@@ -99,11 +99,12 @@ def build_invite_link(token:str):
 
 def send_invite_email(invite: CompanyTeamInvite):
     invite_url = build_invite_link(invite.token)
-    subject = f"Join {invite.company.company_name} on Tiaago"
+    inviter_name = invite.invited_by.get_full_name() if invite.invited_by else "A teammate"
+    subject = f"{inviter_name} invited you to {invite.company.company_name} on Tiaago"
 
     context = {
         "company_name": invite.company.company_name,
-        "inviter": invite.invited_by.get_full_name() if invite.invited_by else "A teammate",
+        "inviter": inviter_name,
         "role": invite.role,
         "invite_url": invite_url,
         "expiry_days": "5",
@@ -113,6 +114,8 @@ def send_invite_email(invite: CompanyTeamInvite):
         context=context,
         template="emails/company_team_invite.html",
         email_type=EmailTypes.COMPANY_TEAM_INVITE,
+        from_name=f"{inviter_name} via Tiaago",
+        headers={"X-Entity-Ref-ID": invite.token},
     )
     
    
