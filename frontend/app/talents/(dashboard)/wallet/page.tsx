@@ -3,7 +3,7 @@ import Image from "next/image";
 import { Metadata } from "next";
 import { Fragment } from "react";
 import { format } from "date-fns";
-import { capitalize } from "lodash";
+import { capitalize } from "@/app/common/utils";
 import { IoIosLink } from "react-icons/io";
 
 import {

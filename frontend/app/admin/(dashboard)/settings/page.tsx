@@ -1,10 +1,8 @@
 import Link from "next/link";
 import { Metadata } from "next";
 import { Fragment } from "react";
-import { capitalize } from "lodash";
-
 import Tab from "./components/Tabs";
-import { cn } from "@/app/common/utils";
+import { capitalize, cn } from "@/app/common/utils";
 import { useAdminStore } from "../store";
 import { settingsTabs } from "./constants/tabs";
 import { getCountries } from "@/app/common/services";

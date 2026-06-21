@@ -2,7 +2,6 @@
 
 import axiosInstance, { publicAxiosInstance } from "../utils/axios.instance";
 import serverKyInstance from "../utils/server-ky.instance";
-import { omit } from "lodash";
 import {
   GetPipelineResponse,
   ID,
@@ -1396,7 +1395,7 @@ export const addToPipeline = async (candidate: ServerCandidate) => {
     let data: any = candidate;
     // cleanup
     if (!candidate.education) {
-      data = omit(candidate, "education");
+      const { education: _, ...rest } = candidate; data = rest;
     }
     const response = await axiosInstance.post(
       "sourcing/add-to-pipeline/",
@@ -1423,7 +1422,7 @@ export const bulkAddToPipeline = async (candidates: ServerCandidate[]) => {
     const cleanedCandidates = candidates.map(candidate => {
       let data: any = candidate;
       if (!candidate.education) {
-        data = omit(candidate, "education");
+        const { education: _, ...rest } = candidate; data = rest;
       }
       return data;
     });

@@ -3,7 +3,6 @@ import {
   Space_Grotesk,
   DM_Sans,
   Roboto,
-  Urbanist,
   Poppins,
   Onest,
   JetBrains_Mono,
@@ -30,11 +29,6 @@ export const roboto = Roboto({
   subsets: ["latin"],
   variable: "--font-roboto",
   weight: ["400", "500", "700"],
-});
-
-export const urbanist = Urbanist({
-  subsets: ["latin"],
-  variable: "--font-urbanist",
 });
 
 export const poppins = Poppins({

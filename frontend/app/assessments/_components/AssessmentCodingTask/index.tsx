@@ -5,7 +5,12 @@ import { useState } from "react";
 import { LuX } from "react-icons/lu";
 import { addMinutes } from "date-fns";
 import { useRouter } from "next/navigation";
-import CodeMirror from "@uiw/react-codemirror";
+import dynamic from "next/dynamic";
+
+const CodeMirror = dynamic(() => import("@uiw/react-codemirror"), {
+  ssr: false,
+  loading: () => <div className="h-[400px] animate-pulse bg-gray-100 rounded" />,
+});
 import { javascript } from "@codemirror/lang-javascript";
 import ReactCountdown, { zeroPad } from "react-countdown";
 import { Countdown as DaisyuiCountdown, Button } from "react-daisyui";

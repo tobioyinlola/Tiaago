@@ -29,7 +29,7 @@ const NavItems = ({}) => {
                 isActive(nav.link) === `${nav.link}/${params.id}`
                   ? "text-[#5465FF]"
                   : "hover:text-primary"
-              } text-center text-lg font-urbanist flex flex-col justify-center peer`}
+              } text-center text-lg font-poppins flex flex-col justify-center peer`}
             >
               {nav.name}
             </Link>

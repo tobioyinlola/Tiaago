@@ -112,7 +112,6 @@ const config: Config = {
       },
       fontFamily: {
         inter: ["var(--font-inter)"],
-        urbanist: ["var(--font-urbanist)"],
         "space-grotesk": ["var(--font-space-grotesk)"],
         "dm-sans": ["var(--font-dm-sans)"],
         roboto: ["var(--font-roboto)"],

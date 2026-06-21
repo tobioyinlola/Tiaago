@@ -1,8 +1,6 @@
 import Link from "next/link";
 import { Fragment } from "react";
-import { capitalize } from "lodash";
-
-import { cn } from "@/app/common/utils";
+import { capitalize, cn } from "@/app/common/utils";
 import { jobSubLinks } from "../constants/nav";
 import JobsTable from "../components/JobsTable";
 import { getJobs } from "@/app/common/services/jobs";

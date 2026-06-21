@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Metadata } from "next";
 import { Fragment } from "react";
-import { capitalize } from "lodash";
+import { capitalize } from "@/app/common/utils";
 
 import DisplayErrorMessages, {
   DisplayErrorMessagesProps,

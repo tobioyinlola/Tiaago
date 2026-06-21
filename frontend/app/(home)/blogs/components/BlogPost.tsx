@@ -58,7 +58,7 @@ const BlogPost = ({ id }: Props) => {
             {blogContents.mainparagraph.map((text: string, i: number) => (
               <p
                 key={i}
-                className='text-[#353B3C] font-normal mt-3 mb-3 text-base md:text-xl font-urbanist'
+                className='text-[#353B3C] font-normal mt-3 mb-3 text-base md:text-xl font-poppins'
               >
                 <span className='me-14'></span>
                 {text}
@@ -80,7 +80,7 @@ const BlogPost = ({ id }: Props) => {
                 >
                   {sub.subtext_title}
                 </h2>
-                <p className='text-[#353B3C] font-normal mt-2 text-base md:text-xl font-urbanist'>
+                <p className='text-[#353B3C] font-normal mt-2 text-base md:text-xl font-poppins'>
                   <span className='me-14'></span>
                   {sub.subtext_body}
                 </p>

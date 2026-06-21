@@ -1,6 +1,5 @@
 "use server";
 import axios from "axios";
-import { sortBy, uniq } from "lodash";
 import { GroupBase } from "react-select";
 
 import {
@@ -38,16 +37,12 @@ export const getCountries = async (): Promise<GroupBase<CountryField>[]> => {
     value: country.name.common,
     region: country.region,
   }));
-  const regions = sortBy(
-    uniq(countries.map(country => country.region)),
-    r => r
-  );
+  const regions = Array.from(new Set(countries.map(country => country.region))).sort();
   return regions.map(region => ({
     label: region,
-    options: sortBy(
-      countries.filter(country => country.region === region),
-      c => c.label
-    ),
+    options: countries
+      .filter(country => country.region === region)
+      .sort((a, b) => a.label.localeCompare(b.label)),
   }));
 };
 
