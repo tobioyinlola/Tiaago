@@ -66,11 +66,12 @@ export const getCaseStudyAttempts = async () => {
 
 export const getAllCaseStudyAttempts = async () => {
   const data = await serverKyInstance
-    .get<CaseStudyAttempt[]>(
+    .get(
       "case-study-projects/talent-attempt-all-case-study-for-admin/"
     )
     .json();
-  return data;
+  const results = Array.isArray(data) ? data : (data as any)?.results || [];
+  return results as CaseStudyAttempt[];
 };
 
 export const submitCaseStudyProject = async (

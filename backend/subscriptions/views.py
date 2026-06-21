@@ -25,6 +25,7 @@ from rest_framework.response import Response
 from rest_framework.exceptions import ValidationError
 from decimal import Decimal
 from django.db.models import Sum
+from base.mixins.pagination import TiaagoPagination
 
 
 from .models import (
@@ -456,13 +457,14 @@ class PaystackSubscriptionViewSet(
     mixins.ListModelMixin,
     mixins.RetrieveModelMixin,
     viewsets.GenericViewSet
-): 
+):
     """
     ViewSet for managing Paystack Subscriptions.
     """
     queryset = PaystackSubscription.objects.all()
     serializer_class = PaystackSubscriptionModelSerializer
     permission_classes = [IsAuthenticated, IsAdminUser]
+    pagination_class = TiaagoPagination
 
 
 # View set to create stripe subscription price plan
@@ -562,13 +564,14 @@ class StripeSubscriptionViewSet(
     mixins.ListModelMixin,
     mixins.RetrieveModelMixin,
     viewsets.GenericViewSet
-): 
+):
     """
     ViewSet for managing Stripe Subscriptions.
     """
     queryset = StripeSubscription.objects.all()
     serializer_class = StripeSubscriptionSerializer
     permission_classes = [IsAuthenticated, IsAdminUser]
+    pagination_class = TiaagoPagination
 
     
 # Paystack or Stripe funding of wallet

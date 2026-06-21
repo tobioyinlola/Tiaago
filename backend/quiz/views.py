@@ -16,6 +16,7 @@ from rest_framework.status import (
 )
 from skill_assessment.models import SkillAssessment
 from subscriptions.permissions import IsTalentUser, IsTalentOrStaffUser
+from base.mixins.pagination import TiaagoPagination
 from .models import (
     Answer,
     Question,
@@ -197,6 +198,7 @@ class QuizAttemptsListView(ListAPIView):
     serializer_class = QuizAttemptsListSerializer
     queryset = QuizTaker.objects.all()
     permission_classes = [IsTalentOrStaffUser]
+    pagination_class = TiaagoPagination
 
     def list(self, request, *args, **kwargs):
         if request.user.user_type == get_user_model().USER_TYPE.STAFF:

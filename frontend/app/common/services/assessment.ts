@@ -38,9 +38,10 @@ export const getSkillAssessment = async (id: ID) => {
 
 export const getAssessments = async () => {
   const data = await serverKyInstance
-    .get<SkillAssessmentQuiz[]>("quizzes/")
+    .get("quizzes/")
     .json();
-  return data;
+  const results = Array.isArray(data) ? data : (data as any)?.results || [];
+  return results as SkillAssessmentQuiz[];
 };
 
 export type AssessmentInput = {
@@ -97,9 +98,10 @@ export const deleteAssessment = async (slug: string) =>
 
 export const getAssessmentQuestions = async (slug: string) => {
   const response = await serverKyInstance
-    .get<AssessmentQuestion[]>(`quizzes/${slug}/questions/`)
+    .get(`quizzes/${slug}/questions/`)
     .json();
-  return response;
+  const results = Array.isArray(response) ? response : (response as any)?.results || [];
+  return results as AssessmentQuestion[];
 };
 
 export type AssessmentQuestionInput = {

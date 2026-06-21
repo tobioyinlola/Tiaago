@@ -17,6 +17,7 @@ from rest_framework.status import (
 )
 from skill_assessment.models import SkillAssessment
 from subscriptions.permissions import IsTalentUser, IsTalentOrStaffUser
+from base.mixins.pagination import TiaagoPagination
 from .models import (
     CaseStudyProject, 
     TalentCaseStudyProject
@@ -194,3 +195,4 @@ class TalentAttemptAllCaseStudyForAdmin(ListAPIView):
     queryset = TalentCaseStudyProject.objects.all()
     serializer_class = TalentAttemptCaseStudySerializer
     permission_classes = [IsAdminUser]
+    pagination_class = TiaagoPagination

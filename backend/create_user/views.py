@@ -36,7 +36,7 @@ from rest_framework.views import APIView
 from rest_framework.decorators import action
 from rest_framework.status import HTTP_404_NOT_FOUND, HTTP_201_CREATED, HTTP_400_BAD_REQUEST
 from rest_framework_simplejwt.tokens import RefreshToken
-from base.mixins.pagination import PaginationHandlerMixin
+from base.mixins.pagination import PaginationHandlerMixin, TiaagoPagination
 from base.permissions import IsTalentUser
 from base.utils import extract_query_from_request
 from jobs.models import Experience
@@ -517,13 +517,15 @@ class UserListView(ListAPIView):
     queryset = User.objects.all()
     serializer_class = CustomUserSerializer
     permission_classes = [IsAdminUser]
+    pagination_class = TiaagoPagination
 
     def list(self, request):
         queryset = self.get_queryset()
-        user = self.request.user
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = CustomUserSerializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
         serializer = CustomUserSerializer(queryset, many=True)
-        if user.user_type == "STAFF":
-            serializer = CustomUserSerializer(queryset, many=True)
         return Response(serializer.data)
 
 
@@ -897,6 +899,7 @@ class AdminReferralWithdrawalViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAdminUser]
     queryset = WithdrawalRequest.objects.all()
     serializer_class = WithdrawalRequestDetailSerializer
+    pagination_class = TiaagoPagination
 
     @action(detail=True, methods=['post'])
     def approve(self, request, pk=None):
