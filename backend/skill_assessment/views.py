@@ -18,7 +18,7 @@ from rest_framework.permissions import AllowAny
 from rest_framework.exceptions import NotFound
 from django.core.files.uploadhandler import TemporaryFileUploadHandler
 
-from base.mixins.pagination import PaginationHandlerMixin
+from base.mixins.pagination import PaginationHandlerMixin, TiaagoPagination
 from rest_framework.permissions import IsAuthenticated
 from base.permissions import (
     IsCompanyRepOrTalentUser,
@@ -116,6 +116,7 @@ class SkillAssessmentView(ListCreateAPIView):
     queryset = SkillAssessment.objects.all()
     serializer_class = SkillAssessmentSerializer
     permission_classes = (IsTalentOrStaffUser,)
+    pagination_class = TiaagoPagination
 
     def get_queryset(self):
         user = self.request.user

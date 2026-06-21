@@ -24,9 +24,10 @@ import { initialValues } from "@/app/startups/dashboard/constants/assessment-for
 
 export const getSkillAssessments = async () => {
   const data = await serverKyInstance
-    .get<SkillAssessment[]>("skill-assessments")
+    .get("skill-assessments")
     .json();
-  return data;
+  const results = Array.isArray(data) ? data : (data as any)?.results || [];
+  return results as SkillAssessment[];
 };
 
 export const getSkillAssessment = async (id: ID) => {
@@ -140,18 +141,20 @@ export const deleteAssessmentQuestion = async (slug: string, id: ID) =>
   serverKyInstance.delete(`quizzes/${slug}/questions/${id}/`).json();
 
 export const getQuizAttempts = async () => {
-  const response = await serverKyInstance
-    .get<QuizAttempt[]>("quizzes/quiz-attempts/")
+  const data = await serverKyInstance
+    .get("quizzes/quiz-attempts/")
     .json();
-  return response;
+  const results = Array.isArray(data) ? data : (data as any)?.results || [];
+  return results as QuizAttempt[];
 };
 
 // talent section
 export const getAvailableAssessments = async () => {
   const data = await serverKyInstance
-    .get<SkillAssessmentQuiz[]>("quizzes/me/")
+    .get("quizzes/me/")
     .json();
-  return data;
+  const results = Array.isArray(data) ? data : (data as any)?.results || [];
+  return results as SkillAssessmentQuiz[];
 };
 
 export const initializeQuizAttempt = async (quiz_slug: string) => {

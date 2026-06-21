@@ -50,6 +50,7 @@ class TalentAttemptCaseStudyView(ListCreateAPIView):
     serializer_class = TalentAttemptCaseStudySerializer
     queryset = TalentCaseStudyProject.objects.all()
     permission_classes = [IsTalentOrStaffUser]
+    pagination_class = TiaagoPagination
 
     def list(self, request, *args, **kwargs):
         '''

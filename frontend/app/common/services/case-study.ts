@@ -5,9 +5,10 @@ import { ID, CaseStudyProject, CaseStudyAttempt } from "../types";
 
 export const getCaseStudyProjects = async () => {
   const data = await serverKyInstance
-    .get<CaseStudyProject[]>("case-study-projects/")
+    .get("case-study-projects/")
     .json();
-  return data;
+  const results = Array.isArray(data) ? data : (data as any)?.results || [];
+  return results as CaseStudyProject[];
 };
 
 export const getCaseStudyProject = async (id: ID) => {
@@ -44,9 +45,10 @@ export const deleteCaseStudyProject = async (id: ID) => {
 
 export const getAvailableCaseStudyProjects = async () => {
   const data = await serverKyInstance
-    .get<CaseStudyProject[]>("/case-study-projects/for-me/")
+    .get("/case-study-projects/for-me/")
     .json();
-  return data;
+  const results = Array.isArray(data) ? data : (data as any)?.results || [];
+  return results as CaseStudyProject[];
 };
 
 export const attemptCaseStudyProject = async (id: ID, submission?: string) => {
@@ -59,9 +61,10 @@ export const attemptCaseStudyProject = async (id: ID, submission?: string) => {
 
 export const getCaseStudyAttempts = async () => {
   const data = await serverKyInstance
-    .get<CaseStudyAttempt[]>("case-study-projects/all-attempted-for-me/")
+    .get("case-study-projects/all-attempted-for-me/")
     .json();
-  return data;
+  const results = Array.isArray(data) ? data : (data as any)?.results || [];
+  return results as CaseStudyAttempt[];
 };
 
 export const getAllCaseStudyAttempts = async () => {
