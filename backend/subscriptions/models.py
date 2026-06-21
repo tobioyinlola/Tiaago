@@ -109,13 +109,18 @@ class PaystackSubscription(models.Model):
     resume_limit = models.PositiveIntegerField(default=0)
     assessment_limit = models.PositiveIntegerField(default=0)
     
+    class Meta:
+        indexes = [
+            models.Index(fields=["company", "status", "-started_at"]),
+        ]
+
     def __str__(self):
         return f"{self.user.email} - {self.plan.name} ({self.status})"
-    
+
     def check_and_update_cycle(self):
         """Check if the subscription cycle has ended and update status accordingly."""
         now = timezone.now()
-        
+
         # --- MONTHLY PLAN ---
         if self.plan.interval == "monthly":
             if now > self.end_at:
@@ -217,13 +222,18 @@ class StripeSubscription(models.Model):
     resume_limit = models.PositiveIntegerField(default=0)
     assessment_limit = models.PositiveIntegerField(default=0)
     
+    class Meta:
+        indexes = [
+            models.Index(fields=["company", "status", "-started_at"]),
+        ]
+
     def __str__(self):
         return f"{self.company.company_email} - {self.plan.name} ({self.status})"
-    
+
     def check_and_update_cycle(self):
         """Check if the subscription cycle has ended and update status accordingly."""
         now = timezone.now()
-        
+
         # --- MONTHLY PLAN ---
         if self.plan.recurring_interval == "month":
             if now > self.end_at:

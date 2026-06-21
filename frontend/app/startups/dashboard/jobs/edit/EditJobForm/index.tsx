@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
+import dynamic from "next/dynamic";
 import { Formik } from "formik";
 import { useRef, useState } from "react";
 import { Button } from "react-daisyui";
@@ -30,10 +31,17 @@ import JobDetails from "@/app/common/components/dashboard/JobDetails";
 import CountrySelect from "@/app/common/components/Forms/CountrySelect";
 import { SuccessIconWithConfetti } from "@/app/common/icons/SuccessIcon";
 import info_direct from "../../../../../../public/assets/images/companies/Polygon 20.png";
-import AddPaystackCard from "../../../payment/_components/AddPaystackCard";
-import AddStripeCard from "../../../payment/_components/AddStripeCard";
 import { useScrollToTop } from "@/app/common/hooks/useScrollToTop";
 import { useRouter } from "next/navigation";
+
+const AddPaystackCard = dynamic(
+  () => import("../../../payment/_components/AddPaystackCard"),
+  { ssr: false }
+);
+const AddStripeCard = dynamic(
+  () => import("../../../payment/_components/AddStripeCard"),
+  { ssr: false }
+);
 
 const maxStep = 2;
 

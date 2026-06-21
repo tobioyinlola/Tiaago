@@ -11,8 +11,10 @@ export const metadata: Metadata = {
 };
 
 const AdminDashboard = async () => {
-  const currentUser = (await getCurrentUser("staff")).currentUser;
-  const dashboardMetrics = await getAdminMetrics();
+  const [{ currentUser }, dashboardMetrics] = await Promise.all([
+    getCurrentUser("staff"),
+    getAdminMetrics(),
+  ]);
   return (
     <>
       <h1 className='text-2xl font-space-grotesk border-b border-gray-200 pb-1'>

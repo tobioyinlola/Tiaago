@@ -1,8 +1,17 @@
+import dynamic from "next/dynamic";
 import { notFound } from "next/navigation";
 
 import { getRoom } from "../services";
-import VideoCall from "../_components/VideoCall";
 import EmptyState from "@/app/common/components/dashboard/EmptyState";
+
+const VideoCall = dynamic(() => import("../_components/VideoCall"), {
+  ssr: false,
+  loading: () => (
+    <div className="flex items-center justify-center min-h-screen">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+    </div>
+  ),
+});
 
 export const metadata = {
   title: "Video Call",

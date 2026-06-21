@@ -23,24 +23,26 @@ const FindTalentsPage = async () => {
     currentUser = (await getCurrentUser("startup")).currentUser;
     useStartupStore.setState({ profile: currentUser });
   }
-  const roles = await getTalentRoles().catch(async e => {
-    const error = await handleServerApiCallError(e);
-    console.log("Get talent roles error (find talents): ", error);
-    errors.push({
-      message: error,
-      title: "Error getting talent roles",
-    });
-    return [];
-  });
-  const talents = await getAllTalents().catch(async e => {
-    const error = await handleServerApiCallError(e);
-    console.log("Get talents error (find talents): ", error);
-    errors.push({
-      message: error,
-      title: "Error getting talents",
-    });
-    return null;
-  });
+  const [roles, talents] = await Promise.all([
+    getTalentRoles().catch(async (e: any) => {
+      const error = await handleServerApiCallError(e);
+      console.log("Get talent roles error (find talents): ", error);
+      errors.push({
+        message: error,
+        title: "Error getting talent roles",
+      });
+      return [];
+    }),
+    getAllTalents().catch(async (e: any) => {
+      const error = await handleServerApiCallError(e);
+      console.log("Get talents error (find talents): ", error);
+      errors.push({
+        message: error,
+        title: "Error getting talents",
+      });
+      return null;
+    }),
+  ]);
   const isApproved = currentUser.verified;
 
   const schedule = isApproved

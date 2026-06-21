@@ -1,4 +1,5 @@
 import Image from "next/image";
+import dynamic from "next/dynamic";
 import { Metadata } from "next";
 
 import DisplayErrorMessages, {
@@ -9,9 +10,16 @@ import {
   getPaymentCards,
   getStripeClientSecret,
 } from "@/app/common/services/subscription";
-import AddStripeCard from "./_components/AddStripeCard";
-import AddPaystackCard from "./_components/AddPaystackCard";
 import { handleServerApiCallError } from "@/app/common/utils";
+
+const AddStripeCard = dynamic(
+  () => import("./_components/AddStripeCard"),
+  { ssr: false }
+);
+const AddPaystackCard = dynamic(
+  () => import("./_components/AddPaystackCard"),
+  { ssr: false }
+);
 import InfoCircleIcon from "@/app/common/icons/InfoCircleIcon";
 import { getCurrentUser } from "@/app/common/services/profile";
 import DeletePaymentCardBtn from "./_components/DeletePaymentCardBtn";

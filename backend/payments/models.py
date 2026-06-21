@@ -260,6 +260,10 @@ class UsageEvent(models.Model):
         ordering = ['-used_at']
         verbose_name = "Usage Event"
         verbose_name_plural = "Usage Events"
+        indexes = [
+            models.Index(fields=["billed", "used_at"]),
+            models.Index(fields=["job_application", "billed"]),
+        ]
 
     def __str__(self):
         job_str = f" for {self.job_application}" if self.job_application else ""

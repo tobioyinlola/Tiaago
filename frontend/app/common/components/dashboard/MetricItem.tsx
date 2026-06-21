@@ -1,3 +1,6 @@
+"use client";
+
+import dynamic from "next/dynamic";
 import {
   PiArrowDownBold,
   PiArrowUp,
@@ -6,7 +9,11 @@ import {
 import { BsDash } from "react-icons/bs";
 
 import { isNullOrUndef } from "@/app/common/utils";
-import DashboardAreaChart from "./charts/DashboardAreaChart";
+
+const DashboardAreaChart = dynamic(
+  () => import("./charts/DashboardAreaChart"),
+  { ssr: false, loading: () => <div className="h-[50px]" /> }
+);
 
 export type MetricItemProps = {
   title: string;

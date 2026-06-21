@@ -13,25 +13,26 @@ export const metadata = {
 const SourcingPage = async () => {
   const errors: DisplayErrorMessagesProps["errors"] = [];
 
-  const roles = await getTalentRoles().catch(async e => {
-    const error = await handleServerApiCallError(e);
-    console.log("Get talent roles error (sourcing): ", error);
-    errors.push({
-      message: error,
-      title: "Error getting talent roles",
-    });
-    return [];
-  });
-
-  const talentsRes = await getAllTalents().catch(async e => {
-    const error = await handleServerApiCallError(e);
-    console.log("Get talents error (sourcing): ", error);
-    errors.push({
-      message: error,
-      title: "Error getting talents",
-    });
-    return null;
-  });
+  const [roles, talentsRes] = await Promise.all([
+    getTalentRoles().catch(async (e: any) => {
+      const error = await handleServerApiCallError(e);
+      console.log("Get talent roles error (sourcing): ", error);
+      errors.push({
+        message: error,
+        title: "Error getting talent roles",
+      });
+      return [];
+    }),
+    getAllTalents().catch(async (e: any) => {
+      const error = await handleServerApiCallError(e);
+      console.log("Get talents error (sourcing): ", error);
+      errors.push({
+        message: error,
+        title: "Error getting talents",
+      });
+      return null;
+    }),
+  ]);
   const talents = talentsRes?.results || [];
   return (
     <>

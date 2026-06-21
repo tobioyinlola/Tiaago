@@ -248,7 +248,7 @@ REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
         # 'rest_framework.authentication.SessionAuthentication',
         "rest_framework.authentication.TokenAuthentication",
-        "dj_rest_auth.jwt_auth.JWTCookieAuthentication",
+        "create_user.authentication.CachedJWTCookieAuthentication",
     ],
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.AllowAny",
@@ -423,20 +423,20 @@ if IS_PRODUCTION:
     REST_FRAMEWORK.update(REST_FRAMEWORK_OVERRIDES)
     REST_FRAMEWORK["DEFAULT_AUTHENTICATION_CLASSES"] = [
         "rest_framework.authentication.TokenAuthentication",
-        "dj_rest_auth.jwt_auth.JWTCookieAuthentication",
+        "create_user.authentication.CachedJWTCookieAuthentication",
     ]
 elif IS_STAGING:
     from .staging_settings import *
     REST_FRAMEWORK.update(REST_FRAMEWORK_OVERRIDES)
     REST_FRAMEWORK["DEFAULT_AUTHENTICATION_CLASSES"] = [
         "rest_framework.authentication.TokenAuthentication",
-        "dj_rest_auth.jwt_auth.JWTCookieAuthentication",
+        "create_user.authentication.CachedJWTCookieAuthentication",
     ]
 else:
     CORS_ALLOWED_ORIGINS = ["http://localhost:3000", "https://tiaago-v2-frontend.fly.dev"]
     REST_FRAMEWORK["DEFAULT_AUTHENTICATION_CLASSES"] = [
         "rest_framework.authentication.TokenAuthentication",
-        "dj_rest_auth.jwt_auth.JWTCookieAuthentication",
+        "create_user.authentication.CachedJWTCookieAuthentication",
     ]
 
 

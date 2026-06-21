@@ -3,6 +3,8 @@ from django.forms import ValidationError
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.conf import settings
+from django.utils.decorators import method_decorator
+from django.views.decorators.cache import cache_page
 from django.http import FileResponse
 from rest_framework.generics import ListCreateAPIView, RetrieveAPIView, GenericAPIView
 from rest_framework import generics
@@ -1577,6 +1579,7 @@ class InitiateAssessmentPaymentAPIView(GenericAPIView):
         except Exception as e:
             return Response({"error": str(e)}, status=500)
 
+@method_decorator(cache_page(3600), name="dispatch")
 class TechStacks(PaginationHandlerMixin, APIView):
     permission_classes = [AllowAny]
     authentication_classes = []

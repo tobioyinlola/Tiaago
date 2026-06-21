@@ -616,9 +616,14 @@ class PortfolioRetrieveUpdateView(RetrieveUpdateAPIView):
     parser_classes = [MultiPartParser, FormParser, JSONParser]
 
     def get_object(self):
-        return Portfolio.objects.select_related("talent__role").get_or_create(
+        portfolio, _ = Portfolio.objects.get_or_create(
             talent=self.request.user.profile
-        )[0]
+        )
+        return (
+            Portfolio.objects.select_related("talent__user", "talent__role", "role")
+            .prefetch_related("tools", "experience_set", "certification_set", "education_set", "projects")
+            .get(pk=portfolio.pk)
+        )
 
 
     def perform_update(self, serializer):
@@ -743,7 +748,8 @@ class PortfolioRetreiveAPIView(APIView):
         print("Fetching portfolio for slug:", slug)
         portfolio = (
             Portfolio.objects.filter(slug=slug)
-            .prefetch_related("talent__user", "talent__role")
+            .select_related("talent__user", "talent__role", "role")
+            .prefetch_related("tools", "experience_set", "certification_set", "education_set", "projects")
             .first()
         )
         print("Portfolio found:", portfolio)
