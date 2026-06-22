@@ -347,6 +347,8 @@ Here are some highlights:
 - Role: {{jobTitle}} ({{jobLevel}})
 - Company: {{company}}
 
+View the role and apply here: {{jobLink}}
+
 If this sounds interesting, I would love to set up a quick chat to tell you more about the role and our team.
 
 Looking forward to hearing from you.
@@ -365,6 +367,8 @@ I wanted to follow up on my previous message about the {{jobTitle}} position at 
 
 We are still looking for the right person and your experience as a {{role}} makes you a strong candidate. Would you be available for a brief chat this week?
 
+You can view the full role details here: {{jobLink}}
+
 Best,
 {{recruiterName}}
 {{company}}`,
@@ -378,6 +382,8 @@ Best,
 We have a new {{jobTitle}} opening at {{company}} and your profile stood out to us.
 
 I would love to share more details about the role and what we are building. Would you be interested in learning more?
+
+Check out the role here: {{jobLink}}
 
 Best,
 {{recruiterName}}

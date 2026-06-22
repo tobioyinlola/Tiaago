@@ -72,11 +72,11 @@ const PLACEHOLDER_GROUPS = [
   },
   {
     label: "Job",
-    items: ["{{jobTitle}}", "{{jobLevel}}"],
+    items: ["{{jobTitle}}", "{{jobLevel}}", "{{jobLink}}"],
   },
   {
     label: "Company",
-    items: ["{{company}}", "{{recruiterName}}"],
+    items: ["{{company}}", "{{recruiterName}}", "{{careersLink}}"],
   },
 ];
 
@@ -108,7 +108,9 @@ function EmailPreview({
       .replace(/\{\{role\}\}/g, "Software Engineer")
       .replace(/\{\{recruiterName\}\}/g, recruiterName)
       .replace(/\{\{jobTitle\}\}/g, jobTitle)
-      .replace(/\{\{jobLevel\}\}/g, jobLevel);
+      .replace(/\{\{jobLevel\}\}/g, jobLevel)
+      .replace(/\{\{jobLink\}\}/g, "#")
+      .replace(/\{\{careersLink\}\}/g, "#");
     return text;
   }, [body, recipientName, companyName, recruiterName, jobTitle, jobLevel]);
 
@@ -118,7 +120,9 @@ function EmailPreview({
       .replace(/\{\{company\}\}/g, companyName)
       .replace(/\{\{role\}\}/g, "Software Engineer")
       .replace(/\{\{jobTitle\}\}/g, jobTitle)
-      .replace(/\{\{jobLevel\}\}/g, jobLevel);
+      .replace(/\{\{jobLevel\}\}/g, jobLevel)
+      .replace(/\{\{jobLink\}\}/g, "#")
+      .replace(/\{\{careersLink\}\}/g, "#");
     return text;
   }, [subject, companyName, jobTitle, jobLevel]);
 

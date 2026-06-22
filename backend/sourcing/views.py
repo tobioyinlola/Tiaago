@@ -3,6 +3,7 @@ import logging
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
+from django.conf import settings
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.generics import (
@@ -446,6 +447,8 @@ class SendOutreachView(APIView):
                             "{{recruiterName}}": request.user.get_full_name(),
                             "{{jobTitle}}": job.title or "",
                             "{{jobLevel}}": job.get_job_level_display() if hasattr(job, 'get_job_level_display') else (job.job_level or ""),
+                            "{{jobLink}}": f"{settings.FRONTEND_URL}/jobs/{job.apply_token}",
+                            "{{careersLink}}": f"{settings.FRONTEND_URL}/companies/{company.company_name}",
                         }
                         personalized_body = body
                         personalized_subject = subject
@@ -457,6 +460,7 @@ class SendOutreachView(APIView):
                             "subject": personalized_subject,
                             "body": personalized_body,
                             "company_name": company.company_name or "",
+                            "job_link": f"{settings.FRONTEND_URL}/jobs/{job.apply_token}",
                         })
 
                         msg = MIMEMultipart("alternative")
