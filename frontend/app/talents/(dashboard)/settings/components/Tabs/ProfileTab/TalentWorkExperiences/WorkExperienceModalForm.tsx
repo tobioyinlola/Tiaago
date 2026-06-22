@@ -1,6 +1,6 @@
-"use client";
+﻿"use client";
 import { Formik } from "formik";
-import { Button } from "react-daisyui";
+import Button from "@/app/common/components/DaisyButton";
 import { FiEdit } from "react-icons/fi";
 import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";

@@ -6,7 +6,7 @@ const nextConfig = {
       "react-icons",
       "lucide-react",
       "date-fns",
-      "react-daisyui",
+
       "formik",
       "yup",
     ],

@@ -1,8 +1,8 @@
-"use client";
+﻿"use client";
 
 import { toast } from "sonner";
 import { useState } from "react";
-import { Button } from "react-daisyui";
+import Button from "@/app/common/components/DaisyButton";
 
 import { Job } from "@/app/common/types";
 import { useAlert } from "@/app/common/store/useAlert";

@@ -3,7 +3,7 @@
 import { object } from "yup";
 import { toast } from "sonner";
 import { Formik } from "formik";
-import { Button, Form } from "react-daisyui";
+import Button from "@/app/common/components/DaisyButton";
 
 import { useAlert } from "@/app/common/store/useAlert";
 import axiosInstance from "@/app/common/utils/axios.instance";
@@ -50,7 +50,7 @@ const ResendVerificationEmailForm = () => {
       validationSchema={resendVerificationEmailFormValidationSchema}
     >
       {({ handleSubmit, isSubmitting, errors, touched, values }) => (
-        <Form onSubmit={handleSubmit} className='my-8'>
+        <form onSubmit={handleSubmit} className='my-8'>
           <FormikField
             name='email'
             label='Email address'
@@ -67,7 +67,7 @@ const ResendVerificationEmailForm = () => {
           >
             Continue
           </Button>
-        </Form>
+        </form>
       )}
     </Formik>
   );

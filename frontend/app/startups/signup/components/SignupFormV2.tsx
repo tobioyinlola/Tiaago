@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { toast } from "sonner";
@@ -14,7 +14,7 @@ import { TalentRole as StartupRole } from "@/app/common/types";
 import { companySizeOptions } from "../constants/form.contants";
 import { cn, handleFormSubmissionError } from "@/app/common/utils";
 import { trackSignup } from "@/app/common/services/mixpanel.services";
-import { Button } from "react-daisyui";
+import Button from "@/app/common/components/DaisyButton";
 
 interface FormData {
   name: string;

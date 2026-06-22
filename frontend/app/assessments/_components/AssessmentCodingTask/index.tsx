@@ -12,7 +12,8 @@ const CodeMirrorEditor = dynamic(() => import("./CodeMirrorEditor"), {
   loading: () => <div className="h-[400px] animate-pulse bg-gray-100 rounded" />,
 });
 import ReactCountdown, { zeroPad } from "react-countdown";
-import { Countdown as DaisyuiCountdown, Button } from "react-daisyui";
+import Button from "@/app/common/components/DaisyButton";
+import DaisyCountdown from "@/app/common/components/DaisyCountdown";
 
 import {
   cn,
@@ -217,8 +218,8 @@ const AssessmentCodingTask = ({
               onStop={handleTimeUp}
               renderer={({ minutes, seconds }) => (
                 <span className='flex items-center'>
-                  <DaisyuiCountdown value={minutes} />:
-                  <DaisyuiCountdown value={seconds} />
+                  <DaisyCountdown value={minutes} />:
+                  <DaisyCountdown value={seconds} />
                 </span>
               )}
               onTick={({ minutes }) => {

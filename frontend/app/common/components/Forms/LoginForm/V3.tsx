@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { toast } from "sonner";
@@ -18,7 +18,7 @@ import {
 } from "./form.constants";
 
 import { Ias } from ".";
-import { Button } from "react-daisyui";
+import Button from "@/app/common/components/DaisyButton";
 import FormikField from "../FormikField";
 import { User } from "@/app/common/types";
 import { useAlert } from "@/app/common/store/useAlert";

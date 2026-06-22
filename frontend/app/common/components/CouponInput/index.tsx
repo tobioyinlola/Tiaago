@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Button } from "react-daisyui";
+import Button from "@/app/common/components/DaisyButton";
 import { toast } from "sonner";
 import { initiateAssessmentPayment } from "@/app/common/services/assessment";
 

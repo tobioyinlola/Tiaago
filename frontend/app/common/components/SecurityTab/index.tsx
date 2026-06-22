@@ -2,7 +2,7 @@
 
 import { toast } from "sonner";
 import { Formik } from "formik";
-import { Button, Form } from "react-daisyui";
+import Button from "@/app/common/components/DaisyButton";
 import { CheckCircle2 } from "lucide-react";
 
 import {
@@ -65,7 +65,7 @@ const SecurityTab = () => {
           }}
         >
           {({ handleSubmit, isSubmitting, errors, touched, values }) => (
-            <Form
+            <form
               onSubmit={handleSubmit}
               className="my-8 max-w-md max-md:mx-auto"
             >
@@ -88,7 +88,7 @@ const SecurityTab = () => {
               >
                 Change password
               </Button>
-            </Form>
+            </form>
           )}
         </Formik>
       </div>

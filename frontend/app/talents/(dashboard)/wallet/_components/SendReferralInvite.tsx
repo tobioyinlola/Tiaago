@@ -1,8 +1,8 @@
-"use client";
+﻿"use client";
 import * as yup from "yup";
 import { toast } from "sonner";
 import { Formik } from "formik";
-import { Button } from "react-daisyui";
+import Button from "@/app/common/components/DaisyButton";
 import { BiSolidEnvelope } from "react-icons/bi";
 
 import { cn, handleFormSubmissionError } from "@/app/common/utils";

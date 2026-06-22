@@ -1,5 +1,5 @@
-"use client";
-import { Button } from "react-daisyui";
+﻿"use client";
+import Button from "@/app/common/components/DaisyButton";
 import { useRouter } from "next/navigation";
 import { BsXCircleFill } from "react-icons/bs";
 import { useEffect, useRef, useState } from "react";

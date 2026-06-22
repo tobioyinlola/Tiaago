@@ -125,9 +125,6 @@ importers:
       react-countdown:
         specifier: ^2.3.5
         version: 2.3.5(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
-      react-daisyui:
-        specifier: ^4.1.2
-        version: 4.1.2(daisyui@4.0.9(postcss@8.4.32))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)(tailwindcss@3.3.6)
       react-datepicker:
         specifier: ^5.0.0
         version: 5.0.0(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
@@ -2941,14 +2938,6 @@ packages:
     peerDependencies:
       react: '>= 15'
       react-dom: '>= 15'
-
-  react-daisyui@4.1.2:
-    resolution: {integrity: sha512-Sx8ziaxKDe/59bw+UxTFOoDSJEuA8iGhgmMbzSAtnhaaZPP20kluHG+1/wY5mBSxfcAuk6oI8fqKcJRp55WzPQ==}
-    peerDependencies:
-      daisyui: ^3.0.22
-      react: '>=16'
-      react-dom: '>=16'
-      tailwindcss: '>=3.2.7'
 
   react-datepicker@5.0.0:
     resolution: {integrity: sha512-AYpBCzinlE0fpltMtjjcpkiIyZVI3o9rbrhaMuf7oZcFp4LyRW2veCwORVFdcj4ProqnKTwNJBrTtauyanjMwg==}
@@ -6529,13 +6518,6 @@ snapshots:
       prop-types: 15.8.1
       react: 19.1.1
       react-dom: 19.1.1(react@19.1.1)
-
-  react-daisyui@4.1.2(daisyui@4.0.9(postcss@8.4.32))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)(tailwindcss@3.3.6):
-    dependencies:
-      daisyui: 4.0.9(postcss@8.4.32)
-      react: 19.1.1
-      react-dom: 19.1.1(react@19.1.1)
-      tailwindcss: 3.3.6
 
   react-datepicker@5.0.0(react-dom@19.1.1(react@19.1.1))(react@19.1.1):
     dependencies:

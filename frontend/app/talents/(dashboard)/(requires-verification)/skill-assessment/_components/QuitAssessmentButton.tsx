@@ -1,7 +1,7 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
-import { Button } from "react-daisyui";
+import Button from "@/app/common/components/DaisyButton";
 import { useRouter } from "next/navigation";
 
 import { ID } from "@/app/common/types";

@@ -1,7 +1,7 @@
-"use client";
+﻿"use client";
 
 import { toast } from "sonner";
-import { Button } from "react-daisyui";
+import Button from "@/app/common/components/DaisyButton";
 import { useCountdown } from "usehooks-ts";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";

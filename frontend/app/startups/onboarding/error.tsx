@@ -1,6 +1,6 @@
-"use client";
+﻿"use client";
 
-import { Button } from "react-daisyui";
+import Button from "@/app/common/components/DaisyButton";
 
 const OnboardingError = ({ reset }: { error: Error; reset: () => void }) => (
   <div className='min-h-[100svh] bg-background flex items-center justify-center p-4'>

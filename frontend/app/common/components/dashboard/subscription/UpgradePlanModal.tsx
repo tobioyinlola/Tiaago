@@ -1,5 +1,5 @@
-"use client";
-import { Button } from "react-daisyui";
+﻿"use client";
+import Button from "@/app/common/components/DaisyButton";
 import { useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { FiArrowUpRight, FiZap } from "react-icons/fi";

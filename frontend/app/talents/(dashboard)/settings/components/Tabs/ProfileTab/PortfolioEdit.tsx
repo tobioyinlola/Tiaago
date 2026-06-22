@@ -1,8 +1,8 @@
-"use client";
+﻿"use client";
 import * as Yup from "yup";
 import { toast } from "sonner";
 import { Formik } from "formik";
-import { Button } from "react-daisyui";
+import Button from "@/app/common/components/DaisyButton";
 
 import { Talent } from "@/app/common/types";
 import { useAlert } from "@/app/common/store/useAlert";

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { toast } from "sonner";
@@ -13,7 +13,7 @@ import { useAlert } from "@/app/common/store/useAlert";
 import axiosInstance from "@/app/common/utils/axios.instance";
 import { cn, handleFormSubmissionError } from "@/app/common/utils";
 import { trackSignup } from "@/app/common/services/mixpanel.services";
-import { Button } from "react-daisyui";
+import Button from "@/app/common/components/DaisyButton";
 
 interface FormData {
   name: string;

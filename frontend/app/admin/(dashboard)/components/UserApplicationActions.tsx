@@ -1,6 +1,6 @@
-"use client";
+﻿"use client";
 import { toast } from "sonner";
-import { Button } from "react-daisyui";
+import Button from "@/app/common/components/DaisyButton";
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 

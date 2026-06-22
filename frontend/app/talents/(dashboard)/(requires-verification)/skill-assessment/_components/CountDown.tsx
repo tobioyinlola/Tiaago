@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import ReactCountdown from "react-countdown";
-import { Countdown as DaisyuiCountdown } from "react-daisyui";
+import DaisyCountdown from "@/app/common/components/DaisyCountdown";
 
 import ClockDisplay from "./ClockDisplay";
 
@@ -21,8 +21,8 @@ const CountDown = ({ date }: { date: Date }) => {
           onComplete={() => quitQuiz()}
           renderer={({ minutes, seconds }) => (
             <span>
-              <DaisyuiCountdown value={minutes} />:
-              <DaisyuiCountdown value={seconds} />
+              <DaisyCountdown value={minutes} />:
+              <DaisyCountdown value={seconds} />
             </span>
           )}
         />

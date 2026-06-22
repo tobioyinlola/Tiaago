@@ -1,6 +1,6 @@
 "use client";
 import ReactCountdown from "react-countdown";
-import { Countdown as DaisyuiCountdown } from "react-daisyui";
+import DaisyCountdown from "@/app/common/components/DaisyCountdown";
 
 import ClockDisplay from "@/app/talents/(dashboard)/(requires-verification)/skill-assessment/_components/ClockDisplay";
 
@@ -27,7 +27,7 @@ const CountDown = ({ date }: { date: Date }) => {
 
 const CountDownItem = ({ value, label }: { value: number; label: string }) => (
   <div className='flex flex-col text-lg md:text-2xl'>
-    <DaisyuiCountdown
+    <DaisyCountdown
       className='text-xl md:text-3xl xl:text-5xl'
       value={value}
     />

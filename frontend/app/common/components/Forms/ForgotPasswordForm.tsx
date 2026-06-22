@@ -3,7 +3,7 @@
 import { object } from "yup";
 import { toast } from "sonner";
 import { Formik } from "formik";
-import { Button, Form } from "react-daisyui";
+import Button from "@/app/common/components/DaisyButton";
 
 import FormikField from "./FormikField";
 import { useAlert } from "../../store/useAlert";
@@ -51,7 +51,7 @@ const ForgotPasswordForm = () => {
       validationSchema={forgotPasswordValidationSchema}
     >
       {({ handleSubmit, isSubmitting, errors, touched, values }) => (
-        <Form onSubmit={handleSubmit} className='my-8'>
+        <form onSubmit={handleSubmit} className='my-8'>
           <FormikField
             name='email'
             label='Email address'
@@ -68,7 +68,7 @@ const ForgotPasswordForm = () => {
           >
             Continue
           </Button>
-        </Form>
+        </form>
       )}
     </Formik>
   );

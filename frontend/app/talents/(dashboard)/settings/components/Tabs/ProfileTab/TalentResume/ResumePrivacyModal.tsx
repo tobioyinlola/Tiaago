@@ -1,8 +1,8 @@
-"use client";
+﻿"use client";
 import Link from "next/link";
 import { toast } from "sonner";
 import { useState } from "react";
-import { Button } from "react-daisyui";
+import Button from "@/app/common/components/DaisyButton";
 import { RiEyeLine, RiEyeOffLine } from "react-icons/ri";
 
 import { cn } from "@/app/common/utils";

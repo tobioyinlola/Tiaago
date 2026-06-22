@@ -4,7 +4,7 @@ import Image from "next/image";
 import { useState } from "react";
 import { addMinutes } from "date-fns";
 import ReactCountdown, { zeroPad } from "react-countdown";
-import { Countdown as DaisyuiCountdown } from "react-daisyui";
+import DaisyCountdown from "@/app/common/components/DaisyCountdown";
 
 import { cn } from "@/app/common/utils";
 import { Talent } from "@/app/common/types";
@@ -67,8 +67,8 @@ const StartPrescreeningInterview = ({
               //   onComplete={submit}
               renderer={({ minutes, seconds }) => (
                 <span className='flex items-center'>
-                  <DaisyuiCountdown value={minutes} />:
-                  <DaisyuiCountdown value={seconds} />
+                  <DaisyCountdown value={minutes} />:
+                  <DaisyCountdown value={seconds} />
                 </span>
               )}
               onTick={({ minutes }) => {

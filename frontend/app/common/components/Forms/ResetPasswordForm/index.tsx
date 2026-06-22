@@ -2,7 +2,7 @@
 
 import { toast } from "sonner";
 import { Formik } from "formik";
-import { Button, Form } from "react-daisyui";
+import Button from "@/app/common/components/DaisyButton";
 
 import {
   resetPasswordFormFields,
@@ -62,7 +62,7 @@ const ResetPasswordForm = ({ token, uid, as }: ResetPasswordFormProps) => {
       validationSchema={resetPasswordValidationSchema}
     >
       {({ handleSubmit, isSubmitting, errors, touched, values }) => (
-        <Form onSubmit={handleSubmit} className='my-8'>
+        <form onSubmit={handleSubmit} className='my-8'>
           {resetPasswordFormFields.map(({ name, type, label }) => (
             <FormikField
               key={name}
@@ -80,7 +80,7 @@ const ResetPasswordForm = ({ token, uid, as }: ResetPasswordFormProps) => {
           >
             Set Password
           </Button>
-        </Form>
+        </form>
       )}
     </Formik>
   );

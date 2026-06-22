@@ -1,9 +1,9 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { toast } from "sonner";
 import { useState } from "react";
-import { Button } from "react-daisyui";
+import Button from "@/app/common/components/DaisyButton";
 import { useRouter } from "next/navigation";
 import { LuExternalLink } from "react-icons/lu";
 import { HiOutlineUsers } from "react-icons/hi2";
