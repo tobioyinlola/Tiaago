@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import "react-quill-new/dist/quill.snow.css";
 import "react-phone-input-2/lib/style.css";
@@ -50,20 +49,9 @@ const PostAJob = async () => {
   return (
     <>
       <div className='border-b w-full border-gray-200 pb-1 mb-8'>
-        <div className='flex items-center justify-between'>
-          <h1 className='text-2xl font-bold mb-1 font-space-grotesk'>
-            Job-listing
-          </h1>
-          <Link
-            href='/startups/dashboard/jobs/jobs-posted'
-            className='btn btn-primary font-medium text-base max-sm:btn-sm'
-          >
-            View Jobs Posted
-          </Link>
-        </div>
-        {/* <h4 className='text-gray-900 text-base'>
-          Kindly provide details of the job
-        </h4> */}
+        <h1 className='text-2xl font-bold mb-1 font-space-grotesk'>
+          Post a Job
+        </h1>
       </div>
       <CreateJobForm
         talentRoles={talentRoles}
