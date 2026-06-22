@@ -30,7 +30,7 @@ export const updateCompanyOnboarding = async (
   input: CompanyOnboardingInput
 ) => {
   try {
-    const data = await serverKyInstance.patch("/auth/company-onboarding/", {
+    const data = await serverKyInstance.patch("auth/company-onboarding/", {
       json: input,
     }).json<CompanyOnboarding>();
     return {
