@@ -33,7 +33,7 @@ const ResetPasswordForm = ({ token, uid, as }: ResetPasswordFormProps) => {
         new Promise(async (resolve, reject) => {
           try {
             const data = await clientKyInstance
-              .post(`/auth/password/reset/confirm/${uid}/${token}/`, {
+              .post(`auth/password/reset/confirm/${uid}/${token}/`, {
                 json: {
                   new_password1: input.password1,
                   new_password2: input.password2,
