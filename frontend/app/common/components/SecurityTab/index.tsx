@@ -47,7 +47,7 @@ const SecurityTab = () => {
               try {
                 toast.dismiss();
                 const data = await clientKyInstance
-                  .post("/auth/password/change/", { json: values })
+                  .post("auth/password/change/", { json: values })
                   .json();
                 resolve(data);
               } catch (err) {

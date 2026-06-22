@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import Select from "react-select";
 import Button from "@/app/common/components/DaisyButton";
 import { useRef, useState } from "react";
@@ -99,7 +99,7 @@ const ScheduleMeetingModal = ({
       const addedParticipants = input.addedParticipants ?? [];
       const no_of_participants = addedParticipants.length + 2;
       const data = await clientKyInstance
-        .post("/schedulers/", {
+        .post("schedulers/", {
           json: {
             title: input.title,
             meeting_date: format(input.start, "yyyy-MM-dd"),

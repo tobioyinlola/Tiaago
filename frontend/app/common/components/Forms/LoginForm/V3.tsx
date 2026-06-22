@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import { toast } from "sonner";
@@ -78,7 +78,7 @@ const LoginForm = ({ as = "startup", next }: { as?: Ias; next?: string }) => {
           new Promise<LoginSuccessResponse>(async (resolve, reject) => {
             try {
               const data = await publicKyInstance
-                .post("/auth/login/", { json: values })
+                .post("auth/login/", { json: values })
                 .json<LoginSuccessResponse>();
               resolve(data);
             } catch (err) {
@@ -99,7 +99,7 @@ const LoginForm = ({ as = "startup", next }: { as?: Ias; next?: string }) => {
               setSubmitting(false);
               if (errorMsg === "E-mail is not verified.") {
                 publicKyInstance
-                  .post("/auth/resend-otp/", { json: { email: values.email } })
+                  .post("auth/resend-otp/", { json: { email: values.email } })
                   .catch(() => {});
                 const params = new URLSearchParams({ email: values.email, as });
                 if (next) params.set("next", next);

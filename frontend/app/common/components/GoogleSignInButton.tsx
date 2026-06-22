@@ -34,7 +34,7 @@ function GoogleButtonInner({
       setLoading(true);
       try {
         const data = await publicKyInstance
-          .post("/auth/google/", {
+          .post("auth/google/", {
             json: {
               access_token: tokenResponse.access_token,
               user_type: userType,

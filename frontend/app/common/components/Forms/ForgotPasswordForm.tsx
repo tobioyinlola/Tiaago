@@ -26,7 +26,7 @@ const ForgotPasswordForm = () => {
         new Promise(async (resolve, reject) => {
           try {
             const data = await clientKyInstance
-              .post("/auth/password/reset/", { json: values })
+              .post("auth/password/reset/", { json: values })
               .json();
             resolve(data);
           } catch (err) {

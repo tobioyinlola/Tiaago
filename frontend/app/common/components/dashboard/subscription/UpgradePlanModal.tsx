@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import Button from "@/app/common/components/DaisyButton";
 import { useRef, useState } from "react";
 import { usePathname } from "next/navigation";
@@ -68,7 +68,7 @@ const UpgradePlanModal = ({
     setIsLoading(true);
     try {
       const data = await clientKyInstance
-        .post("/payments/initialize/", {
+        .post("payments/initialize/", {
           json: {
             plan_id: selectedPlan,
           },

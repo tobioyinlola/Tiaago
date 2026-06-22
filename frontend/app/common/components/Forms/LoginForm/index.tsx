@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import { toast } from "sonner";
@@ -49,7 +49,7 @@ const LoginForm = ({ as = "startup" }: { as?: Ias }) => {
           toast.dismiss();
           try {
             const data = await clientKyInstance
-              .post("/auth/login/", { json: values })
+              .post("auth/login/", { json: values })
               .json<LoginSuccessResponse>();
             resolve(data);
           } catch (err) {
@@ -70,7 +70,7 @@ const LoginForm = ({ as = "startup" }: { as?: Ias }) => {
             setSubmitting(false);
             if (errorMsg === "E-mail is not verified.") {
               clientKyInstance
-                .post("/auth/resend-otp/", { json: { email: values.email } })
+                .post("auth/resend-otp/", { json: { email: values.email } })
                 .catch(() => {});
               const params = new URLSearchParams({ email: values.email, as });
               window.location.href = `/verify-email?${params.toString()}`;

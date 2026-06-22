@@ -46,7 +46,7 @@ export const deleteCaseStudyProject = async (id: ID) => {
 
 export const getAvailableCaseStudyProjects = async () => {
   const data = await serverKyInstance
-    .get("/case-study-projects/for-me/")
+    .get("case-study-projects/for-me/")
     .json();
   const results = Array.isArray(data) ? data : (data as any)?.results || [];
   return results as CaseStudyProject[];
