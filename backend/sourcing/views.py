@@ -447,7 +447,7 @@ class SendOutreachView(APIView):
                             "{{recruiterName}}": request.user.get_full_name(),
                             "{{jobTitle}}": job.title or "",
                             "{{jobLevel}}": job.get_job_level_display() if hasattr(job, 'get_job_level_display') else (job.job_level or ""),
-                            "{{jobLink}}": f"{settings.FRONTEND_URL}/jobs/{job.apply_token}",
+                            "{{jobLink}}": f"{settings.FRONTEND_URL}/jobs/{job.id}",
                             "{{careersLink}}": f"{settings.FRONTEND_URL}/companies/{company.company_name}",
                         }
                         personalized_body = body
@@ -460,7 +460,7 @@ class SendOutreachView(APIView):
                             "subject": personalized_subject,
                             "body": personalized_body,
                             "company_name": company.company_name or "",
-                            "job_link": f"{settings.FRONTEND_URL}/jobs/{job.apply_token}",
+                            "job_link": f"{settings.FRONTEND_URL}/jobs/{job.id}",
                         })
 
                         msg = MIMEMultipart("alternative")
