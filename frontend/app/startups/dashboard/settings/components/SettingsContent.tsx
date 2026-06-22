@@ -8,19 +8,22 @@ import NotificationsTab from "./Tabs/NotificationsTab";
 import SecurityTab from "@/app/common/components/SecurityTab";
 import ClientTabs from "@/app/common/components/ClientTabs";
 import { useStartupStore } from "../../store";
-import { TalentRole as StartupRole } from "@/app/common/types";
+import { Startup, TalentRole as StartupRole } from "@/app/common/types";
 import type { StartupRepFormProps } from "./Tabs/ProfileTab/StartupRepForm";
 
 type SettingsContentProps = {
   groupedCountries: StartupRepFormProps["groupedCountries"];
   startupRoles: StartupRole[];
+  serverProfile: Startup;
 };
 
 const SettingsContent = ({
   groupedCountries,
   startupRoles,
+  serverProfile,
 }: SettingsContentProps) => {
-  const profile = useStartupStore(s => s.profile)!;
+  const storeProfile = useStartupStore(s => s.profile);
+  const profile = storeProfile ?? serverProfile;
 
   return (
     <ClientTabs tabs={settingsTabs} defaultTab='profile'>

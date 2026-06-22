@@ -23,7 +23,7 @@ const AdminSettings = async () => {
         <h1 className='text-2xl font-bold mb-1 font-space-grotesk'>Settings</h1>
         <h4 className='text-gray-900 text-base'>Manage your preferences</h4>
       </div>
-      <SettingsContent groupedCountries={groupedCountries} />
+      <SettingsContent groupedCountries={groupedCountries} serverProfile={currentUser} />
     </>
   );
 };

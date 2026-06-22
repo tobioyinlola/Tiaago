@@ -37,6 +37,7 @@ const StartupSettingsPage = async () => {
       <SettingsContent
         groupedCountries={groupedCountries}
         startupRoles={startupRoles}
+        serverProfile={currentUser}
       />
     </>
   );
