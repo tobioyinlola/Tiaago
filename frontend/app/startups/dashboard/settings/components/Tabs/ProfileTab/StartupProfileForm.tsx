@@ -90,7 +90,7 @@ const StartupProfileForm = ({
                       selectFieldProps: {
                         ...props.selectFieldProps,
                         defaultValue: companySizeOptions.find(
-                          s => s.value === profile.size
+                          s => s.value === profile?.size
                         ),
                       },
                     })}

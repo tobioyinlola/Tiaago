@@ -115,7 +115,7 @@ def send_invite_email(invite: CompanyTeamInvite):
         template="emails/company_team_invite.html",
         email_type=EmailTypes.COMPANY_TEAM_INVITE,
         from_name=f"{inviter_name} via Tiaago",
-        headers={"X-Entity-Ref-ID": invite.token},
+        headers={"X-Entity-Ref-ID": str(invite.token)},
     )
     
    
