@@ -43,7 +43,7 @@ const StartupDashboardLayout = async ({ children }: PropsWithChildren) => {
     redirect("/startups/onboarding");
   const showFinishOnboardingBanner =
     !!onboarding && !onboarding.has_completed_onboarding;
-  const splitCompanyName = startup.company_name.split(" ");
+  const splitCompanyName = (startup.company_name ?? "").split(" ");
   const [teamRoleData, unreadMessageCounts] = await Promise.all([
     getTeamRole().catch(e => {
       console.log("Get team role error (startup dashboard layout): ", e?.message);
