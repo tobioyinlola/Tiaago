@@ -8,6 +8,7 @@ import { emailTemplates } from "@/app/common/constants/mockCandidates";
 import {
   Dialog,
   DialogContent,
+  DialogTitle,
 } from "@/app/common/components/ui/dialog";
 import { Button } from "@/app/common/components/ui/button";
 import { GoogleIcon } from "@/app/common/icons/GoogleIcon";
@@ -478,7 +479,7 @@ export function OutreachDialog({
     let cancelled = false;
     Promise.all([
       getSmtpConfig(),
-      getJobs(1, 100).catch(() => ({ results: [] })),
+      getJobs(1, 100).catch((e) => { console.error("getJobs failed:", e); return { results: [] }; }),
     ]).then(([smtpResult, jobsResult]) => {
       if (cancelled) return;
       if (smtpResult.success && smtpResult.data?.is_verified) {
@@ -596,11 +597,12 @@ export function OutreachDialog({
             : "sm:max-w-4xl"
         }`}
       >
+        <DialogTitle className="sr-only">Send Outreach</DialogTitle>
         {/* Loading */}
         {smtpStatus === "loading" && (
-          <div className="flex flex-col items-center justify-center py-20 gap-3">
-            <Loader2 className="h-6 w-6 animate-spin text-primary" />
-            <p className="text-xs text-muted-foreground">Loading outreach settings...</p>
+          <div className="flex flex-col items-center justify-center py-16 gap-3">
+            <Loader2 className="h-5 w-5 animate-spin text-primary" />
+            <p className="text-xs text-muted-foreground">Loading...</p>
           </div>
         )}
 
@@ -616,82 +618,69 @@ export function OutreachDialog({
         {smtpStatus === "configured" && (
           <div className="flex flex-col max-h-[85vh]">
             {/* Header */}
-            <div className="flex items-center justify-between px-5 py-3 border-b border-border bg-white">
-              <div className="flex items-center gap-3">
-                <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-gradient-to-br from-primary/20 to-primary/10">
-                  <Send className="h-4 w-4 text-primary" />
+            <div className="flex items-center justify-between px-4 py-2.5 border-b border-border">
+              <div className="flex items-center gap-2.5">
+                <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-primary/10">
+                  <Send className="h-3.5 w-3.5 text-primary" />
                 </div>
                 <div>
-                  <h2 className="text-sm font-semibold text-foreground">
-                    Send Outreach
-                  </h2>
-                  <p className="text-[11px] text-muted-foreground">
-                    via {smtpConfig?.gmail_address}
-                  </p>
+                  <p className="text-sm font-semibold text-foreground leading-tight">Send Outreach</p>
+                  <p className="text-[10px] text-muted-foreground">via {smtpConfig?.gmail_address}</p>
                 </div>
               </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="hidden md:flex text-xs gap-1.5 h-8"
+              <button
+                type="button"
+                className="hidden md:flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground px-2 py-1 rounded-md hover:bg-muted transition-colors"
                 onClick={() => setShowPreview(!showPreview)}
               >
-                {showPreview ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                {showPreview ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
                 Preview
-              </Button>
+              </button>
             </div>
 
             {/* Body */}
             <div className="flex flex-1 min-h-0 overflow-hidden">
               {/* Left: Compose */}
-              <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4">
+              <div className="flex-1 overflow-y-auto p-4 space-y-3">
                 {/* Recipients */}
-                <div className="rounded-xl bg-muted/30 border border-border/60 p-3">
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
-                    <Users className="h-3.5 w-3.5" />
-                    <span>
-                      {candidatesWithEmail.length} recipient
-                      {candidatesWithEmail.length !== 1 ? "s" : ""}
-                    </span>
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {candidatesWithEmail.slice(0, 6).map((c, i) => (
+                <div className="flex items-start gap-2">
+                  <span className="text-[11px] text-muted-foreground mt-1 shrink-0 w-8">To</span>
+                  <div className="flex flex-wrap gap-1 flex-1">
+                    {candidatesWithEmail.slice(0, 5).map((c, i) => (
                       <span
                         key={i}
-                        className="inline-flex items-center rounded-full bg-white border border-border px-2.5 py-0.5 text-[11px] font-medium text-foreground capitalize shadow-sm"
+                        className="inline-flex items-center rounded-full bg-muted/50 px-2 py-0.5 text-[11px] font-medium text-foreground capitalize"
                       >
                         {c.name}
                       </span>
                     ))}
-                    {candidatesWithEmail.length > 6 && (
-                      <span className="inline-flex items-center rounded-full bg-primary/5 border border-primary/20 px-2.5 py-0.5 text-[11px] font-medium text-primary">
-                        +{candidatesWithEmail.length - 6} more
+                    {candidatesWithEmail.length > 5 && (
+                      <span className="inline-flex items-center rounded-full bg-primary/5 px-2 py-0.5 text-[11px] font-medium text-primary">
+                        +{candidatesWithEmail.length - 5} more
+                      </span>
+                    )}
+                    {candidatesWithoutEmail.length > 0 && (
+                      <span className="inline-flex items-center gap-1 text-[10px] text-amber-600 px-2 py-0.5">
+                        <AlertCircle className="h-2.5 w-2.5" />
+                        {candidatesWithoutEmail.length} skipped
                       </span>
                     )}
                   </div>
-                  {candidatesWithoutEmail.length > 0 && (
-                    <div className="mt-2 flex items-center gap-1.5 text-[11px] text-amber-600">
-                      <AlertCircle className="h-3 w-3" />
-                      {candidatesWithoutEmail.length} skipped (no email)
-                    </div>
-                  )}
                 </div>
 
                 {/* Job Selection */}
                 {jobs.length === 0 ? (
-                  <div className="rounded-xl border border-dashed border-border p-6 text-center space-y-3">
-                    <div className="w-12 h-12 rounded-xl bg-muted/50 flex items-center justify-center mx-auto">
-                      <Briefcase className="h-6 w-6 text-muted-foreground/50" />
+                  <div className="rounded-lg border border-dashed border-border p-4 flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-lg bg-muted/50 flex items-center justify-center shrink-0">
+                      <Briefcase className="h-4 w-4 text-muted-foreground/60" />
                     </div>
-                    <div>
+                    <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-foreground">No job postings yet</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        Create a job posting first to start sending outreach
-                      </p>
+                      <p className="text-[11px] text-muted-foreground">Post a job to start sending outreach</p>
                     </div>
                     <Link
                       href="/startups/dashboard/jobs/create"
-                      className="inline-flex items-center gap-1.5 btn btn-primary btn-sm"
+                      className="btn btn-primary btn-sm shrink-0"
                     >
                       <Plus className="h-3.5 w-3.5" />
                       Post a Job
@@ -829,13 +818,13 @@ export function OutreachDialog({
             </div>
 
             {/* Footer */}
-            <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-2 px-4 sm:px-5 py-3 border-t border-border bg-muted/20">
+            <div className="flex items-center justify-end gap-2 px-4 py-2.5 border-t border-border">
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => handleClose(false)}
                 disabled={sending}
-                className="sm:w-auto h-9"
+                className="h-8 text-xs"
               >
                 Cancel
               </Button>
@@ -843,16 +832,16 @@ export function OutreachDialog({
                 size="sm"
                 onClick={handleSend}
                 disabled={sending || candidatesWithEmail.length === 0 || !selectedJobId || jobs.length === 0}
-                className="sm:w-auto h-9"
+                className="h-8 text-xs"
               >
                 {sending ? (
                   <>
-                    <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                    <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
                     Sending...
                   </>
                 ) : (
                   <>
-                    <Send className="mr-1.5 h-3.5 w-3.5" />
+                    <Send className="mr-1.5 h-3 w-3" />
                     Send to {candidatesWithEmail.length} candidate
                     {candidatesWithEmail.length !== 1 ? "s" : ""}
                   </>
