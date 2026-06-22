@@ -18,25 +18,27 @@ export const metadata = {
 
 const PostAJob = async () => {
   const errors: DisplayErrorMessagesProps["errors"] = [];
-  const currentUser = (await getCurrentUser("startup")).currentUser;
-  const groupedCountries = await getCountries().catch(async e => {
-    const error = await handleServerApiCallError(e);
-    console.log("Get countries error (post a job): ", error);
-    errors.push({
-      message: error,
-      title: "Error getting countries",
-    });
-    return [];
-  });
-  const talentRoles = await getTalentRoles().catch(async e => {
-    const error = await handleServerApiCallError(e);
-    console.log("Get talent roles error (post a job): ", error);
-    errors.push({
-      message: error,
-      title: "Error getting talent roles",
-    });
-    return [];
-  });
+  const [{ currentUser }, groupedCountries, talentRoles] = await Promise.all([
+    getCurrentUser("startup"),
+    getCountries().catch(async e => {
+      const error = await handleServerApiCallError(e);
+      console.log("Get countries error (post a job): ", error);
+      errors.push({
+        message: error,
+        title: "Error getting countries",
+      });
+      return [];
+    }),
+    getTalentRoles().catch(async e => {
+      const error = await handleServerApiCallError(e);
+      console.log("Get talent roles error (post a job): ", error);
+      errors.push({
+        message: error,
+        title: "Error getting talent roles",
+      });
+      return [];
+    }),
+  ]);
 
   return (
     <>

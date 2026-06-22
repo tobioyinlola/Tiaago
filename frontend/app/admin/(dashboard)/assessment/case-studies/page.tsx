@@ -19,24 +19,26 @@ export const metadata = {
 
 const CaseStudiesPage = async () => {
   const errors: DisplayErrorMessagesProps["errors"] = [];
-  const roles = await getTalentRoles().catch(async e => {
-    const error = await handleServerApiCallError(e);
-    console.log("Get roles error (admin => case studies): ", error);
-    errors.push({
-      message: error,
-      title: "Error getting roles",
-    });
-    return [];
-  });
-  const caseStudies = await getCaseStudyProjects().catch(async e => {
-    const error = await handleServerApiCallError(e);
-    console.log("Get case studies error (admin => case studies): ", error);
-    errors.push({
-      message: error,
-      title: "Error getting case studies",
-    });
-    return [];
-  });
+  const [roles, caseStudies] = await Promise.all([
+    getTalentRoles().catch(async e => {
+      const error = await handleServerApiCallError(e);
+      console.log("Get roles error (admin => case studies): ", error);
+      errors.push({
+        message: error,
+        title: "Error getting roles",
+      });
+      return [];
+    }),
+    getCaseStudyProjects().catch(async e => {
+      const error = await handleServerApiCallError(e);
+      console.log("Get case studies error (admin => case studies): ", error);
+      errors.push({
+        message: error,
+        title: "Error getting case studies",
+      });
+      return [];
+    }),
+  ]);
   return (
     <>
       <DisplayErrorMessages errors={errors} />

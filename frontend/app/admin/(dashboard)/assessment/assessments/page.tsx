@@ -37,21 +37,20 @@ const CompanyAssessmentsPage = async ({
   const resolvedSearchParams = await searchParams;
   const _page = resolvedSearchParams.page ? parseInt(resolvedSearchParams.page as string) : 1;
   const page = isNaN(_page) ? 1 : _page;
-  const assessmentsRes = await getCompanyAssessments(page).catch(async e => {
-    const error = await handleServerApiCallError(e);
-    console.log(
-      "Get assessments error (admin => company assessments): ",
-      error
-    );
-    errors.push({
-      message: error,
-      title: "Error getting assessments",
-    });
-    return null;
-  });
-
-  const assessmentStacksRes = await getAssessmentStacks(1, 100).catch(
-    async e => {
+  const [assessmentsRes, assessmentStacksRes, roles] = await Promise.all([
+    getCompanyAssessments(page).catch(async e => {
+      const error = await handleServerApiCallError(e);
+      console.log(
+        "Get assessments error (admin => company assessments): ",
+        error
+      );
+      errors.push({
+        message: error,
+        title: "Error getting assessments",
+      });
+      return null;
+    }),
+    getAssessmentStacks(1, 100).catch(async e => {
       const error = await handleServerApiCallError(e);
       console.log(
         "Get assessment stacks error (admin => company assessments): ",
@@ -62,18 +61,17 @@ const CompanyAssessmentsPage = async ({
         title: "Error getting assessment stacks",
       });
       return null;
-    }
-  );
-
-  const roles = await getTalentRoles().catch(async e => {
-    const error = await handleServerApiCallError(e);
-    console.log("Get roles error (admin => company assessments): ", error);
-    errors.push({
-      message: error,
-      title: "Error getting roles",
-    });
-    return [];
-  });
+    }),
+    getTalentRoles().catch(async e => {
+      const error = await handleServerApiCallError(e);
+      console.log("Get roles error (admin => company assessments): ", error);
+      errors.push({
+        message: error,
+        title: "Error getting roles",
+      });
+      return [];
+    }),
+  ]);
 
   const assessmentStacks = assessmentStacksRes?.results || [];
 

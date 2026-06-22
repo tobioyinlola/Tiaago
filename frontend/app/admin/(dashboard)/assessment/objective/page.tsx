@@ -20,24 +20,26 @@ export const metadata = {
 
 const AssessmentObjectivesPage = async () => {
   const errors: DisplayErrorMessagesProps["errors"] = [];
-  const roles = await getTalentRoles().catch(async e => {
-    const error = await handleServerApiCallError(e);
-    console.log("Get roles error (admin => objective): ", error);
-    errors.push({
-      message: error,
-      title: "Error getting roles",
-    });
-    return [];
-  });
-  const assessments = await getAssessments().catch(async e => {
-    const error = await handleServerApiCallError(e);
-    console.log("Get assessments error (admin => objective): ", error);
-    errors.push({
-      message: error,
-      title: "Error getting assessments",
-    });
-    return [];
-  });
+  const [roles, assessments] = await Promise.all([
+    getTalentRoles().catch(async e => {
+      const error = await handleServerApiCallError(e);
+      console.log("Get roles error (admin => objective): ", error);
+      errors.push({
+        message: error,
+        title: "Error getting roles",
+      });
+      return [];
+    }),
+    getAssessments().catch(async e => {
+      const error = await handleServerApiCallError(e);
+      console.log("Get assessments error (admin => objective): ", error);
+      errors.push({
+        message: error,
+        title: "Error getting assessments",
+      });
+      return [];
+    }),
+  ]);
   return (
     <>
       <DisplayErrorMessages errors={errors} />

@@ -41,14 +41,19 @@ const StartupSettingsPage = async ({ searchParams }: Props) => {
   }
 
   const resolvedSearchParams = await searchParams;
+  const tab = getTab(resolvedSearchParams.tab);
+
+  // Fetch independent data in parallel
   let currentUser = useStartupStore.getState().profile;
+  const [fetchedUser, groupedCountries, startupRoles] = await Promise.all([
+    currentUser ? Promise.resolve(null) : getCurrentUser("startup"),
+    getCountries(),
+    getTalentRoles(true),
+  ]);
   if (!currentUser) {
-    currentUser = (await getCurrentUser("startup")).currentUser;
+    currentUser = fetchedUser!.currentUser;
     useStartupStore.setState({ profile: currentUser });
   }
-  const tab = getTab(resolvedSearchParams.tab);
-  const groupedCountries = await getCountries();
-  const startupRoles = await getTalentRoles(true);
 
   return (
     <>

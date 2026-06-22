@@ -25,30 +25,36 @@ export const metadata = { title: "Portfolio" };
 
 const TalentPortfolioPage = async () => {
   const errors: DisplayErrorMessagesProps["errors"] = [];
-  const currentUser = (await getCurrentUser("talent")).currentUser;
-  const portfolioRes = await getPortfolio().catch(async e => {
-    const error = await handleServerApiCallError(e);
-    console.log("Get portfolio error (portfolio page): ", error);
-    errors.push({
-      message: error,
-      title: "Error getting portfolio",
-    });
-    return undefined;
-  });
-  const talentCertsRes = await getAssessmentCerts().catch(async e => {
-    const error = await handleServerApiCallError(e);
-    console.log("Get certificates error (talent portfolio): ", error);
-    errors.push({
-      message: error,
-      title: "Error getting certificates",
-    });
-    return {
-      count: 0,
-      next: null,
-      previous: null,
-      results: [],
-    };
-  });
+  const [
+    { currentUser },
+    portfolioRes,
+    talentCertsRes,
+  ] = await Promise.all([
+    getCurrentUser("talent"),
+    getPortfolio().catch(async e => {
+      const error = await handleServerApiCallError(e);
+      console.log("Get portfolio error (portfolio page): ", error);
+      errors.push({
+        message: error,
+        title: "Error getting portfolio",
+      });
+      return undefined;
+    }),
+    getAssessmentCerts().catch(async e => {
+      const error = await handleServerApiCallError(e);
+      console.log("Get certificates error (talent portfolio): ", error);
+      errors.push({
+        message: error,
+        title: "Error getting certificates",
+      });
+      return {
+        count: 0,
+        next: null,
+        previous: null,
+        results: [],
+      };
+    }),
+  ]);
   const certificates = talentCertsRes.results;
   const portfolio = portfolioRes?.data;
 

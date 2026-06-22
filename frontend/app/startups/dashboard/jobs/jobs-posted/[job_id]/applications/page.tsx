@@ -42,34 +42,40 @@ const ViewTalentApplicationsPage = async ({
     return null;
   });
   if (!job) return notFound();
+
   let currentUser = useStartupStore.getState().profile;
-  if (!currentUser) {
-    currentUser = (await getCurrentUser("startup")).currentUser;
-    useStartupStore.setState({ profile: currentUser });
-  }
-  const jobApplicationsRes = await getJobApplications().catch(async e => {
-    const error = await handleServerApiCallError(e);
-    console.log(
-      "Get job applications error (view talent applications): ",
-      error
-    );
-    errors.push({
-      message: error,
-      title: "Error getting job applications",
-    });
-    return null;
-  });
+  const [resolvedUser, jobApplicationsRes, aiFeedbackRes] = await Promise.all([
+    !currentUser
+      ? getCurrentUser("startup").then(res => {
+          useStartupStore.setState({ profile: res.currentUser });
+          return res.currentUser;
+        })
+      : Promise.resolve(currentUser),
+    getJobApplications().catch(async e => {
+      const error = await handleServerApiCallError(e);
+      console.log(
+        "Get job applications error (view talent applications): ",
+        error
+      );
+      errors.push({
+        message: error,
+        title: "Error getting job applications",
+      });
+      return null;
+    }),
+    getAiFeedback(job_id).catch(async e => {
+      const error = await handleServerApiCallError(e);
+      console.log("Get AI feedback error (view talent applications): ", error);
+      errors.push({
+        message: error,
+        title: "Error getting AI feedback",
+      });
+      return null;
+    }),
+  ]);
+  currentUser = resolvedUser;
   const jobApplications = jobApplicationsRes?.results || [];
   const applications = jobApplications.filter(app => app.job.id === job.id);
-  const aiFeedbackRes = await getAiFeedback(job_id).catch(async e => {
-    const error = await handleServerApiCallError(e);
-    console.log("Get AI feedback error (view talent applications): ", error);
-    errors.push({
-      message: error,
-      title: "Error getting AI feedback",
-    });
-    return null;
-  });
   // const roles = await getTalentRoles().catch(async e => {
   //   const error = await handleServerApiCallError(e);
   //   console.log("Get talent roles error (view talent applications): ", error);

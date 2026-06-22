@@ -14,37 +14,43 @@ const TalentVerificationRequiredLayout = async ({
   children,
 }: PropsWithChildren) => {
   const errors: DisplayErrorMessagesProps["errors"] = [];
-  const user = (await getCurrentUser("talent")).currentUser;
-  const profileStatus = await getTalenProfileStatus().catch(async e => {
-    const error = await handleServerApiCallError(e);
-    console.log(
-      "Get talent profile status error (talent dashboard (requires-verification) layout): ",
-      error
-    );
-    // !Already pushed in talent layout
-    // errors.push({
-    //   message: error,
-    //   title: "Error getting talent profile status",
-    // });
-    return undefined;
-  });
+  const [
+    { currentUser: user },
+    profileStatus,
+    portfolioRes,
+  ] = await Promise.all([
+    getCurrentUser("talent"),
+    getTalenProfileStatus().catch(async e => {
+      const error = await handleServerApiCallError(e);
+      console.log(
+        "Get talent profile status error (talent dashboard (requires-verification) layout): ",
+        error
+      );
+      // !Already pushed in talent layout
+      // errors.push({
+      //   message: error,
+      //   title: "Error getting talent profile status",
+      // });
+      return undefined;
+    }),
+    getPortfolio().catch(async e => {
+      const error = await handleServerApiCallError(e);
+      console.log(
+        "Get talent portfolio error (talent dashboard (requires-verification) layout): ",
+        error
+      );
+      errors.push({
+        message: error,
+        title: "Error getting talent portfolio",
+      });
+      return {
+        success: false,
+        error: error,
+        data: undefined,
+      };
+    }),
+  ]);
   const isProfileComplete = Object.values(profileStatus ?? {}).every(Boolean);
-  const portfolioRes = await getPortfolio().catch(async e => {
-    const error = await handleServerApiCallError(e);
-    console.log(
-      "Get talent portfolio error (talent dashboard (requires-verification) layout): ",
-      error
-    );
-    errors.push({
-      message: error,
-      title: "Error getting talent portfolio",
-    });
-    return {
-      success: false,
-      error: error,
-      data: undefined,
-    };
-  });
   return (
     <>
       {isProfileComplete ? (

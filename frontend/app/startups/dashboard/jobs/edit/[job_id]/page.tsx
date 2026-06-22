@@ -30,20 +30,30 @@ const EditJobPage = async ({
   const resolvedParams = await params;
   const jobId = resolvedParams.job_id;
 
-  const currentUser = (await getCurrentUser("startup")).currentUser;
-  const groupedCountries = await getCountries();
-  const talentRoles = await getTalentRoles();
-
-  // Get the job to edit
-  const job = await getJob(jobId).catch(async e => {
-    const error = await handleServerApiCallError(e);
-    console.log("Get job error (edit job): ", error);
-    errors.push({
-      message: error,
-      title: "Error getting job",
-    });
-    return null;
-  });
+  const [{ currentUser }, groupedCountries, talentRoles, job, paymentCardsRes] =
+    await Promise.all([
+      getCurrentUser("startup"),
+      getCountries(),
+      getTalentRoles(),
+      getJob(jobId).catch(async e => {
+        const error = await handleServerApiCallError(e);
+        console.log("Get job error (edit job): ", error);
+        errors.push({
+          message: error,
+          title: "Error getting job",
+        });
+        return null;
+      }),
+      getPaymentCards(1, 1).catch(async e => {
+        const error = await handleServerApiCallError(e);
+        console.log("Get payment cards error (edit job): ", error);
+        errors.push({
+          message: error,
+          title: "Error getting payment cards",
+        });
+        return { results: [] };
+      }),
+    ]);
 
   if (!job) {
     return (
@@ -70,16 +80,6 @@ const EditJobPage = async ({
       </>
     );
   }
-
-  const paymentCardsRes = await getPaymentCards(1, 1).catch(async e => {
-    const error = await handleServerApiCallError(e);
-    console.log("Get payment cards error (edit job): ", error);
-    errors.push({
-      message: error,
-      title: "Error getting payment cards",
-    });
-    return { results: [] };
-  });
   const hasAddedPaymentCard = paymentCardsRes?.results.length > 0;
   const paystackPublicKey = process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY;
   const paystackEmail = currentUser.email;

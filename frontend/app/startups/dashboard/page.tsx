@@ -31,16 +31,21 @@ export const metadata = {
 
 const StartupDashboard = async () => {
   const errors: DisplayErrorMessagesProps["errors"] = [];
-  const currentUser = (await getCurrentUser("startup")).currentUser;
-  const jobsRes = await getJobs(1, 5).catch(async e => {
-    const error = await handleServerApiCallError(e);
-    console.log("Get jobs error (startup dashboard): ", error);
-    errors.push({
-      message: error,
-      title: "Error getting jobs",
-    });
-    return null;
-  });
+
+  // Fetch user and jobs in parallel -- they are independent
+  const [userRes, jobsRes] = await Promise.all([
+    getCurrentUser("startup"),
+    getJobs(1, 5).catch(async e => {
+      const error = await handleServerApiCallError(e);
+      console.log("Get jobs error (startup dashboard): ", error);
+      errors.push({
+        message: error,
+        title: "Error getting jobs",
+      });
+      return null;
+    }),
+  ]);
+  const currentUser = userRes.currentUser;
   const jobsPosted = jobsRes?.results || [];
 
   const activeJobsThisMonth = jobsPosted.filter(job => {

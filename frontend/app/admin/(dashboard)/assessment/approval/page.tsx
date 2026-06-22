@@ -18,24 +18,26 @@ export const metadata = {
 
 const CaseStudiesApprovalPage = async () => {
   const errors: DisplayErrorMessagesProps["errors"] = [];
-  const talents = await getAllTalents().catch(async e => {
-    const error = await handleServerApiCallError(e);
-    console.log("Get talents error (admin case studies approval page): ", error);
-    errors.push({
-      message: error,
-      title: "Error getting talents",
-    });
-    return null;
-  });
-  const caseStudyAttempts = await getAllCaseStudyAttempts().catch(async e => {
-    const error = await handleServerApiCallError(e);
-    console.log("Get case study attempts error (admin case studies approval page): ", error);
-    errors.push({
-      message: error,
-      title: "Error getting case study attempts",
-    });
-    return null;
-  });
+  const [talents, caseStudyAttempts] = await Promise.all([
+    getAllTalents().catch(async e => {
+      const error = await handleServerApiCallError(e);
+      console.log("Get talents error (admin case studies approval page): ", error);
+      errors.push({
+        message: error,
+        title: "Error getting talents",
+      });
+      return null;
+    }),
+    getAllCaseStudyAttempts().catch(async e => {
+      const error = await handleServerApiCallError(e);
+      console.log("Get case study attempts error (admin case studies approval page): ", error);
+      errors.push({
+        message: error,
+        title: "Error getting case study attempts",
+      });
+      return null;
+    }),
+  ]);
   // const caseStudyProjects = await getCaseStudyProjects();
   const needsApproval = caseStudyAttempts?.filter(
     attempt => attempt.approved === null

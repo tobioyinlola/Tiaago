@@ -27,25 +27,19 @@ const MessagesPage = async ({
 }: MessagesPageProps) => {
   const { chat: activeChatID } = await searchParams;
   const errors: DisplayErrorMessagesProps["errors"] = [];
-  const conversations = await getChatList().catch(async e => {
-    const error = await handleServerApiCallError(e);
-    console.log("Get chat list error (talents chat page): ", error);
-    errors.push({
-      message: error,
-      title: "Error getting chat list",
-    });
-    return [];
-  });
-  const { access } = await getAuthCookiesAsync();
-  const currentUser = (await getCurrentUser("talent")).currentUser;
-  const activeConversation = conversations.find(
-    conversation => conversation.id == activeChatID
-  );
-  const activeChat = activeConversation
-    ? await getChat(activeConversation.id)
-    : undefined;
-  const { websocket_url, websocket_url_secure } = await getChatHealth().catch(
-    async e => {
+  const [conversations, { access }, { currentUser }, { websocket_url, websocket_url_secure }] = await Promise.all([
+    getChatList().catch(async e => {
+      const error = await handleServerApiCallError(e);
+      console.log("Get chat list error (talents chat page): ", error);
+      errors.push({
+        message: error,
+        title: "Error getting chat list",
+      });
+      return [];
+    }),
+    getAuthCookiesAsync(),
+    getCurrentUser("talent"),
+    getChatHealth().catch(async e => {
       const error = await handleServerApiCallError(e);
       console.log("Get chat health error (talents chat page): ", error);
       errors.push({
@@ -56,8 +50,14 @@ const MessagesPage = async ({
         websocket_url: "",
         websocket_url_secure: "",
       };
-    }
+    }),
+  ]);
+  const activeConversation = conversations.find(
+    conversation => conversation.id == activeChatID
   );
+  const activeChat = activeConversation
+    ? await getChat(activeConversation.id)
+    : undefined;
   return (
     <>
       <DisplayErrorMessages errors={errors} />

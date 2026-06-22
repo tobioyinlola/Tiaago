@@ -43,9 +43,11 @@ const getCardBrandImage = (brand: string) => {
 
 const PaymentPage = async () => {
   const errors: DisplayErrorMessagesProps["errors"] = [];
-  const currentUser = (await getCurrentUser("startup")).currentUser;
-  const stripeClientSecret = (
-    await getStripeClientSecret().catch(async e => {
+
+  // Fetch all three in parallel -- they are independent
+  const [userRes, stripeSecretRes, paymentCardsRes] = await Promise.all([
+    getCurrentUser("startup"),
+    getStripeClientSecret().catch(async e => {
       const error = await handleServerApiCallError(e);
       console.log(
         "Get stripe client secret error (startup payment page): ",
@@ -56,17 +58,19 @@ const PaymentPage = async () => {
         title: "Error getting payment setup config data",
       });
       return { client_secret: "" };
-    })
-  ).client_secret;
-  const paymentCardsRes = await getPaymentCards(1, 3).catch(async e => {
-    const error = await handleServerApiCallError(e);
-    console.log("Get stripe cards error (startup payment page): ", error);
-    errors.push({
-      message: error,
-      title: "Error payment cards",
-    });
-    return { results: [] };
-  });
+    }),
+    getPaymentCards(1, 3).catch(async e => {
+      const error = await handleServerApiCallError(e);
+      console.log("Get stripe cards error (startup payment page): ", error);
+      errors.push({
+        message: error,
+        title: "Error payment cards",
+      });
+      return { results: [] };
+    }),
+  ]);
+  const currentUser = userRes.currentUser;
+  const stripeClientSecret = stripeSecretRes.client_secret;
   const paymentCards = paymentCardsRes.results;
 
   const paystackPublicKey = process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY;

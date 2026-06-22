@@ -12,25 +12,27 @@ export const metadata = {
 const PipelinePage = async () => {
   const errors: DisplayErrorMessagesProps["errors"] = [];
 
-  const categories = await getCategories().catch(async e => {
-    const error = await handleServerApiCallError(e);
-    console.log("Get categories error (pipeline): ", error);
-    errors.push({
-      message: error,
-      title: "Error getting pipeline categories",
-    });
-    return [];
-  });
-
-  const pipeline = await getPipeline().catch(async e => {
-    const error = await handleServerApiCallError(e);
-    console.log("Get pipeline error (pipeline): ", error);
-    errors.push({
-      message: error,
-      title: "Error getting pipeline entries",
-    });
-    return null;
-  });
+  // Fetch categories and pipeline in parallel -- they are independent
+  const [categories, pipeline] = await Promise.all([
+    getCategories().catch(async e => {
+      const error = await handleServerApiCallError(e);
+      console.log("Get categories error (pipeline): ", error);
+      errors.push({
+        message: error,
+        title: "Error getting pipeline categories",
+      });
+      return [];
+    }),
+    getPipeline().catch(async e => {
+      const error = await handleServerApiCallError(e);
+      console.log("Get pipeline error (pipeline): ", error);
+      errors.push({
+        message: error,
+        title: "Error getting pipeline entries",
+      });
+      return null;
+    }),
+  ]);
 
   return (
     <>

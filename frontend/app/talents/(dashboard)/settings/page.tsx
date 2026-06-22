@@ -40,42 +40,50 @@ type Props = {
 
 const TalentSettings = async ({ searchParams }: Props) => {
   const errors: DisplayErrorMessagesProps["errors"] = [];
-  const currentUser = (await getCurrentUser("talent")).currentUser;
-  const resolvedSearchParams = await searchParams;
+  const { currentUser } = await getCurrentUser("talent");
+  const [
+    resolvedSearchParams,
+    groupedCountries,
+    portfolioRes,
+    tools,
+    certificatesRes,
+  ] = await Promise.all([
+    searchParams,
+    getCountries(),
+    getPortfolio().catch(async e => {
+      const error = await handleServerApiCallError(e);
+      console.log("Get portfolio error (Talent Settings): ", error);
+      errors.push({
+        message: error,
+        title: "Error getting portfolio",
+      });
+      return undefined;
+    }),
+    getTools().catch(async e => {
+      const error = await handleServerApiCallError(e);
+      console.log("Get tools error (Talent Settings): ", error);
+      errors.push({
+        message: error,
+        title: "Error getting tool list",
+      });
+      return [];
+    }),
+    getAssessmentCerts().catch(async e => {
+      const error = await handleServerApiCallError(e);
+      console.log("Get certificates error (talent settings): ", error);
+      errors.push({
+        message: error,
+        title: "Error getting certificates",
+      });
+      return {
+        count: 0,
+        next: null,
+        previous: null,
+        results: [],
+      };
+    }),
+  ]);
   const tab = getTab(resolvedSearchParams.tab);
-  const groupedCountries = await getCountries();
-  const portfolioRes = await getPortfolio().catch(async e => {
-    const error = await handleServerApiCallError(e);
-    console.log("Get portfolio error (Talent Settings): ", error);
-    errors.push({
-      message: error,
-      title: "Error getting portfolio",
-    });
-    return undefined;
-  });
-  const tools = await getTools().catch(async e => {
-    const error = await handleServerApiCallError(e);
-    console.log("Get tools error (Talent Settings): ", error);
-    errors.push({
-      message: error,
-      title: "Error getting tool list",
-    });
-    return [];
-  });
-  const certificatesRes = await getAssessmentCerts().catch(async e => {
-    const error = await handleServerApiCallError(e);
-    console.log("Get certificates error (talent settings): ", error);
-    errors.push({
-      message: error,
-      title: "Error getting certificates",
-    });
-    return {
-      count: 0,
-      next: null,
-      previous: null,
-      results: [],
-    };
-  });
   const certificates = certificatesRes.results;
   const portfolio = portfolioRes?.data;
 

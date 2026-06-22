@@ -340,26 +340,26 @@ const ReferralPage = async ({
     ? parseInt(resolvedSearchParams.page)
     : 1;
   const errors: DisplayErrorMessagesProps["errors"] = [];
-  const referralCodeRes = await getUserReferralCode().catch(async e => {
-    const error = await handleServerApiCallError(e);
-    console.log("Get referral code error (Wallet => Referral): ", error);
-    errors.push({
-      message: error,
-      title: "Error getting referral code",
-    });
-    return null;
-  });
-  const usersReferredRes = await getUsersReferred(page).catch(async e => {
-    const error = await handleServerApiCallError(e);
-    console.log("Get users referred error (Wallet => Referral): ", error);
-    errors.push({
-      message: error,
-      title: "Error getting users referred",
-    });
-    return null;
-  });
-  const referralRewardsWallet = await getReferralRewardsWallet().catch(
-    async e => {
+  const [referralCodeRes, usersReferredRes, referralRewardsWallet] = await Promise.all([
+    getUserReferralCode().catch(async e => {
+      const error = await handleServerApiCallError(e);
+      console.log("Get referral code error (Wallet => Referral): ", error);
+      errors.push({
+        message: error,
+        title: "Error getting referral code",
+      });
+      return null;
+    }),
+    getUsersReferred(page).catch(async e => {
+      const error = await handleServerApiCallError(e);
+      console.log("Get users referred error (Wallet => Referral): ", error);
+      errors.push({
+        message: error,
+        title: "Error getting users referred",
+      });
+      return null;
+    }),
+    getReferralRewardsWallet().catch(async e => {
       const error = await handleServerApiCallError(e);
       console.log(
         "Get referral rewards wallet error (Wallet => Referral): ",
@@ -374,8 +374,8 @@ const ReferralPage = async ({
         total_earned: "0.00",
         total_withdrawn: "0.00",
       };
-    }
-  );
+    }),
+  ]);
   const usersReferred = usersReferredRes?.results;
   const referralCode = referralCodeRes?.referral_code;
   const referralLink = `${BASE_URL}/onboarding?referral_code=${referralCode}`;

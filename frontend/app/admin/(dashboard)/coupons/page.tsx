@@ -29,8 +29,8 @@ const CouponsPage = async ({
     : 1;
   const page = isNaN(_page) ? 1 : _page;
 
-  const communitiesRes = await getCommunities(undefined, 1000000).catch(
-    async e => {
+  const [communitiesRes, couponsRes] = await Promise.all([
+    getCommunities(undefined, 1000000).catch(async e => {
       const error = await handleServerApiCallError(e);
       console.log("Get communities error (admin => coupons): ", error);
       errors.push({
@@ -38,17 +38,17 @@ const CouponsPage = async ({
         title: "Error getting communities",
       });
       return null;
-    }
-  );
-  const couponsRes = await getCoupons(page).catch(async e => {
-    const error = await handleServerApiCallError(e);
-    console.log("Get coupons error (admin => coupons): ", error);
-    errors.push({
-      message: error,
-      title: "Error getting coupons",
-    });
-    return null;
-  });
+    }),
+    getCoupons(page).catch(async e => {
+      const error = await handleServerApiCallError(e);
+      console.log("Get coupons error (admin => coupons): ", error);
+      errors.push({
+        message: error,
+        title: "Error getting coupons",
+      });
+      return null;
+    }),
+  ]);
 
   const communities = communitiesRes?.results || [];
   const coupons = couponsRes?.results || [];
