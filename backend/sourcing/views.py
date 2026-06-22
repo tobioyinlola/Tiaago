@@ -414,8 +414,11 @@ class SendOutreachView(APIView):
             ))
         OutreachEmail.objects.bulk_create(outreach_records)
 
+        from emails_app.services import render_email
+
         sent_count = 0
         failed_count = 0
+        from_name = company.company_name or request.user.get_full_name()
         try:
             with smtplib.SMTP("smtp.gmail.com", 587, timeout=15) as server:
                 server.ehlo()
@@ -437,11 +440,17 @@ class SendOutreachView(APIView):
                             personalized_body = personalized_body.replace(placeholder, value)
                             personalized_subject = personalized_subject.replace(placeholder, value)
 
+                        _, branded_html, _ = render_email("outreach", {
+                            "subject": personalized_subject,
+                            "body": personalized_body,
+                            "company_name": company.company_name or "",
+                        })
+
                         msg = MIMEMultipart("alternative")
-                        msg["From"] = smtp_config.gmail_address
+                        msg["From"] = f"{from_name} <{smtp_config.gmail_address}>"
                         msg["To"] = record.recipient_email
                         msg["Subject"] = personalized_subject
-                        msg.attach(MIMEText(personalized_body, "html"))
+                        msg.attach(MIMEText(branded_html, "html"))
 
                         server.sendmail(
                             smtp_config.gmail_address,
