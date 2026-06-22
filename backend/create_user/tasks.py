@@ -28,7 +28,7 @@ def send_otp_mail(user_pk, otp):
 
 
 @shared_task
-def test_celery():
+def ping_task():
     """Test task: returns 'pong' after a 2s delay. Queued from /test-ping/."""
     time.sleep(2)
     return "pong"
