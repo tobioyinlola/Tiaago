@@ -17,10 +17,10 @@ export const metadata = {
 const Signup = async ({
   searchParams,
 }: {
-  searchParams: Promise<{ next?: string; referral_code?: string; email?: string }>;
+  searchParams: Promise<{ next?: string; referral_code?: string; email?: string; invite_token?: string }>;
 }) => {
   const errors: DisplayErrorMessagesProps["errors"] = [];
-  const { next, referral_code, email } = await searchParams;
+  const { next, referral_code, email, invite_token } = await searchParams;
   await getCurrentUser(undefined, {
     allowNull: true,
     validUserRedirect: "dashboard",
@@ -49,6 +49,7 @@ const Signup = async ({
         next={next}
         referral_code={referral_code}
         initialEmail={email}
+        invite_token={invite_token}
       />
       <DisplayErrorMessages errors={errors} />
     </AuthFormPageWrapper>

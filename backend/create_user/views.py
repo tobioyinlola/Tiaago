@@ -203,7 +203,12 @@ class CustomRegisterView(RegisterView):
 
     def get_serializer_class(self):
         user_type = self.request.query_params.get("user_type")
-
+        invite_token = (
+            self.request.data.get("invite_token")
+            or self.request.query_params.get("invite_token")
+        )
+        if invite_token:
+            return TalentSerializer
         if user_type and user_type.lower() == "company":
             return CompanySerializer
         return TalentSerializer
@@ -240,12 +245,15 @@ class CustomRegisterView(RegisterView):
             try:
                 invite = CompanyTeamInvite.objects.filter(token=invite_token).first()
                 if invite and invite.status == CompanyTeamInvite.STATUS_PENDING and not invite.is_expired:
-                    # attach member
+                    # attach member to the inviting company
                     member, created = CompanyTeamMember.objects.get_or_create(
                         company=invite.company,
                         user=user,
                         defaults={"role": invite.role, "invited_by": invite.invited_by},
                     )
+                    if user.user_type != CustomUser.USER_TYPE.COMPANY_REP:
+                        user.user_type = CustomUser.USER_TYPE.COMPANY_REP
+                        user.save(update_fields=["user_type"])
                     invite.mark_accepted()
             except Exception as exc:
                 logger.exception("Failed to link user to company invite: %s", exc)

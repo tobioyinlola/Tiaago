@@ -27,11 +27,13 @@ const SignUpFormV3 = ({
   next,
   referral_code,
   initialEmail,
+  invite_token,
 }: {
   groupedCountries: GroupBase<CountryField>[];
   next?: string;
   referral_code?: string;
   initialEmail?: string;
+  invite_token?: string;
 }) => {
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const router = useRouter();
@@ -53,6 +55,7 @@ const SignUpFormV3 = ({
           ...values,
           password2: values.password1,
           referral_code,
+          ...(invite_token ? { invite_token } : {}),
         };
         toast.dismiss();
         new Promise(async (resolve, reject) => {
