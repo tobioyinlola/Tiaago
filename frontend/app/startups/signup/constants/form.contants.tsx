@@ -7,7 +7,7 @@ import {
   urlValidationSchema,
   passwordValidationSchema,
 } from "@/app/common/constants/validationSchemas";
-import { IoLockClosed, IoMail, IoPersonSharp } from "react-icons/io5";
+import { IoBriefcaseSharp, IoLockClosed, IoMail, IoPersonSharp } from "react-icons/io5";
 
 export const companySizeOptions = [
   "1 - 10",
@@ -215,6 +215,7 @@ export const startupSignupformSteps = [
 // gathered afterwards in the onboarding cards (/startups/onboarding).
 export const startupSignUpV3ValidationSchema = Yup.object().shape({
   full_name: Yup.string().required().label("Full name"),
+  company_name: Yup.string().required().label("Company name"),
   email: emailValidationSchema.label("Work email address"),
   country: Yup.string().required().label("Country"),
   password1: passwordValidationSchema,
@@ -231,6 +232,12 @@ export const startupSignUpV3FormFields: FormField<StartupSignupV3FormValues>[] =
       label: "Full name",
       leftIcon: <IoPersonSharp className='text-base text-[#98A2B3]' />,
       placeholder: "Scott Owens",
+    },
+    {
+      name: "company_name",
+      label: "Company name",
+      leftIcon: <IoBriefcaseSharp className='text-base text-[#98A2B3]' />,
+      placeholder: "Acme Inc.",
     },
     {
       name: "email",
@@ -261,6 +268,7 @@ export const startupSignUpV3FormFields: FormField<StartupSignupV3FormValues>[] =
 
 export const startupSignUpV3InitialFormValues: StartupSignupV3FormValues = {
   full_name: "",
+  company_name: "",
   email: "",
   country: "",
   password1: "",

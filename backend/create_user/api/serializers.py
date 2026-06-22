@@ -320,6 +320,7 @@ class TalentSerializer(RegisterSerializer):
 
 class CompanySerializer(RegisterSerializer):
     full_name = serializers.CharField()
+    company_name = serializers.CharField(required=False, allow_blank=True)
     role = serializers.CharField(required=False, allow_blank=True)
     website = serializers.URLField(required=False, allow_blank=True)
     size = serializers.ChoiceField(
@@ -332,6 +333,7 @@ class CompanySerializer(RegisterSerializer):
         model = Company
         fields = (
             "full_name",
+            "company_name",
             "website",
             "size",
             "role",
@@ -375,6 +377,7 @@ class CompanySerializer(RegisterSerializer):
                 raise serializers.ValidationError({"role": "Invalid role provided."})
         company = Company.objects.create(
             company_rep_id=user.id,
+            company_name=self.validated_data.get("company_name", ""),
             website=self.validated_data.get("website") or None,
             size=self.validated_data.get("size") or None,
             role=role,
