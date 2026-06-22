@@ -636,7 +636,12 @@ class UserProfileView(RetrieveUpdateAPIView):
         if user.is_talent():
             return self.request.user.profile
         elif user.is_company():
-            return self.request.user.company
+            company = getattr(user, "company", None)
+            if company is None:
+                membership = CompanyTeamMember.objects.filter(user=user).select_related("company").first()
+                if membership:
+                    return membership.company
+            return company
         else:
             return user
         
@@ -1001,6 +1006,10 @@ class CompanyOnboardingAPIView(APIView):
 
     def _get_company(self, request):
         company = getattr(request.user, "company", None)
+        if company is None:
+            membership = CompanyTeamMember.objects.filter(user=request.user).select_related("company").first()
+            if membership:
+                company = membership.company
         if company is None:
             raise NotFound("No company profile found for this user.")
         return company
