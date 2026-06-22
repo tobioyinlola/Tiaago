@@ -68,7 +68,8 @@ export const getTalentRoles = async (
         : undefined
     )
     .json();
-  return data;
+  const results = Array.isArray(data) ? data : (data as any)?.results || [];
+  return results as TalentRole[];
 };
 
 export const getTools = async (
@@ -79,7 +80,8 @@ export const getTools = async (
       searchParams: query ? { q: query } : undefined,
     })
     .json();
-  return data;
+  const results = Array.isArray(data) ? data : (data as any)?.results || [];
+  return results as TalentPortfolioTool[];
 };
 
 export const getTalentRole = async (slug: string): Promise<TalentRole> => {

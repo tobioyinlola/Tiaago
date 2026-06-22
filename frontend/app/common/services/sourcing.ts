@@ -1488,7 +1488,8 @@ export const getCategories = async () => {
   const data = await serverKyInstance
     .get<PipelineCategory[]>("sourcing/categories/")
     .json();
-  return data;
+  const results = Array.isArray(data) ? data : (data as any)?.results || [];
+  return results as PipelineCategory[];
 };
 
 export const createCategory = async (name: string, description: string) => {

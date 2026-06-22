@@ -9,7 +9,8 @@ export const getWorkExperiences = async () => {
     const data = await serverKyInstance
       .get<WorkExperience[]>("work-experiences")
       .json();
-    return data;
+    const results = Array.isArray(data) ? data : (data as any)?.results || [];
+    return results as WorkExperience[];
   } catch (error) {
     return [];
   }
@@ -86,7 +87,8 @@ export const getTalentWorkExperiences = async (id: ID) => {
     const data = await serverKyInstance
       .get<WorkExperience[]>(`work-experiences/talents/${id}`)
       .json();
-    return data;
+    const results = Array.isArray(data) ? data : (data as any)?.results || [];
+    return results as WorkExperience[];
   } catch (error) {
     return [];
   }
