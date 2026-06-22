@@ -385,7 +385,7 @@ class CompanySerializer(RegisterSerializer):
             # avoid raising registration errors for membership creation failures
             pass
 
-        FreePlan.objects.get_or_create(company=user.company, company_email=user.email)
+        FreePlan.objects.get_or_create(company=company, company_email=user.email)
         return user
 
     def validate(self, data):
