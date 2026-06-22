@@ -358,6 +358,12 @@ class CompanySerializer(RegisterSerializer):
 
 
         user.save()
+
+        # Skip company creation for invited users -- the view's create()
+        # method links them to the inviting company instead.
+        if request.data.get("invite_token"):
+            return user
+
         # Handle role assignment safely; role is optional at signup and can be
         # provided later during onboarding
         role = None

@@ -208,7 +208,7 @@ class CustomRegisterView(RegisterView):
             or self.request.query_params.get("invite_token")
         )
         if invite_token:
-            return TalentSerializer
+            return CompanySerializer
         if user_type and user_type.lower() == "company":
             return CompanySerializer
         return TalentSerializer
