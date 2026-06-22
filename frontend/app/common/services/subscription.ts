@@ -28,27 +28,30 @@ export const getSubscriptionPlan = async (
 
 export const getSubscriptionPlans = async (): Promise<SubscriptionPlan[]> => {
   const data = await serverKyInstance
-    .get<SubscriptionPlan[]>("subscriptions/sub_plan/")
+    .get("subscriptions/sub_plan/")
     .json();
-  return data;
+  const results = Array.isArray(data) ? data : (data as any)?.results || [];
+  return results as SubscriptionPlan[];
 };
 
 export const getAvailableSubscriptionPlans = async (): Promise<
   SubscriptionPlan[]
 > => {
   const data = await serverKyInstance
-    .get<SubscriptionPlan[]>("subscriptions/sub_plan/for-me")
+    .get("subscriptions/sub_plan/for-me")
     .json();
-  return data;
+  const results = Array.isArray(data) ? data : (data as any)?.results || [];
+  return results as SubscriptionPlan[];
 };
 
 export const getSubscriptionInvoices = async (): Promise<
   SubscriptionInvoice[]
 > => {
   const data = await serverKyInstance
-    .get<SubscriptionInvoice[]>("payments/invoice")
+    .get("payments/invoice")
     .json();
-  return data;
+  const results = Array.isArray(data) ? data : (data as any)?.results || [];
+  return results as SubscriptionInvoice[];
 };
 
 // new APIs

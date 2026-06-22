@@ -746,6 +746,7 @@ class RetrieveReferralCodeAPIView(RetrieveUpdateAPIView):
 class ReferralTrackingAPIView(ListAPIView):
     serializer_class = ReferralSerializer
     permission_classes = [IsAuthenticated]
+    pagination_class = TiaagoPagination
     queryset = Referral.objects.all()
 
     def get_queryset(self):
@@ -797,6 +798,7 @@ class ReferralRewardViewSet(viewsets.ModelViewSet):
     ViewSet for managing referral rewards and withdrawals
     """
     permission_classes = [IsAuthenticated]
+    pagination_class = TiaagoPagination
 
     def get_queryset(self):
         """Return appropriate queryset based on action"""

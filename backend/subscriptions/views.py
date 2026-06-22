@@ -362,7 +362,8 @@ class SubscriptionTransactionViewSet(
     queryset = SubscriptionTransaction.objects.all()
     serializer_class = SubscriptionTransactionSerializer
     permission_classes = [IsAuthenticated, IsUserVerified]
-    
+    pagination_class = TiaagoPagination
+
     def get_queryset(self):
         user = self.request.user
         return self.queryset.filter(company=user.company).order_by("-created_at")
@@ -638,7 +639,8 @@ class WalletTransactionViewSet(
     """
     serializer_class = UsageBaseWalletTransactionSerializer
     permission_classes = [IsAuthenticated, IsUserVerified]
-    
+    pagination_class = TiaagoPagination
+
     def get_queryset(self):
         user = self.request.user
         wallet = user.company.wallet

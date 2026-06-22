@@ -206,6 +206,7 @@ class PaymentCreateAPIView(generics.CreateAPIView):
 class PaymentListApiView(generics.ListAPIView):
     queryset = Payment.objects.all()
     serializer_class = PaymentInvoiceSerializer
+    pagination_class = TiaagoPagination
 
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -1113,6 +1114,7 @@ class TalentPendingPaymentsView(generics.ListAPIView):
 
     serializer_class = WalletTransactionSerializer
     permission_classes = [IsAuthenticated]
+    pagination_class = TiaagoPagination
 
     def get_queryset(self):
         """
@@ -1151,6 +1153,7 @@ class TalentWithdrawalHistoryView(generics.ListAPIView):
 
     serializer_class = WalletTransactionSerializer
     permission_classes = [IsAuthenticated]
+    pagination_class = TiaagoPagination
 
     def get_queryset(self):
         # Get the wallet associated with the currently authenticated user
