@@ -6,10 +6,11 @@ import serverKyInstance from "../utils/server-ky.instance";
 
 export const getSchedule = async () => {
   try {
-    const data = await serverKyInstance
-      .get<ScheduledMeeting[]>("schedulers")
-      .json();
-    return data;
+    const data = await serverKyInstance.get("schedulers").json();
+    const results = Array.isArray(data)
+      ? data
+      : ((data as any)?.results || []);
+    return results as ScheduledMeeting[];
   } catch (error) {
     throw Error(await handleServerApiCallError(error));
   }

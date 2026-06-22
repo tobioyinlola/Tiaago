@@ -41,6 +41,7 @@ from .serializers import (
     SchedulerSerializer,
     SchedulerUpdateSerializer
 )
+from base.mixins.pagination import TiaagoPagination
 from emails import emails
 from celery import current_app
 
@@ -52,6 +53,7 @@ class ScheduleMeetingView(ListCreateAPIView):
     serializer_class = SchedulerSerializer
     queryset = Scheduler.objects.all()
     permission_classes = [IsCompanyRepOrTalentUser, IsUserVerified]
+    pagination_class = TiaagoPagination
 
     def list(self, request, *args, **kwargs):
         queryset = self.get_queryset()
@@ -66,6 +68,11 @@ class ScheduleMeetingView(ListCreateAPIView):
                 queryset = queryset.filter(talent=user.profile)
             except User.profile.RelatedObjectDoesNotExist:
                 return Response(status=HTTP_401_UNAUTHORIZED)
+
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
 
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)

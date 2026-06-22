@@ -39,14 +39,15 @@ export const startChat = async (userID: ID, message?: string) => {
 
 export const getUnreadMessageCounts = async () => {
   const data = await serverKyInstance
-    .get<
-      {
-        conversation_id: string;
-        unread_messages: number;
-      }[]
-    >("chats/unread-messages")
+    .get("chats/unread-messages")
     .json();
-  return data;
+  const results = Array.isArray(data)
+    ? data
+    : ((data as any)?.results || []);
+  return results as {
+    conversation_id: string;
+    unread_messages: number;
+  }[];
 };
 
 export const getChatHealth = async () => {

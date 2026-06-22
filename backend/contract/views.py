@@ -10,6 +10,7 @@ from subscriptions.permissions import IsCompanyRepUser
 from create_user.models import CustomUser
 from .models import Contract
 from .permissions import IsContractByCompanyOruserPermission
+from base.mixins.pagination import TiaagoPagination
 from .serializers import ContractSerializer
 
 class ContractCreateView(generics.CreateAPIView):
@@ -33,6 +34,7 @@ class ContractListView(generics.ListAPIView):
     '''Endpoint to list all contracts'''
     serializer_class = ContractSerializer
     queryset = Contract.objects.all()
+    pagination_class = TiaagoPagination
     
     def get_queryset(self):
         user = self.request.user

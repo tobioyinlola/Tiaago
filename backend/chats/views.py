@@ -23,7 +23,8 @@ from .serializers import ConversationListSerializer, ConversationSerializer
 import logging
 from django.db import IntegrityError
 from rest_framework.filters import SearchFilter
-from .models import Message 
+from base.mixins.pagination import TiaagoPagination
+from .models import Message
 
 User = get_user_model()
 
@@ -116,6 +117,7 @@ class ConversationListView(ListAPIView):
     serializer_class = ConversationListSerializer
     queryset = Conversation.objects.all()
     permission_classes = [IsCompanyRepOrTalentUser]
+    pagination_class = TiaagoPagination
     filter_backends = [SearchFilter]
     search_fields = ['initiator__username', 'receiver__username']
 
