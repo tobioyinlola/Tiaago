@@ -19,7 +19,7 @@ export const updateTalent = async (
     const options = input instanceof FormData
       ? { body: input }
       : { json: input };
-    const responseData = await serverKyInstance.patch(`/auth/users/${endpoint}`, options).json<{ user: Talent; [key: string]: any }>();
+    const responseData = await serverKyInstance.patch(`auth/users/${endpoint}`, options).json<{ user: Talent; [key: string]: any }>();
     const { user, ...rest } = responseData;
     return {
       success: true,
