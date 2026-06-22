@@ -43,6 +43,11 @@ import {
   SmtpConfig,
 } from "@/app/common/services/sourcing";
 import { getJobs } from "@/app/common/services/jobs";
+import { useUserStore } from "@/app/common/store/useUser";
+import { GoogleOAuthProvider, useGoogleLogin } from "@react-oauth/google";
+import { publicKyInstance } from "@/app/common/utils/client-ky.instance";
+
+const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "";
 
 type OutreachJob = { id: number; title: string; job_level?: string };
 
@@ -56,8 +61,6 @@ interface OutreachDialogProps {
     body: string
   ) => void;
 }
-
-type SetupStep = "intro" | "2fa" | "app-password" | "enter-password";
 
 const TEMPLATE_ICONS = [Sparkles, MessageSquare, RefreshCw];
 
@@ -159,20 +162,86 @@ function EmailPreview({
   );
 }
 
+/* -- Google Connect Button (for non-Gmail users) ---------------- */
+
+function GoogleConnectButton({ onConnected }: { onConnected: (email: string) => void }) {
+  const [loading, setLoading] = useState(false);
+
+  const login = useGoogleLogin({
+    onSuccess: async (tokenResponse) => {
+      setLoading(true);
+      try {
+        const data = await publicKyInstance
+          .post("auth/google/", {
+            json: {
+              access_token: tokenResponse.access_token,
+              user_type: "company",
+            },
+          })
+          .json<any>();
+
+        const resp = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
+          headers: { Authorization: `Bearer ${tokenResponse.access_token}` },
+        });
+        const userInfo = await resp.json();
+        const gmail = userInfo.email || "";
+
+        toast.success("Google account connected!");
+        onConnected(gmail);
+      } catch {
+        toast.error("Failed to connect Google account. Please try again.");
+        setLoading(false);
+      }
+    },
+    onError: () => {
+      toast.error("Google sign-in was cancelled.");
+    },
+  });
+
+  return (
+    <button
+      type="button"
+      onClick={() => login()}
+      disabled={loading}
+      className="flex items-center gap-3 border border-border w-full py-3 justify-center rounded-xl text-sm font-medium shadow-sm hover:bg-muted/30 transition-colors disabled:opacity-60"
+    >
+      {loading ? (
+        <Loader2 className="h-4 w-4 animate-spin" />
+      ) : (
+        <GoogleIcon className="h-5 w-5" />
+      )}
+      {loading ? "Connecting..." : "Connect with Google"}
+    </button>
+  );
+}
+
 /* -- Inline SMTP Setup Wizard ------------------------------------ */
 
-function InlineSmtpWizard({
+type SmtpWizardStep = "connect-google" | "app-password" | "enter-password";
+
+function InlineSmtpWizardInner({
   onComplete,
   onCancel,
 }: {
   onComplete: (config: SmtpConfig) => void;
   onCancel: () => void;
 }) {
-  const [step, setStep] = useState<SetupStep>("intro");
-  const [gmailAddress, setGmailAddress] = useState("");
+  const profile = useUserStore(s => s.profile);
+  const userEmail = (profile as any)?.user?.email || (profile as any)?.email || "";
+  const isGmail = userEmail.endsWith("@gmail.com") || userEmail.endsWith("@googlemail.com");
+  const authProvider = (profile as any)?.user?.auth_provider || (profile as any)?.auth_provider || "email";
+  const hasGmail = isGmail || authProvider === "google";
+
+  const [gmailAddress, setGmailAddress] = useState(hasGmail ? userEmail : "");
+  const [step, setStep] = useState<SmtpWizardStep>(hasGmail ? "app-password" : "connect-google");
   const [appPassword, setAppPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  const handleGoogleConnected = (email: string) => {
+    setGmailAddress(email);
+    setStep("app-password");
+  };
 
   const handleSave = async () => {
     if (!appPassword.trim() || !gmailAddress.trim()) return;
@@ -186,9 +255,7 @@ function InlineSmtpWizard({
       toast.success("Gmail connected successfully!");
       onComplete(result.data);
     } else {
-      toast.error(
-        result.error || "Failed to connect. Check your credentials."
-      );
+      toast.error(result.error || "Failed to connect. Check your App Password.");
     }
   };
 
@@ -201,7 +268,9 @@ function InlineSmtpWizard({
             Connect Gmail to Send Outreach
           </h3>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Quick one-time setup, takes about 2 minutes
+            {step === "connect-google"
+              ? "Connect your Google account to get started"
+              : `Sending from ${gmailAddress}`}
           </p>
         </div>
         <button
@@ -226,37 +295,23 @@ function InlineSmtpWizard({
         </div>
 
         <div className="flex-1 p-5 overflow-y-auto flex flex-col justify-center">
-          {step === "intro" && (
+          {step === "connect-google" && (
             <div className="space-y-4">
               <div>
                 <h4 className="font-semibold text-foreground">
-                  Enter your Gmail address
+                  Connect your Google account
                 </h4>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Outreach emails will be sent from this Gmail account.
-                  You will need to create an App Password in the next step.
+                  Sign in with Google to link your Gmail address.
+                  Outreach emails will be sent from your Gmail.
                 </p>
               </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="wizard-gmail" className="text-xs flex items-center gap-1.5">
-                  <GoogleIcon className="h-4 w-4" />
-                  Gmail Address
-                </Label>
-                <input
-                  id="wizard-gmail"
-                  type="email"
-                  value={gmailAddress}
-                  onChange={(e) => setGmailAddress(e.target.value)}
-                  placeholder="your.email@gmail.com"
-                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:border-primary focus-visible:outline-none"
-                  autoComplete="email"
-                />
-              </div>
-              <div className="flex gap-2.5 pt-2">
-                <Button size="sm" onClick={() => setStep("app-password")} disabled={!gmailAddress.includes("@")}>
-                  Continue
-                  <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
-                </Button>
+              <GoogleConnectButton onConnected={handleGoogleConnected} />
+              <p className="text-[11px] text-muted-foreground text-center flex items-center justify-center gap-1">
+                <Lock className="h-3 w-3" />
+                You can still log in with your current email and password
+              </p>
+              <div className="flex justify-center pt-1">
                 <Button size="sm" variant="ghost" onClick={onCancel}>
                   Cancel
                 </Button>
@@ -267,15 +322,18 @@ function InlineSmtpWizard({
           {step === "app-password" && (
             <div className="space-y-4">
               <div>
-                <Badge variant="secondary" className="text-[10px] mb-2">
-                  Step 1 of 2
-                </Badge>
+                {!hasGmail && (
+                  <Badge variant="secondary" className="text-[10px] mb-2">
+                    Step 2 of 2
+                  </Badge>
+                )}
                 <h4 className="font-semibold text-foreground">
                   Create an App Password
                 </h4>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Sign in to your Google Account at the link below.
-                  Name the App Password{" "}
+                  Sign in to{" "}
+                  <strong className="text-foreground">{gmailAddress}</strong>{" "}
+                  at the link below. Name the App Password{" "}
                   <strong className="text-foreground">TIAAGO</strong>, then
                   copy the 16-character password Google generates.
                 </p>
@@ -297,10 +355,17 @@ function InlineSmtpWizard({
                 </p>
               </div>
               <div className="flex gap-2.5 pt-2">
-                <Button size="sm" variant="ghost" onClick={() => setStep("intro")}>
-                  <ArrowLeft className="mr-1 h-3.5 w-3.5" />
-                  Back
-                </Button>
+                {!hasGmail && (
+                  <Button size="sm" variant="ghost" onClick={() => setStep("connect-google")}>
+                    <ArrowLeft className="mr-1 h-3.5 w-3.5" />
+                    Back
+                  </Button>
+                )}
+                {hasGmail && (
+                  <Button size="sm" variant="ghost" onClick={onCancel}>
+                    Cancel
+                  </Button>
+                )}
                 <Button size="sm" onClick={() => setStep("enter-password")}>
                   I&apos;ve copied the password
                   <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
@@ -312,14 +377,12 @@ function InlineSmtpWizard({
           {step === "enter-password" && (
             <div className="space-y-4">
               <div>
-                <Badge variant="secondary" className="text-[10px] mb-2">
-                  Step 2 of 2
-                </Badge>
                 <h4 className="font-semibold text-foreground">
                   Paste your App Password
                 </h4>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Paste the 16-character password from Google. We will verify the connection to{" "}
+                  Paste the 16-character password from Google.
+                  We will verify the connection to{" "}
                   <strong className="text-foreground">{gmailAddress}</strong>.
                 </p>
               </div>
@@ -375,6 +438,17 @@ function InlineSmtpWizard({
         </div>
       </div>
     </div>
+  );
+}
+
+function InlineSmtpWizard(props: { onComplete: (config: SmtpConfig) => void; onCancel: () => void }) {
+  if (!GOOGLE_CLIENT_ID) {
+    return <InlineSmtpWizardInner {...props} />;
+  }
+  return (
+    <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
+      <InlineSmtpWizardInner {...props} />
+    </GoogleOAuthProvider>
   );
 }
 
