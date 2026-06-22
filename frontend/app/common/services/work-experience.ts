@@ -1,7 +1,6 @@
 "use server";
 import { ID, WorkExperience } from "../types";
 import { _handleServerApiCallError } from "../utils";
-import axiosInstance from "../utils/axios.instance";
 import serverKyInstance from "../utils/server-ky.instance";
 
 export const getWorkExperiences = async () => {
@@ -22,10 +21,9 @@ export const createWorkExperience = async (
   workExperience: WorkExperienceInput
 ) => {
   try {
-    const { data } = await axiosInstance.post<WorkExperience>(
-      "work-experiences/",
-      workExperience
-    );
+    const data = await serverKyInstance.post("work-experiences/", {
+      json: workExperience,
+    }).json<WorkExperience>();
     return {
       success: true,
       data,
@@ -46,10 +44,9 @@ export const updateWorkExperience = async (
   id: ID
 ) => {
   try {
-    const { data } = await axiosInstance.put<WorkExperience>(
-      `work-experiences/${id}/`,
-      workExperience
-    );
+    const data = await serverKyInstance.put(`work-experiences/${id}/`, {
+      json: workExperience,
+    }).json<WorkExperience>();
     return {
       success: true,
       data,
@@ -67,7 +64,7 @@ export const updateWorkExperience = async (
 
 export const deleteWorkExperience = async (id: ID) => {
   try {
-    await axiosInstance.delete(`work-experiences/${id}/`);
+    await serverKyInstance.delete(`work-experiences/${id}/`).json();
     return {
       success: true,
     };

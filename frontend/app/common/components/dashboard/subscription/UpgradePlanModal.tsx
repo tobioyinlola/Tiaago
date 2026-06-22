@@ -16,7 +16,7 @@ import Modal from "@/app/common/components/Modal";
 import { useAlert } from "@/app/common/store/useAlert";
 import Selected from "@/app/common/components/Selected";
 import CustomBadge from "@/app/common/components/CustomBadge";
-import axiosInstance from "@/app/common/utils/axios.instance";
+import clientKyInstance from "@/app/common/utils/client-ky.instance";
 import { getSubPlanBenefits } from "@/app/common/utils/subscriptionUtils";
 import { BasePageProps, SubscriptionPlan, User } from "@/app/common/types";
 import { trackSubscriptionRequest } from "@/app/common/services/mixpanel.services";
@@ -67,12 +67,13 @@ const UpgradePlanModal = ({
     if (isLoading) return;
     setIsLoading(true);
     try {
-      const { data } = await axiosInstance.post<{ payment_url: string }>(
-        "/payments/initialize/",
-        {
-          plan_id: selectedPlan,
-        }
-      );
+      const data = await clientKyInstance
+        .post("/payments/initialize/", {
+          json: {
+            plan_id: selectedPlan,
+          },
+        })
+        .json<{ payment_url: string }>();
       console.log(data);
       setIsLoading(false);
       if (data.payment_url) {

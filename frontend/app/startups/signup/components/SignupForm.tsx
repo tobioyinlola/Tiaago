@@ -13,7 +13,7 @@ import {
 } from "../constants/form.contants";
 import { CountryField } from "@/app/common/types";
 import { useAlert } from "@/app/common/store/useAlert";
-import axiosInstance from "@/app/common/utils/axios.instance";
+import clientKyInstance from "@/app/common/utils/client-ky.instance";
 import { useMultiStep } from "@/app/common/store/useMultiStep";
 import FileInput from "@/app/common/components/Forms/FileInput";
 import { cn, handleFormSubmissionError } from "@/app/common/utils";
@@ -56,11 +56,10 @@ const SignupForm = ({
               // add https:// to company website if it doesn't exist
               if (companyWebsite && !companyWebsite.startsWith("http"))
                 formData.set("website", `https://${companyWebsite}`);
-              const { data } = await axiosInstance.post(
-                "/auth/register/",
-                formData,
-                { params: { user_type: "company" } }
-              );
+              const data = await clientKyInstance.post(
+                "auth/register/",
+                { body: formData, searchParams: { user_type: "company" } }
+              ).json();
               try {
                 await trackSignup({
                   user_type: "startup",

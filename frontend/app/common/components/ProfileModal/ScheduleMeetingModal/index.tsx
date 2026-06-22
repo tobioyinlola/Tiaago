@@ -9,7 +9,7 @@ import DatePicker from "./DatePicker";
 import { ID } from "@/app/common/types";
 import { useAlert } from "@/app/common/store/useAlert";
 import { timeOptions, timeZoneOptions } from "./constants";
-import axiosInstance from "@/app/common/utils/axios.instance";
+import clientKyInstance from "@/app/common/utils/client-ky.instance";
 import { cn, handleFormSubmissionError } from "@/app/common/utils";
 
 type ScheduleMeetingInput = {
@@ -98,18 +98,22 @@ const ScheduleMeetingModal = ({
       setLoading(true);
       const addedParticipants = input.addedParticipants ?? [];
       const no_of_participants = addedParticipants.length + 2;
-      const { data } = await axiosInstance.post("/schedulers/", {
-        title: input.title,
-        meeting_date: format(input.start, "yyyy-MM-dd"),
-        start_time: startTime,
-        end_time: format(endTime, "HH:mm"),
-        talent: talentID,
-        description: input.description,
-        ...(!!no_of_participants && {
-          no_of_participants,
-          additional_emails: addedParticipants.join(","),
-        }),
-      });
+      const data = await clientKyInstance
+        .post("/schedulers/", {
+          json: {
+            title: input.title,
+            meeting_date: format(input.start, "yyyy-MM-dd"),
+            start_time: startTime,
+            end_time: format(endTime, "HH:mm"),
+            talent: talentID,
+            description: input.description,
+            ...(!!no_of_participants && {
+              no_of_participants,
+              additional_emails: addedParticipants.join(","),
+            }),
+          },
+        })
+        .json<{ id?: string }>();
       if (data.id) {
         setInput(prev => ({
           timezone: "GMT+1",

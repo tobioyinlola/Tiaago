@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { toast } from "sonner";
 import { Formik } from "formik";
-import { AxiosError } from "axios";
+import { HTTPError } from "ky";
 import Button from "@/app/common/components/DaisyButton";
 
 import {
@@ -13,7 +13,7 @@ import {
 } from "./form.constants";
 import { useAlert } from "@/app/common/store/useAlert";
 import { BasePageProps, User } from "@/app/common/types";
-import axiosInstance from "@/app/common/utils/axios.instance";
+import clientKyInstance from "@/app/common/utils/client-ky.instance";
 import { getFullUserType, handleFormSubmissionError } from "@/app/common/utils";
 import { TokensInput, setAuthCookies } from "@/app/common/actions";
 import FormikField from "@/app/common/components/Forms/FormikField";
@@ -48,10 +48,9 @@ const LoginForm = ({ as = "startup" }: { as?: Ias }) => {
         new Promise<LoginSuccessResponse>(async (resolve, reject) => {
           toast.dismiss();
           try {
-            const { data } = await axiosInstance.post<LoginSuccessResponse>(
-              "/auth/login/",
-              values
-            );
+            const data = await clientKyInstance
+              .post("/auth/login/", { json: values })
+              .json<LoginSuccessResponse>();
             resolve(data);
           } catch (err) {
             reject(err);
@@ -62,7 +61,7 @@ const LoginForm = ({ as = "startup" }: { as?: Ias }) => {
             resetForm();
             onLoginSuccess(tokensInput, user?.user_type);
           })
-          .catch((err: AxiosError) => {
+          .catch((err: HTTPError) => {
             let errorMsg = handleFormSubmissionError(
               err,
               setFieldError,
@@ -70,8 +69,8 @@ const LoginForm = ({ as = "startup" }: { as?: Ias }) => {
             );
             setSubmitting(false);
             if (errorMsg === "E-mail is not verified.") {
-              axiosInstance
-                .post("/auth/resend-otp/", { email: values.email })
+              clientKyInstance
+                .post("/auth/resend-otp/", { json: { email: values.email } })
                 .catch(() => {});
               const params = new URLSearchParams({ email: values.email, as });
               window.location.href = `/verify-email?${params.toString()}`;

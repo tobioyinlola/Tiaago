@@ -18,7 +18,7 @@ import { CountryField } from "@/app/common/types";
 import { handleFormSubmissionError } from "@/app/common/utils";
 import FormikField from "@/app/common/components/Forms/FormikField";
 import { trackSignup } from "@/app/common/services/mixpanel.services";
-import { publicAxiosInstance } from "@/app/common/utils/axios.instance";
+import { publicKyInstance } from "@/app/common/utils/client-ky.instance";
 import CountrySelect from "@/app/common/components/Forms/CountrySelect";
 import GoogleSignInButton from "@/app/common/components/GoogleSignInButton";
 
@@ -59,11 +59,10 @@ const SignUpFormV3 = ({
           if (!acceptedTerms)
             reject({ message: "Please accept the terms and conditions" });
           try {
-            const { data } = await publicAxiosInstance.post(
-              "/auth/register/",
-              input,
-              { params: { user_type: "company" } }
-            );
+            const data = await publicKyInstance.post(
+              "auth/register/",
+              { json: input, searchParams: { user_type: "company" } }
+            ).json();
             const [first_name = "", last_name = ""] =
               input.full_name.split(" ");
             try {

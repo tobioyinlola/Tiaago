@@ -9,7 +9,7 @@ import { addMinutes, differenceInSeconds, isAfter } from "date-fns";
 
 import { useAlert } from "../common/store/useAlert";
 import { handleFormSubmissionError } from "../common/utils";
-import { publicAxiosInstance } from "../common/utils/axios.instance";
+import { publicKyInstance } from "@/app/common/utils/client-ky.instance";
 import { usePersistedStore } from "../common/store/usePersistedStore";
 import { setAuthCookies, TokensInput } from "../common/actions";
 
@@ -86,12 +86,12 @@ const EmailVerificationForm = ({
     }
     setIsLoading(true);
     toast.dismiss();
-    publicAxiosInstance
-      .post<Partial<TokensInput>>("/auth/account-confirm-email/", {
-        email,
-        otp,
+    publicKyInstance
+      .post("auth/account-confirm-email/", {
+        json: { email, otp },
       })
-      .then(async ({ data }) => {
+      .json<Partial<TokensInput>>()
+      .then(async data => {
         toast.success("Email verified successfully");
         if (autoLoginRedirect && data?.access) {
           // log the user straight in and hand off (e.g. onboarding cards)
@@ -190,10 +190,11 @@ const EmailVerificationForm = ({
     const toastId = toast.dismiss();
     toast.loading("Resending verification email...");
     setIsResending(true);
-    publicAxiosInstance
-      .post("/auth/resend-otp/", {
-        email,
+    publicKyInstance
+      .post("auth/resend-otp/", {
+        json: { email },
       })
+      .json()
       .then(() => {
         toast.success("Verification email sent successfully");
         setLastVerificationEmailSentAt(new Date().toISOString());

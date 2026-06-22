@@ -1,6 +1,5 @@
 "use server";
 import { handleServerApiCallError } from "../utils";
-import axiosInstance from "../utils/axios.instance";
 import { ID, Contract, PagedResource } from "../types";
 import serverKyInstance from "../utils/server-ky.instance";
 
@@ -25,13 +24,12 @@ export type CreateContract = {
 
 export const createContract = async (talent: ID, contract: CreateContract) => {
   try {
-    const response = await axiosInstance.post<Contract>(
-      `contracts/create/${talent}/`,
-      contract
-    );
+    const data = await serverKyInstance
+      .post(`contracts/create/${talent}/`, { json: contract })
+      .json<Contract>();
     return {
       success: true,
-      data: response.data,
+      data,
     };
   } catch (error) {
     const errMsg = await handleServerApiCallError(error);
@@ -49,5 +47,5 @@ export const getContract = async (id: ID) => {
 };
 
 export const deleteContract = async (id: ID) => {
-  await axiosInstance.delete(`contracts/${id}/`);
+  await serverKyInstance.delete(`contracts/${id}/`);
 };

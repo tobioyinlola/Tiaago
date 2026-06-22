@@ -9,7 +9,7 @@ import { useState, ChangeEvent, FormEvent, FocusEvent } from "react";
 import { IoLockClosed, IoMail, IoPersonSharp } from "react-icons/io5";
 
 import { useAlert } from "@/app/common/store/useAlert";
-import axiosInstance from "@/app/common/utils/axios.instance";
+import clientKyInstance from "@/app/common/utils/client-ky.instance";
 import { TalentRole as StartupRole } from "@/app/common/types";
 import { companySizeOptions } from "../constants/form.contants";
 import { cn, handleFormSubmissionError } from "@/app/common/utils";
@@ -123,19 +123,21 @@ const SignupFormV2 = ({ startupRoles }: { startupRoles: StartupRole[] }) => {
         toast.dismiss();
         setSubmitting(true);
         try {
-          const { data } = await axiosInstance.post(
-            "/auth/register/",
+          const data = await clientKyInstance.post(
+            "auth/register/",
             {
-              email: formData.email,
-              role: formData.role,
-              size: formData.size,
-              full_name: formData.name,
-              website: formData.url,
-              password1: formData.password,
-              password2: formData.password,
-            },
-            { params: { user_type: "company" } }
-          );
+              json: {
+                email: formData.email,
+                role: formData.role,
+                size: formData.size,
+                full_name: formData.name,
+                website: formData.url,
+                password1: formData.password,
+                password2: formData.password,
+              },
+              searchParams: { user_type: "company" },
+            }
+          ).json();
           const [first_name = "", last_name = ""] = formData.name.split(" ");
           try {
             if (process.env.NODE_ENV === "production")

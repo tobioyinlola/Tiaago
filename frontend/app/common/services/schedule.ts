@@ -1,7 +1,6 @@
 "use server";
 import { ID, ScheduledMeeting } from "../types";
 import { handleServerApiCallError } from "../utils";
-import axiosInstance from "../utils/axios.instance";
 import serverKyInstance from "../utils/server-ky.instance";
 
 export const getSchedule = async () => {
@@ -18,9 +17,10 @@ export const getSchedule = async () => {
 
 export const acceptMeeting = async (id: ID, accepted = true) => {
   try {
-    const response = await axiosInstance
-      .put<ScheduledMeeting>(`schedulers/${id}/`, { accepted });
-    return response.data;
+    const data = await serverKyInstance
+      .put(`schedulers/${id}/`, { json: { accepted } })
+      .json<ScheduledMeeting>();
+    return data;
   } catch (error) {
     throw Error(await handleServerApiCallError(error));
   }
@@ -28,9 +28,10 @@ export const acceptMeeting = async (id: ID, accepted = true) => {
 
 export const deleteMeeting = async (id: ID) => {
   try {
-    const response = await axiosInstance
-      .delete<ScheduledMeeting>(`schedulers/${id}/delete/`);
-    return response.data;
+    const data = await serverKyInstance
+      .delete(`schedulers/${id}/delete/`)
+      .json<ScheduledMeeting>();
+    return data;
   } catch (error) {
     throw Error(await handleServerApiCallError(error));
   }

@@ -1,5 +1,7 @@
+"use server";
+
 import { Startup } from "../types";
-import axiosInstance from "../utils/axios.instance";
+import serverKyInstance from "../utils/server-ky.instance";
 
 export const updateStartup = (
   input: Partial<Startup> | FormData,
@@ -7,12 +9,11 @@ export const updateStartup = (
 ) =>
   new Promise<Startup>(async (resolve, reject) => {
     try {
-      const {
-        data: { user, ...rest },
-      } = await axiosInstance.patch<{ user: Startup }>(
-        `/auth/users/${endpoint}`,
-        input
-      );
+      const options = input instanceof FormData
+        ? { body: input }
+        : { json: input };
+      const responseData = await serverKyInstance.patch(`/auth/users/${endpoint}`, options).json<{ user: Startup; [key: string]: any }>();
+      const { user, ...rest } = responseData;
       resolve({ ...user, ...rest });
     } catch (error) {
       reject(error);

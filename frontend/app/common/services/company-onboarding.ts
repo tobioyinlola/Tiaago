@@ -1,7 +1,6 @@
 "use server";
 
 import { CompanyOnboarding } from "../types";
-import axiosInstance from "../utils/axios.instance";
 import { _handleServerApiCallError } from "../utils";
 import serverKyInstance from "../utils/server-ky.instance";
 
@@ -31,10 +30,9 @@ export const updateCompanyOnboarding = async (
   input: CompanyOnboardingInput
 ) => {
   try {
-    const { data } = await axiosInstance.patch<CompanyOnboarding>(
-      "/auth/company-onboarding/",
-      input
-    );
+    const data = await serverKyInstance.patch("/auth/company-onboarding/", {
+      json: input,
+    }).json<CompanyOnboarding>();
     return {
       success: true as const,
       data,

@@ -8,7 +8,6 @@ import {
   TalentPortfolioProject,
   TalentPortfolioWorkExperience,
 } from "../types";
-import axiosInstance from "../utils/axios.instance";
 import { _handleServerApiCallError } from "../utils";
 import serverKyInstance from "../utils/server-ky.instance";
 
@@ -17,12 +16,11 @@ export const updateTalent = async (
   endpoint: "profile" | "me" = "me"
 ) => {
   try {
-    const {
-      data: { user, ...rest },
-    } = await axiosInstance.patch<{ user: Talent }>(
-      `/auth/users/${endpoint}`,
-      input
-    );
+    const options = input instanceof FormData
+      ? { body: input }
+      : { json: input };
+    const responseData = await serverKyInstance.patch(`/auth/users/${endpoint}`, options).json<{ user: Talent; [key: string]: any }>();
+    const { user, ...rest } = responseData;
     return {
       success: true,
       data: { ...user, ...rest },
@@ -81,10 +79,10 @@ export const updatePortfolio = async (
   input: Partial<TalentPortfolio> | FormData
 ) => {
   try {
-    const { data } = await axiosInstance.patch<TalentPortfolio>(
-      "jobs/portfolio/",
-      input
-    );
+    const options = input instanceof FormData
+      ? { body: input }
+      : { json: input };
+    const data = await serverKyInstance.patch("jobs/portfolio/", options).json<TalentPortfolio>();
     return {
       success: true,
       data,
@@ -105,10 +103,9 @@ export const createPortfolioProject = async (
   json: Partial<TalentPortfolioProject>
 ) => {
   try {
-    const { data } = await axiosInstance.post<TalentPortfolioProject>(
-      "jobs/portfolio/projects/create/",
-      json
-    );
+    const data = await serverKyInstance.post("jobs/portfolio/projects/create/", {
+      json,
+    }).json<TalentPortfolioProject>();
     // console.log(data);
     return {
       success: true,
@@ -130,10 +127,9 @@ export const updatePortfolioProject = async (
   json: Partial<TalentPortfolioProject>
 ) => {
   try {
-    const { data } = await axiosInstance.patch<TalentPortfolioProject>(
-      `jobs/portfolio/projects/${id}/`,
-      json
-    );
+    const data = await serverKyInstance.patch(`jobs/portfolio/projects/${id}/`, {
+      json,
+    }).json<TalentPortfolioProject>();
     // console.log(data);
     return {
       success: true,
@@ -175,10 +171,9 @@ export const createPortfolioExperience = async (
   json: Partial<TalentPortfolioWorkExperience>
 ) => {
   try {
-    const { data } = await axiosInstance.post<TalentPortfolioWorkExperience>(
-      "jobs/portfolio/experiences/create/",
-      json
-    );
+    const data = await serverKyInstance.post("jobs/portfolio/experiences/create/", {
+      json,
+    }).json<TalentPortfolioWorkExperience>();
     // console.log(data);
     return {
       success: true,
@@ -200,10 +195,9 @@ export const updatePortfolioExperience = async (
   json: Partial<TalentPortfolioWorkExperience>
 ) => {
   try {
-    const { data } = await axiosInstance.patch<TalentPortfolioWorkExperience>(
-      `jobs/portfolio/experiences/${id}/`,
-      json
-    );
+    const data = await serverKyInstance.patch(`jobs/portfolio/experiences/${id}/`, {
+      json,
+    }).json<TalentPortfolioWorkExperience>();
     // console.log(data);
     return {
       success: true,
@@ -222,9 +216,7 @@ export const updatePortfolioExperience = async (
 
 export const deletePortfolioExperience = async (id: ID) => {
   try {
-    const { data } = await axiosInstance.delete<TalentPortfolioWorkExperience>(
-      `jobs/portfolio/experiences/${id}/`
-    );
+    const data = await serverKyInstance.delete(`jobs/portfolio/experiences/${id}/`).json<TalentPortfolioWorkExperience>();
     // console.log(data);
     return {
       success: true,
@@ -245,10 +237,9 @@ export const createTalentPortfolioEducation = async (
   json: Partial<TalentPortfolioEducation>
 ) => {
   try {
-    const { data } = await axiosInstance.post<TalentPortfolioEducation>(
-      "jobs/portfolio/educations/create/",
-      json
-    );
+    const data = await serverKyInstance.post("jobs/portfolio/educations/create/", {
+      json,
+    }).json<TalentPortfolioEducation>();
     return {
       success: true,
       data,
@@ -269,10 +260,9 @@ export const updateTalentPortfolioEducation = async (
   json: Partial<TalentPortfolioEducation>
 ) => {
   try {
-    const { data } = await axiosInstance.patch<TalentPortfolioEducation>(
-      `jobs/portfolio/educations/${id}/`,
-      json
-    );
+    const data = await serverKyInstance.patch(`jobs/portfolio/educations/${id}/`, {
+      json,
+    }).json<TalentPortfolioEducation>();
     return {
       success: true,
       data,
@@ -290,9 +280,7 @@ export const updateTalentPortfolioEducation = async (
 
 export const deleteTalentPortfolioEducation = async (id: ID) => {
   try {
-    const { data } = await axiosInstance.delete<TalentPortfolioEducation>(
-      `jobs/portfolio/educations/${id}/`
-    );
+    const data = await serverKyInstance.delete(`jobs/portfolio/educations/${id}/`).json<TalentPortfolioEducation>();
     return {
       success: true,
       data,

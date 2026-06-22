@@ -7,7 +7,7 @@ import {
   useGoogleLogin,
 } from "@react-oauth/google";
 import { setAuthCookies, TokensInput } from "@/app/common/actions";
-import { publicAxiosInstance } from "@/app/common/utils/axios.instance";
+import { publicKyInstance } from "@/app/common/utils/client-ky.instance";
 import { getFullUserType } from "@/app/common/utils";
 import { Loader2 } from "lucide-react";
 
@@ -33,14 +33,14 @@ function GoogleButtonInner({
     onSuccess: async (tokenResponse) => {
       setLoading(true);
       try {
-        const { data } =
-          await publicAxiosInstance.post<GoogleSignInResponse>(
-            "/auth/google/",
-            {
+        const data = await publicKyInstance
+          .post("/auth/google/", {
+            json: {
               access_token: tokenResponse.access_token,
               user_type: userType,
-            }
-          );
+            },
+          })
+          .json<GoogleSignInResponse>();
 
         const { user_type, is_new, ...tokensInput } = data;
         await setAuthCookies(tokensInput);

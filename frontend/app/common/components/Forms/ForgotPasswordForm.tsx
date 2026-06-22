@@ -7,7 +7,7 @@ import Button from "@/app/common/components/DaisyButton";
 
 import FormikField from "./FormikField";
 import { useAlert } from "../../store/useAlert";
-import axiosInstance from "../../utils/axios.instance";
+import clientKyInstance from "@/app/common/utils/client-ky.instance";
 import { handleFormSubmissionError } from "../../utils";
 import { emailValidationSchema } from "@/app/common/constants/validationSchemas";
 
@@ -25,10 +25,9 @@ const ForgotPasswordForm = () => {
       onSubmit={(values, { setSubmitting, resetForm, setFieldError }) => {
         new Promise(async (resolve, reject) => {
           try {
-            const { data } = await axiosInstance.post(
-              "/auth/password/reset/",
-              values
-            );
+            const data = await clientKyInstance
+              .post("/auth/password/reset/", { json: values })
+              .json();
             resolve(data);
           } catch (err) {
             reject(err);

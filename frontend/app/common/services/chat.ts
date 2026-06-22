@@ -1,5 +1,4 @@
 "use server";
-import axiosInstance from "../utils/axios.instance";
 import { Chat, IChatListItem, ID, User } from "../types";
 import serverKyInstance from "../utils/server-ky.instance";
 
@@ -19,7 +18,7 @@ export const getChat = async (convoID: ID) => {
 };
 
 export const startChat = async (userID: ID, message?: string) => {
-  const data = {
+  const body = {
     messages: message
       ? [
           {
@@ -30,11 +29,10 @@ export const startChat = async (userID: ID, message?: string) => {
     initiator: {},
     receiver: {},
   };
-  const response = await axiosInstance.post<Chat>(
-    `chats/start/${userID}/`,
-    data
-  );
-  return response.data;
+  const responseData = await serverKyInstance
+    .post(`chats/start/${userID}/`, { json: body })
+    .json<Chat>();
+  return responseData;
 };
 
 export const getUnreadMessageCounts = async () => {

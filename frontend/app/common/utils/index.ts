@@ -2,7 +2,7 @@ import { toast } from "sonner";
 import { HTTPError } from "ky";
 import { twMerge } from "tailwind-merge";
 import { differenceInDays } from "date-fns";
-import axios, { isAxiosError } from "axios";
+import ky from "ky";
 import { clsx, type ClassValue } from "clsx";
 
 import { Alert } from "../store/useAlert";
@@ -234,20 +234,17 @@ export const handleFormSubmissionError = (
 ): string => {
   "use client";
   toast.dismiss();
-  if (isAxiosError(error) || error instanceof HTTPError) {
+  if (error instanceof HTTPError) {
     let errorMap: ErrorMap = {};
-    if (isAxiosError(error)) errorMap = (error.response?.data as any) ?? {};
-    else {
-      error.response?.text().then(text => {
-        try {
-          errorMap = JSON.parse(text);
-        } catch (e) {
-          errorMap = {
-            detail: htmlToPlainText(text),
-          };
-        }
-      });
-    }
+    error.response?.text().then(text => {
+      try {
+        errorMap = JSON.parse(text);
+      } catch (e) {
+        errorMap = {
+          detail: htmlToPlainText(text),
+        };
+      }
+    });
     let errorMsg: string = formatErrorMessage(error.message);
     const getErrMsg = (errMap = errorMap) => {
       Object.entries(errMap).forEach(([key, value], i) => {
@@ -295,21 +292,17 @@ export const handleFormSubmissionError = (
 export const _handleServerApiCallError = async (
   error: any
 ): Promise<[string, ErrorMap]> => {
-  if (isAxiosError(error) || error instanceof HTTPError) {
+  if (error instanceof HTTPError) {
     let errorMap: ErrorMap = {};
-    if (isAxiosError(error)) {
-      errorMap = (error.response?.data as any) ?? {};
-    } else {
-      const text = await error.response?.text();
-      try {
-        errorMap = JSON.parse(text);
-      } catch (e) {
-        console.log("error parsing response text:");
-        console.log(text);
-        errorMap = {
-          detail: htmlToPlainText(text),
-        };
-      }
+    const text = await error.response?.text();
+    try {
+      errorMap = JSON.parse(text);
+    } catch (e) {
+      console.log("error parsing response text:");
+      console.log(text);
+      errorMap = {
+        detail: htmlToPlainText(text),
+      };
     }
     let errorMsg: string = formatErrorMessage(error.message);
     const getErrMsg = (errMap = errorMap) => {
@@ -365,9 +358,10 @@ export const isRecentJob = (input: Job | Job["date_created"]) => {
 export const getUserCountry = async (currentUser?: User | null) => {
   const country = currentUser?.country
     ? currentUser.country
-    : await axios
+    : await ky
         .get("/api/country")
-        .then(res => res.data?.country ?? "Nigeria");
+        .json<{ country?: string }>()
+        .then(data => data?.country ?? "Nigeria");
   return country;
 };
 

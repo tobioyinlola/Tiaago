@@ -6,7 +6,7 @@ import { Formik } from "formik";
 import Button from "@/app/common/components/DaisyButton";
 
 import { useAlert } from "@/app/common/store/useAlert";
-import axiosInstance from "@/app/common/utils/axios.instance";
+import clientKyInstance from "@/app/common/utils/client-ky.instance";
 import { handleFormSubmissionError } from "@/app/common/utils";
 import FormikField from "@/app/common/components/Forms/FormikField";
 import { emailValidationSchema } from "@/app/common/constants/validationSchemas";
@@ -25,10 +25,9 @@ const ResendVerificationEmailForm = () => {
       onSubmit={(values, { setSubmitting, resetForm, setFieldError }) => {
         new Promise(async (resolve, reject) => {
           try {
-            const { data } = await axiosInstance.post(
-              "/auth/resend-email/",
-              values
-            );
+            const data = await clientKyInstance
+              .post("auth/resend-email/", { json: values })
+              .json();
             resolve(data);
           } catch (err) {
             reject(err);

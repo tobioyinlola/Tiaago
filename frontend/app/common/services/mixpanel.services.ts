@@ -1,4 +1,4 @@
-import axios from "axios";
+import ky from "ky";
 import UAParser from "ua-parser-js";
 import { v4 as uuidv4 } from "uuid";
 
@@ -12,11 +12,11 @@ import {
 import { User } from "../types";
 
 const getLocationData = async () => {
-  const { data } = await axios.get("/api/country", {
-    params: {
+  const data = await ky.get("/api/country", {
+    searchParams: {
       fields: "country,regionName,city",
     },
-  });
+  }).json();
   return data as {
     country?: string;
     regionName?: string;

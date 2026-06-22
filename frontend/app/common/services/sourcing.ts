@@ -1,7 +1,7 @@
 "use server";
 
-import axiosInstance, { publicAxiosInstance } from "../utils/axios.instance";
 import serverKyInstance from "../utils/server-ky.instance";
+import { publicKyInstance } from "../utils/client-ky.instance";
 import {
   GetPipelineResponse,
   ID,
@@ -1364,8 +1364,8 @@ export const sourcingSearch = async (data: SourcingSearchInput) => {
         data: mockCandidates,
       };
     }
-    const response = await axiosInstance.post("sourcing/sourcing/", data);
-    const candidates = response.data?.candidates as
+    const responseData = await serverKyInstance.post("sourcing/sourcing/", { json: data }).json<any>();
+    const candidates = responseData?.candidates as
       | ServerCandidate[]
       | undefined;
     if (candidates) {
@@ -1376,7 +1376,7 @@ export const sourcingSearch = async (data: SourcingSearchInput) => {
     } else {
       return {
         success: false as const,
-        error: response.data?.message || "Failed to retrieve candidates",
+        error: responseData?.message || "Failed to retrieve candidates",
       };
     }
   } catch (error) {
@@ -1397,13 +1397,10 @@ export const addToPipeline = async (candidate: ServerCandidate) => {
     if (!candidate.education) {
       const { education: _, ...rest } = candidate; data = rest;
     }
-    const response = await axiosInstance.post(
-      "sourcing/add-to-pipeline/",
-      data
-    );
+    const responseData = await serverKyInstance.post("sourcing/add-to-pipeline/", { json: data }).json<any>();
     return {
       success: true as const,
-      data: response.data.data as PipelineEntry,
+      data: responseData.data as PipelineEntry,
     };
   } catch (error) {
     const [errMsg, errorMap] = await _handleServerApiCallError(error);
@@ -1427,18 +1424,17 @@ export const bulkAddToPipeline = async (candidates: ServerCandidate[]) => {
       return data;
     });
 
-    const response = await axiosInstance.post(
-      "sourcing/add-to-pipeline/",
-      JSON.parse(
+    const responseData = await serverKyInstance.post("sourcing/add-to-pipeline/", {
+      json: JSON.parse(
         JSON.stringify({
           candidates: cleanedCandidates,
         })
-      )
-    );
-    console.log(response.data);
+      ),
+    }).json<any>();
+    console.log(responseData);
     return {
       success: true as const,
-      data: response.data.data as PipelineEntry[],
+      data: responseData.data as PipelineEntry[],
     };
   } catch (error) {
     const [errMsg, errorMap] = await _handleServerApiCallError(error);
@@ -1453,15 +1449,15 @@ export const bulkAddToPipeline = async (candidates: ServerCandidate[]) => {
 
 export const deletePipelineEntry = async (id: ID) => {
   try {
-    const response = await axiosInstance.delete<{
+    const data = await serverKyInstance.delete(`sourcing/remove-from-pipeline/${id}/`).json<{
       message: string;
       total_in_pipeline: number;
       category_id: number | null;
       category_candidate_count: number | null;
-    }>(`sourcing/remove-from-pipeline/${id}/`);
+    }>();
     return {
       success: true as const,
-      data: response.data,
+      data,
     };
   } catch (error) {
     const [errMsg, errorMap] = await _handleServerApiCallError(error);
@@ -1494,11 +1490,10 @@ export const getCategories = async () => {
 
 export const createCategory = async (name: string, description: string) => {
   try {
-    const response = await axiosInstance.post("sourcing/categories/", {
-      name,
-      description,
-    });
-    return { success: true as const, data: response.data as PipelineCategory };
+    const data = await serverKyInstance.post("sourcing/categories/", {
+      json: { name, description },
+    }).json<PipelineCategory>();
+    return { success: true as const, data };
   } catch (error) {
     const [errMsg] = await _handleServerApiCallError(error);
     return { success: false as const, error: errMsg };
@@ -1510,8 +1505,8 @@ export const updateCategory = async (
   data: Partial<Pick<PipelineCategory, "name" | "description" | "is_active">>
 ) => {
   try {
-    const response = await axiosInstance.patch(`sourcing/categories/${id}/`, data);
-    return { success: true as const, data: response.data as PipelineCategory };
+    const responseData = await serverKyInstance.patch(`sourcing/categories/${id}/`, { json: data }).json<PipelineCategory>();
+    return { success: true as const, data: responseData };
   } catch (error) {
     const [errMsg] = await _handleServerApiCallError(error);
     return { success: false as const, error: errMsg };
@@ -1520,7 +1515,7 @@ export const updateCategory = async (
 
 export const deleteCategory = async (id: ID) => {
   try {
-    await axiosInstance.delete(`sourcing/categories/${id}/`);
+    await serverKyInstance.delete(`sourcing/categories/${id}/`).json();
     return { success: true as const };
   } catch (error) {
     const [errMsg] = await _handleServerApiCallError(error);
@@ -1533,8 +1528,8 @@ export const updatePipelineEntry = async (
   data: { status?: string; category?: number | null }
 ) => {
   try {
-    const response = await axiosInstance.patch(`sourcing/pipeline/${id}/`, data);
-    return { success: true as const, data: response.data as PipelineEntry };
+    const responseData = await serverKyInstance.patch(`sourcing/pipeline/${id}/`, { json: data }).json<PipelineEntry>();
+    return { success: true as const, data: responseData };
   } catch (error) {
     const [errMsg] = await _handleServerApiCallError(error);
     return { success: false as const, error: errMsg };
@@ -1543,8 +1538,8 @@ export const updatePipelineEntry = async (
 
 export const validateInviteToken = async (token: string) => {
   try {
-    const res = await publicAxiosInstance.get(`sourcing/invite/${token}/`);
-    return { success: true as const, data: res.data as { category_name: string; company_name: string; is_active: boolean } };
+    const data = await publicKyInstance.get(`sourcing/invite/${token}/`).json<{ category_name: string; company_name: string; is_active: boolean }>();
+    return { success: true as const, data };
   } catch (error) {
     const [errMsg] = await _handleServerApiCallError(error);
     return { success: false as const, error: errMsg };
@@ -1553,10 +1548,10 @@ export const validateInviteToken = async (token: string) => {
 
 export const submitInviteApplication = async (token: string, data: FormData) => {
   try {
-    const res = await axiosInstance.post(`sourcing/invite/${token}/submit/`, data, {
-      headers: { "Content-Type": "multipart/form-data" },
-    });
-    return { success: true as const, data: res.data };
+    const responseData = await serverKyInstance.post(`sourcing/invite/${token}/submit/`, {
+      body: data,
+    }).json();
+    return { success: true as const, data: responseData };
   } catch (error) {
     const [errMsg] = await _handleServerApiCallError(error);
     return { success: false as const, error: errMsg };
@@ -1565,8 +1560,8 @@ export const submitInviteApplication = async (token: string, data: FormData) => 
 
 export const generateInviteLink = async (categoryId: ID) => {
   try {
-    const res = await axiosInstance.post(`sourcing/categories/${categoryId}/invite-link/`);
-    return { success: true as const, data: res.data.data as { id: number; token: string; invite_url: string; category_name: string; is_active: boolean } };
+    const responseData = await serverKyInstance.post(`sourcing/categories/${categoryId}/invite-link/`).json<any>();
+    return { success: true as const, data: responseData.data as { id: number; token: string; invite_url: string; category_name: string; is_active: boolean } };
   } catch (error) {
     const [errMsg] = await _handleServerApiCallError(error);
     return { success: false as const, error: errMsg };
@@ -1586,8 +1581,8 @@ export type SmtpConfig = {
 
 export const getSmtpConfig = async () => {
   try {
-    const res = await axiosInstance.get("sourcing/smtp-config/");
-    return { success: true as const, data: res.data.data as SmtpConfig | null };
+    const responseData = await serverKyInstance.get("sourcing/smtp-config/").json<any>();
+    return { success: true as const, data: responseData.data as SmtpConfig | null };
   } catch (error) {
     const [errMsg] = await _handleServerApiCallError(error);
     return { success: false as const, error: errMsg };
@@ -1596,8 +1591,8 @@ export const getSmtpConfig = async () => {
 
 export const saveSmtpConfig = async (data: { gmail_address: string; app_password: string }) => {
   try {
-    const res = await axiosInstance.post("sourcing/smtp-config/", data);
-    return { success: true as const, data: res.data.data as SmtpConfig };
+    const responseData = await serverKyInstance.post("sourcing/smtp-config/", { json: data }).json<any>();
+    return { success: true as const, data: responseData.data as SmtpConfig };
   } catch (error) {
     const [errMsg] = await _handleServerApiCallError(error);
     return { success: false as const, error: errMsg };
@@ -1606,8 +1601,8 @@ export const saveSmtpConfig = async (data: { gmail_address: string; app_password
 
 export const verifySmtpConfig = async () => {
   try {
-    const res = await axiosInstance.post("sourcing/smtp-config/verify/");
-    return { success: true as const, message: res.data.message as string };
+    const responseData = await serverKyInstance.post("sourcing/smtp-config/verify/").json<any>();
+    return { success: true as const, message: responseData.message as string };
   } catch (error) {
     const [errMsg] = await _handleServerApiCallError(error);
     return { success: false as const, error: errMsg };
@@ -1616,7 +1611,7 @@ export const verifySmtpConfig = async () => {
 
 export const deleteSmtpConfig = async () => {
   try {
-    await axiosInstance.delete("sourcing/smtp-config/");
+    await serverKyInstance.delete("sourcing/smtp-config/").json();
     return { success: true as const };
   } catch (error) {
     const [errMsg] = await _handleServerApiCallError(error);
@@ -1628,8 +1623,8 @@ export const deleteSmtpConfig = async () => {
 
 export const sendOutreach = async (data: { candidate_ids: number[]; subject: string; body: string }) => {
   try {
-    const res = await axiosInstance.post("sourcing/send-outreach/", data);
-    return { success: true as const, data: res.data as { sent: number; failed: number; total: number } };
+    const responseData = await serverKyInstance.post("sourcing/send-outreach/", { json: data }).json<{ sent: number; failed: number; total: number }>();
+    return { success: true as const, data: responseData };
   } catch (error) {
     const [errMsg] = await _handleServerApiCallError(error);
     return { success: false as const, error: errMsg };

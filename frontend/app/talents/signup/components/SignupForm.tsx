@@ -12,7 +12,7 @@ import {
   startupSignupformSteps,
 } from "../constants/form.contants";
 import { useAlert } from "@/app/common/store/useAlert";
-import axiosInstance from "@/app/common/utils/axios.instance";
+import clientKyInstance from "@/app/common/utils/client-ky.instance";
 import { CountryField, TalentRole } from "@/app/common/types";
 import { useMultiStep } from "@/app/common/store/useMultiStep";
 import FileInput from "@/app/common/components/Forms/FileInput";
@@ -60,10 +60,10 @@ const SignupForm = ({
               // add https:// to portfolio if it doesn't exist
               if (portfolio && !portfolio.startsWith("http"))
                 formData.set("portfolio", `https://${portfolio}`);
-              const { data } = await axiosInstance.post(
-                "/auth/register/",
-                formData
-              );
+              const data = await clientKyInstance.post(
+                "auth/register/",
+                { body: formData }
+              ).json();
               try {
                 if (process.env.NODE_ENV === "production")
                   await trackSignup({

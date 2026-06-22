@@ -11,7 +11,7 @@ import {
   changePasswordSchema,
 } from "./changePasswordForm";
 import { useAlert } from "../../store/useAlert";
-import axiosInstance from "../../utils/axios.instance";
+import clientKyInstance from "@/app/common/utils/client-ky.instance";
 import { handleFormSubmissionError } from "../../utils";
 import FormikField from "@/app/common/components/Forms/FormikField";
 import { GoogleIcon } from "@/app/common/icons/GoogleIcon";
@@ -46,10 +46,9 @@ const SecurityTab = () => {
             new Promise(async (resolve, reject) => {
               try {
                 toast.dismiss();
-                const { data } = await axiosInstance.post(
-                  "/auth/password/change/",
-                  values
-                );
+                const data = await clientKyInstance
+                  .post("/auth/password/change/", { json: values })
+                  .json();
                 resolve(data);
               } catch (err) {
                 reject(err);

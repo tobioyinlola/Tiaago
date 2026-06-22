@@ -1,6 +1,6 @@
 ﻿"use client";
 import { toast } from "sonner";
-import { AxiosError } from "axios";
+import { HTTPError } from "ky";
 import Button from "@/app/common/components/DaisyButton";
 import { useRouter } from "next/navigation";
 import { useState, FormEvent, useRef } from "react";
@@ -9,7 +9,7 @@ import { toId } from "@/app/common/utils";
 import { TalentRole } from "@/app/common/types";
 import { IS_DEV } from "@/app/common/constants";
 import { ButtonModal } from "@/app/common/components/Modal";
-import axiosInstance from "@/app/common/utils/axios.instance";
+import clientKyInstance from "@/app/common/utils/client-ky.instance";
 
 const AddNewRole = ({ refresh = false, buttonClassName = "btn-primary" }) => {
   const router = useRouter();
@@ -24,11 +24,15 @@ const AddNewRole = ({ refresh = false, buttonClassName = "btn-primary" }) => {
     if (loading || !role) return;
     setLoading(true);
     try {
-      await axiosInstance.post<TalentRole>("/roles/", {
-        title: role,
-        slug: toId(role),
-        is_technical: isTechnical,
-      });
+      await clientKyInstance
+        .post("roles/", {
+          json: {
+            title: role,
+            slug: toId(role),
+            is_technical: isTechnical,
+          },
+        })
+        .json<TalentRole>();
       setLoading(false);
       setError("");
       toast.success("Role added successfully");
@@ -37,8 +41,9 @@ const AddNewRole = ({ refresh = false, buttonClassName = "btn-primary" }) => {
     } catch (error: any) {
       if (IS_DEV) console.log({ error });
       setLoading(false);
-      if (error instanceof AxiosError) {
-        setError(error.response?.data?.detail ?? error.message);
+      if (error instanceof HTTPError) {
+        const body = await error.response.json().catch(() => ({}));
+        setError(body?.detail ?? error.message);
       } else setError(error?.message ?? "Something went wrong");
     }
   };

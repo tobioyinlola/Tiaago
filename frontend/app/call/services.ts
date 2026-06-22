@@ -1,4 +1,4 @@
-import axios from "axios";
+import ky from "ky";
 
 type Room = {
   id: string;
@@ -17,10 +17,10 @@ const BASE_URL = "https://api.daily.co/v1/rooms";
 
 export const getRoom = async (roomId: string) => {
   try {
-    const { data } = await axios.get(`${BASE_URL}/${roomId}`, {
+    const data = await ky.get(`${BASE_URL}/${roomId}`, {
       headers,
-    });
-    return data as Room;
+    }).json<Room>();
+    return data;
   } catch (err) {
     console.error("error:" + err);
     return null;
@@ -29,9 +29,9 @@ export const getRoom = async (roomId: string) => {
 
 export const createRoom = async (roomId: string) => {
   try {
-    const { data } = await axios.post(
-      BASE_URL,
-      {
+    const data = await ky.post(BASE_URL, {
+      headers,
+      json: {
         name: roomId,
         properties: {
           enable_screenshare: true,
@@ -41,9 +41,8 @@ export const createRoom = async (roomId: string) => {
           lang: "en",
         },
       },
-      { headers }
-    );
-    return data as Room;
+    }).json<Room>();
+    return data;
   } catch (err) {
     console.error("error:" + err);
     return null;

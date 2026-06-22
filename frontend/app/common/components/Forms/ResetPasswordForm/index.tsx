@@ -10,7 +10,7 @@ import {
   resetPasswordValidationSchema,
 } from "./form.constants";
 import { useAlert } from "@/app/common/store/useAlert";
-import axiosInstance from "@/app/common/utils/axios.instance";
+import clientKyInstance from "@/app/common/utils/client-ky.instance";
 import {
   getOnboardingUrl,
   handleFormSubmissionError,
@@ -32,13 +32,14 @@ const ResetPasswordForm = ({ token, uid, as }: ResetPasswordFormProps) => {
       onSubmit={(input, { setSubmitting, resetForm, setFieldError }) => {
         new Promise(async (resolve, reject) => {
           try {
-            const { data } = await axiosInstance.post(
-              `/auth/password/reset/confirm/${uid}/${token}/`,
-              {
-                new_password1: input.password1,
-                new_password2: input.password2,
-              }
-            );
+            const data = await clientKyInstance
+              .post(`/auth/password/reset/confirm/${uid}/${token}/`, {
+                json: {
+                  new_password1: input.password1,
+                  new_password2: input.password2,
+                },
+              })
+              .json();
             resolve(data);
           } catch (err) {
             reject(err);

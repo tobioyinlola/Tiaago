@@ -18,7 +18,6 @@ import {
   AssessmentCert3,
 } from "../types";
 import { _handleServerApiCallError, handleServerApiCallError } from "../utils";
-import axiosInstance from "../utils/axios.instance";
 import serverKyInstance from "../utils/server-ky.instance";
 import { initialValues } from "@/app/startups/dashboard/constants/assessment-form.constants";
 
@@ -58,33 +57,30 @@ export type AssessmentInput = {
 export const createAssessment = async (
   data: Omit<AssessmentInput, "roll_out">
 ) => {
-  const response = await axiosInstance.post<SkillAssessmentQuiz>(
-    "quizzes/",
-    data
-  );
-  return response.data;
+  const result = await serverKyInstance
+    .post("quizzes/", { json: data })
+    .json<SkillAssessmentQuiz>();
+  return result;
 };
 
 export const updateAssessment = async (
   slug: string,
   data: Omit<AssessmentInput, "roll_out">
 ) => {
-  const response = await axiosInstance.put<SkillAssessmentQuiz>(
-    `quizzes/${slug}/`,
-    data
-  );
-  return response.data;
+  const result = await serverKyInstance
+    .put(`quizzes/${slug}/`, { json: data })
+    .json<SkillAssessmentQuiz>();
+  return result;
 };
 
 export const updateAssessmentStatus = async (
   slug: string,
   roll_out: boolean
 ) => {
-  const response = await axiosInstance.patch<SkillAssessmentQuiz>(
-    `quizzes/${slug}/`,
-    { roll_out }
-  );
-  return response.data;
+  const result = await serverKyInstance
+    .patch(`quizzes/${slug}/`, { json: { roll_out } })
+    .json<SkillAssessmentQuiz>();
+  return result;
 };
 
 export const getAssessment = async (slug: string) => {
@@ -118,11 +114,10 @@ export const createAssessmentQuestion = async (
   slug: string,
   data: AssessmentQuestionInput
 ) => {
-  const response = await axiosInstance.post<AssessmentQuestion>(
-    `quizzes/${slug}/questions/`,
-    data
-  );
-  return response.data;
+  const result = await serverKyInstance
+    .post(`quizzes/${slug}/questions/`, { json: data })
+    .json<AssessmentQuestion>();
+  return result;
 };
 
 export const updateAssessmentQuestion = async (
@@ -130,11 +125,10 @@ export const updateAssessmentQuestion = async (
   id: ID,
   data: AssessmentQuestionInput
 ) => {
-  const response = await axiosInstance.put<AssessmentQuestion>(
-    `quizzes/${slug}/questions/${id}/`,
-    data
-  );
-  return response.data;
+  const result = await serverKyInstance
+    .put(`quizzes/${slug}/questions/${id}/`, { json: data })
+    .json<AssessmentQuestion>();
+  return result;
 };
 
 export const deleteAssessmentQuestion = async (slug: string, id: ID) =>
@@ -188,11 +182,10 @@ export type AttemptQuestionResponse = AttemptQuestionInput & {
 };
 
 export const attemptQuestion = async (json: AttemptQuestionInput) => {
-  const response = await axiosInstance.post<AttemptQuestionResponse>(
-    "quizzes/attempt-quiz/answer-question/",
-    json
-  );
-  return response.data;
+  const result = await serverKyInstance
+    .post("quizzes/attempt-quiz/answer-question/", { json })
+    .json<AttemptQuestionResponse>();
+  return result;
 };
 
 export const getCompanyAssessments = async (
@@ -224,11 +217,10 @@ export const getCompanyAssessment = async (id: ID) => {
 
 export const createCompanyAssessment = async (data: typeof initialValues) => {
   try {
-    const response = await axiosInstance.post<CompanySkillAssessment>(
-      "skill-assessments/company-assessments",
-      data
-    );
-    return response.data;
+    const result = await serverKyInstance
+      .post("skill-assessments/company-assessments", { json: data })
+      .json<CompanySkillAssessment>();
+    return result;
   } catch (error) {
     throw Error(await handleServerApiCallError(error));
   }
@@ -250,13 +242,12 @@ export const attemptCompanyAssessmentMCQs = async (
   }
 ): Promise<ApiResponse<CompanySkillAssessment>> => {
   try {
-    const response = await axiosInstance.post<CompanySkillAssessment>(
-      `skill-assessments/company-assessments/${id}/take`,
-      data
-    );
+    const result = await serverKyInstance
+      .post(`skill-assessments/company-assessments/${id}/take`, { json: data })
+      .json<CompanySkillAssessment>();
     return {
       success: true,
-      data: response.data,
+      data: result,
     };
   } catch (error) {
     const [errMsg, errorMap] = await _handleServerApiCallError(error);
@@ -278,20 +269,21 @@ export const attemptCompanyAssessmentCodeSection = async (
   }[]
 ): Promise<ApiResponse<CompanySkillAssessment>> => {
   try {
-    const response = await axiosInstance.post<CompanySkillAssessment>(
-      `skill-assessments/company-assessments/${id}/take`,
-      {
-        answers: [
-          {
-            coding_task_answers,
-            section_id,
-          },
-        ],
-      }
-    );
+    const result = await serverKyInstance
+      .post(`skill-assessments/company-assessments/${id}/take`, {
+        json: {
+          answers: [
+            {
+              coding_task_answers,
+              section_id,
+            },
+          ],
+        },
+      })
+      .json<CompanySkillAssessment>();
     return {
       success: true,
-      data: response.data,
+      data: result,
     };
   } catch (error) {
     const [errMsg, errorMap] = await _handleServerApiCallError(error);
@@ -312,9 +304,11 @@ export const getAssessmentResults = async (id: ID) => {
 };
 
 export const getAssessmentResultsList = async (id: ID) => {
-  const response = (await serverKyInstance.get)<
-    PagedResource<SkillAssessmentResult>
-  >(`skill-assessments/skill-assessment-results/${id}`).json();
+  const response = await serverKyInstance
+    .get<PagedResource<SkillAssessmentResult>>(
+      `skill-assessments/skill-assessment-results/${id}`
+    )
+    .json();
   return response;
 };
 
@@ -323,15 +317,14 @@ export const initiateAssessmentPayment = async (
   coupon_code?: string
 ) => {
   try {
-    const response = await axiosInstance.post<{
-      payment_url?: string;
-    }>("skill-assessments/initiate-assessment-payment/", {
-      assessment_id: id,
-      coupon_code,
-    });
+    const result = await serverKyInstance
+      .post("skill-assessments/initiate-assessment-payment/", {
+        json: { assessment_id: id, coupon_code },
+      })
+      .json<{ payment_url?: string }>();
     return {
       success: true,
-      data: response.data,
+      data: result,
     };
   } catch (error) {
     const [errMsg, errorMap] = await _handleServerApiCallError(error);
@@ -364,13 +357,12 @@ export const getAssessmentStacks = async (page = 1, page_size = 10) => {
 
 export const uploadMcqAssessment = async (data: FormData) => {
   try {
-    const response = await axiosInstance.post<CompanySkillAssessment>(
-      "skill-assessments/staff/add-mcq-assessment/",
-      data
-    );
+    const result = await serverKyInstance
+      .post("skill-assessments/staff/add-mcq-assessment/", { body: data })
+      .json<CompanySkillAssessment>();
     return {
       success: true,
-      data: response.data,
+      data: result,
     };
   } catch (error) {
     const errMsg = await handleServerApiCallError(error);
@@ -391,18 +383,15 @@ export const createCodeAssessment = async (json: {
   duration_minutes: number;
 }) => {
   try {
-    const response = await axiosInstance.post<CompanySkillAssessment>(
-      "skill-assessments/staff/add-coding-assessment/",
-      json,
-      {
-        params: {
-          v: 2,
-        },
-      }
-    );
+    const result = await serverKyInstance
+      .post("skill-assessments/staff/add-coding-assessment/", {
+        json,
+        searchParams: { v: 2 },
+      })
+      .json<CompanySkillAssessment>();
     return {
       success: true,
-      data: response.data,
+      data: result,
     };
   } catch (error) {
     const errMsg = await handleServerApiCallError(error);
@@ -464,13 +453,12 @@ export const createOrGetAssessmentCert = async (
 
 export const uploadAssessmentCert = async (id: ID, data: FormData) => {
   try {
-    const response = await axiosInstance.patch<AssessmentCert>(
-      `skill-assessments/certificates/${id}/upload/`,
-      data
-    );
+    const result = await serverKyInstance
+      .patch(`skill-assessments/certificates/${id}/upload/`, { body: data })
+      .json<AssessmentCert>();
     return {
       success: true,
-      data: response.data,
+      data: result,
     };
   } catch (error) {
     const errMsg = await handleServerApiCallError(error);

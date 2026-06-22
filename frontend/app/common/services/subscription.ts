@@ -14,7 +14,6 @@ import {
   WalletUsage,
 } from "../types";
 import { _handleServerApiCallError, handleServerApiCallError } from "../utils";
-import axiosInstance from "../utils/axios.instance";
 import serverKyInstance from "../utils/server-ky.instance";
 
 export const getSubscriptionPlan = async (
@@ -56,21 +55,20 @@ export const getSubscriptionInvoices = async (): Promise<
 
 // new APIs
 export const getStripeClientSecret = async () => {
-  const response = await axiosInstance.post<{ client_secret: string }>(
-    "payments/setup-intent/"
-  );
-  return response.data;
+  const data = await serverKyInstance
+    .post("payments/setup-intent/")
+    .json<{ client_secret: string }>();
+  return data;
 };
 
 export const addStripePaymentMethod = async (payment_method_id: string) => {
   try {
-    const response = await axiosInstance.post<{ payment_method_id: string }>(
-      "payments/payment-methods/",
-      {
-        payment_method_id,
-      }
-    );
-    return response.data;
+    const data = await serverKyInstance
+      .post("payments/payment-methods/", {
+        json: { payment_method_id },
+      })
+      .json<{ payment_method_id: string }>();
+    return data;
   } catch (error) {
     throw Error(await handleServerApiCallError(error));
   }
@@ -90,13 +88,12 @@ export const getPaymentCards = async (page = 1, page_size = 3) => {
 
 export const addPaystackPaymentMethod = async (transaction_ref: string) => {
   try {
-    const response = await axiosInstance.post<{ transaction_ref: string }>(
-      "payments/paystack-payment-method/",
-      {
-        transaction_ref,
-      }
-    );
-    return response.data;
+    const data = await serverKyInstance
+      .post("payments/paystack-payment-method/", {
+        json: { transaction_ref },
+      })
+      .json<{ transaction_ref: string }>();
+    return data;
   } catch (error) {
     throw Error(await handleServerApiCallError(error));
   }
@@ -104,12 +101,12 @@ export const addPaystackPaymentMethod = async (transaction_ref: string) => {
 
 export const deletePaymentMethod = async (id: ID) => {
   try {
-    const response = await axiosInstance.delete(
-      `payments/payment-method/${id}/delete/`
-    );
+    const data = await serverKyInstance
+      .delete(`payments/payment-method/${id}/delete/`)
+      .json();
     return {
       success: true,
-      data: response.data,
+      data,
     };
   } catch (error) {
     const errMsg = await handleServerApiCallError(error);
@@ -123,13 +120,12 @@ export const deletePaymentMethod = async (id: ID) => {
 
 export const setDefaultPaymentMethod = async (id: ID) => {
   try {
-    const response = await axiosInstance.patch(
-      `payments/payment-method/${id}/set-default/`,
-      {}
-    );
+    const data = await serverKyInstance
+      .patch(`payments/payment-method/${id}/set-default/`, { json: {} })
+      .json();
     return {
       success: true,
-      data: response.data,
+      data,
     };
   } catch (error) {
     const errMsg = await handleServerApiCallError(error);
@@ -162,19 +158,21 @@ export const getPaystackSubscriptionPlans = async (): Promise<
 
 export const subscribeToPaystackPlan = async (plan_code: string) => {
   try {
-    const response = await axiosInstance.post<{
-      status: "subscription created";
-      data: {
-        authorization_url: string;
-        access_code: string;
-        reference: string;
-      };
-    }>("subscriptions/paystack/subscriptions/", {
-      plan_code,
-    });
+    const data = await serverKyInstance
+      .post("subscriptions/paystack/subscriptions/", {
+        json: { plan_code },
+      })
+      .json<{
+        status: "subscription created";
+        data: {
+          authorization_url: string;
+          access_code: string;
+          reference: string;
+        };
+      }>();
     return {
       success: true,
-      data: response.data,
+      data,
     };
   } catch (error) {
     const [errMsg, errorMap] = await _handleServerApiCallError(error);
@@ -227,20 +225,20 @@ export const subscribeToStripePlan = async (
   success_url: string
 ) => {
   try {
-    const response = await axiosInstance.post<{
-      status: "subscription created";
-      data: {
-        checkout_url: string;
-        session_id: string;
-      };
-    }>("subscriptions/create-stripe-checkout-session/", {
-      price_id,
-      success_url,
-    });
-
+    const data = await serverKyInstance
+      .post("subscriptions/create-stripe-checkout-session/", {
+        json: { price_id, success_url },
+      })
+      .json<{
+        status: "subscription created";
+        data: {
+          checkout_url: string;
+          session_id: string;
+        };
+      }>();
     return {
       success: true,
-      data: response.data,
+      data,
     };
   } catch (error) {
     const [errMsg, errorMap] = await _handleServerApiCallError(error);
@@ -255,15 +253,17 @@ export const subscribeToStripePlan = async (
 
 export const subscribeToFreePlan = async () => {
   try {
-    const response = await axiosInstance.post<{
-      status: "subscription created";
-      data: {
-        status: string;
-      };
-    }>("subscriptions/free-plan-subscription/");
+    const data = await serverKyInstance
+      .post("subscriptions/free-plan-subscription/")
+      .json<{
+        status: "subscription created";
+        data: {
+          status: string;
+        };
+      }>();
     return {
       success: true,
-      data: response.data,
+      data,
     };
   } catch (error) {
     const [errMsg, errorMap] = await _handleServerApiCallError(error);
@@ -302,16 +302,20 @@ export const fundWallet = async (
   provider: "stripe" | "paystack"
 ) => {
   try {
-    const response = await axiosInstance.post<{
-      data: { checkout_url: string; authorization_url: string };
-    }>("subscriptions/fund-wallet/", {
-      amount,
-      provider,
-      success_url: `${BASE_URL}/startups/dashboard/billing`,
-    });
+    const result = await serverKyInstance
+      .post("subscriptions/fund-wallet/", {
+        json: {
+          amount,
+          provider,
+          success_url: `${BASE_URL}/startups/dashboard/billing`,
+        },
+      })
+      .json<{
+        data: { checkout_url: string; authorization_url: string };
+      }>();
     return {
       success: true,
-      data: response.data?.data,
+      data: result?.data,
     };
   } catch (error) {
     const [errMsg, errorMap] = await _handleServerApiCallError(error);

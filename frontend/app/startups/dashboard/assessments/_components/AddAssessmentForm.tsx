@@ -15,7 +15,7 @@ import {
 } from "../../constants/assessment-form.constants";
 import { TalentRole } from "@/app/common/types";
 import { useAlert } from "@/app/common/store/useAlert";
-import axiosInstance from "@/app/common/utils/axios.instance";
+import clientKyInstance from "@/app/common/utils/client-ky.instance";
 import { handleFormSubmissionError } from "@/app/common/utils";
 import FormikField from "@/app/common/components/Forms/FormikField";
 
@@ -39,11 +39,12 @@ const AddAssessmentForm = ({
           toast.dismiss();
           try {
             // const data = await createCompanyAssessment(values);
-            const data = await axiosInstance.post(
-              "skill-assessments/company-assessments",
-              values
-            );
-            resolve(data.data);
+            const data = await clientKyInstance
+              .post("skill-assessments/company-assessments", {
+                json: values,
+              })
+              .json();
+            resolve(data);
           } catch (err) {
             reject(err);
           }

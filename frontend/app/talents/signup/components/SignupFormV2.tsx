@@ -10,7 +10,7 @@ import { IoLockClosed, IoMail, IoPersonSharp } from "react-icons/io5";
 
 import { TalentRole } from "@/app/common/types";
 import { useAlert } from "@/app/common/store/useAlert";
-import axiosInstance from "@/app/common/utils/axios.instance";
+import clientKyInstance from "@/app/common/utils/client-ky.instance";
 import { cn, handleFormSubmissionError } from "@/app/common/utils";
 import { trackSignup } from "@/app/common/services/mixpanel.services";
 import Button from "@/app/common/components/DaisyButton";
@@ -114,13 +114,15 @@ const SignupFormV2 = ({ talentRoles }: { talentRoles: TalentRole[] }) => {
         toast.dismiss();
         setSubmitting(true);
         try {
-          const { data } = await axiosInstance.post("/auth/register/", {
-            email: formData.email,
-            role: formData.role,
-            full_name: formData.name,
-            password1: formData.password,
-            password2: formData.password,
-          });
+          const data = await clientKyInstance.post("auth/register/", {
+            json: {
+              email: formData.email,
+              role: formData.role,
+              full_name: formData.name,
+              password1: formData.password,
+              password2: formData.password,
+            },
+          }).json();
           const [first_name = "", last_name = ""] = formData.name.split(" ");
           try {
             if (process.env.NODE_ENV === "production")

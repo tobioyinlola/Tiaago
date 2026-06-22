@@ -1,5 +1,4 @@
 "use server";
-import axiosInstance from "../utils/axios.instance";
 import serverKyInstance from "../utils/server-ky.instance";
 import { ID, CaseStudyProject, CaseStudyAttempt } from "../types";
 
@@ -25,22 +24,24 @@ type CaseStudyProjectInput = {
 };
 
 export const createCaseStudyProject = async (data: CaseStudyProjectInput) => {
-  const response = await axiosInstance
-    .post<CaseStudyProject>("case-study-projects/", data);
-  return response.data;
+  const responseData = await serverKyInstance
+    .post("case-study-projects/", { json: data })
+    .json<CaseStudyProject>();
+  return responseData;
 };
 
 export const updateCaseStudyProject = async (
   id: ID,
   data: CaseStudyProjectInput
 ) => {
-  const response = await axiosInstance
-    .put<CaseStudyProject>(`case-study-projects/${id}/`, data);
-  return response.data;
+  const responseData = await serverKyInstance
+    .put(`case-study-projects/${id}/`, { json: data })
+    .json<CaseStudyProject>();
+  return responseData;
 };
 
 export const deleteCaseStudyProject = async (id: ID) => {
-  await axiosInstance.delete(`case-study-projects/${id}/`);
+  await serverKyInstance.delete(`case-study-projects/${id}/`);
 };
 
 export const getAvailableCaseStudyProjects = async () => {
@@ -52,11 +53,12 @@ export const getAvailableCaseStudyProjects = async () => {
 };
 
 export const attemptCaseStudyProject = async (id: ID, submission?: string) => {
-  const response = await axiosInstance
-    .post<CaseStudyAttempt>(`case-study-projects/${id}/attempt-case-study/`, 
-      submission ? { submission } : {}
-    );
-  return response.data;
+  const responseData = await serverKyInstance
+    .post(`case-study-projects/${id}/attempt-case-study/`, {
+      json: submission ? { submission } : {},
+    })
+    .json<CaseStudyAttempt>();
+  return responseData;
 };
 
 export const getCaseStudyAttempts = async () => {
@@ -82,12 +84,12 @@ export const submitCaseStudyProject = async (
   attemptId: ID,
   submission: string
 ) => {
-  const response = await axiosInstance
-    .put<CaseStudyAttempt>(
-      `case-study-projects/${id}/attempt-case-study/${attemptId}/`,
-      { submission }
-    );
-  return response.data;
+  const responseData = await serverKyInstance
+    .put(`case-study-projects/${id}/attempt-case-study/${attemptId}/`, {
+      json: { submission },
+    })
+    .json<CaseStudyAttempt>();
+  return responseData;
 };
 
 export const approveCaseStudyAttempt = async (
@@ -97,10 +99,11 @@ export const approveCaseStudyAttempt = async (
   approved: boolean,
   remark: string
 ) => {
-  const response = await axiosInstance
-    .put<CaseStudyAttempt>(
+  const responseData = await serverKyInstance
+    .put(
       `case-study-projects/${project_id}/attempt-case-study/${id}/talent/${talent_id}/`,
-      { approved, remark }
-    );
-  return response.data;
+      { json: { approved, remark } }
+    )
+    .json<CaseStudyAttempt>();
+  return responseData;
 };

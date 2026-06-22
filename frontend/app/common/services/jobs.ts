@@ -1,6 +1,5 @@
 "use server";
 import { handleServerApiCallError } from "../utils";
-import axiosInstance from "../utils/axios.instance";
 import serverKyInstance from "../utils/server-ky.instance";
 import { ApiResponse, ID, Job, JobApplication, PagedResource } from "../types";
 import { InitialValues as JobFormPayload } from "@/app/startups/dashboard/jobs/create/CreateJobForm/form.constants";
@@ -39,10 +38,12 @@ export const createJob = async (
   job: JobFormPayload
 ): Promise<ApiResponse<Job>> => {
   try {
-    const response = await axiosInstance.post<Job>("jobs/", job);
+    const data = await serverKyInstance
+      .post("jobs/", { json: job })
+      .json<Job>();
     return {
       success: true,
-      data: response.data,
+      data,
     };
   } catch (error) {
     const errMsg = await handleServerApiCallError(error);
@@ -56,13 +57,12 @@ export const createJob = async (
 
 export const submitJobApplication = async (jobId: ID, cover_letter: string) => {
   try {
-    const response = await axiosInstance.post<JobApplication>(
-      `jobs/${jobId}/apply/`,
-      { cover_letter }
-    );
+    const data = await serverKyInstance
+      .post(`jobs/${jobId}/apply/`, { json: { cover_letter } })
+      .json<JobApplication>();
     return {
       success: true,
-      data: response.data,
+      data,
     };
   } catch (error) {
     const errMsg = await handleServerApiCallError(error);
@@ -97,10 +97,12 @@ export const updateJob = async (
   job: Partial<JobFormPayload>
 ): Promise<ApiResponse<Job>> => {
   try {
-    const response = await axiosInstance.patch<Job>(`jobs/${jobId}/`, job);
+    const data = await serverKyInstance
+      .patch(`jobs/${jobId}/`, { json: job })
+      .json<Job>();
     return {
       success: true,
-      data: response.data,
+      data,
     };
   } catch (error) {
     const errMsg = await handleServerApiCallError(error);
@@ -117,12 +119,12 @@ export const updateJobStatus = async (
   job_status: Job["job_status"]
 ) => {
   try {
-    const response = await axiosInstance.patch<Job>(`jobs/${jobId}/`, {
-      job_status,
-    });
+    const data = await serverKyInstance
+      .patch(`jobs/${jobId}/`, { json: { job_status } })
+      .json<Job>();
     return {
       success: true,
-      data: response.data,
+      data,
     };
   } catch (error) {
     const errMsg = await handleServerApiCallError(error);
@@ -136,10 +138,12 @@ export const updateJobStatus = async (
 
 export const deleteJob = async (jobId: ID) => {
   try {
-    const response = await axiosInstance.delete(`jobs/${jobId}/delete`);
+    const data = await serverKyInstance
+      .delete(`jobs/${jobId}/delete`)
+      .json();
     return {
       success: true,
-      data: response.data,
+      data,
     };
   } catch (error) {
     const errMsg = await handleServerApiCallError(error);

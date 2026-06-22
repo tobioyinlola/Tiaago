@@ -1,5 +1,5 @@
 import { useSyncExternalStore, useCallback } from "react";
-import axios from "axios";
+import ky from "ky";
 
 let cachedCountry: string | null = null;
 let fetched = false;
@@ -9,14 +9,14 @@ function subscribe(cb: () => void) {
   listeners.add(cb);
   if (!fetched) {
     fetched = true;
-    axios
-      .get<{ country?: string }>("/api/country", {
-        params: { fields: "country" },
+    ky.get("/api/country", {
+        searchParams: { fields: "country" },
       })
-      .then(({ data }) => {
+      .json<{ country?: string }>()
+      .then(data => {
         if (data.country) {
           cachedCountry = data.country;
-          listeners.forEach((l) => l());
+          listeners.forEach(l => l());
         }
       })
       .catch(() => {});

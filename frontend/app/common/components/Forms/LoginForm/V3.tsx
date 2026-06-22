@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { toast } from "sonner";
 import { Formik } from "formik";
-import { AxiosError } from "axios";
+import { HTTPError } from "ky";
 
 import {
   cn,
@@ -23,7 +23,7 @@ import FormikField from "../FormikField";
 import { User } from "@/app/common/types";
 import { useAlert } from "@/app/common/store/useAlert";
 import { setAuthCookies, TokensInput } from "@/app/common/actions";
-import { publicAxiosInstance } from "@/app/common/utils/axios.instance";
+import { publicKyInstance } from "@/app/common/utils/client-ky.instance";
 import GoogleSignInButton from "@/app/common/components/GoogleSignInButton";
 
 type LoginSuccessResponse = TokensInput & {
@@ -77,11 +77,9 @@ const LoginForm = ({ as = "startup", next }: { as?: Ias; next?: string }) => {
           toast.dismiss();
           new Promise<LoginSuccessResponse>(async (resolve, reject) => {
             try {
-              const { data } =
-                await publicAxiosInstance.post<LoginSuccessResponse>(
-                  "/auth/login/",
-                  values
-                );
+              const data = await publicKyInstance
+                .post("/auth/login/", { json: values })
+                .json<LoginSuccessResponse>();
               resolve(data);
             } catch (err) {
               reject(err);
@@ -92,7 +90,7 @@ const LoginForm = ({ as = "startup", next }: { as?: Ias; next?: string }) => {
               resetForm();
               onLoginSuccess(tokensInput, user?.user_type);
             })
-            .catch((err: AxiosError) => {
+            .catch((err: HTTPError) => {
               let errorMsg = handleFormSubmissionError(
                 err,
                 setFieldError,
@@ -100,8 +98,8 @@ const LoginForm = ({ as = "startup", next }: { as?: Ias; next?: string }) => {
               );
               setSubmitting(false);
               if (errorMsg === "E-mail is not verified.") {
-                publicAxiosInstance
-                  .post("/auth/resend-otp/", { email: values.email })
+                publicKyInstance
+                  .post("/auth/resend-otp/", { json: { email: values.email } })
                   .catch(() => {});
                 const params = new URLSearchParams({ email: values.email, as });
                 if (next) params.set("next", next);

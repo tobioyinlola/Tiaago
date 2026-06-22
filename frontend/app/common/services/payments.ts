@@ -1,7 +1,6 @@
 "use server";
 
 import { handleServerApiCallError } from "../utils";
-import axiosInstance from "../utils/axios.instance";
 import serverKyInstance from "../utils/server-ky.instance";
 import { PagedResource, Community, Coupon, ID, ApiResponse } from "../types";
 
@@ -31,10 +30,12 @@ export async function getCoupons(page = 1, page_size = 10) {
 
 export async function deleteCoupon(id: ID) {
   try {
-    const response = await axiosInstance.delete(`payments/coupons/${id}/`);
+    const data = await serverKyInstance
+      .delete(`payments/coupons/${id}/`)
+      .json();
     return {
       success: true,
-      data: response.data,
+      data,
     };
   } catch (error) {
     const errMsg = await handleServerApiCallError(error);
@@ -46,18 +47,17 @@ export async function deleteCoupon(id: ID) {
   }
 }
 
-export async function createCommunity(data: {
+export async function createCommunity(inputData: {
   name: string;
   description?: string;
 }) {
   try {
-    const response = await axiosInstance.post<ApiResponse<Community>>(
-      "payments/communities/",
-      data
-    );
+    const data = await serverKyInstance
+      .post("payments/communities/", { json: inputData })
+      .json<ApiResponse<Community>>();
     return {
       success: true,
-      data: response.data,
+      data,
     };
   } catch (error) {
     const errMsg = await handleServerApiCallError(error);
@@ -79,16 +79,15 @@ export type CreateCouponInput = {
 };
 
 export async function createCoupon(
-  data: CreateCouponInput
+  inputData: CreateCouponInput
 ): Promise<ApiResponse<Coupon>> {
   try {
-    const response = await axiosInstance.post<Coupon>(
-      "payments/coupons/",
-      data
-    );
+    const data = await serverKyInstance
+      .post("payments/coupons/", { json: inputData })
+      .json<Coupon>();
     return {
       success: true,
-      data: response.data,
+      data,
     };
   } catch (error) {
     const errMsg = await handleServerApiCallError(error);
@@ -102,16 +101,15 @@ export async function createCoupon(
 
 export async function updateCoupon(
   id: ID,
-  data: Partial<CreateCouponInput>
+  inputData: Partial<CreateCouponInput>
 ): Promise<ApiResponse<Coupon>> {
   try {
-    const response = await axiosInstance.patch<Coupon>(
-      `payments/coupons/${id}/`,
-      data
-    );
+    const data = await serverKyInstance
+      .patch(`payments/coupons/${id}/`, { json: inputData })
+      .json<Coupon>();
     return {
       success: true,
-      data: response.data,
+      data,
     };
   } catch (error) {
     const errMsg = await handleServerApiCallError(error);

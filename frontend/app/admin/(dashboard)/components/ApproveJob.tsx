@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 
 import { ID } from "@/app/common/types";
 import { useAlert } from "@/app/common/store/useAlert";
-import axiosInstance from "@/app/common/utils/axios.instance";
+import clientKyInstance from "@/app/common/utils/client-ky.instance";
 import { handleFormSubmissionError } from "@/app/common/utils";
 
 const ApproveJob = ({ id, approved }: { id: ID; approved: boolean }) => {
@@ -15,10 +15,11 @@ const ApproveJob = ({ id, approved }: { id: ID; approved: boolean }) => {
   const setAlert = useAlert(state => state.setAlert);
   const approveJob = () => {
     setLoading(true);
-    axiosInstance
-      .patch(`/jobs/${id}/admin-approve/`, {
-        was_approved: true,
+    clientKyInstance
+      .patch(`jobs/${id}/admin-approve/`, {
+        json: { was_approved: true },
       })
+      .json()
       .then(() => {
         toast.success("Job approved successfully");
         router.push("/admin/jobs?tab=approved");
@@ -53,9 +54,11 @@ export const DeactivateJob = ({
   const setAlert = useAlert(state => state.setAlert);
   const deactivateJob = async () => {
     try {
-      await axiosInstance.patch(`/jobs/${id}/admin-approve/`, {
-        was_approved: false,
-      });
+      await clientKyInstance
+        .patch(`jobs/${id}/admin-approve/`, {
+          json: { was_approved: false },
+        })
+        .json();
 
       toast.success("Job deactivated successfully");
       router.push("jobs?tab=pending");

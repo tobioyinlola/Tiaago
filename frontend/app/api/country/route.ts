@@ -1,4 +1,4 @@
-import axios from "axios";
+import ky from "ky";
 import { NextRequest } from "next/server";
 
 export async function GET(request: NextRequest) {
@@ -8,10 +8,10 @@ export async function GET(request: NextRequest) {
     request.headers.get("x-real-ip") ||
     request.headers.get("x-forwarded-for");
   const ip = ips?.split(",")[0];
-  const { data } = await axios.get(
+  const data = await ky.get(
     `http://ip-api.com/json/${ip}?fields=${
       searchParams?.get("fields") || "country"
     }`
-  );
-  return Response.json({ ...data, ip });
+  ).json();
+  return Response.json({ ...data as Record<string, unknown>, ip });
 }

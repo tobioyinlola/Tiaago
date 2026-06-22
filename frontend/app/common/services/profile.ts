@@ -1,6 +1,6 @@
 "use server";
 import { cache } from "react";
-import { AxiosError } from "axios";
+import { HTTPError } from "ky";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
@@ -17,7 +17,6 @@ import {
   Talent,
   User,
 } from "../types";
-import axiosInstance from "../utils/axios.instance";
 import { ACCESS_TOKEN_KEY, IS_DEV } from "../constants";
 import serverKyInstance from "../utils/server-ky.instance";
 import {
@@ -46,14 +45,14 @@ const _getCurrentUserImpl = cache(async function getCurrentUserImpl(
   if (!allowNull && !access)
     return redirect(nullUserRedirect ?? getOnboardingUrl(requiredUserType));
   try {
-    const response = await axiosInstance.get<{ user: User }>(
-      "auth/users/profile"
-    );
-    const { user, ...rest } = response.data;
+    const responseData = await serverKyInstance
+      .get("auth/users/profile")
+      .json<{ user: User }>();
+    const { user, ...rest } = responseData;
     currentUser = { ...rest, ...user };
   } catch (error: any) {
-    if (error instanceof AxiosError) {
-      const errorResponse = error.response?.data ?? {};
+    if (error instanceof HTTPError) {
+      const errorResponse = await error.response?.json().catch(() => ({})) ?? {};
       if (errorResponse?.code === "token_not_valid") {
         removeAuthCookies = true;
       } else if (IS_DEV) {
@@ -169,11 +168,10 @@ export const getUserReferralCode = async () => {
 };
 
 export const sendReferralInvite = async (email: string) => {
-  const response = await axiosInstance.post(
-    "auth/referrals/send-invite-link/",
-    { email }
-  );
-  return response.data;
+  const data = await serverKyInstance
+    .post("auth/referrals/send-invite-link/", { json: { email } })
+    .json();
+  return data;
 };
 
 export const getUsersReferred = async (page: number) => {
@@ -189,12 +187,14 @@ export const getUsersReferred = async (page: number) => {
 
 export const approveUser = async (userId: ID, approved?: boolean) => {
   try {
-    const response = await axiosInstance.post(`auth/verify-user/${userId}/`, {
-      verified: approved ?? null,
-    });
+    const data = await serverKyInstance
+      .post(`auth/verify-user/${userId}/`, {
+        json: { verified: approved ?? null },
+      })
+      .json();
     return {
       success: true,
-      data: response.data,
+      data,
     };
   } catch (error) {
     const errMsg = await handleServerApiCallError(error);
@@ -233,17 +233,19 @@ export const getReferralRewardsWallet = async () => {
 
 export const requestWithdrawal = async (amount: number) => {
   try {
-    const response = await axiosInstance.post<{
-      amount: string | number;
-      bank_name: string;
-      account_name: string;
-      account_number: string;
-    }>("auth/referral-rewards/request_withdrawal/", {
-      amount: amount.toString(),
-    });
+    const data = await serverKyInstance
+      .post("auth/referral-rewards/request_withdrawal/", {
+        json: { amount: amount.toString() },
+      })
+      .json<{
+        amount: string | number;
+        bank_name: string;
+        account_name: string;
+        account_number: string;
+      }>();
     return {
       success: true,
-      data: response.data,
+      data,
     };
   } catch (error) {
     const errMsg = await handleServerApiCallError(error);
@@ -273,12 +275,12 @@ export const getReferralWithdrawals = async (page = 1, page_size = 10) => {
 // /auth/admin/referral-withdrawals/{id}/approve/
 export const approveReferralWithdrawal = async (id: ID) => {
   try {
-    const response = await axiosInstance.post<ReferralWithdrawal>(
-      `auth/admin/referral-withdrawals/${id}/approve/`
-    );
+    const data = await serverKyInstance
+      .post(`auth/admin/referral-withdrawals/${id}/approve/`)
+      .json<ReferralWithdrawal>();
     return {
       success: true,
-      data: response.data,
+      data,
     };
   } catch (error) {
     const [errMsg, errorMap] = await _handleServerApiCallError(error);
@@ -298,12 +300,12 @@ export const approveReferralWithdrawal = async (id: ID) => {
 // /auth/admin/referral-withdrawals/{id}/complete/
 export const completeReferralWithdrawal = async (id: ID) => {
   try {
-    const response = await axiosInstance.post<ReferralWithdrawal>(
-      `auth/admin/referral-withdrawals/${id}/complete/`
-    );
+    const data = await serverKyInstance
+      .post(`auth/admin/referral-withdrawals/${id}/complete/`)
+      .json<ReferralWithdrawal>();
     return {
       success: true,
-      data: response.data,
+      data,
     };
   } catch (error) {
     const [errMsg, errorMap] = await _handleServerApiCallError(error);
@@ -319,12 +321,12 @@ export const completeReferralWithdrawal = async (id: ID) => {
 // /auth/admin/referral-withdrawals/{id}/fail/
 export const failReferralWithdrawal = async (id: ID) => {
   try {
-    const response = await axiosInstance.post<ReferralWithdrawal>(
-      `auth/admin/referral-withdrawals/${id}/fail/`
-    );
+    const data = await serverKyInstance
+      .post(`auth/admin/referral-withdrawals/${id}/fail/`)
+      .json<ReferralWithdrawal>();
     return {
       success: true,
-      data: response.data,
+      data,
     };
   } catch (error) {
     const [errMsg, errorMap] = await _handleServerApiCallError(error);
