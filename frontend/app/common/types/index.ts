@@ -56,6 +56,7 @@ export type DashboardNavItemV3 =
       subLinks?: {
         name: string;
         href: string;
+        requiredRoles?: TeamMemberRole[];
       }[];
     }
   | {

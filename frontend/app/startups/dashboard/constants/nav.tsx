@@ -78,6 +78,7 @@ export const startupNavItems: DashboardNavItemV3[] = [
       {
         name: "Post a job",
         href: `${baseHref}/jobs/create`,
+        requiredRoles: ["admin", "recruiter"],
       },
       {
         name: "Jobs Posted",

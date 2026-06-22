@@ -47,11 +47,19 @@ const SideNavV3 = ({
       ? adminNavItems
       : startupNavItems;
 
-  // Filter nav items based on team role (only applies to startup nav)
+  // Filter nav items and sublinks based on team role
   const navItems = rawNavItems.filter(item => {
     if (item.type === "divider") return true;
     if (!item.requiredRoles || !teamRole) return true;
     return item.requiredRoles.includes(teamRole as any);
+  }).map(item => {
+    if (item.type === "divider" || !item.subLinks || !teamRole) return item;
+    return {
+      ...item,
+      subLinks: item.subLinks.filter(sub =>
+        !sub.requiredRoles || sub.requiredRoles.includes(teamRole as any)
+      ),
+    };
   });
 
   return (

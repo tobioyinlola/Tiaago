@@ -1,6 +1,7 @@
 import { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 
 import { validateTeamInvite } from "@/app/common/services/team";
 import { getCurrentUser } from "@/app/common/services/profile";
@@ -123,6 +124,12 @@ export default async function InviteAcceptPage({ searchParams }: Props) {
   const invite = result.data;
 
   if (invite.status === "accepted") {
+    const { currentUser: loggedInUser } = await getCurrentUser(undefined, {
+      allowNull: true,
+    });
+    if (loggedInUser) {
+      redirect("/startups/dashboard");
+    }
     return (
       <ErrorState
         iconBg="bg-success/10"
