@@ -616,8 +616,12 @@ class PortfolioRetrieveUpdateView(RetrieveUpdateAPIView):
     parser_classes = [MultiPartParser, FormParser, JSONParser]
 
     def get_object(self):
+        talent = getattr(self.request.user, "profile", None)
+        if not talent:
+            from django.http import Http404
+            raise Http404("Talent profile not found.")
         portfolio, _ = Portfolio.objects.get_or_create(
-            talent=self.request.user.profile
+            talent=talent
         )
         return (
             Portfolio.objects.select_related("talent__user", "talent__role", "role")

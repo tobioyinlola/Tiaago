@@ -984,7 +984,12 @@ class TalentProfileStatusAPIView(APIView):
     permission_classes = [IsAuthenticated, IsTalentUser]
 
     def get(self, request):
-        talent = request.user.profile
+        talent = getattr(request.user, "profile", None)
+        if not talent:
+            return Response(
+                {"error": "Talent profile not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
         # has passed tiaago skill assessment
         has_taken_assessment = CandidateAssessmentSubmission.objects.filter(
             candidate=talent,

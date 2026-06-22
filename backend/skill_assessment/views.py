@@ -1623,7 +1623,7 @@ class CertificateListCreateAPIView(APIView, PaginationHandlerMixin):
                 # Empty paginated response
                 empty = []
                 page = self.paginate_queryset(empty)
-                return self.get_paginated_response(empty)
+                return Response(self.get_paginated_response(empty))
             qs = qs.filter(talent_id=profile.id)
 
         # Filters
