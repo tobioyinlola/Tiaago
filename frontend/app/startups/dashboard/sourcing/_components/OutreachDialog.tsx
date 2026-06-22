@@ -37,6 +37,9 @@ import {
   saveSmtpConfig,
   SmtpConfig,
 } from "@/app/common/services/sourcing";
+import { getJobs } from "@/app/common/services/jobs";
+
+type OutreachJob = { id: number; title: string; job_level?: string };
 
 interface OutreachDialogProps {
   candidates: ServerCandidate[];
@@ -68,7 +71,9 @@ function EmailPreview({
       .replace(/\{\{candidateName\}\}/g, recipientName || "John")
       .replace(/\{\{company\}\}/g, "Your Company")
       .replace(/\{\{role\}\}/g, "Software Engineer")
-      .replace(/\{\{recruiterName\}\}/g, "You");
+      .replace(/\{\{recruiterName\}\}/g, "You")
+      .replace(/\{\{jobTitle\}\}/g, "Backend Engineer")
+      .replace(/\{\{jobLevel\}\}/g, "Senior");
     return text;
   }, [body, recipientName]);
 
@@ -76,7 +81,9 @@ function EmailPreview({
     let text = subject || "Email subject";
     text = text
       .replace(/\{\{company\}\}/g, "Your Company")
-      .replace(/\{\{role\}\}/g, "Software Engineer");
+      .replace(/\{\{role\}\}/g, "Software Engineer")
+      .replace(/\{\{jobTitle\}\}/g, "Backend Engineer")
+      .replace(/\{\{jobLevel\}\}/g, "Senior");
     return text;
   }, [subject]);
 
@@ -414,6 +421,8 @@ export function OutreachDialog({
   const [body, setBody] = useState("");
   const [sending, setSending] = useState(false);
   const [showPreview, setShowPreview] = useState(true);
+  const [selectedJobId, setSelectedJobId] = useState<number | null>(null);
+  const [jobs, setJobs] = useState<OutreachJob[]>([]);
 
   const [smtpStatus, setSmtpStatus] = useState<
     "loading" | "not-configured" | "configured"
@@ -423,14 +432,25 @@ export function OutreachDialog({
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
-    getSmtpConfig().then((result) => {
+    Promise.all([
+      getSmtpConfig(),
+      getJobs(1, 100).catch(() => ({ results: [] })),
+    ]).then(([smtpResult, jobsResult]) => {
       if (cancelled) return;
-      if (result.success && result.data?.is_verified) {
-        setSmtpConfig(result.data);
+      if (smtpResult.success && smtpResult.data?.is_verified) {
+        setSmtpConfig(smtpResult.data);
         setSmtpStatus("configured");
       } else {
         setSmtpStatus("not-configured");
       }
+      const jobsList = (jobsResult as any)?.results ?? [];
+      setJobs(
+        jobsList.map((j: any) => ({
+          id: Number(j.id),
+          title: j.title || j.role_title || "Untitled",
+          job_level: j.job_level || "",
+        }))
+      );
     });
     return () => { cancelled = true; };
   }, [open]);
@@ -450,6 +470,11 @@ export function OutreachDialog({
   };
 
   const handleSend = async () => {
+    if (!selectedJobId) {
+      toast.error("Please select a job opening.");
+      return;
+    }
+
     if (!subject.trim() || !body.trim()) {
       toast.error("Please fill in both subject and message body.");
       return;
@@ -469,6 +494,7 @@ export function OutreachDialog({
       candidate_ids: candidateIds,
       subject,
       body,
+      job_id: selectedJobId,
     });
     setSending(false);
 
@@ -486,6 +512,7 @@ export function OutreachDialog({
       setSelectedTemplate("");
       setSubject("");
       setBody("");
+      setSelectedJobId(null);
     } else {
       const errorMsg = result.error || "Failed to send outreach.";
       if (
@@ -505,6 +532,7 @@ export function OutreachDialog({
       setSelectedTemplate("");
       setSubject("");
       setBody("");
+      setSelectedJobId(null);
       setSmtpStatus("loading");
       setSmtpConfig(null);
     }
@@ -609,6 +637,31 @@ export function OutreachDialog({
                   )}
                 </div>
 
+                {/* Job Selection */}
+                {jobs.length === 0 ? (
+                  <div className="rounded-lg bg-muted/40 border border-border p-4 text-center space-y-2">
+                    <AlertCircle className="h-5 w-5 text-muted-foreground mx-auto" />
+                    <p className="text-sm text-muted-foreground">You need at least one job posting to send outreach.</p>
+                    <a href="/startups/dashboard/jobs/create" className="btn btn-primary btn-sm">Post a Job</a>
+                  </div>
+                ) : (
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Job Opening <span className="text-error">*</span></Label>
+                    <select
+                      value={selectedJobId ?? ""}
+                      onChange={(e) => setSelectedJobId(Number(e.target.value) || null)}
+                      className="select select-bordered select-sm w-full text-sm"
+                    >
+                      <option value="" disabled>Select a job...</option>
+                      {jobs.map((job) => (
+                        <option key={job.id} value={job.id}>
+                          {job.title}{job.job_level ? ` (${job.job_level})` : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
                 {/* Template cards */}
                 <div className="space-y-1.5">
                   <Label className="text-xs text-muted-foreground">
@@ -679,6 +732,8 @@ export function OutreachDialog({
                       "{{role}}",
                       "{{company}}",
                       "{{recruiterName}}",
+                      "{{jobTitle}}",
+                      "{{jobLevel}}",
                     ].map((v) => (
                       <button
                         key={v}
@@ -723,7 +778,7 @@ export function OutreachDialog({
               <Button
                 size="sm"
                 onClick={handleSend}
-                disabled={sending || candidatesWithEmail.length === 0}
+                disabled={sending || candidatesWithEmail.length === 0 || !selectedJobId || jobs.length === 0}
                 className="sm:w-auto"
               >
                 {sending ? (

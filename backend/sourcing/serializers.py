@@ -208,6 +208,7 @@ class SendOutreachSerializer(serializers.Serializer):
     candidate_ids = serializers.ListField(child=serializers.IntegerField(), min_length=1)
     subject = serializers.CharField(max_length=500)
     body = serializers.CharField()
+    job_id = serializers.IntegerField()
 
 
 class OutreachEmailSerializer(serializers.ModelSerializer):

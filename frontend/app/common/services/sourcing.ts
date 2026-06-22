@@ -1621,7 +1621,7 @@ export const deleteSmtpConfig = async () => {
 
 // ── Outreach Sending ──────────────────────────────────────────
 
-export const sendOutreach = async (data: { candidate_ids: number[]; subject: string; body: string }) => {
+export const sendOutreach = async (data: { candidate_ids: number[]; subject: string; body: string; job_id: number }) => {
   try {
     const responseData = await serverKyInstance.post("sourcing/send-outreach/", { json: data }).json<{ sent: number; failed: number; total: number }>();
     return { success: true as const, data: responseData };

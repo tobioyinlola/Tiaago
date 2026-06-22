@@ -338,10 +338,10 @@ export const emailTemplates: EmailTemplate[] = [
   {
     id: "1",
     name: "Initial Outreach",
-    subject: "{{role}} opportunity at {{company}}",
+    subject: "{{jobTitle}} opportunity at {{company}}",
     body: `Hi {{candidateName}},
 
-I'm {{recruiterName}} from {{company}}. We're looking for a {{role}} and your profile stood out.
+I'm {{recruiterName}} from {{company}}. We're looking for a {{jobTitle}} and your profile stood out.
 
 Would you be open to a quick conversation about the role? Happy to share more details.
 
@@ -351,10 +351,10 @@ Best,
   {
     id: "2",
     name: "Follow Up",
-    subject: "Following up: {{role}} at {{company}}",
+    subject: "Following up: {{jobTitle}} at {{company}}",
     body: `Hi {{candidateName}},
 
-Just following up on my previous message about the {{role}} position at {{company}}.
+Just following up on my previous message about the {{jobTitle}} position at {{company}}.
 
 We're still looking for the right person and I think you'd be a great fit. Would you be available for a brief chat this week?
 
@@ -364,10 +364,10 @@ Best,
   {
     id: "3",
     name: "Re-engagement",
-    subject: "New opening: {{role}} at {{company}}",
+    subject: "New opening: {{jobTitle}} at {{company}}",
     body: `Hi {{candidateName}},
 
-We have a new {{role}} opening at {{company}} and I thought of you right away.
+We have a new {{jobTitle}} opening at {{company}} and I thought of you right away.
 
 Would you be interested in learning more? I'd love to set up a quick call at your convenience.
 

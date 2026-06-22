@@ -391,6 +391,16 @@ class SendOutreachView(APIView):
         candidate_ids = serializer.validated_data["candidate_ids"]
         subject = serializer.validated_data["subject"]
         body = serializer.validated_data["body"]
+        job_id = serializer.validated_data["job_id"]
+
+        from jobs.models import Job
+        try:
+            job = Job.objects.get(id=job_id, company=company)
+        except Job.DoesNotExist:
+            return Response(
+                {"error": "Job not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
 
         candidates = PipelineCandidate.objects.filter(
             id__in=candidate_ids, company=company,
@@ -407,6 +417,7 @@ class SendOutreachView(APIView):
             outreach_records.append(OutreachEmail(
                 candidate=candidate,
                 company=company,
+                job=job,
                 subject=subject,
                 body=body,
                 recipient_email=candidate.email,
@@ -433,6 +444,8 @@ class SendOutreachView(APIView):
                             "{{company}}": company.company_name or "",
                             "{{role}}": record.candidate.role or "",
                             "{{recruiterName}}": request.user.get_full_name(),
+                            "{{jobTitle}}": job.title or "",
+                            "{{jobLevel}}": job.get_job_level_display() if hasattr(job, 'get_job_level_display') else (job.job_level or ""),
                         }
                         personalized_body = body
                         personalized_subject = subject

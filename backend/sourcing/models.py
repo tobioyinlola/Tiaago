@@ -187,6 +187,10 @@ class OutreachEmail(TimeStampedModel):
     company = models.ForeignKey(
         Company, on_delete=models.CASCADE, related_name="outreach_emails",
     )
+    job = models.ForeignKey(
+        "jobs.Job", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="outreach_emails",
+    )
     subject = models.CharField(max_length=500)
     body = models.TextField()
     recipient_email = models.EmailField()
