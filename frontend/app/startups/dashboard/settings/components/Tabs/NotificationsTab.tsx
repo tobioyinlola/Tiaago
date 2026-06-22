@@ -1,10 +1,10 @@
 import { cn, toId } from "@/app/common/utils";
 import { notificationSettingsconstItems } from "../../constants/notificationSettings";
 
-const handleSubmit = async (data: FormData) => {
-  "use server";
+const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  e.preventDefault();
+  const data = new FormData(e.currentTarget);
   console.log(data);
-  return "success";
 };
 
 const NotificationsTab = () => {
@@ -15,7 +15,7 @@ const NotificationsTab = () => {
         Get emails to find out what&apos;s going on when you&apos;re not online.
         You can turn them off anytime.
       </p>
-      <form action={handleSubmit}>
+      <form onSubmit={handleSubmit}>
         {notificationSettingsconstItems.map(
           ({ title, description, type = "radio", fields }, i) => (
             <div
