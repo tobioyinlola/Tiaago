@@ -1,0 +1,22 @@
+# Vector config: receives Docker fluentd logs and ships to BetterStack Logtail
+
+[sources.docker]
+type = "fluent"
+address = "0.0.0.0:24224"
+
+[transforms.parse]
+type = "remap"
+inputs = ["docker"]
+source = '''
+.service = replace(string!(.tag), "docker.", "")
+.dt = now()
+'''
+
+[sinks.betterstack]
+type = "http"
+inputs = ["parse"]
+uri = "https://in.logs.betterstack.com"
+method = "post"
+encoding.codec = "json"
+request.headers.Authorization = "Bearer ${LOGTAIL_SOURCE_TOKEN}"
+request.headers.Content-Type = "application/json"

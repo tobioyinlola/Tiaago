@@ -1,3 +1,10 @@
+x-logging: &logtail-logging
+  driver: "fluentd"
+  options:
+    fluentd-address: "localhost:24224"
+    fluentd-async: "true"
+    tag: "docker.{{.Name}}"
+
 services:
   web:
     build:
@@ -17,7 +24,9 @@ services:
       - media_files:/home/app/web/media
     depends_on:
       - ai
+      - vector
     restart: unless-stopped
+    logging: *logtail-logging
 
   worker:
     build:
@@ -33,7 +42,9 @@ services:
       - CELERY_LOGLEVEL=info
     depends_on:
       - web
+      - vector
     restart: unless-stopped
+    logging: *logtail-logging
 
   beat:
     build:
@@ -47,7 +58,9 @@ services:
       - CELERY_LOGLEVEL=info
     depends_on:
       - web
+      - vector
     restart: unless-stopped
+    logging: *logtail-logging
 
   ai:
     build:
@@ -56,6 +69,19 @@ services:
     env_file: ./ai/.env
     expose:
       - "8000"
+    depends_on:
+      - vector
+    restart: unless-stopped
+    logging: *logtail-logging
+
+  vector:
+    image: timberio/vector:0.41.1-alpine
+    volumes:
+      - ./vector.toml:/etc/vector/vector.toml:ro
+    environment:
+      - LOGTAIL_SOURCE_TOKEN=${LOGTAIL_SOURCE_TOKEN}
+    ports:
+      - "24224:24224"
     restart: unless-stopped
 
   nginx:
