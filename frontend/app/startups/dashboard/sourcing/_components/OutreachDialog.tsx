@@ -465,7 +465,6 @@ export function OutreachDialog({
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
   const [sending, setSending] = useState(false);
-  const [showPreview, setShowPreview] = useState(true);
   const [selectedJobId, setSelectedJobId] = useState<number | null>(null);
   const [jobs, setJobs] = useState<OutreachJob[]>([]);
 
@@ -591,7 +590,7 @@ export function OutreachDialog({
   return (
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent
-        className={`p-0 gap-0 overflow-hidden max-sm:max-w-[95vw] max-sm:rounded-xl ${
+        className={`p-0 gap-0 overflow-hidden max-sm:max-w-[95vw] max-sm:rounded-xl [&>button.absolute]:hidden ${
           smtpStatus === "not-configured"
             ? "sm:max-w-2xl"
             : "sm:max-w-4xl"
@@ -628,14 +627,6 @@ export function OutreachDialog({
                   <p className="text-[10px] text-muted-foreground">via {smtpConfig?.gmail_address}</p>
                 </div>
               </div>
-              <button
-                type="button"
-                className="hidden md:flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground px-2 py-1 rounded-md hover:bg-muted transition-colors"
-                onClick={() => setShowPreview(!showPreview)}
-              >
-                {showPreview ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
-                Preview
-              </button>
             </div>
 
             {/* Body */}
@@ -708,40 +699,26 @@ export function OutreachDialog({
                 )}
 
                 {/* Templates */}
-                <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">Quick Templates</Label>
-                  <div className="flex sm:grid sm:grid-cols-3 gap-2 overflow-x-auto pb-1 -mx-1 px-1 sm:mx-0 sm:px-0 sm:overflow-visible">
-                    {emailTemplates.map((template, idx) => {
-                      const Icon = TEMPLATE_ICONS[idx] || FileText;
-                      const isSelected = selectedTemplate === template.id;
-                      return (
-                        <button
-                          key={template.id}
-                          type="button"
-                          onClick={() => handleTemplateSelect(template.id)}
-                          className={`text-left p-3 rounded-xl border transition-all shrink-0 sm:shrink min-w-[140px] sm:min-w-0 ${
-                            isSelected
-                              ? "border-primary bg-primary/5 ring-1 ring-primary/20 shadow-sm"
-                              : "border-border/60 hover:border-primary/30 hover:bg-muted/20"
-                          }`}
-                        >
-                          <div className="flex items-center gap-2 mb-1.5">
-                            <div className={`w-6 h-6 rounded-lg flex items-center justify-center ${
-                              isSelected ? "bg-primary/10" : "bg-muted/50"
-                            }`}>
-                              <Icon className={`h-3 w-3 ${isSelected ? "text-primary" : "text-muted-foreground"}`} />
-                            </div>
-                            <span className="text-xs font-medium text-foreground truncate">
-                              {template.name}
-                            </span>
-                          </div>
-                          <p className="text-[10px] text-muted-foreground line-clamp-1 pl-8">
-                            {template.subject}
-                          </p>
-                        </button>
-                      );
-                    })}
-                  </div>
+                <div className="flex sm:grid sm:grid-cols-3 gap-1.5">
+                  {emailTemplates.map((template, idx) => {
+                    const Icon = TEMPLATE_ICONS[idx] || FileText;
+                    const isSelected = selectedTemplate === template.id;
+                    return (
+                      <button
+                        key={template.id}
+                        type="button"
+                        onClick={() => handleTemplateSelect(template.id)}
+                        className={`flex items-center gap-2 p-2 rounded-lg border transition-all text-left ${
+                          isSelected
+                            ? "border-primary bg-primary/5"
+                            : "border-border/50 hover:border-primary/30"
+                        }`}
+                      >
+                        <Icon className={`h-3.5 w-3.5 shrink-0 ${isSelected ? "text-primary" : "text-muted-foreground"}`} />
+                        <span className="text-[11px] font-medium text-foreground truncate">{template.name}</span>
+                      </button>
+                    );
+                  })}
                 </div>
 
                 {/* Subject */}
@@ -757,43 +734,36 @@ export function OutreachDialog({
                 </div>
 
                 {/* Body */}
-                <div className="space-y-2">
-                  <Label htmlFor="outreach-body" className="text-xs">Message</Label>
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="outreach-body" className="text-xs">Message</Label>
+                    <span className="text-[10px] text-muted-foreground">Insert variable:</span>
+                  </div>
+                  <div className="flex flex-wrap gap-1 pb-1">
+                    {PLACEHOLDER_GROUPS.flatMap(g => g.items).map((v) => (
+                      <button
+                        key={v}
+                        type="button"
+                        onClick={() => setBody((prev) => prev + " " + v)}
+                        className="rounded bg-muted/60 px-1.5 py-px text-[10px] font-mono text-muted-foreground hover:bg-primary/10 hover:text-primary transition-colors"
+                      >
+                        {v.replace(/\{\{|\}\}/g, "")}
+                      </button>
+                    ))}
+                  </div>
                   <Textarea
                     id="outreach-body"
                     value={body}
                     onChange={(e) => setBody(e.target.value)}
                     placeholder="Write your message..."
-                    rows={6}
-                    className="resize-none text-sm max-sm:max-h-[120px] rounded-lg"
+                    rows={5}
+                    className="resize-none text-sm max-sm:max-h-[100px] rounded-lg"
                   />
-                  <div className="space-y-1.5">
-                    {PLACEHOLDER_GROUPS.map((group) => (
-                      <div key={group.label} className="flex items-center gap-1.5">
-                        <span className="text-[10px] text-muted-foreground/60 w-16 shrink-0">
-                          {group.label}
-                        </span>
-                        <div className="flex flex-wrap gap-1">
-                          {group.items.map((v) => (
-                            <button
-                              key={v}
-                              type="button"
-                              onClick={() => setBody((prev) => prev + v)}
-                              className="rounded-md bg-muted/50 border border-border/40 px-2 py-0.5 text-[10px] font-mono text-muted-foreground hover:bg-primary/10 hover:text-primary hover:border-primary/20 transition-colors"
-                            >
-                              {v}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
                 </div>
               </div>
 
               {/* Right: Preview */}
-              {showPreview && (
-                <div className="hidden md:flex md:w-[340px] border-l border-border bg-muted/10 p-4 flex-col">
+              <div className="hidden md:flex md:w-[320px] border-l border-border bg-muted/10 p-3 flex-col">
                   <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground mb-3 font-medium">
                     <Eye className="h-3.5 w-3.5" />
                     Email Preview
@@ -814,7 +784,6 @@ export function OutreachDialog({
                     </div>
                   )}
                 </div>
-              )}
             </div>
 
             {/* Footer */}
