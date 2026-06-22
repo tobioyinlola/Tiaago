@@ -4,7 +4,6 @@ import { settingsTabs } from "../constants";
 import ProfileTab from "./Tabs/ProfileTab";
 import TeamMembersTab from "./Tabs/Team";
 import EmailIntegrationTab from "./Tabs/EmailIntegrationTab";
-import NotificationsTab from "./Tabs/NotificationsTab";
 import SecurityTab from "@/app/common/components/SecurityTab";
 import ClientTabs from "@/app/common/components/ClientTabs";
 import { useStartupStore } from "../../store";
@@ -41,8 +40,6 @@ const SettingsContent = ({
             return <SecurityTab />;
           case "email":
             return <EmailIntegrationTab />;
-          case "notifications":
-            return <NotificationsTab />;
           case "team":
             return <TeamMembersTab />;
           default:

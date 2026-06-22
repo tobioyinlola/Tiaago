@@ -3,7 +3,6 @@ import ProfileTab from "./ProfileTab";
 import EmailIntegrationTab from "./EmailIntegrationTab";
 import { settingsTabs } from "../../constants";
 import { useStartupStore } from "../../../store";
-import NotificationsTab from "./NotificationsTab";
 import SecurityTab from "@/app/common/components/SecurityTab";
 import { TalentRole as StartupRole } from "@/app/common/types";
 import type { StartupRepFormProps } from "./ProfileTab/StartupRepForm";
@@ -36,7 +35,6 @@ const Tab = ({ tab, groupedCountries, startupRoles }: TabProps) => {
     //   />
     // ),
     email: <EmailIntegrationTab />,
-    notifications: <NotificationsTab />,
     team: <TeamMembersTab />,
   };
   return (

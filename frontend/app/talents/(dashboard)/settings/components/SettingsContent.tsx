@@ -7,7 +7,6 @@ import {
 } from "@/app/common/types";
 import ProfileTab from "./Tabs/ProfileTab";
 import { settingsTabs } from "../constants";
-import NotificationsTab from "./Tabs/NotificationsTab";
 import SecurityTab from "@/app/common/components/SecurityTab";
 import ClientTabs from "@/app/common/components/ClientTabs";
 import { useTalentStore } from "@/app/talents/(dashboard)/store";
@@ -51,8 +50,6 @@ const SettingsContent = ({
             );
           case "security":
             return <SecurityTab />;
-          case "notifications":
-            return <NotificationsTab />;
           default:
             return null;
         }

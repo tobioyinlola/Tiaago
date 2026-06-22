@@ -5,7 +5,6 @@ import {
 } from "@/app/common/types";
 import ProfileTab from "./ProfileTab";
 import { settingsTabs } from "../../constants";
-import NotificationsTab from "./NotificationsTab";
 import SecurityTab from "@/app/common/components/SecurityTab";
 import { useTalentStore } from "@/app/talents/(dashboard)/store";
 import type { ProfileInfoFormProps } from "./ProfileTab/PersonalInfoForm";
@@ -47,14 +46,6 @@ const Tab = ({
       />
     ),
     security: <SecurityTab />,
-    // subscription: (
-    //   <SubscriptionTab
-    //     subscribedPlan={user.subscribed_plan}
-    //     userType={user.user_type}
-    //     email={user.email}
-    //   />
-    // ),
-    notifications: <NotificationsTab />,
   };
   return (
     <div
