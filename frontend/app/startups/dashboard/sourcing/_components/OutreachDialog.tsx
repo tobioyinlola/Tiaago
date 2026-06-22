@@ -169,24 +169,25 @@ function InlineSmtpWizard({
   onCancel: () => void;
 }) {
   const [step, setStep] = useState<SetupStep>("intro");
+  const [gmailAddress, setGmailAddress] = useState("");
   const [appPassword, setAppPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const handleSave = async () => {
-    if (!appPassword.trim()) return;
+    if (!appPassword.trim() || !gmailAddress.trim()) return;
     setSaving(true);
     const result = await saveSmtpConfig({
-      gmail_address: "",
+      gmail_address: gmailAddress.trim(),
       app_password: appPassword.replace(/\s/g, ""),
     });
     setSaving(false);
     if (result.success) {
-      toast.success("Gmail connected!");
+      toast.success("Gmail connected successfully!");
       onComplete(result.data);
     } else {
       toast.error(
-        result.error || "Failed to connect. Check your App Password."
+        result.error || "Failed to connect. Check your credentials."
       );
     }
   };
@@ -219,7 +220,7 @@ function InlineSmtpWizard({
             </div>
             <div>
               <p className="text-sm font-medium text-foreground">Gmail Integration</p>
-              <p className="text-xs text-muted-foreground mt-1">Secure App Password</p>
+              <p className="text-xs text-muted-foreground mt-1">Send emails from your Gmail</p>
             </div>
           </div>
         </div>
@@ -228,31 +229,32 @@ function InlineSmtpWizard({
           {step === "intro" && (
             <div className="space-y-4">
               <div>
-                <h4 className="font-semibold text-foreground">How it works</h4>
+                <h4 className="font-semibold text-foreground">
+                  Enter your Gmail address
+                </h4>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Create a Gmail{" "}
-                  <strong className="text-foreground">App Password</strong> so
-                  TIAAGO can send emails on your behalf without exposing your
-                  Google password.
+                  Outreach emails will be sent from this Gmail account.
+                  You will need to create an App Password in the next step.
                 </p>
               </div>
-              <div className="space-y-2.5">
-                {[
-                  "Enable 2-Step Verification",
-                  "Create an App Password",
-                  "Paste it here and we test the connection",
-                ].map((text, i) => (
-                  <div key={i} className="flex items-center gap-2.5">
-                    <span className="flex items-center justify-center w-6 h-6 rounded-full bg-primary/10 text-primary text-xs font-bold shrink-0">
-                      {i + 1}
-                    </span>
-                    <p className="text-sm text-muted-foreground">{text}</p>
-                  </div>
-                ))}
+              <div className="space-y-1.5">
+                <Label htmlFor="wizard-gmail" className="text-xs flex items-center gap-1.5">
+                  <GoogleIcon className="h-4 w-4" />
+                  Gmail Address
+                </Label>
+                <input
+                  id="wizard-gmail"
+                  type="email"
+                  value={gmailAddress}
+                  onChange={(e) => setGmailAddress(e.target.value)}
+                  placeholder="your.email@gmail.com"
+                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:border-primary focus-visible:outline-none"
+                  autoComplete="email"
+                />
               </div>
               <div className="flex gap-2.5 pt-2">
-                <Button size="sm" onClick={() => setStep("2fa")}>
-                  Get Started
+                <Button size="sm" onClick={() => setStep("app-password")} disabled={!gmailAddress.includes("@")}>
+                  Continue
                   <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
                 </Button>
                 <Button size="sm" variant="ghost" onClick={onCancel}>
@@ -262,54 +264,20 @@ function InlineSmtpWizard({
             </div>
           )}
 
-          {step === "2fa" && (
-            <div className="space-y-4">
-              <div>
-                <Badge variant="secondary" className="text-[10px] mb-2">
-                  Step 1 of 3
-                </Badge>
-                <h4 className="font-semibold text-foreground">
-                  Enable 2-Step Verification
-                </h4>
-                <p className="text-sm text-muted-foreground mt-1">
-                  App Passwords require 2FA. If already enabled, skip ahead.
-                </p>
-              </div>
-              <a
-                href="https://myaccount.google.com/signinoptions/two-step-verification"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:text-primary/80 transition-colors"
-              >
-                <GoogleIcon className="h-4 w-4" />
-                Open Google 2-Step Verification
-                <ExternalLink className="h-3.5 w-3.5" />
-              </a>
-              <div className="flex gap-2.5 pt-2">
-                <Button size="sm" variant="ghost" onClick={() => setStep("intro")}>
-                  <ArrowLeft className="mr-1 h-3.5 w-3.5" />
-                  Back
-                </Button>
-                <Button size="sm" onClick={() => setStep("app-password")}>
-                  I&apos;ve enabled 2FA
-                  <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
-                </Button>
-              </div>
-            </div>
-          )}
-
           {step === "app-password" && (
             <div className="space-y-4">
               <div>
                 <Badge variant="secondary" className="text-[10px] mb-2">
-                  Step 2 of 3
+                  Step 1 of 2
                 </Badge>
                 <h4 className="font-semibold text-foreground">
                   Create an App Password
                 </h4>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Name it <strong className="text-foreground">TIAAGO</strong>,
-                  then copy the 16-character password.
+                  Sign in to your Google Account at the link below.
+                  Name the App Password{" "}
+                  <strong className="text-foreground">TIAAGO</strong>, then
+                  copy the 16-character password Google generates.
                 </p>
               </div>
               <a
@@ -322,13 +290,19 @@ function InlineSmtpWizard({
                 Open Google App Passwords
                 <ExternalLink className="h-3.5 w-3.5" />
               </a>
+              <div className="rounded-lg bg-amber-50 border border-amber-200 p-3">
+                <p className="text-xs text-amber-800">
+                  <strong>Note:</strong> If Google asks you to enable 2-Step Verification first, follow the
+                  prompt to set it up, then come back to create the App Password.
+                </p>
+              </div>
               <div className="flex gap-2.5 pt-2">
-                <Button size="sm" variant="ghost" onClick={() => setStep("2fa")}>
+                <Button size="sm" variant="ghost" onClick={() => setStep("intro")}>
                   <ArrowLeft className="mr-1 h-3.5 w-3.5" />
                   Back
                 </Button>
                 <Button size="sm" onClick={() => setStep("enter-password")}>
-                  I&apos;ve copied it
+                  I&apos;ve copied the password
                   <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
                 </Button>
               </div>
@@ -339,19 +313,20 @@ function InlineSmtpWizard({
             <div className="space-y-4">
               <div>
                 <Badge variant="secondary" className="text-[10px] mb-2">
-                  Step 3 of 3
+                  Step 2 of 2
                 </Badge>
                 <h4 className="font-semibold text-foreground">
-                  Enter your App Password
+                  Paste your App Password
                 </h4>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Paste the 16-character password. We&apos;ll test the connection.
+                  Paste the 16-character password from Google. We will verify the connection to{" "}
+                  <strong className="text-foreground">{gmailAddress}</strong>.
                 </p>
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="wizard-app-password" className="text-xs flex items-center gap-1.5">
-                  <GoogleIcon className="h-4 w-4" />
-                  Gmail App Password
+                  <Lock className="h-3.5 w-3.5 text-muted-foreground" />
+                  App Password
                 </Label>
                 <div className="relative">
                   <input
@@ -385,7 +360,7 @@ function InlineSmtpWizard({
                   {saving ? (
                     <>
                       <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                      Testing...
+                      Connecting...
                     </>
                   ) : (
                     <>
