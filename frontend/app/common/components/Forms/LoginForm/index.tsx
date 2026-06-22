@@ -61,8 +61,8 @@ const LoginForm = ({ as = "startup" }: { as?: Ias }) => {
             resetForm();
             onLoginSuccess(tokensInput, user?.user_type);
           })
-          .catch((err: HTTPError) => {
-            let errorMsg = handleFormSubmissionError(
+          .catch(async (err: HTTPError) => {
+            let errorMsg = await handleFormSubmissionError(
               err,
               setFieldError,
               setAlert

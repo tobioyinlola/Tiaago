@@ -226,17 +226,18 @@ const getErrorMessage = (
   return getErrorMessage(Object.values(error)[0]);
 };
 
-export const handleFormSubmissionError = (
+export const handleFormSubmissionError = async (
   error: any,
   setFieldError?: (key: string, message?: string) => void,
   setAlert?: (alert: Alert) => void,
   showToast?: boolean
-): string => {
+): Promise<string> => {
   "use client";
   toast.dismiss();
   if (error instanceof HTTPError) {
     let errorMap: ErrorMap = {};
-    error.response?.text().then(text => {
+    const text = await error.response?.text();
+    if (text) {
       try {
         errorMap = JSON.parse(text);
       } catch (e) {
@@ -244,7 +245,7 @@ export const handleFormSubmissionError = (
           detail: htmlToPlainText(text),
         };
       }
-    });
+    }
     let errorMsg: string = formatErrorMessage(error.message);
     const getErrMsg = (errMap = errorMap) => {
       Object.entries(errMap).forEach(([key, value], i) => {

@@ -40,8 +40,8 @@ const PortfolioBannerEdit = ({ banner }: Props) => {
       {
         loading: "Uploading...",
         success: () => "File uploaded successfully",
-        error: (err: Error) => {
-          const error = handleFormSubmissionError(err, undefined, undefined);
+        error: async (err: Error) => {
+          const error = await handleFormSubmissionError(err, undefined, undefined);
           return error;
         },
         finally: () => {
