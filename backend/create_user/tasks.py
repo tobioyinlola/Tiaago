@@ -15,16 +15,23 @@ def send_welcome_mail(user_pk):
     user = User.objects.get(pk=user_pk)
     return emails.send_welcome_mail(user)
 
+
 @shared_task
 def approval_status_mail(user_pk):
     user = User.objects.get(pk=user_pk)
-    return emails.send_approval_status_mail(user)
+    return emails.approval_status_mail(user)
 
 
 @shared_task
-def send_otp_mail(user_pk, otp):
+def admin_approved_user_mail(user_pk):
     user = User.objects.get(pk=user_pk)
-    return emails.send_otp(user, otp)
+    return emails.admin_approved_user_mail(user)
+
+
+@shared_task
+def admin_reject_user_mail(user_pk):
+    user = User.objects.get(pk=user_pk)
+    return emails.admin_reject_user_mail(user)
 
 
 @shared_task
@@ -58,10 +65,10 @@ def send_company_invite_email(self, invite_id):
 @shared_task
 def send_referral_invite_email(email, referral_code):
     """Background task to send a referral invite email to an arbitrary address."""
-    from .utils import send_referral_invite
+    from .utils import send_invite_to_user
 
     try:
-        send_referral_invite(email, referral_code)
+        send_invite_to_user(email, referral_code)
         return True
     except Exception as exc:
         logger.error(f"Failed to send referral invite to {email}: {exc}", exc_info=True)
