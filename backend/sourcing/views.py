@@ -425,7 +425,7 @@ class SendOutreachView(APIView):
             ))
         OutreachEmail.objects.bulk_create(outreach_records)
 
-        from emails_app.services import render_email
+        from django.template.loader import render_to_string
 
         sent_count = 0
         failed_count = 0
@@ -453,7 +453,7 @@ class SendOutreachView(APIView):
                             personalized_body = personalized_body.replace(placeholder, value)
                             personalized_subject = personalized_subject.replace(placeholder, value)
 
-                        _, branded_html, _ = render_email("outreach", {
+                        branded_html = render_to_string("emails/outreach.html", {
                             "subject": personalized_subject,
                             "body": personalized_body,
                             "company_name": company.company_name or "",
