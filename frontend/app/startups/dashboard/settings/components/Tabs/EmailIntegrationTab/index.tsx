@@ -38,7 +38,6 @@ const STEPS: { key: WizardStep; label: string }[] = [
 
 const STEP_ILLUSTRATIONS: Record<WizardStep, string> = {
   intro: "/assets/illustrations/email-intro.svg",
-  "2fa": "/assets/illustrations/two-factor-auth.svg",
   "app-password": "/assets/illustrations/app-password.svg",
   "enter-password": "/assets/illustrations/email-connect.svg",
   success: "/assets/illustrations/email-success.svg",
