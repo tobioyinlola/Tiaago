@@ -11,27 +11,10 @@ import {
   TalentRole,
 } from "../types";
 import serverKyInstance from "../utils/server-ky.instance";
-import { countriesBasicData } from "../constants/countries";
+import { getCountriesData } from "../constants/countries";
 
 export const getCountries = async (): Promise<GroupBase<CountryField>[]> => {
-  // if (process.env.NODE_ENV === "development")
-  //   return [
-  //     {
-  //       label: "Africa",
-  //       options: [
-  //         {
-  //           label: "Nigeria",
-  //           value: "Nigeria",
-  //           region: "Africa",
-  //         },
-  //         {
-  //           label: "Niger",
-  //           value: "Niger",
-  //           region: "Africa",
-  //         },
-  //       ],
-  //     },
-  //   ];
+  const countriesBasicData = await getCountriesData();
   const countries: CountryField[] = countriesBasicData.map(country => ({
     label: country.name.common,
     value: country.name.common,
@@ -49,6 +32,7 @@ export const getCountries = async (): Promise<GroupBase<CountryField>[]> => {
 export const getCountryCitiesMap = async (): Promise<CountryCitiesMap> => {
   if (process.env.NODE_ENV === "development")
     return { Nigeria: ["Lagos", "Abuja"] };
+  const countriesBasicData = await getCountriesData();
   return countriesBasicData.reduce((acc: CountryCitiesMap, country: any) => {
     acc[country.country] = country.cities;
     return acc;

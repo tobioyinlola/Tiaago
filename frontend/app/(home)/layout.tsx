@@ -8,6 +8,7 @@ import { getCurrentUser } from "../common/services/profile";
 import { ALLOW_NULL_ARGS } from "../common/constants";
 import ScrollToTop from "../common/components/Layout/ScrollToTop";
 import SetUserProfile from "../common/components/Layout/SetUserProfile";
+import { jetBrainsMono } from "../fonts";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +18,7 @@ const HomeLayout = async ({ children }: PropsWithChildren) => {
   const { currentUser, removeAuthCookies } = await getCurrentUser(undefined, ALLOW_NULL_ARGS);
   useUserStore.setState({ profile: currentUser });
   return (
-    <ScrollArea id={scrollElId} className='h-screen font-poppins'>
+    <ScrollArea id={scrollElId} className={`h-screen font-poppins ${jetBrainsMono.variable}`}>
       <div className='relative'>
         <Navbar scrollElId={scrollElId} />
       </div>

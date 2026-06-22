@@ -1,5 +1,4 @@
 import { Candidate, EmailTemplate } from "../types";
-import { countriesBasicData } from "./countries";
 
 export const mockCandidates: Candidate[] = [
   {
@@ -377,7 +376,65 @@ Best,
   },
 ];
 
-export const countries = countriesBasicData.map(country => country.name.common);
+// Hardcoded subset for sourcing mock UI (full list lazy-loaded from /data/countries.json)
+export const countries = [
+  "Algeria",
+  "Angola",
+  "Argentina",
+  "Australia",
+  "Austria",
+  "Bangladesh",
+  "Belgium",
+  "Brazil",
+  "Cameroon",
+  "Canada",
+  "China",
+  "Colombia",
+  "Czech Republic",
+  "Denmark",
+  "Egypt",
+  "Ethiopia",
+  "Finland",
+  "France",
+  "Germany",
+  "Ghana",
+  "India",
+  "Indonesia",
+  "Ireland",
+  "Israel",
+  "Italy",
+  "Japan",
+  "Kenya",
+  "Malaysia",
+  "Mexico",
+  "Morocco",
+  "Netherlands",
+  "New Zealand",
+  "Nigeria",
+  "Norway",
+  "Pakistan",
+  "Philippines",
+  "Poland",
+  "Portugal",
+  "Rwanda",
+  "Saudi Arabia",
+  "Senegal",
+  "Singapore",
+  "South Africa",
+  "South Korea",
+  "Spain",
+  "Sweden",
+  "Switzerland",
+  "Tanzania",
+  "Thailand",
+  "Turkey",
+  "Uganda",
+  "Ukraine",
+  "United Arab Emirates",
+  "United Kingdom",
+  "United States",
+  "Vietnam",
+];
 
 export const experienceLevels = [
   "Entry",

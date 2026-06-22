@@ -9,7 +9,6 @@ import {
   poppins,
   switzer,
   onest,
-  jetBrainsMono,
 } from "./fonts";
 import "./globals.css";
 import { cn } from "./common/utils";
@@ -68,7 +67,6 @@ const RootLayout = ({ children }: PropsWithChildren<{}>) => {
           poppins.variable,
           switzer.variable,
           onest.variable,
-          jetBrainsMono.variable,
           "min-h-[100svh] w-[100svw] bg-[#F7F7FB] text-black"
         )}
       >
