@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { cn } from "../utils";
 
@@ -16,7 +16,7 @@ type ClientTabsProps = {
   className?: string;
 };
 
-const ClientTabs = ({ tabs, defaultTab, children, className }: ClientTabsProps) => {
+const ClientTabsInner = ({ tabs, defaultTab, children, className }: ClientTabsProps) => {
   const router = useRouter();
   const searchParams = useSearchParams();
   const initialTab = searchParams.get("tab") || defaultTab || tabs[0]?.name || "";
@@ -54,5 +54,11 @@ const ClientTabs = ({ tabs, defaultTab, children, className }: ClientTabsProps) 
     </>
   );
 };
+
+const ClientTabs = (props: ClientTabsProps) => (
+  <Suspense>
+    <ClientTabsInner {...props} />
+  </Suspense>
+);
 
 export default ClientTabs;
