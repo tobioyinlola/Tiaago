@@ -647,6 +647,10 @@ class UserProfileView(RetrieveUpdateAPIView):
         
     def update(self, request, *args, **kwargs):
         """Handles PUT and PATCH requests (update profile, resume, profile_pic)."""
+        if request.user.is_company():
+            membership = CompanyTeamMember.objects.filter(user=request.user).first()
+            if membership and membership.role == CompanyTeamMember.ROLE.VIEWER:
+                return Response({"detail": "Viewers cannot edit company profile."}, status=status.HTTP_403_FORBIDDEN)
 
         instance = self.get_object()
         serializer_class = self.get_serializer_class()

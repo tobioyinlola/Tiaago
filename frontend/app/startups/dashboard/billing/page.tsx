@@ -1,3 +1,5 @@
+import { redirect } from "next/navigation";
+
 import {
   getSubscriptionPlansBasedOnCountry,
   getSubscriptionTransactions,
@@ -12,6 +14,7 @@ import DisplayErrorMessages, {
 } from "@/app/common/components/DisplayErrorMessages";
 import { handleServerApiCallError } from "@/app/common/utils";
 import { getCurrentUser } from "@/app/common/services/profile";
+import { getTeamRole } from "@/app/common/services/team";
 import { SubscriptionPlanV3 } from "@/app/common/types";
 
 export const metadata = {
@@ -22,6 +25,11 @@ const BillingPage = async () => {
   const errors: DisplayErrorMessagesProps["errors"] = [];
   // getCurrentUser must resolve first -- plans depend on country
   const currentUser = (await getCurrentUser("startup"))?.currentUser;
+
+  const teamRoleData = await getTeamRole().catch(() => null);
+  if (teamRoleData && teamRoleData.role !== "admin") {
+    redirect("/startups/dashboard");
+  }
 
   // All remaining calls are independent -- fetch in parallel
   const [

@@ -193,6 +193,7 @@ export const startupNavItems: DashboardNavItemV3[] = [
     name: "Billing",
     href: `${baseHref}/billing`,
     Icon: MoneyBagIcon,
+    requiredRoles: ["admin"],
   },
   {
     name: "settings",

@@ -21,6 +21,7 @@ import SortIcon from "@/app/common/icons/SortIcon";
 import { getJobs } from "@/app/common/services/jobs";
 import ScrollArea from "@/app/common/components/ScrollArea";
 import { getCurrentUser } from "@/app/common/services/profile";
+import { getTeamRole } from "@/app/common/services/team";
 import { cn, handleServerApiCallError } from "@/app/common/utils";
 import StartupOnboardingCards from "./components/StartupOnboardingCards";
 import { EmptyStateV3 } from "@/app/common/components/dashboard/EmptyState";
@@ -32,8 +33,8 @@ export const metadata = {
 const StartupDashboard = async () => {
   const errors: DisplayErrorMessagesProps["errors"] = [];
 
-  // Fetch user and jobs in parallel -- they are independent
-  const [userRes, jobsRes] = await Promise.all([
+  // Fetch user, jobs, and role in parallel -- they are independent
+  const [userRes, jobsRes, teamRoleData] = await Promise.all([
     getCurrentUser("startup"),
     getJobs(1, 5).catch(async e => {
       const error = await handleServerApiCallError(e);
@@ -44,8 +45,11 @@ const StartupDashboard = async () => {
       });
       return null;
     }),
+    getTeamRole().catch(() => null),
   ]);
   const currentUser = userRes.currentUser;
+  const teamRole = teamRoleData?.role ?? "admin";
+  const canTakeActions = teamRole !== "viewer";
   const jobsPosted = jobsRes?.results || [];
 
   const activeJobsThisMonth = jobsPosted.filter(job => {
@@ -103,12 +107,14 @@ const StartupDashboard = async () => {
             {currentUser.first_name}!👋🏻
           </span>
         </h1>
-        <Link
-          href='/startups/dashboard/jobs/create'
-          className='btn btn-primary min-h-[44px] h-11 font-medium'
-        >
-          <LuPlus className='text-base' /> Post a Job
-        </Link>
+        {canTakeActions && (
+          <Link
+            href='/startups/dashboard/jobs/create'
+            className='btn btn-primary min-h-[44px] h-11 font-medium'
+          >
+            <LuPlus className='text-base' /> Post a Job
+          </Link>
+        )}
       </div>
 
       {/* Stats */}

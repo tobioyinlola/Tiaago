@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import "react-quill-new/dist/quill.snow.css";
 import "react-phone-input-2/lib/style.css";
 
@@ -9,6 +10,7 @@ import DisplayErrorMessages, {
 import CreateJobForm from "./CreateJobForm";
 import { handleServerApiCallError } from "@/app/common/utils";
 import { getCurrentUser } from "@/app/common/services/profile";
+import { getTeamRole } from "@/app/common/services/team";
 import { getCountries, getTalentRoles } from "@/app/common/services";
 
 export const metadata = {
@@ -18,8 +20,9 @@ export const metadata = {
 
 const PostAJob = async () => {
   const errors: DisplayErrorMessagesProps["errors"] = [];
-  const [{ currentUser }, groupedCountries, talentRoles] = await Promise.all([
+  const [{ currentUser }, teamRoleData, groupedCountries, talentRoles] = await Promise.all([
     getCurrentUser("startup"),
+    getTeamRole().catch(() => null),
     getCountries().catch(async e => {
       const error = await handleServerApiCallError(e);
       console.log("Get countries error (post a job): ", error);
@@ -39,6 +42,10 @@ const PostAJob = async () => {
       return [];
     }),
   ]);
+
+  if (teamRoleData && teamRoleData.role === "viewer") {
+    redirect("/startups/dashboard");
+  }
 
   return (
     <>
