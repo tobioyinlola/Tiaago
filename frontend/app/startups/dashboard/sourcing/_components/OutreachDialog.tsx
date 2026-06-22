@@ -87,11 +87,15 @@ function EmailPreview({
   body,
   recipientName,
   selectedJob,
+  companyName,
+  recruiterName,
 }: {
   subject: string;
   body: string;
   recipientName: string;
   selectedJob: OutreachJob | null;
+  companyName: string;
+  recruiterName: string;
 }) {
   const jobTitle = selectedJob?.title || "Backend Engineer";
   const jobLevel = selectedJob?.job_level || "Senior";
@@ -100,23 +104,23 @@ function EmailPreview({
     let text = body || "Your message will appear here...";
     text = text
       .replace(/\{\{candidateName\}\}/g, recipientName || "John")
-      .replace(/\{\{company\}\}/g, "Your Company")
+      .replace(/\{\{company\}\}/g, companyName)
       .replace(/\{\{role\}\}/g, "Software Engineer")
-      .replace(/\{\{recruiterName\}\}/g, "You")
+      .replace(/\{\{recruiterName\}\}/g, recruiterName)
       .replace(/\{\{jobTitle\}\}/g, jobTitle)
       .replace(/\{\{jobLevel\}\}/g, jobLevel);
     return text;
-  }, [body, recipientName, jobTitle, jobLevel]);
+  }, [body, recipientName, companyName, recruiterName, jobTitle, jobLevel]);
 
   const previewSubject = useMemo(() => {
     let text = subject || "Email subject";
     text = text
-      .replace(/\{\{company\}\}/g, "Your Company")
+      .replace(/\{\{company\}\}/g, companyName)
       .replace(/\{\{role\}\}/g, "Software Engineer")
       .replace(/\{\{jobTitle\}\}/g, jobTitle)
       .replace(/\{\{jobLevel\}\}/g, jobLevel);
     return text;
-  }, [subject, jobTitle, jobLevel]);
+  }, [subject, companyName, jobTitle, jobLevel]);
 
   return (
     <div className="rounded-xl border border-border overflow-hidden bg-[#EEF1FB] shadow-inner">
@@ -132,7 +136,7 @@ function EmailPreview({
               <Mail className="h-3 w-3 text-white" />
             </div>
             <span className="text-white/90 text-[10px] font-semibold tracking-wider uppercase">
-              TIAAGO
+              {companyName}
             </span>
           </div>
           <span className="text-white/40 text-[10px]">Preview</span>
@@ -150,7 +154,7 @@ function EmailPreview({
 
       <div className="px-4 py-2 flex items-center justify-between">
         <p className="text-[10px] text-muted-foreground/50">
-          Sent via TIAAGO
+          Sent via Tiaago
         </p>
         {selectedJob && (
           <p className="text-[10px] text-primary/50 flex items-center gap-1">
@@ -501,6 +505,10 @@ export function OutreachDialog({
 
   const selectedJob = jobs.find(j => j.id === selectedJobId) || null;
 
+  const profile = useUserStore(s => s.profile);
+  const companyName = (profile as any)?.company_name || "Your Company";
+  const recruiterName = (profile as any)?.user?.first_name || (profile as any)?.first_name || "You";
+
   const handleSmtpSetupComplete = (config: SmtpConfig) => {
     setSmtpConfig(config);
     setSmtpStatus("configured");
@@ -773,6 +781,8 @@ export function OutreachDialog({
                     body={body}
                     recipientName={firstRecipient}
                     selectedJob={selectedJob}
+                    companyName={companyName}
+                    recruiterName={recruiterName}
                   />
                   {selectedJob && (
                     <div className="mt-3 rounded-lg bg-primary/5 border border-primary/10 p-2.5">

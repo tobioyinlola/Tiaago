@@ -338,41 +338,50 @@ export const emailTemplates: EmailTemplate[] = [
   {
     id: "1",
     name: "Initial Outreach",
-    subject: "{{jobTitle}} opportunity at {{company}}",
+    subject: "{{jobTitle}} at {{company}}",
     body: `Hi {{candidateName}},
 
-I'm {{recruiterName}} from {{company}}. We're looking for a {{jobTitle}} and your profile stood out.
+I came across your profile and was impressed by your background. We have an open {{jobTitle}} position at {{company}} that I think would be a great fit for you.
 
-Would you be open to a quick conversation about the role? Happy to share more details.
+Here are some highlights:
+- Role: {{jobTitle}} ({{jobLevel}})
+- Company: {{company}}
+
+If this sounds interesting, I would love to set up a quick chat to tell you more about the role and our team.
+
+Looking forward to hearing from you.
 
 Best,
-{{recruiterName}}`,
+{{recruiterName}}
+{{company}}`,
   },
   {
     id: "2",
     name: "Follow Up",
-    subject: "Following up: {{jobTitle}} at {{company}}",
+    subject: "Following up on {{jobTitle}} at {{company}}",
     body: `Hi {{candidateName}},
 
-Just following up on my previous message about the {{jobTitle}} position at {{company}}.
+I wanted to follow up on my previous message about the {{jobTitle}} position at {{company}}.
 
-We're still looking for the right person and I think you'd be a great fit. Would you be available for a brief chat this week?
+We are still looking for the right person and your experience as a {{role}} makes you a strong candidate. Would you be available for a brief chat this week?
 
 Best,
-{{recruiterName}}`,
+{{recruiterName}}
+{{company}}`,
   },
   {
     id: "3",
     name: "Re-engagement",
-    subject: "New opening: {{jobTitle}} at {{company}}",
+    subject: "New role: {{jobTitle}} at {{company}}",
     body: `Hi {{candidateName}},
 
-We have a new {{jobTitle}} opening at {{company}} and I thought of you right away.
+We have a new {{jobTitle}} opening at {{company}} and your profile stood out to us.
 
-Would you be interested in learning more? I'd love to set up a quick call at your convenience.
+I would love to share more details about the role and what we are building. Would you be interested in learning more?
 
 Best,
-{{recruiterName}}`,
+{{recruiterName}}
+{{company}}`,
   },
 ];
 
