@@ -82,13 +82,15 @@ class IsCompanyViewerOrAbove(permissions.BasePermission):
 
 
 def get_user_company(user):
-    """Resolve a user's company: CompanyTeamMember first (handles invited
-    team members), then direct company_rep FK as fallback.
-    Returns the Company instance or None."""
+    """Resolve a user's company. For invited team members, returns the
+    inviting company (not their auto-created empty one). For company reps
+    with no invite, returns their own company."""
     if not user or not user.is_authenticated:
         return None
     membership = CompanyTeamMember.objects.filter(
         user=user
+    ).exclude(
+        company__company_rep=user
     ).select_related("company").first()
     if membership:
         return membership.company
