@@ -308,7 +308,7 @@ class JobRetrieveUpdateView(RetrieveUpdateAPIView):
         instance = self.get_object()
         # Only company admin or recruiter (for the job's company) may update
         company = getattr(instance, 'company', None)
-        if company and not user_is_company_role(request.user, company, [CompanyTeamMember.ROLE.ADMIN, CompanyTeamMember.ROLE.RECRUITER]):
+        if company and not request.user.is_staff and not user_is_company_role(request.user, company, [CompanyTeamMember.ROLE.ADMIN, CompanyTeamMember.ROLE.RECRUITER]):
             return Response({"detail": "Permission denied."}, status=HTTP_403_FORBIDDEN)
         serializer = self.get_serializer(instance, data=request.data, partial=partial)
         serializer.is_valid(raise_exception=True)
