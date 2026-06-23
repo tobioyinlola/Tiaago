@@ -714,7 +714,7 @@ export function OutreachDialog({
                       <option value="" disabled>Select a job for this outreach...</option>
                       {jobs.map((job) => (
                         <option key={job.id} value={job.id}>
-                          {job.title}{job.job_level ? ` (${job.job_level})` : ""}
+                          {job.title}
                         </option>
                       ))}
                     </select>
@@ -804,7 +804,6 @@ export function OutreachDialog({
                       <p className="text-[10px] font-medium text-primary flex items-center gap-1.5">
                         <Briefcase className="h-3 w-3" />
                         Outreach for: {selectedJob.title}
-                        {selectedJob.job_level ? ` (${selectedJob.job_level})` : ""}
                       </p>
                     </div>
                   )}
