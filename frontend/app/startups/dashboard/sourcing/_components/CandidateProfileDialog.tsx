@@ -98,11 +98,11 @@ export function CandidateProfileDialog({
                   {candidate.email}
                 </a>
               </div>
-              {!!candidate.linkdIn_profile && (
+              {!!candidate.linkedin_profile && (
                 <div className='flex items-center gap-2'>
                   <Linkedin className='h-4 w-4 text-muted-foreground' />
                   <a
-                    href={`https://${candidate.linkdIn_profile}`}
+                    href={`https://${candidate.linkedin_profile}`}
                     target='_blank'
                     rel='noopener noreferrer'
                     className='text-sm text-primary hover:underline'

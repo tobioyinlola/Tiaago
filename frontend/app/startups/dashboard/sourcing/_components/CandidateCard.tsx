@@ -144,10 +144,10 @@ export function CandidateCard({
                       Add to Pipeline
                     </DropdownMenuItem>
                   )}
-                  {candidate.linkdIn_profile && (
+                  {candidate.linkedin_profile && (
                     <DropdownMenuItem asChild>
                       <a
-                        href={`https://${candidate.linkdIn_profile}`}
+                        href={`https://${candidate.linkedin_profile}`}
                         target='_blank'
                         rel='noopener noreferrer'
                         onClick={e => e.stopPropagation()}

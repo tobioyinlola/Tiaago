@@ -942,7 +942,7 @@ export type ServerCandidate = {
   country: string;
   years_of_expr: number;
   email?: string;
-  linkdIn_profile: string;
+  linkedin_profile: string;
   phone_number?: string;
   summary: string | null;
   current_company: string;

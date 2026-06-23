@@ -116,6 +116,9 @@ type FormState = {
   currency: string;
   frameworks: string;
   summary: string;
+  education: string;
+  years_of_experience: string;
+  current_company: string;
 };
 
 const INITIAL_FORM: FormState = {
@@ -132,6 +135,9 @@ const INITIAL_FORM: FormState = {
   currency: "USD",
   frameworks: "",
   summary: "",
+  education: "",
+  years_of_experience: "",
+  current_company: "",
 };
 
 const STEP_LABELS = [
@@ -294,6 +300,9 @@ export function InviteApplicationForm({
     }
     if (form.frameworks) formData.append("skills", form.frameworks);
     if (form.summary) formData.append("summary", form.summary);
+    if (form.education) formData.append("education", form.education);
+    if (form.years_of_experience) formData.append("years_of_experience", form.years_of_experience);
+    if (form.current_company) formData.append("current_company", form.current_company);
 
     setIsSubmitting(true);
     try {
@@ -920,6 +929,50 @@ export function InviteApplicationForm({
                       placeholder='e.g. React, Node.js, Python (comma-separated)'
                       value={form.frameworks}
                       onChange={(e) => update("frameworks", e.target.value)}
+                      className='grow bg-transparent outline-none text-sm font-onest'
+                    />
+                  )}
+                </div>
+                <div>
+                  <label className='label-text text-black font-medium font-onest mb-1 block'>
+                    Education
+                  </label>
+                  {inputBox(
+                    <IoBriefcase className='text-base text-[#98A2B3]' />,
+                    <input
+                      placeholder='e.g., BSc Computer Science, University of Lagos'
+                      value={form.education}
+                      onChange={(e) => update("education", e.target.value)}
+                      className='grow bg-transparent outline-none text-sm font-onest'
+                    />
+                  )}
+                </div>
+                <div>
+                  <label className='label-text text-black font-medium font-onest mb-1 block'>
+                    Years of Experience
+                  </label>
+                  {inputBox(
+                    <IoBriefcase className='text-base text-[#98A2B3]' />,
+                    <input
+                      type='number'
+                      placeholder='e.g., 3'
+                      min='0'
+                      value={form.years_of_experience}
+                      onChange={(e) => update("years_of_experience", e.target.value)}
+                      className='grow bg-transparent outline-none text-sm font-onest'
+                    />
+                  )}
+                </div>
+                <div>
+                  <label className='label-text text-black font-medium font-onest mb-1 block'>
+                    Current Company
+                  </label>
+                  {inputBox(
+                    <IoBriefcase className='text-base text-[#98A2B3]' />,
+                    <input
+                      placeholder='e.g., Andela'
+                      value={form.current_company}
+                      onChange={(e) => update("current_company", e.target.value)}
                       className='grow bg-transparent outline-none text-sm font-onest'
                     />
                   )}

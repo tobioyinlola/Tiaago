@@ -195,9 +195,9 @@ export function CandidateDetailPanel({
               ) : null
             } />
             <Field label='LinkedIn' value={
-              candidate.linkdIn_profile ? (
-                <a href={candidate.linkdIn_profile} target='_blank' rel='noreferrer' className='inline-flex items-center gap-1 text-primary hover:underline'>
-                  <span className='truncate'>{candidate.linkdIn_profile.replace(/^https?:\/\//, "")}</span>
+              candidate.linkedin_profile ? (
+                <a href={candidate.linkedin_profile} target='_blank' rel='noreferrer' className='inline-flex items-center gap-1 text-primary hover:underline'>
+                  <span className='truncate'>{candidate.linkedin_profile.replace(/^https?:\/\//, "")}</span>
                   <LuExternalLink className='h-3 w-3 shrink-0' />
                 </a>
               ) : null

@@ -44,6 +44,7 @@ class AddToPipelineSerializer(serializers.Serializer):
     country = serializers.CharField(max_length=100, required=False, default="")
     years_of_expr = serializers.IntegerField(required=False, default=0)
     linkdIn_profile = serializers.CharField(max_length=500, required=False, default="")
+    linkedin_profile = serializers.CharField(max_length=500, required=False, default="")
     summary = serializers.CharField(required=False, allow_blank=True, allow_null=True, default="")
     current_company = serializers.CharField(max_length=255, required=False, default="")
     education = serializers.CharField(required=False, allow_blank=True, default="")
@@ -53,7 +54,10 @@ class AddToPipelineSerializer(serializers.Serializer):
     category = serializers.IntegerField(required=False, allow_null=True, default=None)
 
     def create(self, validated_data):
-        validated_data["linkedin_profile"] = validated_data.pop("linkdIn_profile", "")
+        # Accept both "linkdIn_profile" (legacy typo) and "linkedin_profile" as input
+        legacy_linkedin = validated_data.pop("linkdIn_profile", "")
+        clean_linkedin = validated_data.pop("linkedin_profile", "")
+        validated_data["linkedin_profile"] = legacy_linkedin or clean_linkedin
         category_id = validated_data.pop("category", None)
         if category_id:
             validated_data["category_id"] = category_id
@@ -131,6 +135,7 @@ class InviteSubmissionSerializer(serializers.Serializer):
     email = serializers.EmailField()
     phone = serializers.CharField(max_length=50, required=False, default="")
     linkedin_profile = serializers.URLField(max_length=500, required=False, default="")
+    linkedin_url = serializers.URLField(max_length=500, required=False, default="")
     portfolio_url = serializers.URLField(required=False, default="")
     resume = serializers.FileField(required=False, allow_null=True, default=None)
     current_role = serializers.CharField(max_length=255, required=False, default="")
@@ -140,6 +145,9 @@ class InviteSubmissionSerializer(serializers.Serializer):
     pay_currency = serializers.CharField(max_length=10, required=False, default="USD")
     skills = serializers.CharField(required=False, default="", allow_blank=True)
     summary = serializers.CharField(required=False, default="", allow_blank=True)
+    education = serializers.CharField(required=False, allow_blank=True, default="")
+    years_of_experience = serializers.IntegerField(required=False, default=0)
+    current_company = serializers.CharField(required=False, allow_blank=True, default="")
 
     def validate_resume(self, value):
         if value:
@@ -174,13 +182,23 @@ class InviteSubmissionSerializer(serializers.Serializer):
         phone = validated_data.pop("phone", "")
         current_role = validated_data.pop("current_role", "")
 
+        # Map linkedin_url (frontend sends this) to the model's linkedin_profile field
+        linkedin_url = validated_data.pop("linkedin_url", "")
+        linkedin_profile = validated_data.pop("linkedin_profile", "")
+        resolved_linkedin = linkedin_url or linkedin_profile
+
+        # Map new fields to model field names
+        education = validated_data.pop("education", "")
+        years_of_experience = validated_data.pop("years_of_experience", 0)
+        current_company = validated_data.pop("current_company", "")
+
         candidate = PipelineCandidate.objects.create(
             name=name,
             email=validated_data.get("email", ""),
             phone_number=phone,
             role=current_role,
             country=validated_data.get("country", ""),
-            linkedin_profile=validated_data.get("linkedin_profile", ""),
+            linkedin_profile=resolved_linkedin,
             portfolio_url=validated_data.get("portfolio_url", ""),
             resume=validated_data.get("resume"),
             experience_level=validated_data.get("experience_level", ""),
@@ -188,6 +206,9 @@ class InviteSubmissionSerializer(serializers.Serializer):
             pay_currency=validated_data.get("pay_currency", "USD"),
             skills=skills,
             summary=validated_data.get("summary", ""),
+            education=education,
+            years_of_expr=years_of_experience,
+            current_company=current_company,
             status=PipelineCandidate.Status.NEW,
             category=invite_link.category,
             company=invite_link.company,

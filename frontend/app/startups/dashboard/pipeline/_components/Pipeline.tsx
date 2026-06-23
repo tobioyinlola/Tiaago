@@ -240,16 +240,25 @@ export default function Pipeline({
               size='sm'
               className='sm:size-default'
               onClick={() => {
+                const esc = (v: string) => `"${(v || "").replace(/"/g, '""')}"`;
                 const csv = [
-                  "Name,Email,Role,Status,Country,Skills",
+                  "Name,Email,Role,Status,Country,Skills,LinkedIn,Portfolio,Phone,Experience Level,Years of Experience,Current Company,Education,Current Pay",
                   ...candidates.map(c =>
                     [
-                      c.name,
-                      c.email || "",
-                      c.role,
-                      c.status,
-                      c.country,
-                      `"${(c.skills || []).join(", ")}"`,
+                      esc(c.name),
+                      esc(c.email || ""),
+                      esc(c.role),
+                      esc(c.status),
+                      esc(c.country),
+                      esc((c.skills || []).join(", ")),
+                      esc(c.linkedin_profile || ""),
+                      esc(c.portfolio_url || ""),
+                      esc(c.phone_number || ""),
+                      esc(c.experience_level || ""),
+                      esc(c.years_of_expr ? String(c.years_of_expr) : ""),
+                      esc(c.current_company || ""),
+                      esc(c.education || ""),
+                      esc(c.current_pay ? `${c.pay_currency || ""} ${c.current_pay}`.trim() : ""),
                     ].join(",")
                   ),
                 ].join("\n");
