@@ -3,7 +3,6 @@ import DisplayErrorMessages, {
   DisplayErrorMessagesProps,
 } from "@/app/common/components/DisplayErrorMessages";
 import { getCategories, getPipeline } from "@/app/common/services/sourcing";
-import { getTalentRoles } from "@/app/common/services";
 import PipelineCategories from "./_components/PipelineCategories";
 
 export const metadata = {
@@ -13,7 +12,7 @@ export const metadata = {
 const PipelinePage = async () => {
   const errors: DisplayErrorMessagesProps["errors"] = [];
 
-  const [categories, pipeline, talentRoles] = await Promise.all([
+  const [categories, pipeline] = await Promise.all([
     getCategories().catch(async e => {
       const error = await handleServerApiCallError(e);
       console.log("Get categories error (pipeline): ", error);
@@ -32,7 +31,6 @@ const PipelinePage = async () => {
       });
       return null;
     }),
-    getTalentRoles().catch(() => []),
   ]);
 
   return (
@@ -40,7 +38,6 @@ const PipelinePage = async () => {
       <PipelineCategories
         categories={categories}
         totalCandidates={pipeline?.total_in_pipeline ?? 0}
-        talentRoles={talentRoles}
       />
       <DisplayErrorMessages errors={errors} />
     </>

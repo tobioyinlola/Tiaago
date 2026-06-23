@@ -83,8 +83,7 @@ interface InviteApplicationFormProps {
   token: string;
   categoryName: string;
   companyName: string;
-  pipelineRoleSlug: string;
-  pipelineRoleTitle: string;
+  pipelineRoleName: string;
   talentRoles: TalentRole[];
   groupedCountries: GroupBase<CountryField>[];
 }
@@ -152,12 +151,11 @@ export function InviteApplicationForm({
   token,
   categoryName,
   companyName,
-  pipelineRoleSlug,
-  pipelineRoleTitle,
+  pipelineRoleName,
   talentRoles,
   groupedCountries,
 }: InviteApplicationFormProps) {
-  const hasLockedRole = !!pipelineRoleSlug;
+  const hasLockedRole = !!pipelineRoleName;
   const roleOptions = [
     ...talentRoles.map((r) => ({ value: r.slug, label: r.title })),
     { value: "other", label: "Other" },
@@ -177,7 +175,7 @@ export function InviteApplicationForm({
     first_name: user?.first_name || "",
     last_name: user?.last_name || "",
     email: user?.email || "",
-    current_role: pipelineRoleSlug || "",
+    current_role: pipelineRoleName || "",
   }));
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -830,7 +828,7 @@ export function InviteApplicationForm({
                   {hasLockedRole ? (
                     <div className='flex items-center gap-2 px-3 py-2.5 rounded-lg border border-[#D0D5DD] bg-[#F9FAFB] text-sm font-onest text-black'>
                       <IoBriefcase className='text-[#98A2B3] shrink-0' />
-                      <span>{pipelineRoleTitle}</span>
+                      <span>{pipelineRoleName}</span>
                     </div>
                   ) : (
                     <Select

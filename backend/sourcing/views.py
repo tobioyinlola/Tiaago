@@ -183,7 +183,7 @@ class CategoryListCreateView(ListCreateAPIView):
         company = _get_company(self.request)
         if not company:
             return PipelineCategory.objects.none()
-        return PipelineCategory.objects.filter(company=company).select_related("role")
+        return PipelineCategory.objects.filter(company=company)
 
     def perform_create(self, serializer):
         if _is_viewer(self.request):
@@ -202,7 +202,7 @@ class CategoryDetailView(RetrieveUpdateDestroyAPIView):
         company = _get_company(self.request)
         if not company:
             return PipelineCategory.objects.none()
-        return PipelineCategory.objects.filter(company=company).select_related("role")
+        return PipelineCategory.objects.filter(company=company)
 
 
 class GenerateInviteLinkView(APIView):
@@ -257,17 +257,15 @@ class ValidateInviteTokenView(APIView):
 
     def get(self, request, token):
         invite = get_object_or_404(
-            PipelineInviteLink.objects.select_related("category__role", "company"),
+            PipelineInviteLink.objects.select_related("category", "company"),
             token=token,
         )
 
-        role = invite.category.role
         data = {
             "category_name": invite.category.name,
             "company_name": invite.company.company_name,
             "is_active": invite.is_active and invite.category.is_active,
-            "role_slug": role.slug if role else "",
-            "role_title": role.title if role else "",
+            "role_name": invite.category.role_name,
         }
         serializer = InviteTokenValidationSerializer(data)
         return Response(serializer.data)

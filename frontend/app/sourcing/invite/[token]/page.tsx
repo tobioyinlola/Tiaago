@@ -157,8 +157,7 @@ export default async function InvitePage({ params }: Props) {
         token={token}
         categoryName={result.data.category_name}
         companyName={result.data.company_name}
-        pipelineRoleSlug={result.data.role_slug || ""}
-        pipelineRoleTitle={result.data.role_title || ""}
+        pipelineRoleName={result.data.role_name || ""}
         talentRoles={await getTalentRoles().catch(() => [])}
         groupedCountries={await getCountries().catch(() => [])}
       />

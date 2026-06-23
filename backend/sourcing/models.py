@@ -24,13 +24,7 @@ class PipelineCategory(TimeStampedModel):
         on_delete=models.CASCADE,
         related_name="pipeline_categories",
     )
-    role = models.ForeignKey(
-        "roles.Role",
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="pipeline_categories",
-    )
+    role_name = models.CharField(max_length=255, blank=True, default="")
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,

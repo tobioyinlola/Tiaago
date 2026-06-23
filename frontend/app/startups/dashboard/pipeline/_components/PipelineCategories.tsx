@@ -57,7 +57,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/app/common/components/ui/select";
-import { PipelineCategory, TalentRole } from "@/app/common/types";
+import { PipelineCategory } from "@/app/common/types";
 import {
   createCategory,
   updateCategory,
@@ -67,11 +67,9 @@ import {
 export default function PipelineCategories({
   categories: initialCategories,
   totalCandidates,
-  talentRoles,
 }: {
   categories: PipelineCategory[];
   totalCandidates: number;
-  talentRoles: TalentRole[];
 }) {
   const router = useRouter();
   const [categories, setCategories] =
@@ -79,7 +77,7 @@ export default function PipelineCategories({
   const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState("");
   const [newDescription, setNewDescription] = useState("");
-  const [newRoleId, setNewRoleId] = useState<number | null>(null);
+  const [newRoleName, setNewRoleName] = useState("");
   const [creating, setCreating] = useState(false);
 
   const [editCategory, setEditCategory] = useState<PipelineCategory | null>(
@@ -87,7 +85,7 @@ export default function PipelineCategories({
   );
   const [editName, setEditName] = useState("");
   const [editDescription, setEditDescription] = useState("");
-  const [editRoleId, setEditRoleId] = useState<number | null>(null);
+  const [editRoleName, setEditRoleName] = useState("");
   const [saving, setSaving] = useState(false);
 
   const [deleteTarget, setDeleteTarget] = useState<PipelineCategory | null>(
@@ -119,7 +117,7 @@ export default function PipelineCategories({
     setEditCategory(cat);
     setEditName(cat.name);
     setEditDescription(cat.description);
-    setEditRoleId(typeof cat.role === "number" ? cat.role : null);
+    setEditRoleName(cat.role_name || "");
   };
 
   const handleEdit = async () => {
@@ -128,7 +126,7 @@ export default function PipelineCategories({
     const res = await updateCategory(editCategory.id, {
       name: editName.trim(),
       description: editDescription.trim(),
-      role: editRoleId,
+      role_name: editRoleName.trim(),
     });
     setSaving(false);
     if (res.success) {
@@ -162,14 +160,14 @@ export default function PipelineCategories({
   const handleCreate = async () => {
     if (!newName.trim()) return;
     setCreating(true);
-    const res = await createCategory(newName.trim(), newDescription.trim(), newRoleId);
+    const res = await createCategory(newName.trim(), newDescription.trim(), newRoleName.trim());
     setCreating(false);
     if (res.success) {
       setCategories(prev => [res.data, ...prev]);
       setShowCreate(false);
       setNewName("");
       setNewDescription("");
-      setNewRoleId(null);
+      setNewRoleName("");
       toast.success("Pipeline created", {
         description: `"${res.data.name}" has been created.`,
       });
@@ -365,9 +363,9 @@ export default function PipelineCategories({
                                 <p className="font-medium text-foreground truncate text-sm sm:text-base">
                                   {cat.name}
                                 </p>
-                                {cat.role_title && (
+                                {cat.role_name && (
                                   <Badge variant="outline" className="text-[10px] shrink-0 max-sm:hidden">
-                                    {cat.role_title}
+                                    {cat.role_name}
                                   </Badge>
                                 )}
                               </div>
@@ -491,21 +489,12 @@ export default function PipelineCategories({
             </div>
             <div>
               <label className="text-sm font-medium">Role</label>
-              <Select
-                value={newRoleId?.toString() ?? ""}
-                onValueChange={v => setNewRoleId(v ? Number(v) : null)}
-              >
-                <SelectTrigger className="mt-1">
-                  <SelectValue placeholder="Select a role..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {talentRoles.map(r => (
-                    <SelectItem key={r.id} value={String(r.id)}>
-                      {r.title}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Input
+                placeholder="e.g., Frontend Engineer"
+                value={newRoleName}
+                onChange={e => setNewRoleName(e.target.value)}
+                className="mt-1"
+              />
             </div>
             <div>
               <label className="text-sm font-medium">Description</label>
@@ -552,21 +541,12 @@ export default function PipelineCategories({
             </div>
             <div>
               <label className="text-sm font-medium">Role</label>
-              <Select
-                value={editRoleId?.toString() ?? ""}
-                onValueChange={v => setEditRoleId(v ? Number(v) : null)}
-              >
-                <SelectTrigger className="mt-1">
-                  <SelectValue placeholder="Select a role..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {talentRoles.map(r => (
-                    <SelectItem key={r.id} value={String(r.id)}>
-                      {r.title}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Input
+                placeholder="e.g., Frontend Engineer"
+                value={editRoleName}
+                onChange={e => setEditRoleName(e.target.value)}
+                className="mt-1"
+              />
             </div>
             <div>
               <label className="text-sm font-medium">Description</label>

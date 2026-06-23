@@ -1488,10 +1488,10 @@ export const getCategories = async () => {
   return results as PipelineCategory[];
 };
 
-export const createCategory = async (name: string, description: string, roleId?: number | null) => {
+export const createCategory = async (name: string, description: string, roleName?: string) => {
   try {
     const json: Record<string, unknown> = { name, description };
-    if (roleId) json.role = roleId;
+    if (roleName) json.role_name = roleName;
     const data = await serverKyInstance.post("sourcing/categories/", {
       json,
     }).json<PipelineCategory>();
@@ -1504,7 +1504,7 @@ export const createCategory = async (name: string, description: string, roleId?:
 
 export const updateCategory = async (
   id: ID,
-  data: Partial<Pick<PipelineCategory, "name" | "description" | "is_active" | "role">>
+  data: Partial<Pick<PipelineCategory, "name" | "description" | "is_active" | "role_name">>
 ) => {
   try {
     const responseData = await serverKyInstance.patch(`sourcing/categories/${id}/`, { json: data }).json<PipelineCategory>();
@@ -1540,7 +1540,7 @@ export const updatePipelineEntry = async (
 
 export const validateInviteToken = async (token: string) => {
   try {
-    const data = await publicKyInstance.get(`sourcing/invite/${token}/`).json<{ category_name: string; company_name: string; is_active: boolean; role_slug: string; role_title: string }>();
+    const data = await publicKyInstance.get(`sourcing/invite/${token}/`).json<{ category_name: string; company_name: string; is_active: boolean; role_name: string }>();
     return { success: true as const, data };
   } catch (error) {
     const [errMsg] = await _handleServerApiCallError(error);
