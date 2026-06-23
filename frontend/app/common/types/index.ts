@@ -404,6 +404,8 @@ export type Job = {
   no_of_applications: number;
   requires_assessment?: boolean;
   assessment_id?: ID;
+  get_apply_url?: string;
+  detail_url?: string;
   company: {
     id: ID;
     company_name: string;
