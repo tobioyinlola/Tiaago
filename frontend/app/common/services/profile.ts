@@ -29,6 +29,7 @@ import {
 export type GetCurrentUserReturnType<T> = {
   removeAuthCookies: boolean;
   currentUser: T;
+  backendDown?: boolean;
 };
 
 const _getCurrentUserImpl = cache(async function getCurrentUserImpl(
@@ -52,6 +53,10 @@ const _getCurrentUserImpl = cache(async function getCurrentUserImpl(
     currentUser = { ...rest, ...user };
   } catch (error: any) {
     if (error instanceof HTTPError) {
+      const status = error.response?.status;
+      if (status === 502 || status === 503 || status === 504) {
+        return { removeAuthCookies: false, currentUser: null as any, backendDown: true };
+      }
       const errorResponse = await error.response?.json().catch(() => ({})) ?? {};
       if (errorResponse?.code === "token_not_valid") {
         removeAuthCookies = true;
@@ -59,6 +64,8 @@ const _getCurrentUserImpl = cache(async function getCurrentUserImpl(
         console.log({ error });
         console.log(error.message, errorResponse);
       }
+    } else if (error?.cause?.code === "ECONNREFUSED" || error?.code === "ECONNREFUSED" || error?.message?.includes("fetch failed")) {
+      return { removeAuthCookies: false, currentUser: null as any, backendDown: true };
     }
     if (IS_DEV) console.log({ error });
     if (allowNull) return { removeAuthCookies, currentUser: null };

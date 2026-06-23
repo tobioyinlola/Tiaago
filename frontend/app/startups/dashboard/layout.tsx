@@ -17,10 +17,13 @@ import SetUserProfile from "@/app/common/components/Layout/SetUserProfile";
 import FinishOnboardingBanner from "./components/FinishOnboardingBanner";
 import { getCompanyOnboarding } from "@/app/common/services/company-onboarding";
 import BackendWarmupPing from "@/app/common/components/Layout/BackendWarmupPing";
+import MaintenancePage from "@/app/common/components/MaintenancePage";
 
 const StartupDashboardLayout = async ({ children }: PropsWithChildren) => {
   const errors: DisplayErrorMessagesProps["errors"] = [];
-  const { currentUser: startup } = await getCurrentUser("startup");
+  const result = await getCurrentUser("startup");
+  if (result.backendDown) return <MaintenancePage />;
+  const { currentUser: startup } = result;
   // if (!user.is_verified)
   //   return redirect(`/verify-email?email=${user.email}&as=talent`);
 

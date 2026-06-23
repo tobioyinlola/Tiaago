@@ -14,10 +14,13 @@ import DisplayErrorMessages, {
 } from "@/app/common/components/DisplayErrorMessages";
 import { handleServerApiCallError } from "@/app/common/utils";
 import BackendWarmupPing from "@/app/common/components/Layout/BackendWarmupPing";
+import MaintenancePage from "@/app/common/components/MaintenancePage";
 
 const AdminDashboardLayout = async ({ children }: PropsWithChildren) => {
   const errors: DisplayErrorMessagesProps["errors"] = [];
-  const { currentUser: user } = await getCurrentUser("staff");
+  const result = await getCurrentUser("staff");
+  if (result.backendDown) return <MaintenancePage />;
+  const { currentUser: user } = result;
   useAdminStore.setState({ profile: user });
   const as = "staff";
   const [talentsRes, startupsRes] = await Promise.all([

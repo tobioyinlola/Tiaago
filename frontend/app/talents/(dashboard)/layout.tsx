@@ -16,13 +16,14 @@ import SetUserProfile from "@/app/common/components/Layout/SetUserProfile";
 import { VerifiedBadgeIndicator } from "@/app/common/components/UserAvatar";
 import HideOnPathnames from "@/app/common/components/Layout/HideOnPathnames";
 import BackendWarmupPing from "@/app/common/components/Layout/BackendWarmupPing";
+import MaintenancePage from "@/app/common/components/MaintenancePage";
 import { IS_CHAT_HIDDEN } from "@/app/common/constants";
 
 const TalentDashboardLayout = async ({ children }: PropsWithChildren) => {
   const errors: DisplayErrorMessagesProps["errors"] = [];
-  const { currentUser: user, removeAuthCookies } = await getCurrentUser(
-    "talent"
-  );
+  const result = await getCurrentUser("talent");
+  if (result.backendDown) return <MaintenancePage />;
+  const { currentUser: user, removeAuthCookies } = result;
   // if (!user.is_verified)
   //   return redirect(`/verify-email?email=${user.email}&as=talent`);
   const profileStatus = await getTalenProfileStatus().catch(async e => {
