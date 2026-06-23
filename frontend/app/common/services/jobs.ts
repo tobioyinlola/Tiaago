@@ -36,7 +36,7 @@ export const getJob = async (id: ID): Promise<Job | undefined> => {
 
 export const getPublicJob = async (id: ID): Promise<Job | undefined> => {
   try {
-    const data = await serverKyInstance.get<Job>("jobs/job-detail/" + id).json();
+    const data = await serverKyInstance.get<Job>("jobs/apply/" + id).json();
     return data;
   } catch (error) {
     const errMsg = await handleServerApiCallError(error);
