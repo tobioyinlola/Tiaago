@@ -1,9 +1,10 @@
 ﻿"use client";
 
+import * as Yup from "yup";
 import Link from "next/link";
 import { toast } from "sonner";
 import { Formik } from "formik";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Button from "@/app/common/components/DaisyButton";
 import { GroupBase } from "react-select";
 import { useRouter } from "next/navigation";
@@ -41,6 +42,30 @@ const SignUpFormV3 = ({
   const urlSearchParams = new URLSearchParams();
   if (referral_code) urlSearchParams.set("referral_code", referral_code);
   if (next) urlSearchParams.set("next", next);
+
+  const isInvite = !!invite_token;
+
+  const formFields = useMemo(
+    () =>
+      isInvite
+        ? startupSignUpV3FormFields.filter(
+            f => f.name !== "country" && f.name !== "company_name"
+          )
+        : startupSignUpV3FormFields,
+    [isInvite]
+  );
+
+  const validationSchema = useMemo(
+    () =>
+      isInvite
+        ? Yup.object().shape({
+            full_name: Yup.string().required().label("Full name"),
+            email: Yup.string().email().required().label("Work email address"),
+            password1: startupSignUpV3ValidationSchema.fields.password1,
+          })
+        : startupSignUpV3ValidationSchema,
+    [isInvite]
+  );
 
   const initialValues = {
     ...startupSignUpV3InitialFormValues,
@@ -95,7 +120,7 @@ const SignUpFormV3 = ({
           .catch(err => handleFormSubmissionError(err, setFieldError, setAlert))
           .finally(() => setSubmitting(false));
       }}
-      validationSchema={startupSignUpV3ValidationSchema}
+      validationSchema={validationSchema}
     >
       {({ handleSubmit, isSubmitting, errors, touched, values }) => (
         <form onSubmit={handleSubmit} className='mt-8 mb-3'>
@@ -111,7 +136,7 @@ const SignUpFormV3 = ({
             </span>
             <hr className='w-full bg-[#F0F2F5]' />
           </div>
-          {startupSignUpV3FormFields.map(({ name, label, ...props }, i) => {
+          {formFields.map(({ name, label, ...props }, i) => {
             if (name === "country")
               return (
                 <CountrySelect
@@ -131,6 +156,7 @@ const SignUpFormV3 = ({
                 value={values[name]}
                 error={errors[name]}
                 touched={touched[name]}
+                disabled={name === "email" && isInvite}
                 disablePasswordHelpers
                 inputContainerClassName='min-h-10 h-10'
               />

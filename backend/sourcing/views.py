@@ -35,7 +35,21 @@ logger = logging.getLogger(__name__)
 
 
 def _get_company(request):
-    return getattr(request.user, "company", None)
+    company = getattr(request.user, "company", None)
+    if company is None:
+        from create_user.models import CompanyTeamMember
+        membership = CompanyTeamMember.objects.filter(
+            user=request.user
+        ).select_related("company").first()
+        if membership:
+            company = membership.company
+    return company
+
+
+def _is_viewer(request):
+    from create_user.models import CompanyTeamMember
+    membership = CompanyTeamMember.objects.filter(user=request.user).first()
+    return membership and membership.role == CompanyTeamMember.ROLE.VIEWER
 
 
 class PipelineListView(APIView):
@@ -78,6 +92,11 @@ class AddToPipelineView(APIView):
                 {"error": "Company profile required."},
                 status=status.HTTP_403_FORBIDDEN,
             )
+        if _is_viewer(request):
+            return Response(
+                {"error": "Viewers cannot perform this action."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
 
         if "candidates" in request.data:
             serializer = BulkAddToPipelineSerializer(data=request.data)
@@ -108,6 +127,11 @@ class AddToPipelineView(APIView):
 class RemoveFromPipelineView(APIView):
     def delete(self, request, pk):
         company = _get_company(request)
+        if _is_viewer(request):
+            return Response(
+                {"error": "Viewers cannot perform this action."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         entry = get_object_or_404(
             PipelineCandidate.objects.filter(company=company), pk=pk
         )
@@ -130,6 +154,11 @@ class RemoveFromPipelineView(APIView):
 class UpdatePipelineEntryView(APIView):
     def patch(self, request, pk):
         company = _get_company(request)
+        if _is_viewer(request):
+            return Response(
+                {"error": "Viewers cannot perform this action."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         entry = get_object_or_404(
             PipelineCandidate.objects.filter(company=company), pk=pk
         )
@@ -155,6 +184,9 @@ class CategoryListCreateView(ListCreateAPIView):
         return PipelineCategory.objects.filter(company=company)
 
     def perform_create(self, serializer):
+        if _is_viewer(self.request):
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("Viewers cannot perform this action.")
         company = _get_company(self.request)
         serializer.save(company=company, created_by=self.request.user)
 
@@ -176,6 +208,11 @@ class GenerateInviteLinkView(APIView):
         if not company:
             return Response(
                 {"error": "Company profile required."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        if _is_viewer(request):
+            return Response(
+                {"error": "Viewers cannot perform this action."},
                 status=status.HTTP_403_FORBIDDEN,
             )
 
@@ -370,6 +407,11 @@ class SendOutreachView(APIView):
         if not company:
             return Response(
                 {"error": "Company profile required."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        if _is_viewer(request):
+            return Response(
+                {"error": "Viewers cannot perform this action."},
                 status=status.HTTP_403_FORBIDDEN,
             )
 
