@@ -23,6 +23,8 @@ EmailType = Literal[
     "meeting_cancelled_by_company",
     "meeting_cancelled_by_talent",
     "job_approved_status",
+    "job_deactivated",
+    "job_reactivated",
     "talent_assessment_pass_mail",
     "startup_interview_acceptance_mail",
     "talent_vetting_pass",
@@ -201,6 +203,23 @@ def get_email_template_and_context(
             "dashboard_url": settings.TIAAGO_STARTUP_LOGIN_URL,
         }
 
+    elif email_type == "job_deactivated":
+        job = kwargs.get("job")
+        template_file = "emails/job_deactivated.html"
+        context = {
+            "first_name": user.first_name,
+            "job_title": getattr(job, "title", "") if job else "",
+        }
+
+    elif email_type == "job_reactivated":
+        job = kwargs.get("job")
+        template_file = "emails/job_reactivated.html"
+        context = {
+            "first_name": user.first_name,
+            "job_title": getattr(job, "title", "") if job else "",
+            "dashboard_url": f"{settings.FRONTEND_BASE_URL}/startups/dashboard/jobs/jobs-posted",
+        }
+
     elif email_type == "talent_assessment_pass_mail":
         template_file = "emails/profile_approved.html"
         context = {
@@ -351,6 +370,26 @@ def job_approved_status_for_startup_mail(user, job):
     return _send_with_latest_flow(
         user.email, "Your job post is live", template, ctx,
         email_type="job_approved_status",
+    )
+
+
+def job_deactivated_mail(user, job):
+    template, ctx = get_email_template_and_context(user, "job_deactivated", job=job)
+    if not template:
+        return None
+    return _send_with_latest_flow(
+        user.email, f"Job listing deactivated: {job.title}", template, ctx,
+        email_type="job_deactivated",
+    )
+
+
+def job_reactivated_mail(user, job):
+    template, ctx = get_email_template_and_context(user, "job_reactivated", job=job)
+    if not template:
+        return None
+    return _send_with_latest_flow(
+        user.email, f"Your job is back: {job.title}", template, ctx,
+        email_type="job_reactivated",
     )
 
 

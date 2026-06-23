@@ -1,0 +1,13 @@
+Job listing deactivated
+
+Hi {{ first_name|default:"there" }},
+
+After a routine review, your job post "{{ job_title|default:"Open role" }}" has been deactivated because it did not meet our platform guidelines. The listing is no longer visible to candidates.
+
+If you believe this was a mistake, please reach out to our team:
+- Email: support@tiaago.com
+- Contact page: https://www.tiaago.com/contact
+
+We will review your listing again.
+
+-- Tiaago Team

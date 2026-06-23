@@ -1,0 +1,9 @@
+Your job is back
+
+Hi {{ first_name|default:"there" }},
+
+Good news. After review, your job post "{{ job_title|default:"Open role" }}" has been reactivated and is now visible to candidates again.
+
+View your jobs: {{ dashboard_url|default:"https://www.tiaago.com/startups/dashboard/jobs/jobs-posted" }}
+
+-- Tiaago Team

@@ -303,19 +303,25 @@ class JobRetrieveUpdateView(RetrieveUpdateAPIView):
         return JobSerializer
     
     def update(self, request, *args, **kwargs):
-        # Handle both PATCH and PUT methods
+        from jobs.tasks import send_job_status_notification
+
         partial = request.method == 'PATCH'
         instance = self.get_object()
-        # Only company admin or recruiter (for the job's company) may update
         company = getattr(instance, 'company', None)
         if company and not request.user.is_staff and not user_is_company_role(request.user, company, [CompanyTeamMember.ROLE.ADMIN, CompanyTeamMember.ROLE.RECRUITER]):
             return Response({"detail": "Permission denied."}, status=HTTP_403_FORBIDDEN)
+
+        old_status = instance.job_status
         serializer = self.get_serializer(instance, data=request.data, partial=partial)
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
 
         if getattr(instance, '_prefetched_objects_cache', None):
             instance._prefetched_objects_cache = {}
+
+        new_status = instance.job_status
+        if request.user.is_staff and old_status != new_status and new_status in ("ACTIVE", "ON_HOLD"):
+            send_job_status_notification.delay(instance.id, new_status)
 
         return Response(serializer.data)
 

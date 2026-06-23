@@ -223,6 +223,42 @@ def add_skill_assessment_to_talent_screening(
 
 
 @shared_task
+def send_job_status_notification(job_id, new_status):
+    """Notify all company team members when a job is deactivated or reactivated by admin."""
+    from create_user.models import CompanyTeamMember
+
+    job = Job.objects.select_related("company").filter(id=job_id).first()
+    if not job or not job.company:
+        logger.error("send_job_status_notification: job %s not found", job_id)
+        return
+
+    members = CompanyTeamMember.objects.select_related("user").filter(company=job.company)
+    recipient_users = [m.user for m in members if m.user and m.user.email]
+
+    company_rep = getattr(job.company, "company_rep", None)
+    if company_rep and company_rep.email:
+        rep_emails = {company_rep.email}
+        member_emails = {u.email for u in recipient_users}
+        if company_rep.email not in member_emails:
+            recipient_users.append(company_rep)
+
+    if new_status == "ACTIVE":
+        for user in recipient_users:
+            try:
+                emails.job_reactivated_mail(user, job)
+            except Exception:
+                logger.exception("Failed to send reactivation email to %s", user.email)
+    else:
+        for user in recipient_users:
+            try:
+                emails.job_deactivated_mail(user, job)
+            except Exception:
+                logger.exception("Failed to send deactivation email to %s", user.email)
+
+    logger.info("Job status notification sent for job %s (%s) to %d recipients", job_id, new_status, len(recipient_users))
+
+
+@shared_task
 def send_rejection_mail(job_id, talent_profile_id, areas_for_improvement=None):
     """
     Send a rejection mail to an applicant.\n
