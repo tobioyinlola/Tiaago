@@ -199,8 +199,7 @@ const SignUpFormV3 = ({
                           Role
                         </p>
                         <p className='text-sm font-medium font-onest text-black capitalize'>
-                          {talentRoles.find(r => r.slug === values.role)
-                            ?.title || values.role}
+                          {values.role}
                         </p>
                       </div>
                     </div>
@@ -222,25 +221,19 @@ const SignUpFormV3 = ({
                       touched={touched[name]}
                     />
                   ))}
-              {!values.role && (
-                <FormikField
-                  name='role'
-                  label='Role'
-                  type='select'
-                  placeholder='Data Analyst'
-                  value={values.role}
-                  error={errors.role}
-                  touched={touched.role}
-                  disablePasswordHelpers
-                  inputContainerClassName='min-h-10 h-10'
-                  selectFieldProps={{
-                    options: talentRoles.map(({ title, slug }) => ({
-                      label: title,
-                      value: slug,
-                    })),
-                  }}
-                />
-              )}
+              {talentSignUpV3FormFields
+                .filter(f => f.name === "role")
+                .map(({ name, label, ...props }) => (
+                  <FormikField
+                    key={name}
+                    {...{ name, label, ...props }}
+                    value={values[name]}
+                    error={errors[name]}
+                    touched={touched[name]}
+                    disablePasswordHelpers
+                    inputContainerClassName='min-h-10 h-10'
+                  />
+                ))}
 
               {/* Password field */}
               {talentSignUpV3FormFields

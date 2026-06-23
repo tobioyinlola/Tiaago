@@ -1,5 +1,5 @@
 import * as Yup from "yup";
-import { IoLockClosed, IoMail, IoPersonSharp } from "react-icons/io5";
+import { IoBriefcase, IoLockClosed, IoMail, IoPersonSharp } from "react-icons/io5";
 
 import {
   setPasswordValidationSchema,
@@ -238,8 +238,8 @@ export const talentSignUpV3FormFields: FormField<TalentSignupV3FormValues>[] = [
   {
     name: "role",
     label: "Role",
-    type: "select",
-    placeholder: "Data Analyst",
+    leftIcon: <IoBriefcase className='text-base text-[#98A2B3]' />,
+    placeholder: "e.g., Frontend Engineer",
   },
   {
     name: "password1",

@@ -512,7 +512,7 @@ export default function PipelineCategories({
             </Button>
             <Button
               onClick={handleCreate}
-              disabled={!newName.trim() || creating}
+              disabled={!newName.trim() || !newRoleName.trim() || creating}
             >
               {creating ? "Creating..." : "Create"}
             </Button>
