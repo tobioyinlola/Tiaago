@@ -338,7 +338,7 @@ export const emailTemplates: EmailTemplate[] = [
   {
     id: "1",
     name: "Initial Outreach",
-    subject: "{{jobTitle}} at {{company}}",
+    subject: "Hiring! {{jobTitle}} at {{company}}",
     body: `Hi {{candidateName}},
 
 We have a new {{jobTitle}} opportunity at {{company}} that matches your profile in our talent pipeline.
@@ -357,7 +357,7 @@ Best,
   {
     id: "2",
     name: "Follow Up",
-    subject: "Following up on {{jobTitle}} at {{company}}",
+    subject: "Hiring! Following up on {{jobTitle}} at {{company}}",
     body: `Hi {{candidateName}},
 
 Just following up on the {{jobTitle}} opportunity at {{company}}.
@@ -375,7 +375,7 @@ Best,
   {
     id: "3",
     name: "Re-engagement",
-    subject: "New role: {{jobTitle}} at {{company}}",
+    subject: "Hiring! New {{jobTitle}} role at {{company}}",
     body: `Hi {{candidateName}},
 
 We've just opened a new {{jobTitle}} role at {{company}}, and your profile came up as a strong match from our talent pool.
