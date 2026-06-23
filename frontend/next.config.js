@@ -31,6 +31,10 @@ const nextConfig = {
         protocol: "https",
       },
       {
+        hostname: "tiaago-uploads.s3.eu-west-3.amazonaws.com",
+        protocol: "https",
+      },
+      {
         hostname: "tiaago-v2-backend.onrender.com",
         protocol: "https",
       },

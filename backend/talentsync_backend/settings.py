@@ -197,34 +197,47 @@ STORAGES = {
     },
 }
 
-# Toggle Bunny via env (USE_BUNNY=1 to enable)
+# File storage: S3 (production), Bunny (legacy), or local filesystem (dev)
+USE_S3 = env.bool("USE_S3", default=False)
 USE_BUNNY = env.bool("USE_BUNNY", default=False)
 
-if USE_BUNNY:
-    BUNNY_USERNAME=env("BUNNY_USERNAME")  
+if USE_S3:
+    AWS_ACCESS_KEY_ID = env("AWS_ACCESS_KEY_ID")
+    AWS_SECRET_ACCESS_KEY = env("AWS_SECRET_ACCESS_KEY")
+    AWS_STORAGE_BUCKET_NAME = env("AWS_STORAGE_BUCKET_NAME", default="tiaago-uploads")
+    AWS_S3_REGION_NAME = env("AWS_S3_REGION_NAME", default="eu-west-3")
+    AWS_S3_CUSTOM_DOMAIN = f"{AWS_STORAGE_BUCKET_NAME}.s3.{AWS_S3_REGION_NAME}.amazonaws.com"
+    AWS_S3_OBJECT_PARAMETERS = {"CacheControl": "max-age=86400"}
+    AWS_DEFAULT_ACL = None
+    AWS_QUERYSTRING_AUTH = False
+    AWS_S3_FILE_OVERWRITE = False
+
+    STORAGES["default"] = {
+        "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
+    }
+
+    MEDIA_URL = f"https://{AWS_S3_CUSTOM_DOMAIN}/"
+    MEDIA_ROOT = BASE_DIR / "media"
+
+elif USE_BUNNY:
+    BUNNY_USERNAME=env("BUNNY_USERNAME")
     BUNNY_PASSWORD = env("BUNNY_PASSWORD")
-    BUNNY_STORAGE_NAME=env("BUNNY_USERNAME")  
+    BUNNY_STORAGE_NAME=env("BUNNY_USERNAME")
     BUNNY_STORAGE_PASSWORD=env("BUNNY_PASSWORD")
     BUNNY_REGION   = env("BUNNY_REGION", default="jh")
     BUNNY_MEDIA_URL = env("BUNNY_MEDIA_URL")
 
-    # Ensure trailing slash for proper .url() joining
     if not BUNNY_MEDIA_URL.endswith("/"):
         BUNNY_MEDIA_URL += "/"
 
-    # Default storage: Bunny
     STORAGES["default"] = {
         "BACKEND": "django_bunny.storage.BunnyStorage",
     }
 
-    # Make Django/DRF emit CDN URLs for file fields
     MEDIA_URL = BUNNY_MEDIA_URL
-
-    # MEDIA_ROOT is unused with Bunny but keep a safe default (some code may read it)
     MEDIA_ROOT = BASE_DIR / "media"
 
 else:
-    # Local filesystem (dev / fallback)
     STORAGES["default"] = {
         "BACKEND": "django.core.files.storage.FileSystemStorage",
     }
