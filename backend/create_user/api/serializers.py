@@ -327,7 +327,7 @@ class CompanySerializer(RegisterSerializer):
         choices=Company.SIZE_CHOICES.choices, required=False, allow_blank=True
     )
     profile_pic = serializers.ImageField(allow_empty_file=True, required=False)
-    country = serializers.CharField()
+    country = serializers.CharField(required=False, allow_blank=True, default="")
 
     class Meta:
         model = Company
