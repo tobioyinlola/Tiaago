@@ -5,9 +5,9 @@ from rest_framework.status import (
     HTTP_400_BAD_REQUEST
 )
 
-from create_user.models import TalentProfile
+from create_user.models import TalentProfile, CustomUser
+from create_user.permissions import get_user_company
 from subscriptions.permissions import IsCompanyRepUser
-from create_user.models import CustomUser
 from .models import Contract
 from .permissions import IsContractByCompanyOruserPermission
 from base.mixins.pagination import TiaagoPagination
@@ -42,12 +42,17 @@ class ContractListView(generics.ListAPIView):
             "talent", "talent__user", "company", "company__company_rep", "role"
         )
 
-        if user.user_type == CustomUser.USER_TYPE.TALENT:
-            queryset = queryset.filter(talent=user.profile)
-        elif user.user_type == CustomUser.USER_TYPE.COMPANY_REP:
-            queryset = queryset.filter(company=user.company)
+        if user.is_staff:
+            return queryset
 
-        return queryset
+        if user.user_type == CustomUser.USER_TYPE.TALENT:
+            return queryset.filter(talent=user.profile)
+
+        company = get_user_company(user)
+        if company:
+            return queryset.filter(company=company)
+
+        return queryset.none()
 
 
 class ContractDetailView(generics.RetrieveDestroyAPIView):

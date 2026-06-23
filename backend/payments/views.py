@@ -15,6 +15,7 @@ from rest_framework import status
 from rest_framework.permissions import IsAuthenticated, AllowAny, IsAdminUser
 from base.permissions import IsCompanyRepUser
 from create_user.models import Company, TalentProfile, Referral
+from create_user.permissions import get_user_company
 from subscriptions.models import SubPlan
 from rest_framework import status
 from contract.models import Contract
@@ -1371,17 +1372,20 @@ class UsageEventListView(ListAPIView):
     permission_classes = [IsAuthenticated]
     pagination_class = TiaagoPagination
     def get_queryset(self):
-        return UsageEvent.objects.filter(
-            job_application__job__company__company_rep=self.request.user
-        )
+        company = get_user_company(self.request.user)
+        if company:
+            return UsageEvent.objects.filter(job_application__job__company=company)
+        return UsageEvent.objects.none()
+
 class UsageEventDetailView(RetrieveAPIView):
     serializer_class = UsageEventSerializer
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return UsageEvent.objects.filter(
-            job_application__job__company__company_rep=self.request.user
-        )
+        company = get_user_company(self.request.user)
+        if company:
+            return UsageEvent.objects.filter(job_application__job__company=company)
+        return UsageEvent.objects.none()
     
 #paystack webhook
 

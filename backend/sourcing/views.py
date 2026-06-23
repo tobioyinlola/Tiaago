@@ -31,19 +31,13 @@ from .serializers import (
     UpdatePipelineEntrySerializer,
 )
 
+from create_user.permissions import get_user_company
+
 logger = logging.getLogger(__name__)
 
 
 def _get_company(request):
-    company = getattr(request.user, "company", None)
-    if company is None:
-        from create_user.models import CompanyTeamMember
-        membership = CompanyTeamMember.objects.filter(
-            user=request.user
-        ).select_related("company").first()
-        if membership:
-            company = membership.company
-    return company
+    return get_user_company(request.user)
 
 
 def _is_viewer(request):

@@ -26,7 +26,7 @@ from base.permissions import (
     IsStaffUser,
 )
 from create_user.utils import User
-from create_user.permissions import user_is_company_role, get_company_membership
+from create_user.permissions import user_is_company_role, get_company_membership, get_user_company
 from create_user.models import CompanyTeamMember
 from skill_assessment.constants import SkillAssessmentTypes
 from create_user.models import TalentProfile
@@ -148,18 +148,18 @@ class GeneralSkillAssessmentAPIView(APIView, PaginationHandlerMixin):
     def post(self, request):
         if request.user.is_talent():
             return Response(status=401, data={"error": "Unauthorized."})
-        # Company reps must be Admin or Recruiter to create company assessments
-        if request.user.is_company():
-            company = getattr(request.user, "company", None)
-            if not user_is_company_role(request.user, company, [CompanyTeamMember.ROLE.ADMIN, CompanyTeamMember.ROLE.RECRUITER]):
-                return Response(status=status.HTTP_403_FORBIDDEN, data={"error": "You do not have permission to create assessments for this company."})
+        company = get_user_company(request.user)
+        if not company:
+            return Response(status=403, data={"error": "No company associated."})
+        if not request.user.is_staff and not user_is_company_role(request.user, company, [CompanyTeamMember.ROLE.ADMIN, CompanyTeamMember.ROLE.RECRUITER]):
+            return Response(status=status.HTTP_403_FORBIDDEN, data={"error": "You do not have permission to create assessments for this company."})
         data = GeneralSkillAssessmentCreateSerializer(data=request.data)
         if data.is_valid():
             validated_data = data.validated_data
             skillsets = validated_data.pop("skillsets")
             unique_id = str(uuid.uuid4().hex)[:15]
             company_skill_assessment = GeneralSkillAssessment.objects.create(
-                **validated_data, company=request.user.company, reference=unique_id
+                **validated_data, company=company, reference=unique_id
             )
             company_skill_assessment.skillsets.set(skillsets)
         else:
@@ -172,17 +172,19 @@ class GeneralSkillAssessmentAPIView(APIView, PaginationHandlerMixin):
 
     def get(self, request):
         if request.user.is_talent():
-            # if it's a talent, return only tiaago assessments - tiaago assessments are assessments that are not tied to any company
             queryset = GeneralSkillAssessment.objects.filter(
                 company__isnull=True, job_application__isnull=True
             ).order_by("-created_at")
-        elif request.user.is_company():
-            # if it's a company rep, return only assessments for his/her company
-            queryset = GeneralSkillAssessment.objects.filter(
-                company=request.user.company, job_application__isnull=True
-            ).order_by("-created_at")
-        else:
+        elif request.user.is_staff:
             queryset = GeneralSkillAssessment.objects.all().order_by("-created_at")
+        else:
+            company = get_user_company(request.user)
+            if company:
+                queryset = GeneralSkillAssessment.objects.filter(
+                    company=company, job_application__isnull=True
+                ).order_by("-created_at")
+            else:
+                queryset = GeneralSkillAssessment.objects.none()
         # Apply filters
         filterset = GeneralSkillAssessmentFilter(request.GET, queryset=queryset)
         queryset = filterset.qs

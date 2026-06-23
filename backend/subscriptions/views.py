@@ -59,6 +59,7 @@ from .helper import determine_plan_usage, determine_free_plan_usage
 from utils.stripe_sub_handler import create_stripe_product_price, create_checkout_session, stripe_api_key, fund_wallet_stripe
 import stripe
 from create_user.models import Company
+from create_user.permissions import get_user_company
 from dateutil.relativedelta import relativedelta
 from django.utils import timezone
 
@@ -365,8 +366,10 @@ class SubscriptionTransactionViewSet(
     pagination_class = TiaagoPagination
 
     def get_queryset(self):
-        user = self.request.user
-        return self.queryset.filter(company=user.company).order_by("-created_at")
+        company = get_user_company(self.request.user)
+        if company:
+            return self.queryset.filter(company=company).order_by("-created_at")
+        return self.queryset.none()
         
 
 # User usage viewset
@@ -388,7 +391,9 @@ class SubscriptionTransactionViewSet(
 @permission_classes([IsAuthenticated, IsUserVerified])
 def free_plan_subscription(request):
     user = request.user
-    company = user.company
+    company = get_user_company(user)
+    if not company:
+        return Response({'error': 'No company associated'}, status=status.HTTP_403_FORBIDDEN)
     
     # check if the active subscription for any of the paid plan
     stripe_active_subscription = StripeSubscription.objects.filter(company=company).order_by("-started_at").first()
@@ -419,11 +424,13 @@ def free_plan_subscription(request):
 @permission_classes([IsAuthenticated, IsUserVerified])
 def get_user_usage(request):
     user = request.user
-    
-    # Try to get usage object
-    usage = UserUsage.objects.filter(company=user.company).first()
-    
-    subscription = user.company.active_subscription
+    company = get_user_company(user)
+    if not company:
+        return Response({'error': 'No company associated'}, status=status.HTTP_403_FORBIDDEN)
+
+    usage = UserUsage.objects.filter(company=company).first()
+
+    subscription = company.active_subscription
     if subscription is None:
         return Response({'error': 'No active subscription found'}, status=status.HTTP_404_NOT_FOUND)
     
@@ -642,8 +649,12 @@ class WalletTransactionViewSet(
     pagination_class = TiaagoPagination
 
     def get_queryset(self):
-        user = self.request.user
-        wallet = user.company.wallet
+        company = get_user_company(self.request.user)
+        if not company:
+            return WalletTransaction.objects.none()
+        wallet = getattr(company, 'wallet', None)
+        if not wallet:
+            return WalletTransaction.objects.none()
         return WalletTransaction.objects.filter(wallet=wallet).order_by('-created_at')
 
 # view to get wallet balance
@@ -651,10 +662,12 @@ class WalletTransactionViewSet(
 @permission_classes([IsAuthenticated, IsUserVerified])
 def get_wallet_balance(request):
     user = request.user
+    company = get_user_company(user)
+    if not company:
+        return Response({'error': 'No company associated'}, status=status.HTTP_403_FORBIDDEN)
 
-    # Automatically create a wallet for the company if it doesn't exist
     wallet, created = Wallet.objects.get_or_create(
-        company=user.company,
+        company=company,
         defaults={
             'balance': 0.00,
             'currency': 'NGN',
@@ -674,9 +687,11 @@ def get_wallet_balance(request):
 @permission_classes([IsAuthenticated, IsUserVerified])
 def get_wallet_usage(request):
     user = request.user
-    
-    # Get the user's wallet
-    wallet = Wallet.objects.filter(company=user.company).first()
+    company = get_user_company(user)
+    if not company:
+        return Response({'error': 'No company associated'}, status=status.HTTP_403_FORBIDDEN)
+
+    wallet = Wallet.objects.filter(company=company).first()
     if wallet is None:
         return Response({'error': 'Wallet not found'}, status=status.HTTP_404_NOT_FOUND)
     

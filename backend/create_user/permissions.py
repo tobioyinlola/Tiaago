@@ -79,30 +79,18 @@ class IsCompanyViewerOrAbove(permissions.BasePermission):
                 except Exception:
                     company = None
         return bool(company and get_company_membership(request.user, company) is not None)
-from rest_framework import permissions
-from .models import CompanyTeamMember
 
-class IsCompanyAdmin(permissions.BasePermission):
-    """To check that the user is an admin of the company"""
 
-    def has_permission(self, request, view):
-        # Many view actions will pass company id in URL or use request.user to determine
-        return request.user and request.user.is_authenticated
-    
-
-    def has_object_permission(self, request, view, obj):
-        # obj is Company
-        try:
-            membership = request.user.company_membership.get(company=obj)
-            return membership.role == CompanyTeamMember.ROLE.ADMIN
-        except CompanyTeamMember.DoesNotExist:
-            return False
-        
-
-class IsCompanyMember(permissions.BasePermission):
-    def has_object_permission(self, request, view, obj):
-        try:
-            request.user.company_memberships.get(company=obj)
-            return True
-        except CompanyTeamMember.DoesNotExist:
-            return False
+def get_user_company(user):
+    """Resolve a user's company: direct company_rep FK first, then CompanyTeamMember.
+    Returns the Company instance or None. Use this everywhere instead of
+    getattr(user, 'company', None) to ensure team members are handled."""
+    if not user or not user.is_authenticated:
+        return None
+    company = getattr(user, "company", None)
+    if company is not None:
+        return company
+    membership = CompanyTeamMember.objects.filter(
+        user=user
+    ).select_related("company").first()
+    return membership.company if membership else None

@@ -37,7 +37,7 @@ from django.db.models import Count, Q
 from rest_framework.pagination import PageNumberPagination
 from base.utils import extract_query_from_request
 from create_user.models import CustomUser, OneTimePassword, Company, CompanyTeamMember
-from create_user.permissions import user_is_company_role, get_company_membership
+from create_user.permissions import user_is_company_role, get_company_membership, get_user_company
 from create_user.utils import send_otp_to_user
 from subscriptions.models import SubPlan
 from base.permissions import IsTalentUser
@@ -158,24 +158,20 @@ class JobListCreateView(ListCreateAPIView):
                 distinct=True,
             )
         )
-        # For unauthenticated users, show only active jobs
         if not user.is_authenticated:
             return queryset.filter(job_status="ACTIVE")
-            
-        if user.is_company():
-            return queryset.filter(company=user.company)
-       # elif user.is_talent() and not user.is_subscribed():
-       #     return queryset.filter(
-       #             job_status="ACTIVE",
-       #             job_type=Job.JobType.INTERNSHIP,
-       #             job_level=Job.JobLevel.ENTRY,
-       #         )
-       # elif user.is_talent() and user.is_subscribed():
-       #     return queryset.filter(job_status="ACTIVE")
-        elif user.is_talent():
-           return queryset.filter(job_status="ACTIVE")
 
-        return queryset  # Staff see all jobs
+        if user.is_staff:
+            return queryset
+
+        company = get_user_company(user)
+        if company:
+            return queryset.filter(company=company)
+
+        if user.is_talent():
+            return queryset.filter(job_status="ACTIVE")
+
+        return queryset.none()
 
 
 
@@ -185,9 +181,7 @@ class JobListCreateView(ListCreateAPIView):
             return Response(
                 {"detail": "Cannot post a job"}, status=HTTP_401_UNAUTHORIZED
             )
-        # Ensure only company admins or recruiters can post jobs for the company
-        # Determine target company: prefer user's associated company
-        company = getattr(user, 'company', None)
+        company = get_user_company(user)
         if not company:
             company_id = request.data.get('company_id')
             if company_id:
@@ -253,42 +247,24 @@ class JobListCreateView(ListCreateAPIView):
         #     },
         #     status=HTTP_403_FORBIDDEN,
         #     )
-        qty, cycle_start, due_date = usage_unbilled_for_company(user.company)
-        amount_due = qty * UNIT_PRICE_NGN
-        if amount_due and now().date() > due_date:  
-            return Response(
-                {
-                    "detail": "You have an outstanding PAY-as-you-go balance.",
-                    "amount_due": amount_due,
-                    "redirect_to": "/billing/usage/" 
-                },
-                status=HTTP_402_PAYMENT_REQUIRED
-            )
-#        subscribed_plan = user.get_subscribed_plan()
-#        is_subscribed_to_basic_plan = (
-#            subscribed_plan and subscribed_plan.sub_type == SubPlan.SUB_TYPE.BASIC
-#        )
-#        if subscribed_plan is None or is_subscribed_to_basic_plan:
-#            no_of_jobs_posted = Job.objects.filter(
-#                company=user.company,
-#                date_created__year=timezone.now().year,
-#                date_created__month=timezone.now().month,
-#            ).count()
-#            cannot_post_more_jobs = (
-#                no_of_jobs_posted >= 3 and not subscribed_plan
-#            ) or (no_of_jobs_posted >= 10 and is_subscribed_to_basic_plan)
-#            if cannot_post_more_jobs:
-#                return Response(
-#                    {"detail": "Maximum number of jobs posted for the month"},
-#                    status=HTTP_400_BAD_REQUEST,
-#                )
-        try:
-            serializer.save(company=request.user.company)
-        except User.company.RelatedObjectDoesNotExist:
+        if company:
+            qty, cycle_start, due_date = usage_unbilled_for_company(company)
+            amount_due = qty * UNIT_PRICE_NGN
+            if amount_due and now().date() > due_date:
+                return Response(
+                    {
+                        "detail": "You have an outstanding PAY-as-you-go balance.",
+                        "amount_due": amount_due,
+                        "redirect_to": "/billing/usage/"
+                    },
+                    status=HTTP_402_PAYMENT_REQUIRED
+                )
+        if not company:
             return Response(
                 {"detail": "The user does not have an associated company"},
                 status=HTTP_400_BAD_REQUEST,
             )
+        serializer.save(company=company)
         return Response(serializer.data, status=HTTP_201_CREATED)
 
 
@@ -357,12 +333,17 @@ class JobApplicationListView(ListAPIView):
             "applicant", "applicant__user",
         )
 
-        if user.user_type == CustomUser.USER_TYPE.COMPANY_REP:
-            return qs.filter(job__company__company_rep=user)
-        elif user.user_type == CustomUser.USER_TYPE.TALENT:
-            return qs.filter(applicant__user=user)
-        else:
+        if user.is_staff:
             return qs
+
+        if user.user_type == CustomUser.USER_TYPE.TALENT:
+            return qs.filter(applicant__user=user)
+
+        company = get_user_company(user)
+        if company:
+            return qs.filter(job__company=company)
+
+        return qs.none()
 
 
 class JobApplicationRetrieveUpdateView(RetrieveUpdateAPIView):

@@ -42,6 +42,7 @@ from .serializers import (
     SchedulerUpdateSerializer
 )
 from base.mixins.pagination import TiaagoPagination
+from create_user.permissions import get_user_company
 from emails import emails
 from celery import current_app
 
@@ -58,15 +59,16 @@ class ScheduleMeetingView(ListCreateAPIView):
     def list(self, request, *args, **kwargs):
         queryset = self.get_queryset()
         user = request.user
-        if user.user_type == User.USER_TYPE.COMPANY_REP:
-            try:
-                queryset = queryset.filter(company=user.company)
-            except User.company.RelatedObjectDoesNotExist:
-                return Response(status=HTTP_401_UNAUTHORIZED)
-        elif user.user_type == User.USER_TYPE.TALENT:
+        if user.user_type == User.USER_TYPE.TALENT:
             try:
                 queryset = queryset.filter(talent=user.profile)
             except User.profile.RelatedObjectDoesNotExist:
+                return Response(status=HTTP_401_UNAUTHORIZED)
+        else:
+            company = get_user_company(user)
+            if company:
+                queryset = queryset.filter(company=company)
+            else:
                 return Response(status=HTTP_401_UNAUTHORIZED)
 
         page = self.paginate_queryset(queryset)
@@ -84,14 +86,17 @@ class ScheduleMeetingView(ListCreateAPIView):
                 {"detail": "You can't create a meeting"}, 
                 status=HTTP_401_UNAUTHORIZED
             )
-        if not user.is_subscribed() and user.is_company():
+        company = get_user_company(user)
+        if not company:
+            return Response({"detail": "No company associated."}, status=HTTP_401_UNAUTHORIZED)
+        if not user.is_subscribed() and company:
             meeting_count = Scheduler.objects.filter(
-                company=user.company, 
+                company=company,
                 meeting_date__month=timezone.now().date().month
             ).count()
             if meeting_count >= 2:
                 return Response(
-                    {"detail": "Maximum number of meeting created for the month"}, 
+                    {"detail": "Maximum number of meeting created for the month"},
                     status=HTTP_400_BAD_REQUEST
                 )
         queryset =self.get_queryset()
@@ -99,7 +104,7 @@ class ScheduleMeetingView(ListCreateAPIView):
         serializer.is_valid(raise_exception=True)
         talent = serializer.validated_data['talent']
         meeting = serializer.save(
-            company=user.company,
+            company=company,
         )
         # Get meeting details for the email
         meeting_details = {
@@ -119,7 +124,7 @@ class ScheduleMeetingView(ListCreateAPIView):
             "company_name": meeting.company.company_name,
             "company_logo": meeting.company.get_logo_url(),
         }
-        meeting_invite_mail.delay(talent.user.pk, user.company.company_name, str(meeting.id))
+        meeting_invite_mail.delay(talent.user.pk, company.company_name, str(meeting.id))
         return Response(serializer.data, status=HTTP_201_CREATED)
 
 class SchedulerMeetingUpdateView(UpdateAPIView):
