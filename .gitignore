@@ -21,3 +21,4 @@ lint_output.txt
 
 .vercel
 .env*
+.claude/
