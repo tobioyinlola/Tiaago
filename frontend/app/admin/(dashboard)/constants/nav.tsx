@@ -11,16 +11,6 @@ import {
 
 const baseHref = "/admin";
 
-export const jobSubLinks = [
-  {
-    name: "Pending Review",
-    href: `${baseHref}/jobs?tab=pending`,
-  },
-  {
-    name: "Approved Jobs",
-    href: `${baseHref}/jobs?tab=approved`,
-  },
-];
 
 export const navItems: DashboardNavItemV3[] = [
   {
@@ -99,7 +89,6 @@ export const navItems: DashboardNavItemV3[] = [
         <path d='M10.0007 14.7799C9.97072 14.7799 9.94072 14.7799 9.91072 14.7799C7.17072 14.4699 4.50072 13.4699 2.19072 11.8899C1.85072 11.6599 1.76072 11.1899 1.99072 10.8499C2.22072 10.5099 2.69072 10.4199 3.03072 10.6499C5.14072 12.0899 7.57072 12.9999 10.0707 13.2899C10.4807 13.3399 10.7807 13.7099 10.7307 14.1199C10.7007 14.4999 10.3807 14.7799 10.0007 14.7799Z' />
       </svg>
     ),
-    subLinks: jobSubLinks,
   },
   {
     name: "startups",

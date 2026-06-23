@@ -8,7 +8,7 @@ import {
   jobTypeEnumToLabel,
 } from "@/app/common/utils";
 import { getJob } from "@/app/common/services/jobs";
-import ApproveJob from "../../components/ApproveJob";
+import { DeactivateJob } from "../../components/ApproveJob";
 import CustomBadge from "@/app/common/components/CustomBadge";
 
 type Props = {
@@ -120,7 +120,7 @@ const JobReviewPage = async ({ params }: Props) => {
     <>
       <div className='flex justify-between items-center border-b pb-3'>
         <h1 className='text-2xl font-semibold'>Job #{job.id}</h1>
-        <ApproveJob id={job.id} approved={job.was_approved} />
+        <DeactivateJob id={job.id} deactivated={job.job_status !== "ACTIVE"} />
       </div>
       {sections.map(({ items, title }) => (
         <div className='mt-8' key={title}>
