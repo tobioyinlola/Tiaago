@@ -1,22 +1,25 @@
 from rest_framework import permissions
+from create_user.permissions import get_user_company
+
 
 class IsCreator(permissions.BasePermission):
-    
+
     def has_object_permission(self, request, view, obj):
-        flag = False
-        if request.user.is_company():
-            flag = request.user.company == obj.company
-        return flag
+        company = get_user_company(request.user)
+        if not company:
+            return False
+        return company == obj.company
+
 
 class IsTalentOwnerOrStaffUser(permissions.BasePermission):
 
-    def has_object_permission(self, obj):
-        user = self.request.user
-        flag = False
+    def has_object_permission(self, request, view, obj):
+        user = request.user
+        if user.is_staff:
+            return True
         if user.is_talent():
-            if user.profile == obj.talent:
-                flag = True
-        elif user.user_type == 'T':
-            flag = True
-        
-        return flag
+            try:
+                return user.profile == obj.talent
+            except Exception:
+                return False
+        return False

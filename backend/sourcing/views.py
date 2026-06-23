@@ -47,6 +47,8 @@ def _is_viewer(request):
 
 
 class PipelineListView(APIView):
+    permission_classes = [IsAuthenticated]
+
     def get(self, request):
         company = _get_company(request)
         if not company:
@@ -79,6 +81,8 @@ class PipelineListView(APIView):
 
 
 class AddToPipelineView(APIView):
+    permission_classes = [IsAuthenticated]
+
     def post(self, request):
         company = _get_company(request)
         if not company:
@@ -119,6 +123,8 @@ class AddToPipelineView(APIView):
 
 
 class RemoveFromPipelineView(APIView):
+    permission_classes = [IsAuthenticated]
+
     def delete(self, request, pk):
         company = _get_company(request)
         if _is_viewer(request):
@@ -146,6 +152,7 @@ class RemoveFromPipelineView(APIView):
 
 
 class UpdatePipelineEntryView(APIView):
+    permission_classes = [IsAuthenticated]
     def patch(self, request, pk):
         company = _get_company(request)
         if _is_viewer(request):
@@ -169,6 +176,7 @@ class UpdatePipelineEntryView(APIView):
 
 
 class CategoryListCreateView(ListCreateAPIView):
+    permission_classes = [IsAuthenticated]
     serializer_class = PipelineCategorySerializer
 
     def get_queryset(self):
@@ -186,6 +194,7 @@ class CategoryListCreateView(ListCreateAPIView):
 
 
 class CategoryDetailView(RetrieveUpdateDestroyAPIView):
+    permission_classes = [IsAuthenticated]
     serializer_class = PipelineCategorySerializer
     lookup_field = "pk"
 
@@ -197,6 +206,8 @@ class CategoryDetailView(RetrieveUpdateDestroyAPIView):
 
 
 class GenerateInviteLinkView(APIView):
+    permission_classes = [IsAuthenticated]
+
     def post(self, request, pk):
         company = _get_company(request)
         if not company:
@@ -306,6 +317,8 @@ def _test_smtp_connection(gmail_address: str, app_password: str) -> tuple[bool, 
 
 
 class SmtpConfigView(APIView):
+    permission_classes = [IsAuthenticated]
+
     def get(self, request):
         company = _get_company(request)
         if not company:
@@ -366,6 +379,8 @@ class SmtpConfigView(APIView):
 
 
 class SmtpVerifyView(APIView):
+    permission_classes = [IsAuthenticated]
+
     def post(self, request):
         company = _get_company(request)
         if not company:
@@ -396,6 +411,8 @@ class SmtpVerifyView(APIView):
 # ── Outreach Sending ───────────────────────────────────────────────
 
 class SendOutreachView(APIView):
+    permission_classes = [IsAuthenticated]
+
     def post(self, request):
         company = _get_company(request)
         if not company:
@@ -476,17 +493,18 @@ class SendOutreachView(APIView):
 
                 for record in outreach_records:
                     try:
+                        from html import escape as html_escape
                         job_url = f"{settings.FRONTEND_URL}/jobs/{job.apply_token}"
                         careers_url = f"{settings.FRONTEND_URL}/companies/{company.company_name}"
                         replacements = {
-                            "{{candidateName}}": record.candidate.name,
-                            "{{company}}": company.company_name or "",
-                            "{{role}}": record.candidate.role or "",
-                            "{{recruiterName}}": request.user.get_full_name(),
-                            "{{jobTitle}}": job.title or "",
-                            "{{jobLevel}}": job.get_job_level_display() if hasattr(job, 'get_job_level_display') else (job.job_level or ""),
-                            "{{jobLink}}": f'<a href="{job_url}" style="color:#5465FF; text-decoration:underline;">{job_url}</a>',
-                            "{{careersLink}}": f'<a href="{careers_url}" style="color:#5465FF; text-decoration:underline;">{careers_url}</a>',
+                            "{{candidateName}}": html_escape(record.candidate.name or ""),
+                            "{{company}}": html_escape(company.company_name or ""),
+                            "{{role}}": html_escape(record.candidate.role or ""),
+                            "{{recruiterName}}": html_escape(request.user.get_full_name() or ""),
+                            "{{jobTitle}}": html_escape(job.title or ""),
+                            "{{jobLevel}}": html_escape(job.get_job_level_display() if hasattr(job, 'get_job_level_display') else (job.job_level or "")),
+                            "{{jobLink}}": f'<a href="{html_escape(job_url)}" style="color:#5465FF; text-decoration:underline;">{html_escape(job_url)}</a>',
+                            "{{careersLink}}": f'<a href="{html_escape(careers_url)}" style="color:#5465FF; text-decoration:underline;">{html_escape(careers_url)}</a>',
                         }
                         personalized_body = body
                         personalized_subject = subject

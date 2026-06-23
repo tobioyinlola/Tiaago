@@ -1,5 +1,6 @@
 from rest_framework import permissions
 from create_user.models import CustomUser
+from create_user.permissions import get_user_company
 
 
 class IsJobCreatorOrReadOnly(permissions.BasePermission):
@@ -11,9 +12,8 @@ class IsJobCreatorOrReadOnly(permissions.BasePermission):
         if request.user.is_staff:
             return True
 
-        try:
-            company = request.user.company
-        except CustomUser.company.RelatedObjectDoesNotExist:
+        company = get_user_company(request.user)
+        if not company:
             return False
 
         return obj.company == company
@@ -29,24 +29,23 @@ class IsJobApplicationCompanyOrTalentApplicant(permissions.BasePermission):
                 return obj.applicant == talent
             except CustomUser.profile.RelatedObjectDoesNotExist:
                 return False
-        elif user.user_type == CustomUser.USER_TYPE.COMPANY_REP:
-            try:
-                company = request.user.company
-                return obj.job.company == company
-            except CustomUser.company.RelatedObjectDoesNotExist:
-                return False
-        else:
-            return True
+
+        company = get_user_company(user)
+        if company:
+            return obj.job.company == company
+
+        return user.is_staff
 
 
 class IsJobApplicationCompany(permissions.BasePermission):
 
     def has_object_permission(self, request, view, obj):
         user = request.user
-        if user.user_type == CustomUser.USER_TYPE.COMPANY_REP:
-            try:
-                company = request.user.company
-                return obj.job.company == company
-            except CustomUser.company.RelatedObjectDoesNotExist:
-                return False
+        if user.is_staff:
+            return True
+
+        company = get_user_company(user)
+        if company:
+            return obj.job.company == company
+
         return False
