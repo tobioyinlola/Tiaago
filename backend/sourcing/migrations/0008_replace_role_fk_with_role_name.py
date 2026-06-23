@@ -4,7 +4,7 @@ from django.db import migrations, models
 def copy_role_title_to_role_name(apps, schema_editor):
     """Copy existing Role FK title values into the new role_name CharField."""
     PipelineCategory = apps.get_model("sourcing", "PipelineCategory")
-    for cat in PipelineCategory.objects.select_related("role").filter(role__isnull=False):
+    for cat in PipelineCategory._default_manager.select_related("role").filter(role__isnull=False):
         cat.role_name = cat.role.title
         cat.save(update_fields=["role_name"])
 
