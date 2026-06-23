@@ -561,11 +561,6 @@ if ENV in ['staging', 'production']:
                 "level": "INFO",
                 "propagate": False,
             },
-            "jobs.tasks": {
-                "handlers": ["console"],
-                "level": "INFO",
-                "propagate": False,
-            },
             "celery": {
                 "handlers": ["console"],
                 "level": "INFO",
@@ -581,12 +576,72 @@ if ENV in ['staging', 'production']:
                 "level": "INFO",
                 "propagate": False,
             },
+            "paystack_subscriptions": {
+                "handlers": ["console"],
+                "level": "INFO",
+                "propagate": False,
+            },
             "flutterwave": {
                 "handlers": ["console"],
                 "level": "INFO",
                 "propagate": False,
             },
             "scheduler": {
+                "handlers": ["console"],
+                "level": "INFO",
+                "propagate": False,
+            },
+            "emails": {
+                "handlers": ["console"],
+                "level": "INFO",
+                "propagate": False,
+            },
+            "elevenlabs": {
+                "handlers": ["console"],
+                "level": "INFO",
+                "propagate": False,
+            },
+            "sourcing": {
+                "handlers": ["console"],
+                "level": "INFO",
+                "propagate": False,
+            },
+            "marketing": {
+                "handlers": ["console"],
+                "level": "INFO",
+                "propagate": False,
+            },
+            "management": {
+                "handlers": ["console"],
+                "level": "INFO",
+                "propagate": False,
+            },
+            "payments": {
+                "handlers": ["console"],
+                "level": "INFO",
+                "propagate": False,
+            },
+            "subscriptions": {
+                "handlers": ["console"],
+                "level": "INFO",
+                "propagate": False,
+            },
+            "create_user": {
+                "handlers": ["console"],
+                "level": "INFO",
+                "propagate": False,
+            },
+            "talentsync_backend": {
+                "handlers": ["console"],
+                "level": "INFO",
+                "propagate": False,
+            },
+            "contract": {
+                "handlers": ["console"],
+                "level": "INFO",
+                "propagate": False,
+            },
+            "jobs": {
                 "handlers": ["console"],
                 "level": "INFO",
                 "propagate": False,
