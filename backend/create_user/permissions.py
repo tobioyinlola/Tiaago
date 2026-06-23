@@ -82,15 +82,14 @@ class IsCompanyViewerOrAbove(permissions.BasePermission):
 
 
 def get_user_company(user):
-    """Resolve a user's company: direct company_rep FK first, then CompanyTeamMember.
-    Returns the Company instance or None. Use this everywhere instead of
-    getattr(user, 'company', None) to ensure team members are handled."""
+    """Resolve a user's company: CompanyTeamMember first (handles invited
+    team members), then direct company_rep FK as fallback.
+    Returns the Company instance or None."""
     if not user or not user.is_authenticated:
         return None
-    company = getattr(user, "company", None)
-    if company is not None:
-        return company
     membership = CompanyTeamMember.objects.filter(
         user=user
     ).select_related("company").first()
-    return membership.company if membership else None
+    if membership:
+        return membership.company
+    return getattr(user, "company", None)
