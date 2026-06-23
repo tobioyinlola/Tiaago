@@ -11,6 +11,7 @@ import { getTalentRoles } from "@/app/common/services";
 import { handleServerApiCallError } from "@/app/common/utils";
 import { getCurrentUser } from "@/app/common/services/profile";
 import { getCompanyOnboarding } from "@/app/common/services/company-onboarding";
+import { getTeamRole } from "@/app/common/services/team";
 import OnboardingCards from "./components/OnboardingCards";
 
 export const metadata: Metadata = {
@@ -20,7 +21,12 @@ export const metadata: Metadata = {
 
 const StartupOnboardingPage = async () => {
   const errors: DisplayErrorMessagesProps["errors"] = [];
-  const { currentUser } = await getCurrentUser("startup");
+  const [{ currentUser }, teamRoleData] = await Promise.all([
+    getCurrentUser("startup"),
+    getTeamRole().catch(() => null),
+  ]);
+
+  if (teamRoleData?.role) redirect("/startups/dashboard");
 
   const onboarding = await getCompanyOnboarding().catch(async e => {
     const error = await handleServerApiCallError(e);
