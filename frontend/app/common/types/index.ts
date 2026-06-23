@@ -975,6 +975,8 @@ export type PipelineCategory = {
   name: string;
   description: string;
   is_active: boolean;
+  role: number | null;
+  role_title: string;
   candidate_count: number;
   created_at: string;
 };

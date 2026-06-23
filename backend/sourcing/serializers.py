@@ -75,6 +75,7 @@ class UpdatePipelineEntrySerializer(serializers.Serializer):
 
 class PipelineCategorySerializer(serializers.ModelSerializer):
     candidate_count = serializers.SerializerMethodField()
+    role_title = serializers.CharField(source="role.title", read_only=True, default="")
 
     class Meta:
         model = PipelineCategory
@@ -83,10 +84,12 @@ class PipelineCategorySerializer(serializers.ModelSerializer):
             "name",
             "description",
             "is_active",
+            "role",
+            "role_title",
             "candidate_count",
             "created_at",
         )
-        read_only_fields = ("id", "candidate_count", "created_at")
+        read_only_fields = ("id", "role_title", "candidate_count", "created_at")
 
     def get_candidate_count(self, obj):
         return obj.candidates.filter(deleted_at__isnull=True).count()
@@ -118,6 +121,8 @@ class InviteTokenValidationSerializer(serializers.Serializer):
     category_name = serializers.CharField()
     company_name = serializers.CharField()
     is_active = serializers.BooleanField()
+    role_slug = serializers.CharField(required=False, default="")
+    role_title = serializers.CharField(required=False, default="")
 
 
 class InviteSubmissionSerializer(serializers.Serializer):

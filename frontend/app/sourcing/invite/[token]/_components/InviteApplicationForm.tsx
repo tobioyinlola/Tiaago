@@ -83,6 +83,8 @@ interface InviteApplicationFormProps {
   token: string;
   categoryName: string;
   companyName: string;
+  pipelineRoleSlug: string;
+  pipelineRoleTitle: string;
   talentRoles: TalentRole[];
   groupedCountries: GroupBase<CountryField>[];
 }
@@ -144,9 +146,12 @@ export function InviteApplicationForm({
   token,
   categoryName,
   companyName,
+  pipelineRoleSlug,
+  pipelineRoleTitle,
   talentRoles,
   groupedCountries,
 }: InviteApplicationFormProps) {
+  const hasLockedRole = !!pipelineRoleSlug;
   const roleOptions = [
     ...talentRoles.map((r) => ({ value: r.slug, label: r.title })),
     { value: "other", label: "Other" },
@@ -166,6 +171,7 @@ export function InviteApplicationForm({
     first_name: user?.first_name || "",
     last_name: user?.last_name || "",
     email: user?.email || "",
+    current_role: pipelineRoleSlug || "",
   }));
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -812,14 +818,21 @@ export function InviteApplicationForm({
                   <label className='label-text text-black font-medium font-onest mb-1 block'>
                     Role
                   </label>
-                  <Select
-                    options={roleOptions}
-                    value={roleOptions.find((r) => r.value === form.current_role) || null}
-                    onChange={(opt) => update("current_role", (opt as { value: string })?.value || "")}
-                    placeholder='Search or select your role...'
-                    isSearchable
-                    styles={selectStyles}
-                  />
+                  {hasLockedRole ? (
+                    <div className='flex items-center gap-2 px-3 py-2.5 rounded-lg border border-[#D0D5DD] bg-[#F9FAFB] text-sm font-onest text-black'>
+                      <IoBriefcase className='text-[#98A2B3] shrink-0' />
+                      <span>{pipelineRoleTitle}</span>
+                    </div>
+                  ) : (
+                    <Select
+                      options={roleOptions}
+                      value={roleOptions.find((r) => r.value === form.current_role) || null}
+                      onChange={(opt) => update("current_role", (opt as { value: string })?.value || "")}
+                      placeholder='Search or select your role...'
+                      isSearchable
+                      styles={selectStyles}
+                    />
+                  )}
                 </div>
                 <div className='space-y-5'>
                   <div>
