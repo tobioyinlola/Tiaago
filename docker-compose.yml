@@ -103,10 +103,8 @@ services:
       - certbot_www:/var/www/certbot:ro
       - /etc/letsencrypt:/etc/letsencrypt:ro
     depends_on:
-      web:
-        condition: service_healthy
-      ai:
-        condition: service_started
+      - web
+      - ai
     restart: unless-stopped
 
 volumes:
