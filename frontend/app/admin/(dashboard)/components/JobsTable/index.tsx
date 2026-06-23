@@ -85,17 +85,15 @@ const BaseTable = ({
                     />
                   </td>
                   <td className='flex items-center gap-1 justify-center'>
-                    {dataType !== "pending" && (
-                      <DeactivateJob
-                        id={job.id}
-                        deactivated={!job.was_approved}
-                      />
-                    )}
+                    <DeactivateJob
+                      id={job.id}
+                      deactivated={job.job_status !== "ACTIVE"}
+                    />
                     <Link
                       href={`jobs/${job.id}`}
                       className='btn btn-primary btn-sm btn-link no-underline'
                     >
-                      {dataType === "pending" ? "Review" : "View"}
+                      View
                     </Link>
                   </td>
                 </tr>
@@ -104,7 +102,7 @@ const BaseTable = ({
               <tr>
                 <td colSpan={7}>
                   <EmptyState
-                    text={`There are currently no ${dataType} jobs...`}
+                    text="No jobs have been posted yet."
                   />
                 </td>
               </tr>
