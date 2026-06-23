@@ -24,29 +24,17 @@ const StartupDashboardLayout = async ({ children }: PropsWithChildren) => {
   // if (!user.is_verified)
   //   return redirect(`/verify-email?email=${user.email}&as=talent`);
 
-  // New signups must finish or explicitly skip the onboarding cards before
-  // the dashboard; skipped users get in but see a finish-setup banner until
-  // they complete. Fail open if the status call errors so a backend hiccup
-  // never locks users out.
-  const onboarding = await getCompanyOnboarding().catch(e => {
-    console.log(
-      "Get company onboarding error (startup dashboard layout): ",
-      e?.message
-    );
-    return null;
-  });
-  if (
-    onboarding &&
-    !onboarding.has_completed_onboarding &&
-    !onboarding.has_skipped_onboarding
-  )
-    redirect("/startups/onboarding");
-  const showFinishOnboardingBanner =
-    !!onboarding && !onboarding.has_completed_onboarding;
   const splitCompanyName = (startup.company_name ?? "").split(" ");
-  const [teamRoleData, unreadMessageCounts] = await Promise.all([
+  const [teamRoleData, onboarding, unreadMessageCounts] = await Promise.all([
     getTeamRole().catch(e => {
       console.log("Get team role error (startup dashboard layout): ", e?.message);
+      return null;
+    }),
+    getCompanyOnboarding().catch(e => {
+      console.log(
+        "Get company onboarding error (startup dashboard layout): ",
+        e?.message
+      );
       return null;
     }),
     !IS_CHAT_HIDDEN
@@ -59,6 +47,16 @@ const StartupDashboardLayout = async ({ children }: PropsWithChildren) => {
       : ([] as any[]),
   ]);
   const teamRole = teamRoleData?.role ?? null;
+  const isTeamMember = !!teamRoleData?.role;
+  if (
+    !isTeamMember &&
+    onboarding &&
+    !onboarding.has_completed_onboarding &&
+    !onboarding.has_skipped_onboarding
+  )
+    redirect("/startups/onboarding");
+  const showFinishOnboardingBanner =
+    !isTeamMember && !!onboarding && !onboarding.has_completed_onboarding;
   const unreadMessageCount = unreadMessageCounts.reduce(
     (acc: number, curr: any) => acc + curr.unread_messages,
     0
