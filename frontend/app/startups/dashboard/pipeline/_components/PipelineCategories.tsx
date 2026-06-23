@@ -481,7 +481,7 @@ export default function PipelineCategories({
             <div>
               <label className="text-sm font-medium">Name</label>
               <Input
-                placeholder="e.g., Frontend Engineers"
+                placeholder="Frontend engineer pipeline"
                 value={newName}
                 onChange={e => setNewName(e.target.value)}
                 className="mt-1"
@@ -490,7 +490,7 @@ export default function PipelineCategories({
             <div>
               <label className="text-sm font-medium">Role</label>
               <Input
-                placeholder="e.g., Frontend Engineer"
+                placeholder="Frontend engineer"
                 value={newRoleName}
                 onChange={e => setNewRoleName(e.target.value)}
                 className="mt-1"
@@ -499,7 +499,7 @@ export default function PipelineCategories({
             <div>
               <label className="text-sm font-medium">Description</label>
               <Input
-                placeholder="e.g., React, Vue, Angular specialists"
+                placeholder="This pipeline is for frontend engineers"
                 value={newDescription}
                 onChange={e => setNewDescription(e.target.value)}
                 className="mt-1"
@@ -533,7 +533,7 @@ export default function PipelineCategories({
             <div>
               <label className="text-sm font-medium">Name</label>
               <Input
-                placeholder="e.g., Frontend Engineers"
+                placeholder="Frontend engineer pipeline"
                 value={editName}
                 onChange={e => setEditName(e.target.value)}
                 className="mt-1"
@@ -542,7 +542,7 @@ export default function PipelineCategories({
             <div>
               <label className="text-sm font-medium">Role</label>
               <Input
-                placeholder="e.g., Frontend Engineer"
+                placeholder="Frontend engineer"
                 value={editRoleName}
                 onChange={e => setEditRoleName(e.target.value)}
                 className="mt-1"
@@ -551,7 +551,7 @@ export default function PipelineCategories({
             <div>
               <label className="text-sm font-medium">Description</label>
               <Input
-                placeholder="e.g., React, Vue, Angular specialists"
+                placeholder="This pipeline is for frontend engineers"
                 value={editDescription}
                 onChange={e => setEditDescription(e.target.value)}
                 className="mt-1"

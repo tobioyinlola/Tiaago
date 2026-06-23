@@ -243,11 +243,17 @@ class TalentSerializer(RegisterSerializer):
         return value
 
     def validate_role(self, value):
-        role = Role.objects.filter(slug__iexact=value)
-        if len(role) == 0:
-            raise serializers.ValidationError("Invalid role")
-
-        return role[0].slug
+        if not value or not value.strip():
+            raise serializers.ValidationError("Role is required")
+        value = value.strip()
+        role = Role.objects.filter(slug__iexact=value).first()
+        if role:
+            return role.slug
+        role = Role.objects.filter(title__iexact=value).first()
+        if role:
+            return role.slug
+        role = Role.objects.create(title=value)
+        return role.slug
 
     def validate_profile_pic(self, value):
 

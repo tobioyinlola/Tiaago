@@ -221,19 +221,20 @@ const SignUpFormV3 = ({
                       touched={touched[name]}
                     />
                   ))}
-              {talentSignUpV3FormFields
-                .filter(f => f.name === "role")
-                .map(({ name, label, ...props }) => (
-                  <FormikField
-                    key={name}
-                    {...{ name, label, ...props }}
-                    value={values[name]}
-                    error={errors[name]}
-                    touched={touched[name]}
-                    disablePasswordHelpers
-                    inputContainerClassName='min-h-10 h-10'
-                  />
-                ))}
+              {!values.role &&
+                talentSignUpV3FormFields
+                  .filter(f => f.name === "role")
+                  .map(({ name, label, ...props }) => (
+                    <FormikField
+                      key={name}
+                      {...{ name, label, ...props }}
+                      value={values[name]}
+                      error={errors[name]}
+                      touched={touched[name]}
+                      disablePasswordHelpers
+                      inputContainerClassName='min-h-10 h-10'
+                    />
+                  ))}
 
               {/* Password field */}
               {talentSignUpV3FormFields
