@@ -201,8 +201,11 @@ export function InviteApplicationForm({
       if (saved) {
         const parsed = JSON.parse(saved) as FormState;
         setForm(parsed);
-        setStep(5);
+        setStep(3);
         sessionStorage.removeItem(SESSION_STORAGE_KEY(token));
+        setTimeout(() => {
+          toast.info("Welcome back! Please re-upload your resume if you had one.");
+        }, 500);
       }
     } catch {
       // ignore
@@ -281,13 +284,16 @@ export function InviteApplicationForm({
       return;
     }
 
+    const ensureUrl = (v: string) =>
+      v && !/^https?:\/\//i.test(v) ? `https://${v}` : v;
+
     const formData = new FormData();
     formData.append("first_name", form.first_name);
     formData.append("last_name", form.last_name);
     formData.append("email", form.email);
     if (form.phone) formData.append("phone", form.phone);
-    if (form.linkedin) formData.append("linkedin_url", form.linkedin);
-    if (form.portfolio) formData.append("portfolio_url", form.portfolio);
+    if (form.linkedin) formData.append("linkedin_url", ensureUrl(form.linkedin));
+    if (form.portfolio) formData.append("portfolio_url", ensureUrl(form.portfolio));
     if (selectedFile) formData.append("resume", selectedFile);
     if (form.current_role) formData.append("current_role", form.current_role);
     if (form.experience_level) formData.append("experience_level", form.experience_level);
