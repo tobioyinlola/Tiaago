@@ -25,6 +25,12 @@ services:
     depends_on:
       - ai
       - vector
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/')"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
     restart: unless-stopped
     logging: *logtail-logging
 
@@ -96,8 +102,10 @@ services:
       - certbot_www:/var/www/certbot:ro
       - /etc/letsencrypt:/etc/letsencrypt:ro
     depends_on:
-      - web
-      - ai
+      web:
+        condition: service_healthy
+      ai:
+        condition: service_started
     restart: unless-stopped
 
 volumes:

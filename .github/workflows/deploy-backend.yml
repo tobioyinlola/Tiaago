@@ -23,5 +23,14 @@ jobs:
             cd ~/tiaago-monorepo1
             git pull origin main
             docker compose up --build -d
+            echo "Waiting for web container to be healthy..."
+            for i in $(seq 1 30); do
+              if docker compose exec -T web python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/')" 2>/dev/null; then
+                echo "Web is healthy after ${i}0 seconds"
+                break
+              fi
+              echo "Attempt $i/30 - web not ready yet..."
+              sleep 10
+            done
             docker compose restart nginx
             docker image prune -f
