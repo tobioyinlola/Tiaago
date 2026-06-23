@@ -482,6 +482,8 @@ class SendOutreachView(APIView):
 
                 for record in outreach_records:
                     try:
+                        job_url = f"{settings.FRONTEND_URL}/jobs/{job.apply_token}"
+                        careers_url = f"{settings.FRONTEND_URL}/companies/{company.company_name}"
                         replacements = {
                             "{{candidateName}}": record.candidate.name,
                             "{{company}}": company.company_name or "",
@@ -489,14 +491,26 @@ class SendOutreachView(APIView):
                             "{{recruiterName}}": request.user.get_full_name(),
                             "{{jobTitle}}": job.title or "",
                             "{{jobLevel}}": job.get_job_level_display() if hasattr(job, 'get_job_level_display') else (job.job_level or ""),
-                            "{{jobLink}}": f"{settings.FRONTEND_URL}/jobs/{job.apply_token}",
-                            "{{careersLink}}": f"{settings.FRONTEND_URL}/companies/{company.company_name}",
+                            "{{jobLink}}": f'<a href="{job_url}" style="color:#5465FF; text-decoration:underline;">{job_url}</a>',
+                            "{{careersLink}}": f'<a href="{careers_url}" style="color:#5465FF; text-decoration:underline;">{careers_url}</a>',
                         }
                         personalized_body = body
                         personalized_subject = subject
+                        subject_replacements = {
+                            "{{candidateName}}": record.candidate.name,
+                            "{{company}}": company.company_name or "",
+                            "{{role}}": record.candidate.role or "",
+                            "{{recruiterName}}": request.user.get_full_name(),
+                            "{{jobTitle}}": job.title or "",
+                            "{{jobLevel}}": job.get_job_level_display() if hasattr(job, 'get_job_level_display') else (job.job_level or ""),
+                            "{{jobLink}}": job_url,
+                            "{{careersLink}}": careers_url,
+                        }
                         for placeholder, value in replacements.items():
                             personalized_body = personalized_body.replace(placeholder, value)
+                        for placeholder, value in subject_replacements.items():
                             personalized_subject = personalized_subject.replace(placeholder, value)
+                        personalized_body = personalized_body.replace("\n", "<br />")
 
                         branded_html = render_to_string("emails/outreach.html", {
                             "subject": personalized_subject,

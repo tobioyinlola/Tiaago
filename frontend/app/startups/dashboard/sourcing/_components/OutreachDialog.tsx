@@ -127,45 +127,56 @@ function EmailPreview({
   }, [subject, companyName, jobTitle, jobLevel]);
 
   return (
-    <div className="rounded-xl border border-border overflow-hidden bg-[#EEF1FB] shadow-inner">
+    <div className="rounded-xl border border-border overflow-hidden bg-[#F3F4F6] shadow-inner">
+      {/* Header: company name on blue gradient */}
       <div
         className="px-5 py-3.5"
         style={{
           background: "linear-gradient(135deg, #1C3477, #5465FF)",
         }}
       >
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-5 h-5 rounded bg-white/20 flex items-center justify-center">
-              <Mail className="h-3 w-3 text-white" />
-            </div>
-            <span className="text-white/90 text-[10px] font-semibold tracking-wider uppercase">
-              {companyName}
-            </span>
-          </div>
-          <span className="text-white/40 text-[10px]">Preview</span>
-        </div>
+        <span className="text-white text-[11px] font-bold tracking-wide">
+          {companyName}
+        </span>
       </div>
 
-      <div className="bg-white mx-2.5 my-2.5 rounded-lg px-4 py-3.5 shadow-sm">
-        <p className="text-xs font-semibold text-foreground mb-2.5 pb-2.5 border-b border-border/50">
+      {/* Body */}
+      <div className="bg-white px-5 py-4">
+        <p className="text-[10px] font-semibold text-foreground mb-2 pb-2 border-b border-border/50">
           {previewSubject}
         </p>
-        <div className="text-[11px] leading-relaxed text-muted-foreground whitespace-pre-line max-h-[200px] overflow-y-auto">
+        <div className="text-[11px] leading-relaxed text-[#3B3F5C] whitespace-pre-line max-h-[180px] overflow-y-auto">
           {previewBody}
         </div>
       </div>
 
-      <div className="px-4 py-2 flex items-center justify-between">
-        <p className="text-[10px] text-muted-foreground/50">
-          Sent via Tiaago
+      {/* CTA button */}
+      {selectedJob && (
+        <div className="bg-white px-5 pb-4">
+          <div className="inline-block rounded-md px-4 py-2 text-[10px] font-semibold text-white" style={{ backgroundColor: "#5465FF" }}>
+            View Role and Apply
+          </div>
+        </div>
+      )}
+
+      {/* Gradient divider */}
+      <div className="h-[3px]" style={{ background: "linear-gradient(90deg, #5465FF, #3E92CC)" }} />
+
+      {/* Footer */}
+      <div className="px-5 py-3.5" style={{ backgroundColor: "#1C3477" }}>
+        <p className="text-[9px] font-bold text-white leading-snug mb-1.5">
+          AI-powered end-to-end hiring<br />platform for modern teams.
         </p>
-        {selectedJob && (
-          <p className="text-[10px] text-primary/50 flex items-center gap-1">
-            <Briefcase className="h-2.5 w-2.5" />
-            {selectedJob.title}
+        <p className="text-[8px] text-[#AEB8E8] mb-2">
+          X (Twitter) &middot; Instagram &middot; LinkedIn
+        </p>
+        <div className="border-t border-[#2E4585] pt-1.5">
+          <p className="text-[7px] text-[#9AA6D4] leading-relaxed">
+            Questions? support@tiaago.com<br />
+            1942 Broadway St, Suite 314C, Boulder, CO, US<br />
+            &copy; {new Date().getFullYear()} Tiaago. All rights reserved.
           </p>
-        )}
+        </div>
       </div>
     </div>
   );

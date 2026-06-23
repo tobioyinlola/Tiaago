@@ -341,17 +341,14 @@ export const emailTemplates: EmailTemplate[] = [
     subject: "{{jobTitle}} at {{company}}",
     body: `Hi {{candidateName}},
 
-I came across your profile and was impressed by your background. We have an open {{jobTitle}} position at {{company}} that I think would be a great fit for you.
+We have a new {{jobTitle}} opportunity at {{company}} that matches your profile in our talent pipeline.
 
-Here are some highlights:
-- Role: {{jobTitle}} ({{jobLevel}})
-- Company: {{company}}
+Role: {{jobTitle}} ({{jobLevel}})
+Company: {{company}}
 
-View the role and apply here: {{jobLink}}
+View the role details and apply using the button below or via this link {{jobLink}}
 
-If this sounds interesting, I would love to set up a quick chat to tell you more about the role and our team.
-
-Looking forward to hearing from you.
+If your profile is a fit, our team will review your application and get in touch with next steps.
 
 Best,
 {{recruiterName}}
@@ -363,11 +360,13 @@ Best,
     subject: "Following up on {{jobTitle}} at {{company}}",
     body: `Hi {{candidateName}},
 
-I wanted to follow up on my previous message about the {{jobTitle}} position at {{company}}.
+Just following up on the {{jobTitle}} opportunity at {{company}}.
 
-We are still looking for the right person and your experience as a {{role}} makes you a strong candidate. Would you be available for a brief chat this week?
+We're still reviewing candidates, and your experience as a {{role}} continues to stand out in our talent pipeline.
 
-You can view the full role details here: {{jobLink}}
+View the role details and apply using the button below: {{jobLink}}
+
+If your profile is a fit, our team will review your application and reach out with next steps.
 
 Best,
 {{recruiterName}}
@@ -379,11 +378,13 @@ Best,
     subject: "New role: {{jobTitle}} at {{company}}",
     body: `Hi {{candidateName}},
 
-We have a new {{jobTitle}} opening at {{company}} and your profile stood out to us.
+We've just opened a new {{jobTitle}} role at {{company}}, and your profile came up as a strong match from our talent pool.
 
-I would love to share more details about the role and what we are building. Would you be interested in learning more?
+Thought it might be relevant to your background as a {{role}}.
 
-Check out the role here: {{jobLink}}
+View the role details and apply using the button below: {{jobLink}}
+
+If it looks like a fit, we'd be glad to review your application and take it from there.
 
 Best,
 {{recruiterName}}
