@@ -545,6 +545,7 @@ class SendOutreachView(APIView):
                         record.status = OutreachEmail.Status.SENT
                         record.sent_at = timezone.now()
                         sent_count += 1
+                        logger.info("Outreach sent to %s for job %s", record.recipient_email, job.title)
                     except Exception as e:
                         record.status = OutreachEmail.Status.FAILED
                         record.error_reason = str(e)[:500]
@@ -577,6 +578,7 @@ class SendOutreachView(APIView):
             id__in=[r.candidate_id for r in outreach_records if r.status == OutreachEmail.Status.SENT],
         ).update(status=PipelineCandidate.Status.CONTACTED)
 
+        logger.info("Outreach batch complete: sent=%d failed=%d total=%d company=%s", sent_count, failed_count, len(outreach_records), company.company_name)
         return Response({
             "success": True,
             "sent": sent_count,
