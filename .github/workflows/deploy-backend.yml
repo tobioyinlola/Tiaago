@@ -21,6 +21,7 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
             cd ~/tiaago-monorepo1
+            git checkout -- .
             git pull origin main
             docker compose up --build -d
             echo "Waiting for web container to be healthy..."
