@@ -9,7 +9,8 @@ app = Celery('talentsync_backend')
 
 app.config_from_object(f'django.conf:settings', namespace='CELERY')
 
-app.conf.broker_connection_retry_on_startup = True 
+app.conf.broker_connection_retry_on_startup = True
+app.conf.worker_hijack_root_logger = False
 
 app.autodiscover_tasks()
 

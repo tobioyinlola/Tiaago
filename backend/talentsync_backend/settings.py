@@ -561,6 +561,21 @@ if ENV in ['staging', 'production']:
                 "level": "INFO",
                 "propagate": False,
             },
+            "jobs.tasks": {
+                "handlers": ["console"],
+                "level": "INFO",
+                "propagate": False,
+            },
+            "celery": {
+                "handlers": ["console"],
+                "level": "INFO",
+                "propagate": False,
+            },
+            "celery.task": {
+                "handlers": ["console"],
+                "level": "INFO",
+                "propagate": False,
+            },
             "paystack": {
                 "handlers": ["console"],
                 "level": "INFO",

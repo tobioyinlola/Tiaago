@@ -636,12 +636,9 @@ class UserProfileView(RetrieveUpdateAPIView):
         if user.is_talent():
             return self.request.user.profile
         elif user.is_company():
-            company = getattr(user, "company", None)
-            if company is None:
-                membership = CompanyTeamMember.objects.filter(user=user).select_related("company").first()
-                if membership:
-                    return membership.company
-            return company
+            from create_user.permissions import get_user_company
+            company = get_user_company(user)
+            return company or getattr(user, "company", user)
         else:
             return user
         
@@ -1056,16 +1053,15 @@ class CompanyTeamListAPIView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
-        membership = CompanyTeamMember.objects.filter(user=request.user).first()
+        from create_user.permissions import get_user_company
+        company = get_user_company(request.user)
+        if not company:
+            return Response({"detail": "Not a team member of any company."}, status=status.HTTP_403_FORBIDDEN)
+        membership = CompanyTeamMember.objects.filter(company=company, user=request.user).first()
         if not membership:
-            company = Company.objects.filter(company_rep=request.user).first()
-            if not company:
-                return Response({"detail": "Not a team member of any company."}, status=status.HTTP_403_FORBIDDEN)
             membership = CompanyTeamMember.objects.create(
                 company=company, user=request.user, role=CompanyTeamMember.ROLE.ADMIN
             )
-
-        company = membership.company
         members = CompanyTeamMember.objects.filter(company=company).select_related("user", "invited_by")
         invites = CompanyTeamInvite.objects.filter(company=company, status=CompanyTeamInvite.STATUS_PENDING).select_related("invited_by")
 
@@ -1082,14 +1078,18 @@ class CompanyTeamRoleAPIView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
-        membership = CompanyTeamMember.objects.filter(user=request.user).first()
+        from create_user.permissions import get_user_company
+        company = get_user_company(request.user)
+        if not company:
+            return Response({"role": None}, status=status.HTTP_200_OK)
+        membership = CompanyTeamMember.objects.filter(company=company, user=request.user).first()
         if not membership:
-            company = Company.objects.filter(company_rep=request.user).first()
-            if not company:
+            if hasattr(company, "company_rep") and company.company_rep_id == request.user.id:
+                membership = CompanyTeamMember.objects.create(
+                    company=company, user=request.user, role=CompanyTeamMember.ROLE.ADMIN
+                )
+            else:
                 return Response({"role": None}, status=status.HTTP_200_OK)
-            membership = CompanyTeamMember.objects.create(
-                company=company, user=request.user, role=CompanyTeamMember.ROLE.ADMIN
-            )
         return Response({"role": membership.role}, status=status.HTTP_200_OK)
 
 
