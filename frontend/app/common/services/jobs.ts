@@ -35,8 +35,10 @@ export const getJob = async (id: ID): Promise<Job | undefined> => {
 };
 
 export const getPublicJob = async (id: ID): Promise<Job | undefined> => {
+  const isUuid = typeof id === "string" && id.includes("-") && id.length > 30;
+  const endpoint = isUuid ? `jobs/apply/${id}` : `jobs/job-detail/${id}`;
   try {
-    const data = await serverKyInstance.get<Job>("jobs/apply/" + id).json();
+    const data = await serverKyInstance.get<Job>(endpoint).json();
     return data;
   } catch (error) {
     const errMsg = await handleServerApiCallError(error);
