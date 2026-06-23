@@ -1,5 +1,3 @@
-import { redirect } from "next/navigation";
-
 import {
   getSubscriptionPlansBasedOnCountry,
   getSubscriptionTransactions,
@@ -16,6 +14,7 @@ import { handleServerApiCallError } from "@/app/common/utils";
 import { getCurrentUser } from "@/app/common/services/profile";
 import { getTeamRole } from "@/app/common/services/team";
 import { SubscriptionPlanV3 } from "@/app/common/types";
+import AccessDenied from "@/app/common/components/AccessDenied";
 
 export const metadata = {
   title: "Billing",
@@ -28,7 +27,12 @@ const BillingPage = async () => {
 
   const teamRoleData = await getTeamRole().catch(() => null);
   if (teamRoleData && teamRoleData.role !== "admin") {
-    redirect("/startups/dashboard");
+    return (
+      <AccessDenied
+        title="Admin Access Only"
+        message="Billing can only be managed by team admins. Contact your admin for billing related requests."
+      />
+    );
   }
 
   // All remaining calls are independent -- fetch in parallel

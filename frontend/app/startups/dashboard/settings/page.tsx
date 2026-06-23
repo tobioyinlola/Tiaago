@@ -1,11 +1,11 @@
 import { Metadata } from "next";
-import { redirect } from "next/navigation";
 
 import SettingsContent from "./components/SettingsContent";
 import { useStartupStore } from "../store";
 import { getCountries, getTalentRoles } from "@/app/common/services";
 import { getCurrentUser } from "@/app/common/services/profile";
 import { getTeamRole } from "@/app/common/services/team";
+import AccessDenied from "@/app/common/components/AccessDenied";
 
 export const metadata: Metadata = {
   title: "Settings",
@@ -14,7 +14,12 @@ export const metadata: Metadata = {
 const StartupSettingsPage = async () => {
   const teamRoleData = await getTeamRole().catch(() => null);
   if (teamRoleData && teamRoleData.role !== "admin") {
-    redirect("/startups/dashboard");
+    return (
+      <AccessDenied
+        title="Admin Access Only"
+        message="Settings can only be managed by team admins. Contact your admin if you need changes."
+      />
+    );
   }
 
   let currentUser = useStartupStore.getState().profile;

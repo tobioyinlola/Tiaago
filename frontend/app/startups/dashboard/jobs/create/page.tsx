@@ -1,4 +1,3 @@
-import { redirect } from "next/navigation";
 import "react-quill-new/dist/quill.snow.css";
 import "react-phone-input-2/lib/style.css";
 
@@ -11,6 +10,7 @@ import { handleServerApiCallError } from "@/app/common/utils";
 import { getCurrentUser } from "@/app/common/services/profile";
 import { getTeamRole } from "@/app/common/services/team";
 import { getCountries, getTalentRoles } from "@/app/common/services";
+import AccessDenied from "@/app/common/components/AccessDenied";
 
 export const metadata = {
   title: "Post a Job",
@@ -43,7 +43,12 @@ const PostAJob = async () => {
   ]);
 
   if (teamRoleData && teamRoleData.role === "viewer") {
-    redirect("/startups/dashboard");
+    return (
+      <AccessDenied
+        title="Posting Restricted"
+        message="Viewers cannot post jobs. Contact your team admin to upgrade your role to recruiter or admin."
+      />
+    );
   }
 
   return (
