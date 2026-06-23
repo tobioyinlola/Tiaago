@@ -50,42 +50,53 @@ export const DeactivateJob = ({
   id: ID;
   deactivated: boolean;
 }) => {
+  const [loading, setLoading] = useState(false);
   const router = useRouter();
   const setAlert = useAlert(state => state.setAlert);
-  const deactivateJob = async () => {
+
+  const toggleStatus = async () => {
+    setLoading(true);
     try {
+      const newStatus = deactivated ? "ACTIVE" : "ON_HOLD";
       await clientKyInstance
-        .patch(`jobs/${id}/admin-approve/`, {
-          json: { was_approved: false },
+        .patch(`jobs/${id}/`, {
+          json: { job_status: newStatus },
         })
         .json();
 
-      toast.success("Job deactivated successfully");
-      router.push("jobs?tab=pending");
+      toast.success(deactivated ? "Job reactivated" : "Job deactivated");
+      router.refresh();
     } catch (error) {
-      setTimeout(() => {
-        handleFormSubmissionError(error, undefined, setAlert);
-      }, 300);
+      await handleFormSubmissionError(error, undefined, setAlert);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const requestDeactivation = () =>
-    setAlert({
-      icon: "warning",
-      title: "Are you sure?",
-      message: "This action cannot be undone",
-      buttonText: "Deactivate",
-      buttonAction: deactivateJob,
-      buttonClassName: "btn-error",
-    });
+  const handleClick = () => {
+    if (deactivated) {
+      toggleStatus();
+    } else {
+      setAlert({
+        icon: "warning",
+        title: "Deactivate this job?",
+        message:
+          "The job will be hidden from candidates. You can reactivate it later.",
+        buttonText: "Deactivate",
+        buttonAction: toggleStatus,
+        buttonClassName: "btn-error",
+      });
+    }
+  };
+
   return (
     <Button
-      disabled={deactivated}
+      loading={loading}
       variant='link'
-      className='no-underline link-error hover:no-underline'
-      onClick={requestDeactivation}
+      className={`no-underline hover:no-underline ${deactivated ? "link-success" : "link-error"}`}
+      onClick={handleClick}
     >
-      Deactivate{deactivated ? "d" : ""}
+      {deactivated ? "Reactivate" : "Deactivate"}
     </Button>
   );
 };

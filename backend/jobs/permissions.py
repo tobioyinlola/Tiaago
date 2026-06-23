@@ -8,6 +8,9 @@ class IsJobCreatorOrReadOnly(permissions.BasePermission):
         if request.method in permissions.SAFE_METHODS:
             return True
 
+        if request.user.is_staff:
+            return True
+
         try:
             company = request.user.company
         except CustomUser.company.RelatedObjectDoesNotExist:
