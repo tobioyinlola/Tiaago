@@ -58,6 +58,7 @@ const BaseTable = ({
                     />
                     <div className='font-medium'>
                       <h6>{job.company.company_name}</h6>
+                      {job.company.website ? (
                       <Link
                         href={job.company.website}
                         target='_blank'
@@ -66,6 +67,7 @@ const BaseTable = ({
                       >
                         {job.company.website}
                       </Link>
+                      ) : null}
                     </div>
                   </td>
                   <td>{job.title}</td>
