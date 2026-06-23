@@ -99,7 +99,7 @@ const StartupDashboard = async () => {
   return (
     <>
       <DisplayErrorMessages errors={errors} />
-      <StartupOnboardingCards />
+      <StartupOnboardingCards isTeamMember={!!teamRoleData?.role} />
       <div className='flex justify-between items-center mb-8'>
         <h1 className='text-2xl font-switzer text-primary-black'>
           Welcome,{" "}

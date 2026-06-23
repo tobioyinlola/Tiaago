@@ -16,7 +16,7 @@ import SubscriptionPlansModal from "./SubscriptionPlansModal";
 const TOTAL_STEPS = 5;
 const scrollAreaId = "startup-onboarding-scroll-area";
 
-function StartupOnboardingCards() {
+function StartupOnboardingCards({ isTeamMember = false }: { isTeamMember?: boolean }) {
   const [
     profile,
     hasBeenOnboarded,
@@ -42,9 +42,13 @@ function StartupOnboardingCards() {
   };
 
   const handleOpenModal = () => {
-    confirmationModalRef.current?.showModal();
     setOnboardingStep(TOTAL_STEPS);
     setHasBeenOnboarded(true);
+    if (isTeamMember) {
+      onboardingModalRef.current?.close();
+      return;
+    }
+    confirmationModalRef.current?.showModal();
   };
 
   const scrollToTop = () => {
