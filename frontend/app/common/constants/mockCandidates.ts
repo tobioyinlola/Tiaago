@@ -344,6 +344,7 @@ export const emailTemplates: EmailTemplate[] = [
 We have a new {{jobTitle}} opportunity at {{company}} that matches your profile in our talent pipeline.
 
 Role: {{jobTitle}} ({{jobLevel}})
+Company: {{company}}
 
 View the role details and apply using the button below or via this link {{jobLink}}
 
