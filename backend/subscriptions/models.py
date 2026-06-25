@@ -306,7 +306,7 @@ class UserUsage(models.Model):
     last_reset = models.DateTimeField(auto_now_add=True)
     
     def __str__(self):
-        return f"Usage for {self.company.name}"
+        return f"Usage for {self.company.company_name}"
     
     def get_subscription(self):
         """Retrieve the current subscription or free plan for the company."""
@@ -394,7 +394,7 @@ class WalletUserUsage(models.Model):
     last_reset = models.DateTimeField(auto_now_add=True)
     
     def __str__(self):
-        return f"Wallet Usage for {self.wallet.company.name}"
+        return f"Wallet Usage for {self.wallet.company.company_name}"
     
     def increment_resumes_used(self):
         """Increment the count of resumes used."""
@@ -423,4 +423,4 @@ class WalletTransaction(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     
     def __str__(self):
-        return f"{self.transaction_type.upper()} of {self.amount} on {self.created_at.strftime('%Y-%m-%d %H:%M:%S')} for {self.wallet.company.name}"
+        return f"{self.transaction_type.upper()} of {self.amount} on {self.created_at.strftime('%Y-%m-%d %H:%M:%S')} for {self.wallet.company.company_name}"

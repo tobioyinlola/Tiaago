@@ -1089,11 +1089,10 @@ class CompanyProfileView(RetrieveAPIView):
 
     def get(self, request, *args, **kwargs):
         company_name = self.kwargs.get("company_name")
-        company = get_object_or_404(
-            Company.objects.select_related("company_rep").prefetch_related(
-                Prefetch("jobs", queryset=Job.objects.filter(job_status="ACTIVE").select_related("role"))
-            ),
-            company_name__iexact=company_name,
-        )
+        company = Company.objects.select_related("company_rep").prefetch_related(
+            Prefetch("jobs", queryset=Job.objects.filter(job_status="ACTIVE").select_related("role"))
+        ).filter(company_name__iexact=company_name).first()
+        if not company:
+            return Response({"detail": "Not found."}, status=404)
         serializer = self.get_serializer(company)
         return Response(serializer.data)

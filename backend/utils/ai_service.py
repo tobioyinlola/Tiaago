@@ -297,22 +297,28 @@ class AIServiceHandler:
             return None
 
         
-    def analyze_resume(self, resume_path: str, resume_name: str, job_description: str):
+    def analyze_resume(self, resume_path, resume_name: str, job_description: str):
         """Function to analyze a resume via the AI service"""
         params = {"job_description": job_description}
         response = None
 
-        # If resume_path is a URL, download it first
-        resume_url = resume_path.url
+        # resume_path can be a FieldFile (has .url) or a plain string path/URL
+        if hasattr(resume_path, 'url'):
+            resume_url = resume_path.url
+        else:
+            resume_url = str(resume_path)
+
         if resume_url.startswith("http://") or resume_url.startswith("https://"):
             r = requests.get(resume_url)
-            r.raise_for_status() 
+            r.raise_for_status()
             tmp_file = NamedTemporaryFile(delete=False, suffix=os.path.splitext(resume_name)[1])
             tmp_file.write(r.content)
             tmp_file.close()
             local_path = tmp_file.name
-        else:
+        elif hasattr(resume_path, 'path'):
             local_path = resume_path.path
+        else:
+            local_path = resume_url
 
         try:
             with open(local_path, "rb") as f:
