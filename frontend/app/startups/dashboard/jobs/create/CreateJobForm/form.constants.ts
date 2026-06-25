@@ -17,6 +17,13 @@ export const jobBasicDetailsValidationSchema = Yup.object().shape({
       ["FT", "PT", "CW", "IN"],
       "Please select a valid job type"
     ),
+  job_level: Yup.string()
+    .required()
+    .label("Job level")
+    .oneOf(
+      ["ENTRY", "JUNIOR", "SENIOR"],
+      "Please select a valid job level"
+    ),
   salary_duration: Yup.string().required().label("Payment type"),
   payment_range: Yup.string().required().label("Payment range"),
   payment_currency: Yup.string().required().label("Currency"),
@@ -68,6 +75,19 @@ export const jobBasicDetailsFormFields: FormField<JobBasicDetailsFormValues>[] =
           label: jobTypeEnumToLabel(t),
           value: t,
         })),
+      },
+    },
+    {
+      name: "job_level",
+      label: "Job Level",
+      type: "select",
+      className: "md:w-[48%] [&_input]:w-full",
+      selectFieldProps: {
+        options: [
+          { label: "Entry", value: "ENTRY" },
+          { label: "Junior", value: "JUNIOR" },
+          { label: "Senior", value: "SENIOR" },
+        ],
       },
     },
     {
@@ -152,6 +172,8 @@ export type InitialValues = Yup.InferType<typeof validationSchema>;
 export const initialValues: InitialValues = {
   title: "",
   role: "",
+  // @ts-ignore
+  job_level: "",
   // @ts-ignore,
   salary_duration: "",
   payment_range: "",

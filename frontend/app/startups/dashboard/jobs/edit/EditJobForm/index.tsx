@@ -92,6 +92,7 @@ const EditJobForm = ({
       ...initialValues,
       role: job.role,
       job_type: job.job_type,
+      job_level: job.job_level,
       salary_duration: job.salary_duration,
       payment_range: paymentRange,
       payment_currency: currency,

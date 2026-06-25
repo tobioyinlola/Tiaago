@@ -98,7 +98,8 @@ function EmailPreview({
   recruiterName: string;
 }) {
   const jobTitle = selectedJob?.title || "Backend Engineer";
-  const jobLevel = selectedJob?.job_level || "Senior";
+  const JOB_LEVEL_DISPLAY: Record<string, string> = { ENTRY: "Entry", JUNIOR: "Junior", SENIOR: "Senior" };
+  const jobLevel = JOB_LEVEL_DISPLAY[selectedJob?.job_level || ""] || selectedJob?.job_level || "Senior";
 
   const previewBody = useMemo(() => {
     let text = body || "Your message will appear here...";

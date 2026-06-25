@@ -393,6 +393,7 @@ export type Job = {
   payment_currency: string;
   experience: number;
   job_type: "FT" | "PT" | "CW" | "IN"; //FT-full time, PT-part time, CW-contract, IN-internship
+  job_level: "ENTRY" | "JUNIOR" | "SENIOR";
   job_status: "ACTIVE" | "ON_HOLD" | "HIRED" | "EXPIRED";
   location: string;
   description: string;
