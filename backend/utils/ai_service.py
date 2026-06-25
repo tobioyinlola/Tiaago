@@ -308,6 +308,15 @@ class AIServiceHandler:
         else:
             resume_url = str(resume_path)
 
+        # Relative paths (e.g. "resumes/2026/...") need MEDIA_URL prepended
+        if not resume_url.startswith(("http://", "https://", "/")):
+            from django.conf import settings
+            media_url = getattr(settings, 'MEDIA_URL', '/media/')
+            if media_url.startswith("http"):
+                resume_url = media_url + resume_url
+            else:
+                resume_url = os.path.join(str(settings.MEDIA_ROOT), resume_url)
+
         if resume_url.startswith("http://") or resume_url.startswith("https://"):
             r = requests.get(resume_url)
             r.raise_for_status()
