@@ -502,7 +502,7 @@ def on_analyze_resume(
             strengths=response.get("strengths"),
             role_match_status=response.get("role_match_status"),
             text_authencity=response.get("text_authenticity"),
-            text_authencity_explanation=response.get("text_authencity_explanation"),
+            text_authencity_explanation=response.get("text_authenticity_explanation"),
             experience_validation=response.get("experience_validation"),
             experience_validation_explanation=response.get("experience_validation_explanation"),
             achievement_quality=achievement_quality,

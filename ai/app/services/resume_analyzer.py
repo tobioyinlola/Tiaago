@@ -354,7 +354,7 @@ Respond with ONLY the JSON object. No other text."""
         try:
             logger.info(f"Initializing OpenAI model: {model_name}")
             logger.info(f"Using max_tokens={max_completion_tokens} for model {model_name}")
-            chat = ChatOpenAI(
+            chat_kwargs = dict(
                 temperature=0,
                 model_name=model_name,
                 openai_api_key=openai_api_key,
@@ -365,6 +365,10 @@ Respond with ONLY the JSON object. No other text."""
                 streaming=False,
                 logit_bias=RESUME_OPENING_LOGIT_BIAS,
             )
+            # Route through an OpenAI-compatible gateway (e.g. OpenRouter) if configured.
+            if settings.OPENAI_BASE_URL:
+                chat_kwargs["base_url"] = settings.OPENAI_BASE_URL
+            chat = ChatOpenAI(**chat_kwargs)
             logger.debug("ChatOpenAI model initialized successfully")
         except Exception as e:
             error_msg = f"Failed to initialize ChatOpenAI model: {e}"
@@ -804,7 +808,7 @@ Before you return JSON, silently write a checklist:
             # Ensure proper types
             analysis_dict["resume_review_score"] = max(0, min(35, int(analysis_dict["resume_review_score"])))
             analysis_dict["skill_matching_score"] = max(0, min(30, int(analysis_dict["skill_matching_score"])))
-            analysis_dict["experience_relevance_score"] = max(0, min(20, int(analysis_dict["experience_relevance_score"])))
+            analysis_dict["experience_relevance_score"] = max(0, min(25, int(analysis_dict["experience_relevance_score"])))
             analysis_dict["education_certifications_score"] = max(0, min(10, int(analysis_dict["education_certifications_score"])))
             analysis_dict["total_score"] = int(analysis_dict["total_score"])
 
@@ -870,7 +874,7 @@ Before you return JSON, silently write a checklist:
                 # Clamp score ranges again for safety
                 d["resume_review_score"] = max(0, min(35, int(d.get("resume_review_score", 0))))
                 d["skill_matching_score"] = max(0, min(30, int(d.get("skill_matching_score", 0))))
-                d["experience_relevance_score"] = max(0, min(20, int(d.get("experience_relevance_score", 0))))
+                d["experience_relevance_score"] = max(0, min(25, int(d.get("experience_relevance_score", 0))))
                 d["education_certifications_score"] = max(0, min(10, int(d.get("education_certifications_score", 0))))
                 # Ensure lists are non-empty lists
                 if not isinstance(d.get("strengths"), list) or len(d.get("strengths", [])) == 0:

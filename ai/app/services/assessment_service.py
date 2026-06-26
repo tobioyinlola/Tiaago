@@ -44,7 +44,7 @@ def get_openai_client():
         max_tokens = 3000  # Conservative default
     
     
-    return ChatOpenAI(
+    client_kwargs = dict(
         api_key=api_key,
         model_name=model_name,
         temperature=0,
@@ -54,6 +54,11 @@ def get_openai_client():
         logit_bias=OPENING_PHRASE_LOGIT_BIAS,
         model_kwargs={"response_format": {"type": "json_object"}},  # Force JSON output
     )
+    # Route through an OpenAI-compatible gateway (e.g. OpenRouter) if configured.
+    if settings.OPENAI_BASE_URL:
+        client_kwargs["base_url"] = settings.OPENAI_BASE_URL
+
+    return ChatOpenAI(**client_kwargs)
 
 def _extract_token_usage(response) -> Dict[str, int]:
     """Best-effort extraction of token usage metadata from LangChain/OpenAI responses."""

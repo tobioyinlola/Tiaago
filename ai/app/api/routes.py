@@ -87,22 +87,15 @@ async def health_check():
     try:
         # Test critical dependencies
         from app.config import settings
-        from app.services.resume_analyzer import analyze_resume
-        
-        # Check if OpenAI API key is configured
+
+        # Check if OpenAI API key is configured.
+        # NOTE: do not make a live LLM call here. Health checks run frequently
+        # (load balancers, uptime monitors), so calling analyze_resume() would
+        # cost an OpenAI request per probe and report "degraded" whenever the
+        # key is missing/invalid. Report readiness from config only.
         openai_configured = bool(settings.OPENAI_API_KEY)
-        
-        # Test resume analyzer specifically
-        resume_analyzer_status = "healthy"
-        try:
-            from app.services.resume_analyzer import analyze_resume
-            # Test with minimal inputs
-            test_result = analyze_resume("Test resume", "Test job description")
-            if test_result.recommendation == "Analysis could not be completed":
-                resume_analyzer_status = "degraded"
-        except Exception as e:
-            resume_analyzer_status = f"error: {str(e)}"
-        
+        resume_analyzer_status = "healthy" if openai_configured else "degraded"
+
         system_info = {
             "status": "healthy",
             "timestamp": datetime.datetime.utcnow().isoformat() + "Z",

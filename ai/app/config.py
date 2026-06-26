@@ -3,6 +3,11 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     OPENAI_API_KEY: str
     OPENAI_MODEL_NAME: str = "gpt-4o-mini"
+    # Optional override for the OpenAI-compatible base URL. Leave empty to use
+    # OpenAI's default. Set to e.g. "https://openrouter.ai/api/v1" to route
+    # through OpenRouter (or any other OpenAI-compatible gateway) without code
+    # changes; the model name and OPENAI_API_KEY must then match that provider.
+    OPENAI_BASE_URL: str = ""
     TEMP_FILE_DIR: str = "temp"
 
     # File upload configuration
