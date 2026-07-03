@@ -633,21 +633,41 @@ def carry_out_pending_resume_analyses():
                     flow_status.error_message = f"Billing error during retry: {str(e)}"
                     flow_status.save()
                     logger.error("cant bill for pending analysis")
-                create_talent_screening(job_application, resume_analysis_obj)
-                if talent_profile.user:
-                    if resume_analysis_obj.total_score >= 70:
-                        send_assessment_link.apply_async(
-                            args=[job_application.id],
-                            countdown=ACCEPTANCE_MAIL_DELAY_SECONDS,
-                        )
-                    else:
-                        send_rejection_mail.apply_async(
-                            args=[job.id, talent_profile.id, areas_for_improvement],
-                            countdown=REJECTION_MAIL_DELAY_SECONDS,
-                        )
+
+                # At this point the (billable) AI analysis has already succeeded and
+                # been saved. A failure in the downstream steps below must NOT leave the
+                # pending record in place, otherwise this sweeper re-runs the AI analysis
+                # on every beat tick and burns OpenAI credits indefinitely. So we always
+                # delete the pending record and surface downstream errors via flow_status.
+                downstream_error = None
+                try:
+                    create_talent_screening(job_application, resume_analysis_obj)
+                    if talent_profile.user:
+                        if resume_analysis_obj.total_score >= 70:
+                            send_assessment_link.apply_async(
+                                args=[job_application.id],
+                                countdown=ACCEPTANCE_MAIL_DELAY_SECONDS,
+                            )
+                        else:
+                            send_rejection_mail.apply_async(
+                                args=[job.id, talent_profile.id, areas_for_improvement],
+                                countdown=REJECTION_MAIL_DELAY_SECONDS,
+                            )
+                except Exception as e:
+                    downstream_error = str(e)
+                    logger.error(
+                        "Post-analysis step failed for pending resume analysis "
+                        f"(job_application_id={job_application.id}): {e}"
+                    )
+
                 pending_resume_analysis.delete()
-                flow_status.status = ReportPAYGFlowStatus.Status.COMPLETED
-                flow_status.error_message = ""
+
+                if downstream_error:
+                    flow_status.status = ReportPAYGFlowStatus.Status.FAILED
+                    flow_status.error_message = f"Post-analysis error: {downstream_error}"
+                else:
+                    flow_status.status = ReportPAYGFlowStatus.Status.COMPLETED
+                    flow_status.error_message = ""
                 flow_status.save()
 
                 
