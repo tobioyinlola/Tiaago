@@ -62,8 +62,8 @@ const GuestApplyForm = ({ job }: { job: Job }) => {
             </h1>
             <p className='text-secondary-black mb-8'>
               Thanks for applying to <span className='font-medium text-primary-black'>{job.title}</span>{" "}
-              at <span className='font-medium text-primary-black'>{job.company?.company_name}</span>. We've
-              sent a confirmation to your email -- if you're shortlisted, the hiring team will follow up
+              at <span className='font-medium text-primary-black'>{job.company?.company_name}</span>. We&apos;ve
+              sent a confirmation to your email -- if you&apos;re shortlisted, the hiring team will follow up
               with next steps.
             </p>
             <Link href={job.detail_url || "#"}>

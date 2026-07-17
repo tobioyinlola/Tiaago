@@ -42,12 +42,15 @@ const Dot = ({ colour }: { colour?: string }) =>
     <span className="w-2 h-2 rounded-full inline-block mr-2 shrink-0" style={{ backgroundColor: colour }} />
   ) : null;
 
-const formatOptionLabel = (option: SelectOption) => (
-  <span className="flex items-center">
-    <Dot colour={option.colour} />
-    {option.label}
-  </span>
-);
+const formatOptionLabel = (data: unknown) => {
+  const option = data as SelectOption;
+  return (
+    <span className="flex items-center">
+      <Dot colour={option.colour} />
+      {option.label}
+    </span>
+  );
+};
 
 type SingleProps = {
   options: SelectOption[];

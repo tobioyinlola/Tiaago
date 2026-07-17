@@ -62,7 +62,7 @@ const GrowthPage = async () => {
           <div className='rounded-lg border bg-card p-6 shadow-sm'>
             <h4 className='text-gray-900 text-base font-medium mb-1'>Signup source (self-reported)</h4>
             <p className='text-xs text-muted-foreground mb-4'>
-              From the "how did you hear about us" question at signup.
+              From the &quot;how did you hear about us&quot; question at signup.
             </p>
             {hasHeardFromData ? (
               <DashboardDonutChart

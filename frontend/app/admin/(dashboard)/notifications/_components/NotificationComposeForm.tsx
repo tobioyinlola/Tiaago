@@ -10,6 +10,7 @@ import NotificationTypeIcon from "@/app/common/components/dashboard/Notification
 import AudiencePicker, { AudienceValue } from "@/app/common/components/dashboard/AudiencePicker";
 import { sendNotification } from "@/app/common/services/notifications";
 import { NotificationType } from "@/app/common/types/notifications.type";
+import PermissionGuard from "../../components/PermissionGuard";
 
 const TYPE_OPTIONS: { value: NotificationType; label: string }[] = [
   { value: "ANNOUNCEMENT", label: "Announcement" },
@@ -87,7 +88,7 @@ const NotificationComposeForm = () => {
           <CheckCircle2 className="h-7 w-7 text-success" />
         </div>
         <h3 className="text-lg font-bold text-primary-black font-space-grotesk mb-1">
-          "{success.title}" has been sent
+          &quot;{success.title}&quot; has been sent
         </h3>
         <p className="text-secondary-black mb-6">Delivered to {success.recipient_count} recipient(s).</p>
         <DaisyButton color="primary" className="text-white" onClick={() => setSuccess(null)}>
@@ -164,14 +165,19 @@ const NotificationComposeForm = () => {
           </div>
         </div>
 
-        <DaisyButton
-          color="primary"
-          className="text-white w-full sm:w-auto px-10"
-          onClick={handleSubmit}
-          loading={submitting}
+        <PermissionGuard
+          permission="notifications.send"
+          fallback={<p className="text-sm text-muted-foreground">You don&apos;t have permission to send notifications.</p>}
         >
-          {submitting ? "" : "Send notification"}
-        </DaisyButton>
+          <DaisyButton
+            color="primary"
+            className="text-white w-full sm:w-auto px-10"
+            onClick={handleSubmit}
+            loading={submitting}
+          >
+            {submitting ? "" : "Send notification"}
+          </DaisyButton>
+        </PermissionGuard>
       </div>
 
       {/* Live preview */}

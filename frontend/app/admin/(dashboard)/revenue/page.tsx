@@ -1,9 +1,11 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { format } from "date-fns";
 
 import DisplayErrorMessages, {
   DisplayErrorMessagesProps,
 } from "@/app/common/components/DisplayErrorMessages";
+import { getCurrentUser } from "@/app/common/services/profile";
 import { getRevenueSummary } from "@/app/common/services/revenue";
 import { handleServerApiCallError, cn } from "@/app/common/utils";
 import ServerPagination from "@/app/common/components/ServerPagination";
@@ -22,6 +24,12 @@ const RevenuePage = async ({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) => {
+  const { currentUser } = await getCurrentUser("staff");
+  const canView = currentUser.is_super_admin || currentUser.permissions.includes("revenue.view");
+  if (!canView) {
+    redirect("/admin/unauthorised?permission=revenue.view");
+  }
+
   const errors: DisplayErrorMessagesProps["errors"] = [];
   const resolvedSearchParams = await searchParams;
   const days = resolvedSearchParams.days === "90" ? 90 : 30;
@@ -135,7 +143,7 @@ const RevenuePage = async ({
             </div>
           ) : (
             <p className='text-sm text-muted-foreground py-8 text-center'>
-              Not available yet — needs real per-call OpenAI cost data from the AI service, which isn't tracked yet.
+              Not available yet — needs real per-call OpenAI cost data from the AI service, which isn&apos;t tracked yet.
             </p>
           )}
         </div>

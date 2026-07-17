@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import DaisyButton from "@/app/common/components/DaisyButton";
 import { updateAdminTicket } from "@/app/common/services/support";
 import { TicketDetail, TicketCategory, TicketPriority, TicketStatus } from "@/app/common/types/support.type";
+import { usePermission } from "../../../hooks/usePermission";
 
 const STATUSES: TicketStatus[] = ["OPEN", "IN_PROGRESS", "RESOLVED", "CLOSED"];
 const PRIORITIES: TicketPriority[] = ["LOW", "MEDIUM", "HIGH", "URGENT"];
@@ -27,16 +28,37 @@ const AdminTicketControlPanel = ({
   const [category, setCategory] = useState(ticket.category);
   const [assignedTo, setAssignedTo] = useState<number | "">(ticket.assigned_to?.id ?? "");
   const [saving, setSaving] = useState(false);
+  const canManage = usePermission("support.manage");
 
   // router.refresh() after a reply re-fetches `ticket` server-side (e.g. a
   // non-internal admin reply bumps OPEN -> IN_PROGRESS) but this component's
   // state is seeded once from props, so it needs to be re-synced explicitly.
-  useEffect(() => {
+  // Done during render rather than an effect, per
+  // https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes.
+  const [syncedTicket, setSyncedTicket] = useState({
+    status: ticket.status,
+    priority: ticket.priority,
+    category: ticket.category,
+    assignedToId: ticket.assigned_to?.id ?? ("" as number | ""),
+  });
+  const ticketAssignedToId = ticket.assigned_to?.id ?? "";
+  if (
+    ticket.status !== syncedTicket.status ||
+    ticket.priority !== syncedTicket.priority ||
+    ticket.category !== syncedTicket.category ||
+    ticketAssignedToId !== syncedTicket.assignedToId
+  ) {
+    setSyncedTicket({
+      status: ticket.status,
+      priority: ticket.priority,
+      category: ticket.category,
+      assignedToId: ticketAssignedToId,
+    });
     setStatus(ticket.status);
     setPriority(ticket.priority);
     setCategory(ticket.category);
-    setAssignedTo(ticket.assigned_to?.id ?? "");
-  }, [ticket.status, ticket.priority, ticket.category, ticket.assigned_to?.id]);
+    setAssignedTo(ticketAssignedToId);
+  }
 
   const save = async (payload: Record<string, unknown>) => {
     setSaving(true);
@@ -66,7 +88,7 @@ const AdminTicketControlPanel = ({
             setStatus(value);
             save({ status: value });
           }}
-          disabled={saving}
+          disabled={saving || !canManage}
         >
           {STATUSES.map(s => (
             <option key={s} value={s}>
@@ -86,7 +108,7 @@ const AdminTicketControlPanel = ({
             setPriority(value);
             save({ priority: value });
           }}
-          disabled={saving}
+          disabled={saving || !canManage}
         >
           {PRIORITIES.map(p => (
             <option key={p} value={p}>
@@ -106,7 +128,7 @@ const AdminTicketControlPanel = ({
             setCategory(value);
             save({ category: value });
           }}
-          disabled={saving}
+          disabled={saving || !canManage}
         >
           {CATEGORIES.map(c => (
             <option key={c} value={c}>
@@ -126,7 +148,7 @@ const AdminTicketControlPanel = ({
             setAssignedTo(value);
             save({ assigned_to: value || null });
           }}
-          disabled={saving}
+          disabled={saving || !canManage}
         >
           <option value="">Unassigned</option>
           {staff.map(s => (
