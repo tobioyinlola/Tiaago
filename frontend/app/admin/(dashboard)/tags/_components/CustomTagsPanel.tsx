@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import DataTable, { DataTableColumn } from "@/app/common/components/dashboard/DataTable";
 import { createCustomTag } from "@/app/common/services/tags";
 import { CUSTOM_TAG_COLOUR_PRESETS, Tag } from "@/app/common/types/tags.type";
+import PermissionGuard from "../../components/PermissionGuard";
 import ApplyTagModal from "./ApplyTagModal";
 
 const CustomTagsPanel = ({ tags }: { tags: Tag[] }) => {
@@ -54,41 +55,43 @@ const CustomTagsPanel = ({ tags }: { tags: Tag[] }) => {
 
   return (
     <>
-      <div className="border rounded-lg p-4 mb-6 max-w-xl">
-        <h3 className="font-semibold mb-3">Create a custom tag</h3>
-        <div className="flex flex-col gap-3">
-          <input
-            type="text"
-            placeholder="Tag name"
-            className="input input-bordered w-full"
-            value={name}
-            onChange={e => setName(e.target.value)}
-            maxLength={60}
-          />
-          <textarea
-            placeholder="Description (optional)"
-            className="textarea textarea-bordered w-full"
-            value={description}
-            onChange={e => setDescription(e.target.value)}
-            rows={2}
-          />
-          <div className="flex items-center gap-2 flex-wrap">
-            {CUSTOM_TAG_COLOUR_PRESETS.map(preset => (
-              <button
-                key={preset}
-                type="button"
-                aria-label={`Choose colour ${preset}`}
-                onClick={() => setColour(preset)}
-                className="w-6 h-6 rounded-full border-2"
-                style={{ backgroundColor: preset, borderColor: colour === preset ? "#000" : "transparent" }}
-              />
-            ))}
+      <PermissionGuard permission="tags.manage">
+        <div className="border rounded-lg p-4 mb-6 max-w-xl">
+          <h3 className="font-semibold mb-3">Create a custom tag</h3>
+          <div className="flex flex-col gap-3">
+            <input
+              type="text"
+              placeholder="Tag name"
+              className="input input-bordered w-full"
+              value={name}
+              onChange={e => setName(e.target.value)}
+              maxLength={60}
+            />
+            <textarea
+              placeholder="Description (optional)"
+              className="textarea textarea-bordered w-full"
+              value={description}
+              onChange={e => setDescription(e.target.value)}
+              rows={2}
+            />
+            <div className="flex items-center gap-2 flex-wrap">
+              {CUSTOM_TAG_COLOUR_PRESETS.map(preset => (
+                <button
+                  key={preset}
+                  type="button"
+                  aria-label={`Choose colour ${preset}`}
+                  onClick={() => setColour(preset)}
+                  className="w-6 h-6 rounded-full border-2"
+                  style={{ backgroundColor: preset, borderColor: colour === preset ? "#000" : "transparent" }}
+                />
+              ))}
+            </div>
+            <button type="button" className="btn btn-primary self-start" disabled={submitting} onClick={handleCreate}>
+              {submitting ? "Creating..." : "Create tag"}
+            </button>
           </div>
-          <button type="button" className="btn btn-primary self-start" disabled={submitting} onClick={handleCreate}>
-            {submitting ? "Creating..." : "Create tag"}
-          </button>
         </div>
-      </div>
+      </PermissionGuard>
 
       <DataTable columns={columns} data={tags} rowKey={row => row.id} emptyText="No custom tags yet" />
     </>

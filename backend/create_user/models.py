@@ -50,6 +50,18 @@ class CustomUser(AbstractUser):
         default=AuthProvider.EMAIL,
     )
 
+    # Staff RBAC. Named `staff_role` (not `role`) since CustomUserSerializer
+    # already exposes a `role` field for the unrelated job-title concept
+    # (roles.Role, via TalentProfile/Company) -- avoid colliding with it.
+    staff_role = models.ForeignKey(
+        "staff.StaffRole", related_name="staff_members", on_delete=models.SET_NULL, null=True, blank=True
+    )
+    invited_by_admin = models.ForeignKey(
+        "self", related_name="invited_staff", on_delete=models.SET_NULL, null=True, blank=True
+    )
+    invited_at = models.DateTimeField(null=True, blank=True)
+    session_version = models.IntegerField(default=0)
+
     objects = managers.CustomUserManager()
     staff_objects = managers.StaffManager()
     talent_objects = managers.TalentManager()

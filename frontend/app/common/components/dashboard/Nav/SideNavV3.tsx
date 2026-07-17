@@ -15,7 +15,30 @@ import { talentNavItems } from "@/app/talents/(dashboard)/constants/nav";
 import { recruiterNavItems } from "@/app/recruiter/dashboard/constants/nav";
 import { navItems as adminNavItems } from "@/app/admin/(dashboard)/constants/nav";
 import { usePersistedStore } from "@/app/common/store/usePersistedStore";
+import { useAdminStore } from "@/app/admin/(dashboard)/store";
 import NavDropdown from "../../NavDropdown";
+
+// Maps a nav item's `section` key to the view permission(s) that grant
+// access to it. Sections with no entry here (blog, jobs, funnel, pipeline,
+// growth, assessment_moderation, assessment_analytics, email_logs,
+// recruiters, talents) are intentionally out of RBAC scope and stay visible
+// to any staff member.
+const SECTION_PERMISSIONS: Record<string, string[]> = {
+  organisations: ["organisations.view"],
+  revenue: ["revenue.view"],
+  support: ["support.view"],
+  campaigns: ["campaigns.view"],
+  tags: ["tags.view"],
+  notifications: ["notifications.view"],
+  // The nav item links to the admin proctoring overview/high-risk-sessions
+  // pages, which require proctoring.admin -- proctoring.view instead gates
+  // individual submission reports (linked to from job applications, not
+  // this nav item).
+  proctoring: ["proctoring.admin"],
+  system_health: ["system.view"],
+  staff: ["staff.view"],
+  marketing: ["campaigns.view", "tags.view"],
+};
 
 const SideNavV3 = ({
   badges = {},
@@ -47,19 +70,39 @@ const SideNavV3 = ({
       ? adminNavItems
       : recruiterNavItems;
 
-  // Filter nav items and sublinks based on team role
+  const staffProfile = useAdminStore(s => s.profile);
+
+  const hasSectionAccess = (section?: string) => {
+    if (as !== "staff" || !section) return true;
+    if (staffProfile?.is_super_admin) return true;
+    const required = SECTION_PERMISSIONS[section];
+    if (!required) return true; // out-of-RBAC-scope section: visible to any staff
+    if (!staffProfile) return false;
+    return required.some(p => staffProfile.permissions.includes(p));
+  };
+
+  // Filter nav items and sublinks based on team role (recruiter/talent) or
+  // staff RBAC permission (admin).
   const navItems = rawNavItems.filter(item => {
     if (item.type === "divider") return true;
+    if (!hasSectionAccess(item.section)) return false;
     if (!item.requiredRoles || !teamRole) return true;
     return item.requiredRoles.includes(teamRole as any);
   }).map(item => {
-    if (item.type === "divider" || !item.subLinks || !teamRole) return item;
+    if (item.type === "divider" || !item.subLinks) return item;
     return {
       ...item,
-      subLinks: item.subLinks.filter(sub =>
-        !sub.requiredRoles || sub.requiredRoles.includes(teamRole as any)
-      ),
+      subLinks: item.subLinks.filter(sub => {
+        if (!hasSectionAccess(sub.section)) return false;
+        if (!teamRole) return true;
+        return !sub.requiredRoles || sub.requiredRoles.includes(teamRole as any);
+      }),
     };
+  }).filter(item => {
+    // Drop parent items whose dropdown has been emptied by sub-link gating
+    // (e.g. "marketing" if the user has neither campaigns.view nor tags.view).
+    if (item.type === "divider" || !item.subLinks) return true;
+    return item.subLinks.length > 0;
   });
 
   return (

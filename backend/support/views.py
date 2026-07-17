@@ -12,7 +12,9 @@ from rest_framework import status
 from base.mixins.pagination import PaginationHandlerMixin, TiaagoPagination
 from create_user.models import CustomUser
 from create_user.permissions import get_user_company
-from subscriptions.permissions import IsCompanyRepUser, IsStaffUser
+from subscriptions.permissions import IsCompanyRepUser
+from staff.permissions import get_staff_permissions, is_super_admin, requirePermission
+from staff.utils import log_staff_activity
 from .models import SupportTicket
 from .serializers import (
     SupportTicketCreateSerializer,
@@ -135,7 +137,7 @@ class AdminStaffListView(generics.ListAPIView):
     """Staff-only: list staff accounts for the ticket 'assigned to' picker."""
 
     serializer_class = SupportStaffSerializer
-    permission_classes = [IsStaffUser]
+    permission_classes = [requirePermission("support.view")]
     pagination_class = None
     queryset = CustomUser.objects.filter(user_type=CustomUser.USER_TYPE.STAFF).order_by(
         "first_name", "username"
@@ -146,7 +148,7 @@ class AdminTicketListView(generics.ListAPIView):
     """Staff-only: every ticket across every organisation."""
 
     serializer_class = SupportTicketAdminListSerializer
-    permission_classes = [IsStaffUser]
+    permission_classes = [requirePermission("support.view")]
     filter_backends = [SearchFilter, DjangoFilterBackend, OrderingFilter]
     filterset_fields = ["status", "priority", "category"]
     search_fields = ["title", "company__company_name"]
@@ -157,7 +159,9 @@ class AdminTicketListView(generics.ListAPIView):
 
 
 class AdminTicketDetailView(APIView):
-    permission_classes = [IsStaffUser]
+    def get_permissions(self):
+        slug = "support.view" if self.request.method == "GET" else "support.manage"
+        return [requirePermission(slug)()]
 
     def get(self, request, ticket_id):
         ticket = SupportTicket.objects.filter(id=ticket_id).first()
@@ -218,11 +222,20 @@ class AdminTicketDetailView(APIView):
             except Exception:
                 logger.exception("Failed to send ticket_resolved email for %s", ticket.id)
 
+        if "status" in data and data["status"] != old_status:
+            log_staff_activity(
+                request.user, "support.status_change", "SupportTicket", ticket.id,
+                {"old_status": old_status, "new_status": data["status"]},
+            )
+
         return Response(status=200, data=SupportTicketDetailSerializer(ticket, context={"include_internal_notes": True}).data)
 
 
 class AdminTicketReplyView(APIView):
-    permission_classes = [IsStaffUser]
+    # Staff must at minimum be authenticated staff to reach here; the
+    # reply-vs-internal-note distinction is enforced inside post() once we
+    # know is_internal_note, since both share this one endpoint.
+    permission_classes = [requirePermission("support.view")]
     parser_classes = [MultiPartParser, FormParser]
 
     def post(self, request, ticket_id):
@@ -234,6 +247,12 @@ class AdminTicketReplyView(APIView):
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
         is_internal_note = data.get("is_internal_note", False)
+
+        required_permission = "support.internal_notes" if is_internal_note else "support.reply"
+        if required_permission not in get_staff_permissions(request.user) and not is_super_admin(request.user):
+            return Response(
+                status=403, data={"error": "Access denied", "required_permission": required_permission}
+            )
 
         reply = ticket.replies.create(
             sent_by=request.user,
@@ -256,6 +275,12 @@ class AdminTicketReplyView(APIView):
                 emails.ticket_admin_replied_mail(ticket.submitted_by, ticket, reply)
             except Exception:
                 logger.exception("Failed to send ticket_admin_replied email for %s", ticket.id)
+
+        log_staff_activity(
+            request.user,
+            "support.internal_note" if is_internal_note else "support.reply",
+            "SupportTicket", ticket.id, {"reply_id": reply.id},
+        )
 
         return Response(
             status=201,

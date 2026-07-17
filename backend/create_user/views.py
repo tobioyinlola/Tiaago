@@ -39,6 +39,8 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from base.mixins.pagination import PaginationHandlerMixin, TiaagoPagination
 from base.permissions import IsTalentUser
 from base.utils import extract_query_from_request
+from staff.permissions import requirePermission
+from staff.utils import log_staff_activity
 from jobs.models import Experience
 from skill_assessment.models import CandidateAssessmentSubmission
 from .tasks import (
@@ -920,10 +922,13 @@ class AdminReferralWithdrawalViewSet(viewsets.ModelViewSet):
     """
     Admin ViewSet for managing withdrawal requests
     """
-    permission_classes = [permissions.IsAdminUser]
     queryset = WithdrawalRequest.objects.all()
     serializer_class = WithdrawalRequestDetailSerializer
     pagination_class = TiaagoPagination
+
+    def get_permissions(self):
+        slug = "revenue.view" if self.action in ("list", "retrieve") else "revenue.manage"
+        return [requirePermission(slug)()]
 
     @action(detail=True, methods=['post'])
     def approve(self, request, pk=None):
@@ -941,6 +946,10 @@ class AdminReferralWithdrawalViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
+        log_staff_activity(
+            request.user, "revenue.withdrawal_approve", "WithdrawalRequest", withdrawal.id,
+            {"amount": str(withdrawal.amount)},
+        )
         serializer = self.get_serializer(withdrawal)
         return Response(serializer.data)
 

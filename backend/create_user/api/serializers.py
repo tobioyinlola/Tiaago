@@ -530,7 +530,13 @@ class CustomUserSerializer(serializers.ModelSerializer):
     billing_type = serializers.SerializerMethodField()
     subscription = serializers.SerializerMethodField()
     wallet_balance = serializers.SerializerMethodField()
-    
+
+    # Staff RBAC. Named `staff_role` (not `role`) since `role` above is an
+    # unrelated job-title concept.
+    staff_role = serializers.SerializerMethodField()
+    permissions = serializers.SerializerMethodField()
+    is_super_admin = serializers.SerializerMethodField()
+
     class Meta:
         model = get_user_model()
         fields = (
@@ -553,6 +559,9 @@ class CustomUserSerializer(serializers.ModelSerializer):
             "wallet_balance",
             "subscribed_plan",
             "created",
+            "staff_role",
+            "permissions",
+            "is_super_admin",
         )
         read_only_fields = (
             "pk",
@@ -599,7 +608,26 @@ class CustomUserSerializer(serializers.ModelSerializer):
         if not company:
             return None
         return get_wallet_balance(company)
-    
+
+    def get_staff_role(self, obj):
+        if obj.user_type != CustomUser.USER_TYPE.STAFF or not obj.staff_role:
+            return None
+        return {"name": obj.staff_role.name, "slug": obj.staff_role.slug}
+
+    def get_permissions(self, obj):
+        if obj.user_type != CustomUser.USER_TYPE.STAFF:
+            return []
+        from staff.permissions import get_staff_permissions
+
+        return sorted(get_staff_permissions(obj))
+
+    def get_is_super_admin(self, obj):
+        if obj.user_type != CustomUser.USER_TYPE.STAFF:
+            return False
+        from staff.permissions import is_super_admin
+
+        return is_super_admin(obj)
+
     def to_representation(self, instance):
         representation = super().to_representation(instance)
         return representation

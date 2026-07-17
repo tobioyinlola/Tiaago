@@ -10,16 +10,23 @@ from campaigns.block_renderer import ensure_footer, render_blocks
 from campaigns.models import CampaignSend, EmailCampaign, EmailTemplate
 from campaigns.serializers import EmailCampaignSerializer, EmailTemplateSerializer
 from segments.models import AudienceSegment
-from subscriptions.permissions import IsStaffUser
+from staff.permissions import requirePermission
+from staff.utils import log_staff_activity
 
 MAX_UPLOAD_IMAGE_BYTES = 10 * 1024 * 1024
 
 
 class _CampaignsBaseView(APIView):
-    permission_classes = [IsStaffUser]
+    pass
 
 
 class EmailTemplateListCreateView(_CampaignsBaseView):
+    """GET needs campaigns.view, POST needs campaigns.create."""
+
+    def get_permissions(self):
+        slug = "campaigns.view" if self.request.method == "GET" else "campaigns.create"
+        return [requirePermission(slug)()]
+
     def get(self, request):
         templates = EmailTemplate.objects.all().order_by("-is_preset", "-updated_at")
         category = request.query_params.get("category")
@@ -35,6 +42,17 @@ class EmailTemplateListCreateView(_CampaignsBaseView):
 
 
 class EmailTemplateDetailView(_CampaignsBaseView):
+    """GET needs campaigns.view, PATCH needs campaigns.create, DELETE needs campaigns.delete."""
+
+    def get_permissions(self):
+        if self.request.method == "GET":
+            slug = "campaigns.view"
+        elif self.request.method == "DELETE":
+            slug = "campaigns.delete"
+        else:
+            slug = "campaigns.create"
+        return [requirePermission(slug)()]
+
     def get(self, request, template_id):
         template = EmailTemplate.objects.filter(id=template_id).first()
         if not template:
@@ -59,6 +77,8 @@ class TemplatePreviewView(_CampaignsBaseView):
     """Renders un-saved blocks straight to HTML/text for the editor's live
     preview modal -- does not touch the database."""
 
+    permission_classes = [requirePermission("campaigns.view")]
+
     def post(self, request):
         blocks = ensure_footer(request.data.get("blocks") or [])
         html_body, plain_text_body = render_blocks(blocks)
@@ -66,6 +86,7 @@ class TemplatePreviewView(_CampaignsBaseView):
 
 
 class CampaignImageUploadView(_CampaignsBaseView):
+    permission_classes = [requirePermission("campaigns.create")]
     parser_classes = [MultiPartParser]
 
     def post(self, request, *args, **kwargs):
@@ -90,6 +111,12 @@ class CampaignImageUploadView(_CampaignsBaseView):
 
 
 class EmailCampaignListCreateView(_CampaignsBaseView):
+    """GET needs campaigns.view, POST needs campaigns.create."""
+
+    def get_permissions(self):
+        slug = "campaigns.view" if self.request.method == "GET" else "campaigns.create"
+        return [requirePermission(slug)()]
+
     def get(self, request):
         campaigns = EmailCampaign.objects.all().select_related("audience_segment", "audience_tag", "email_template")
         status_filter = request.query_params.get("status")
@@ -105,6 +132,17 @@ class EmailCampaignListCreateView(_CampaignsBaseView):
 
 
 class EmailCampaignDetailView(_CampaignsBaseView):
+    """GET needs campaigns.view, PATCH needs campaigns.create, DELETE needs campaigns.delete."""
+
+    def get_permissions(self):
+        if self.request.method == "GET":
+            slug = "campaigns.view"
+        elif self.request.method == "DELETE":
+            slug = "campaigns.delete"
+        else:
+            slug = "campaigns.create"
+        return [requirePermission(slug)()]
+
     def get(self, request, campaign_id):
         campaign = EmailCampaign.objects.filter(id=campaign_id).first()
         if not campaign:
@@ -134,6 +172,8 @@ class CampaignAudiencePreviewView(_CampaignsBaseView):
     params directly rather than requiring a saved campaign, since the wizard
     doesn't persist a campaign until the admin explicitly saves/sends."""
 
+    permission_classes = [requirePermission("campaigns.view")]
+
     def post(self, request):
         audience_type = request.data.get("audience_type")
         segment_id = request.data.get("audience_segment")
@@ -156,6 +196,8 @@ class CampaignSendTestView(_CampaignsBaseView):
     """Sends a one-off test email to the requesting admin's own address,
     using representative sample merge-tag data (admins aren't attached to a
     Company, so there's no live org data to pull for them)."""
+
+    permission_classes = [requirePermission("campaigns.send")]
 
     def post(self, request, campaign_id):
         from campaigns.send_renderer import substitute_merge_tags
@@ -190,6 +232,8 @@ class CampaignSendView(_CampaignsBaseView):
     (schedule_type=SCHEDULED, scheduled_for in the future) -- step 6 of the
     wizard."""
 
+    permission_classes = [requirePermission("campaigns.send")]
+
     def post(self, request, campaign_id):
         from campaigns.tasks import send_campaign
 
@@ -204,13 +248,20 @@ class CampaignSendView(_CampaignsBaseView):
         if campaign.schedule_type == EmailCampaign.ScheduleType.SCHEDULED and campaign.scheduled_for:
             campaign.status = EmailCampaign.Status.SCHEDULED
             campaign.save(update_fields=["status"])
+            log_staff_activity(
+                request.user, "campaigns.schedule", "EmailCampaign", campaign.id,
+                {"scheduled_for": str(campaign.scheduled_for)},
+            )
             return Response({"status": "scheduled", "scheduled_for": campaign.scheduled_for})
 
         send_campaign.delay(str(campaign.id))
+        log_staff_activity(request.user, "campaigns.send", "EmailCampaign", campaign.id, {"name": campaign.name})
         return Response({"status": "sending"})
 
 
 class CampaignCancelView(_CampaignsBaseView):
+    permission_classes = [requirePermission("campaigns.send")]
+
     def post(self, request, campaign_id):
         updated = EmailCampaign.objects.filter(
             id=campaign_id, status=EmailCampaign.Status.SCHEDULED
@@ -219,6 +270,8 @@ class CampaignCancelView(_CampaignsBaseView):
 
 
 class CampaignAnalyticsView(_CampaignsBaseView):
+    permission_classes = [requirePermission("campaigns.view")]
+
     def get(self, request, campaign_id):
         from campaigns.analytics import get_campaign_analytics
 

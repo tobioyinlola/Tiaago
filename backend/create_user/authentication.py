@@ -2,6 +2,9 @@ import logging
 
 from django.core.cache import cache
 from dj_rest_auth.jwt_auth import JWTCookieAuthentication
+from rest_framework_simplejwt.exceptions import AuthenticationFailed
+
+from create_user.models import CustomUser
 
 logger = logging.getLogger("auth_middleware")
 
@@ -20,4 +23,12 @@ class CachedJWTCookieAuthentication(JWTCookieAuthentication):
                 cache.set(cache_key, user, 60)
             except Exception:
                 pass
+
+        # Staff deactivation must take effect on the very next request, not
+        # wait out this cache's TTL. Deactivating a staff member busts this
+        # same `jwt_user:{id}` key (see staff/views.py), so the check below
+        # always sees a freshly-loaded `is_active` once that happens.
+        if user and user.user_type == CustomUser.USER_TYPE.STAFF and not user.is_active:
+            raise AuthenticationFailed("This account has been deactivated.")
+
         return user

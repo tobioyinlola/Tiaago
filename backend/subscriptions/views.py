@@ -62,6 +62,7 @@ from create_user.models import Company
 from create_user.permissions import get_user_company
 from dateutil.relativedelta import relativedelta
 from django.utils import timezone
+from staff.permissions import requirePermission
 
 User = get_user_model()
 stripe.api_key = stripe_api_key
@@ -80,7 +81,7 @@ class SubPlanListAPIView(generics.ListCreateAPIView):
         if self.request.method in permissions.SAFE_METHODS:
             permission_classes = [permissions.AllowAny]
         elif self.request.method == "POST":
-            permission_classes = [permissions.IsAdminUser]
+            permission_classes = [requirePermission("revenue.manage")]
         else:
             permission_classes = self.permission_classes
 
@@ -109,7 +110,7 @@ class SubPlanListForMeAPIView(generics.ListAPIView):
 class SubPlanDetailAPIView(generics.RetrieveUpdateDestroyAPIView):
     queryset = SubPlan.objects.all()
     serializer_class = SubPlanSerializer
-    permission_classes = [permissions.IsAdminUser]
+    permission_classes = [requirePermission("revenue.manage")]
 
     def get_permissions(self):
         """
@@ -118,7 +119,7 @@ class SubPlanDetailAPIView(generics.RetrieveUpdateDestroyAPIView):
         if self.request.method in permissions.SAFE_METHODS:
             permission_classes = [permissions.AllowAny]
         elif self.request.method in ["PUT", "PATCH","DELETE"]:
-            permission_classes = [permissions.IsAdminUser]
+            permission_classes = [requirePermission("revenue.manage")]
         else:
             permission_classes = self.permission_classes
 
@@ -211,7 +212,7 @@ class  PaystackPlanViewSet(
     """
     queryset = PaystackPlan.objects.all()
     serializer_class = PaystackPlanSerializer
-    permission_classes = [IsAuthenticated, IsAdminUser]
+    permission_classes = [IsAuthenticated, requirePermission("revenue.manage")]
     
     def perform_create(self, serializer):
         instance = serializer.save()
@@ -348,7 +349,7 @@ class FreePlanViewSet(
     """
     queryset = FreePlan.objects.all()
     serializer_class = FreePlanSerializer
-    permission_classes = [IsAuthenticated, IsAdminUser]
+    permission_classes = [IsAuthenticated, requirePermission("revenue.manage")]
 
 
 # subscription history 
@@ -471,13 +472,13 @@ class PaystackSubscriptionViewSet(
     """
     queryset = PaystackSubscription.objects.all()
     serializer_class = PaystackSubscriptionModelSerializer
-    permission_classes = [IsAuthenticated, IsAdminUser]
+    permission_classes = [IsAuthenticated, requirePermission("revenue.manage")]
     pagination_class = TiaagoPagination
 
 
 # View set to create stripe subscription price plan
 @api_view(['POST'])
-@permission_classes([IsAuthenticated, IsAdminUser])
+@permission_classes([IsAuthenticated, requirePermission("revenue.manage")])
 def create_stripe_subscription_plan(request):
     serializer = StripePlanPriceSerializer(data=request.data)
     
@@ -578,7 +579,7 @@ class StripeSubscriptionViewSet(
     """
     queryset = StripeSubscription.objects.all()
     serializer_class = StripeSubscriptionSerializer
-    permission_classes = [IsAuthenticated, IsAdminUser]
+    permission_classes = [IsAuthenticated, requirePermission("revenue.manage")]
     pagination_class = TiaagoPagination
 
     

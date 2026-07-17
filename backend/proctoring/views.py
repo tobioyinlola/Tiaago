@@ -6,10 +6,12 @@ from rest_framework.views import APIView
 from rest_framework.permissions import AllowAny
 
 from base.mixins.pagination import TiaagoPagination
-from base.permissions import IsCompanyRepOrStaffUser, IsStaffUser
+from base.permissions import IsCompanyRepOrStaffUser
+from create_user.models import CustomUser
 from create_user.permissions import get_user_company
 from skill_assessment.models import CandidateAssessmentSubmission
 from skill_assessment.views import _get_assessment_by_invite_token
+from staff.permissions import get_staff_permissions, is_super_admin, requirePermission
 
 from .models import ProctoringSession, ProctoringEvent
 from .scoring import calculate_integrity_score
@@ -163,7 +165,15 @@ class ProctoringReportView(APIView):
         if not session:
             return Response(status=404, data={"error": "No proctoring session found for this submission."})
 
-        if not request.user.is_staff:
+        if request.user.user_type == CustomUser.USER_TYPE.STAFF:
+            # Fixes a pre-existing bug here: this branch used to check
+            # request.user.is_staff (Django's native boolean, almost always
+            # False for user_type=STAFF accounts), so real staff users fell
+            # through to the company-scoping branch below and got a false
+            # 404. Branch on user_type instead, and require proctoring.view.
+            if "proctoring.view" not in get_staff_permissions(request.user) and not is_super_admin(request.user):
+                return Response(status=403, data={"error": "Access denied", "required_permission": "proctoring.view"})
+        else:
             company = get_user_company(request.user)
             if not company or session.job.company_id != company.id:
                 return Response(status=404, data={"error": "No proctoring session found for this submission."})
@@ -172,7 +182,7 @@ class ProctoringReportView(APIView):
 
 
 class AdminProctoringOverviewView(APIView):
-    permission_classes = [IsStaffUser]
+    permission_classes = [requirePermission("proctoring.admin")]
 
     def get(self, request):
         now = timezone.now()
@@ -211,7 +221,7 @@ class AdminProctoringOverviewView(APIView):
 
 class AdminHighRiskSessionsView(generics.ListAPIView):
     serializer_class = AdminHighRiskSessionSerializer
-    permission_classes = [IsStaffUser]
+    permission_classes = [requirePermission("proctoring.admin")]
     pagination_class = TiaagoPagination
 
     def get_queryset(self):

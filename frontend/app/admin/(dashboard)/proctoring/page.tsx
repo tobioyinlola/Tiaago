@@ -1,8 +1,10 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 
 import DisplayErrorMessages, {
   DisplayErrorMessagesProps,
 } from "@/app/common/components/DisplayErrorMessages";
+import { getCurrentUser } from "@/app/common/services/profile";
 import { getAdminProctoringOverview, getAdminHighRiskSessions } from "@/app/common/services/proctoring";
 import { handleServerApiCallError } from "@/app/common/utils";
 import StatCard from "@/app/common/components/dashboard/StatCard";
@@ -26,6 +28,12 @@ const EVENT_TYPE_LABELS: Record<string, string> = {
 };
 
 const AdminProctoringPage = async () => {
+  const { currentUser } = await getCurrentUser("staff");
+  const canView = currentUser.is_super_admin || currentUser.permissions.includes("proctoring.admin");
+  if (!canView) {
+    redirect("/admin/unauthorised?permission=proctoring.admin");
+  }
+
   const errors: DisplayErrorMessagesProps["errors"] = [];
 
   const overview = await getAdminProctoringOverview().catch(async e => {

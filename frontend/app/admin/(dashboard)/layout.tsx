@@ -15,6 +15,7 @@ import DisplayErrorMessages, {
 import { handleServerApiCallError } from "@/app/common/utils";
 import BackendWarmupPing from "@/app/common/components/Layout/BackendWarmupPing";
 import MaintenancePage from "@/app/common/components/MaintenancePage";
+import SetAdminProfile from "./components/SetAdminProfile";
 
 const AdminDashboardLayout = async ({ children }: PropsWithChildren) => {
   const errors: DisplayErrorMessagesProps["errors"] = [];
@@ -42,6 +43,7 @@ const AdminDashboardLayout = async ({ children }: PropsWithChildren) => {
   return (
     <>
       <BackendWarmupPing />
+      <SetAdminProfile profile={user} />
       <DisplayErrorMessages errors={errors} />
       <div className='bg-white min-h-[100svh]'>
         <Nav

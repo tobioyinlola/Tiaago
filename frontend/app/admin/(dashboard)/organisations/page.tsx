@@ -1,9 +1,11 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { format, formatDistanceToNowStrict } from "date-fns";
 
 import DisplayErrorMessages, {
   DisplayErrorMessagesProps,
 } from "@/app/common/components/DisplayErrorMessages";
+import { getCurrentUser } from "@/app/common/services/profile";
 import { getOrganisations, getOrganisationAlerts } from "@/app/common/services/organisations";
 import { handleServerApiCallError, cn } from "@/app/common/utils";
 import ServerPagination from "@/app/common/components/ServerPagination";
@@ -26,6 +28,12 @@ const OrganisationsPage = async ({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) => {
+  const { currentUser } = await getCurrentUser("staff");
+  const canView = currentUser.is_super_admin || currentUser.permissions.includes("organisations.view");
+  if (!canView) {
+    redirect("/admin/unauthorised?permission=organisations.view");
+  }
+
   const errors: DisplayErrorMessagesProps["errors"] = [];
   const resolvedSearchParams = await searchParams;
   const _page = resolvedSearchParams.page ? parseInt(resolvedSearchParams.page as string, 10) : 1;

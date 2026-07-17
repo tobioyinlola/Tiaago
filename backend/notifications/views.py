@@ -6,7 +6,8 @@ from rest_framework.response import Response
 from base.mixins.pagination import PaginationHandlerMixin
 from base.utils import extract_query_from_request
 from create_user.models import Company, CompanyTeamMember
-from subscriptions.permissions import IsStaffUser
+from staff.permissions import requirePermission
+from staff.utils import log_staff_activity
 from .models import Notification, NotificationRead
 from .serializers import (
     NotificationSerializer,
@@ -80,7 +81,7 @@ class AdminOrganisationSearchView(APIView, PaginationHandlerMixin):
     """Staff-only: thin {id, company_name} search for the notification
     target-organisation picker, mirroring CompanyListView's query pattern."""
 
-    permission_classes = [IsStaffUser]
+    permission_classes = [requirePermission("notifications.view")]
 
     def get(self, request):
         queryset = Company.objects.all()
@@ -95,7 +96,9 @@ class AdminOrganisationSearchView(APIView, PaginationHandlerMixin):
 
 
 class AdminNotificationListCreateView(APIView, PaginationHandlerMixin):
-    permission_classes = [IsStaffUser]
+    def get_permissions(self):
+        slug = "notifications.view" if self.request.method == "GET" else "notifications.send"
+        return [requirePermission(slug)()]
 
     def get(self, request):
         qs = Notification.objects.select_related("target_organisation", "segment", "tag", "sent_by").order_by("-created_at")
@@ -127,6 +130,10 @@ class AdminNotificationListCreateView(APIView, PaginationHandlerMixin):
             sent_by=request.user,
         )
         recipient_count = len(get_recipient_user_ids(notification))
+        log_staff_activity(
+            request.user, "notifications.send", "Notification", notification.id,
+            {"title": notification.title, "recipient_count": recipient_count},
+        )
 
         return Response(
             status=201,
@@ -139,7 +146,7 @@ class AdminNotificationListCreateView(APIView, PaginationHandlerMixin):
 
 
 class AdminNotificationDetailView(APIView):
-    permission_classes = [IsStaffUser]
+    permission_classes = [requirePermission("notifications.view")]
 
     def get(self, request, notification_id):
         notification = Notification.objects.filter(id=notification_id).first()

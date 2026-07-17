@@ -15,6 +15,8 @@ import {
   IoNotificationsOutline,
   IoShieldCheckmarkOutline,
   IoPricetagsOutline,
+  IoHelpBuoyOutline,
+  IoPeopleOutline,
 } from "react-icons/io5";
 
 const baseHref = "/admin";
@@ -136,6 +138,12 @@ export const navItems: DashboardNavItemV3[] = [
     section: "revenue",
   },
   {
+    name: "support",
+    href: `${baseHref}/support`,
+    Icon: IoHelpBuoyOutline,
+    section: "support",
+  },
+  {
     name: "funnel",
     href: `${baseHref}/funnel`,
     Icon: IoFunnelOutline,
@@ -177,9 +185,15 @@ export const navItems: DashboardNavItemV3[] = [
     Icon: IoPricetagsOutline,
     section: "marketing",
     subLinks: [
-      { name: "Tags", href: `${baseHref}/tags` },
-      { name: "Segments", href: `${baseHref}/segments` },
-      { name: "Campaigns", href: `${baseHref}/campaigns` },
+      { name: "Tags", href: `${baseHref}/tags`, section: "tags" },
+      { name: "Segments", href: `${baseHref}/segments`, section: "tags" },
+      { name: "Campaigns", href: `${baseHref}/campaigns`, section: "campaigns" },
     ],
+  },
+  {
+    name: "staff",
+    href: `${baseHref}/staff`,
+    Icon: IoPeopleOutline,
+    section: "staff",
   },
 ];
