@@ -45,12 +45,14 @@ const Navbar = ({ scrollElId = "", hideAuthButtons = false }) => {
   const isOnTalentRelatedPage = pathname.includes("talent");
 
   const isJobDetailsPage = pathname.includes("/jobs/");
+  const isOnApplyPage = pathname.includes("/apply");
 
   return (
     <header
       className={cn(
         "absolute top-0 left-0 right-0 z-10 border-b border-[#DEE1E3] lg:px-6 xl:px-8 bg-transparent py-3 md:py-7",
-        isOnHomePage && "border-b border-white/10"
+        isOnHomePage && "border-b border-white/10",
+        isOnApplyPage && "border-b-0"
       )}
     >
       <div className='md:container mx-auto px-4'>
@@ -138,7 +140,7 @@ const Navbar = ({ scrollElId = "", hideAuthButtons = false }) => {
                       href={
                         isOnTalentRelatedPage
                           ? "/talents/signin"
-                          : "/startups/signin"
+                          : "/recruiter/signin"
                       }
                       className={cn(
                         "btn btn-sm text-xs px-4 border-gray-300 font-medium font-onest",
@@ -229,7 +231,7 @@ const Navbar = ({ scrollElId = "", hideAuthButtons = false }) => {
                     href={
                       isOnTalentRelatedPage
                         ? "/talents/signin"
-                        : "/startups/signin"
+                        : "/recruiter/signin"
                     }
                     className='btn btn-outline w-full border-gray-300 min-h-[40px] h-10 font-medium'
                   >

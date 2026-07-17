@@ -73,7 +73,7 @@ const SideNav = ({
                     href: "https://tiaago.tawk.help/",
                     name: "Knowledge base",
                   },
-                  ...(as === "startup"
+                  ...(as === "recruiter"
                     ? [
                         {
                           // href: "https://calendly.com/tiaagoglobal/30min",

@@ -31,6 +31,13 @@ from .views import (
     AssessmentCooldownStatusAPIView,
     AssessmentRetakeLinkAPIView,
     PublicAssessmentRetakeLinkAPIView,
+    AssessmentInviteDetailView,
+    AssessmentInviteConfirmView,
+    AssessmentInviteQuestionsView,
+    AssessmentInviteSubmitView,
+    AssessmentInviteSnapshotUploadView,
+    AssessmentInviteFeedbackView,
+    CandidateSubmissionSnapshotListView,
 )
 
 urlpatterns = [
@@ -94,7 +101,7 @@ urlpatterns = [
         name="start-verification-assessment",
     ),
     path(
-        "company-ai-applications/<int:job_id>/summary/",
+        "company-ai-applications/<str:public_id>/summary/",
         AIOperationsFeedback.as_view(),
         name="ai-application-summary",
     ),
@@ -154,5 +161,41 @@ urlpatterns = [
         "public/retake-link/<int:skill_assessment_id>/",
         PublicAssessmentRetakeLinkAPIView.as_view(),
         name="public-assessment-retake-link",
+    ),
+    # No-login candidate invite flow -- identity resolved from the token, not a session
+    path(
+        "invite/<uuid:token>/",
+        AssessmentInviteDetailView.as_view(),
+        name="assessment-invite-detail",
+    ),
+    path(
+        "invite/<uuid:token>/confirm/",
+        AssessmentInviteConfirmView.as_view(),
+        name="assessment-invite-confirm",
+    ),
+    path(
+        "invite/<uuid:token>/questions/",
+        AssessmentInviteQuestionsView.as_view(),
+        name="assessment-invite-questions",
+    ),
+    path(
+        "invite/<uuid:token>/submit/",
+        AssessmentInviteSubmitView.as_view(),
+        name="assessment-invite-submit",
+    ),
+    path(
+        "invite/<uuid:token>/snapshot/",
+        AssessmentInviteSnapshotUploadView.as_view(),
+        name="assessment-invite-snapshot",
+    ),
+    path(
+        "invite/<uuid:token>/feedback/",
+        AssessmentInviteFeedbackView.as_view(),
+        name="assessment-invite-feedback",
+    ),
+    path(
+        "submissions/<int:submission_id>/snapshots/",
+        CandidateSubmissionSnapshotListView.as_view(),
+        name="submission-snapshots",
     ),
 ]

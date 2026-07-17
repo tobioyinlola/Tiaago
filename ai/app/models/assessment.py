@@ -101,3 +101,16 @@ class SkillsAssessmentResults(BaseModel):
 
     class Config:
         extra = "forbid"
+
+
+class CategorizedSection(BaseModel):
+    category: str
+    questions: List[Question]
+
+
+class CategorizedAssessmentResult(BaseModel):
+    sections: List[CategorizedSection]
+    ai_determined_difficulty: str
+    role_type: Optional[str] = None
+    skills_assessed: Optional[List[str]] = None
+    token_usage: Optional[Dict[str, int]] = None

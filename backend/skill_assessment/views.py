@@ -54,6 +54,7 @@ from .models import (
     TechStack,
     TalentQuestionBank,
     AssessmentCooldown,
+    AssessmentSubmissionSnapshot,
 )
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from django.db import transaction, IntegrityError
@@ -82,6 +83,10 @@ from .serializers import (
     CertificateWriteSerializer,
     CertificateReadSerializer,
     AssessmentCooldownSerializer,
+    AssessmentInviteDetailSerializer,
+    AssessmentInviteConfirmSerializer,
+    AssessmentInviteFeedbackSerializer,
+    AssessmentSubmissionSnapshotSerializer,
 )
 from subscriptions.permissions import (
     IsTalentOrStaffUser,
@@ -349,6 +354,38 @@ class QuestionBankQuestionsAPIView(APIView, PaginationHandlerMixin):
             return Response(status=400, data=data.errors)
 
 from django.db.models import Prefetch
+
+
+def _assessment_detail_base_qs():
+    section_qs = (
+        GeneralSkillAssessmentSection.objects
+        .only("id", "name", "type", "company_skill_assessment_id")
+        .prefetch_related(
+            # through rows + MCQ objects
+            Prefetch(
+                "section_mcqs",
+                queryset=GeneralSkillAssessmentSectionMCQ.objects.select_related("mcq").only("id", "section_id", "mcq_id"),
+            ),
+            # coding tasks
+            Prefetch(
+                "coding_tasks",
+                queryset=CodingTask.objects.only(
+                    "id", "title", "description", "difficulty_level", "max_score", "time_limit", "stack_id"
+                ),
+            ),
+        )
+    )
+
+    return (
+        GeneralSkillAssessment.objects
+        .select_related("job_application", "company")
+        .prefetch_related(
+            "skillsets",
+            Prefetch("sections", queryset=section_qs),
+        )
+    )
+
+
 class GeneralSkillAssessmentDetailAPIView(APIView):
     """
     This endpoint is used to fetch a skill assessment\n
@@ -358,36 +395,9 @@ class GeneralSkillAssessmentDetailAPIView(APIView):
     """
 
     permission_classes = [AllowAny]
-    
-    def _base_qs(self):
-        section_qs = (
-            GeneralSkillAssessmentSection.objects
-            .only("id", "name", "type", "company_skill_assessment_id")
-            .prefetch_related(
-                # through rows + MCQ objects
-                Prefetch(
-                    "section_mcqs",
-                    queryset=GeneralSkillAssessmentSectionMCQ.objects.select_related("mcq").only("id", "section_id", "mcq_id"),
-                ),
-                # coding tasks
-                Prefetch(
-                    "coding_tasks",
-                    queryset=CodingTask.objects.only(
-                        "id", "title", "description", "difficulty_level", "max_score", "time_limit", "stack_id"
-                    ),
-                ),
-            )
-        )
 
-        return (
-            GeneralSkillAssessment.objects
-            .select_related("job_application", "company")
-            .prefetch_related(
-                "skillsets",                      
-                Prefetch("sections", queryset=section_qs),
-                
-            )
-        )
+    def _base_qs(self):
+        return _assessment_detail_base_qs()
 
     def get(self, request, skill_assessment_id):
         qs = self._base_qs()
@@ -435,32 +445,21 @@ class GeneralSkillAssessmentDetailAPIView(APIView):
         return Response(status=200, data=data)
 
 
-class TakeAGeneralSkillAssessmentAPIView(APIView):
-    """Endpoint for a talent to take a skill assessment"""
-    permission_classes = [IsTalentUser]
+def submit_general_skill_assessment_answers(talent, skill_assessment, request_data):
+    """Core answer-submission logic, shared by the authenticated
+    TakeAGeneralSkillAssessmentAPIView and the no-login token-based invite
+    flow (AssessmentInviteSubmitView). `talent` is resolved by the caller --
+    from `request.user.profile` for the authenticated path, or from
+    `skill_assessment.job_application.applicant` for the token path."""
+    try:
+        if skill_assessment.assigned_to and skill_assessment.assigned_to != talent:
+            return Response(status=403, data={"error": "You are not allowed to take this assessment"})
+        if skill_assessment.job_application and skill_assessment.job_application.applicant != talent:
+            return Response(status=400, data={"error": "You are not allowed to take this assessment"})
 
-    def post(self, request, skill_assessment_id):
-        talent = request.user.profile
-        try:
-            # 1) Load & authorize ------------------------------------------------
-            skill_assessment = (
-                GeneralSkillAssessment.objects
-                .select_related("assigned_to", "job_application")
-                .filter(id=skill_assessment_id)
-                .first()
-            )
-            if not skill_assessment:
-                return Response(status=400, data={"error": "Skill assessment does not exist or has been deleted"})
-
-            if skill_assessment.assigned_to and skill_assessment.assigned_to != talent:
-                return Response(status=403, data={"error": "You are not allowed to take this assessment"})
-            if skill_assessment.job_application and skill_assessment.job_application.applicant != talent:
-                return Response(status=400, data={"error": "You are not allowed to take this assessment"})
-
-
-
+        if True:
             serializer = GeneralSkillAssessmentAnswerSerializer(
-                data=request.data, context={"assessment": skill_assessment}
+                data=request_data, context={"assessment": skill_assessment}
             )
             serializer.is_valid(raise_exception=True)
             answers = serializer.validated_data.get("answers", [])
@@ -498,11 +497,14 @@ class TakeAGeneralSkillAssessmentAPIView(APIView):
                 return Response(status=400, data={"error": f"Invalid section ids for this assessment: {unknown}"})
 
             # 5) Reuse/create submission (no immediate completion) --------------
-            submission, _ = CandidateAssessmentSubmission.objects.get_or_create(
+            submission, _created = CandidateAssessmentSubmission.objects.get_or_create(
                 candidate=talent,
                 skill_assessment=skill_assessment,
                 defaults={"is_completed": False}
             )
+            if _created:
+                submission.started_at = timezone.now()
+                submission.save(update_fields=["started_at"])
 
             # Map existing section submissions for THIS submission only
             existing_secs = {
@@ -649,9 +651,215 @@ class TakeAGeneralSkillAssessmentAPIView(APIView):
 
             return Response(status=200, data={"message": "Submitted successfully!"})
 
-        except Exception as e:
-            logger.exception("Error during assessment submission: %s", e)
-            return Response(status=500, data={"error": "An unexpected error occurred while processing your request."})
+    except Exception as e:
+        logger.exception("Error during assessment submission: %s", e)
+        return Response(status=500, data={"error": "An unexpected error occurred while processing your request."})
+
+
+class TakeAGeneralSkillAssessmentAPIView(APIView):
+    """Endpoint for a logged-in talent to take a skill assessment"""
+    permission_classes = [IsTalentUser]
+
+    def post(self, request, skill_assessment_id):
+        talent = request.user.profile
+        skill_assessment = (
+            GeneralSkillAssessment.objects
+            .select_related("assigned_to", "job_application")
+            .filter(id=skill_assessment_id)
+            .first()
+        )
+        if not skill_assessment:
+            return Response(status=400, data={"error": "Skill assessment does not exist or has been deleted"})
+        return submit_general_skill_assessment_answers(talent, skill_assessment, request.data)
+
+
+def _get_assessment_by_invite_token(token):
+    """Resolve a GeneralSkillAssessment for the no-login candidate invite
+    flow. Only assessments tied to a job application resolve -- there is no
+    TalentProfile to act as without a job_application.applicant, so
+    company-created or Tiaago self-verification assessments (no
+    job_application) are never reachable via a token."""
+    assessment = (
+        GeneralSkillAssessment.objects
+        .select_related("job_application", "job_application__applicant", "job_application__applicant__user", "job_application__job", "job_application__job__company")
+        .filter(invite_token=token)
+        .exclude(job_application__isnull=True)
+        .first()
+    )
+    return assessment
+
+
+class AssessmentInviteDetailView(APIView):
+    """GET /assessments/invite/<token>/ -- candidate name/email, job/company,
+    and test format (no question content). Powers the Instructions + "enter
+    your details" pre-start screens without requiring login."""
+
+    permission_classes = [AllowAny]
+
+    def get(self, request, token):
+        assessment = _get_assessment_by_invite_token(token)
+        if not assessment:
+            return Response(status=404, data={"error": "This assessment invite link is invalid or has expired."})
+
+        talent = assessment.job_application.applicant
+        existing_submission = CandidateAssessmentSubmission.objects.filter(
+            candidate=talent, skill_assessment=assessment
+        ).first()
+
+        data = AssessmentInviteDetailSerializer(
+            assessment, context={"existing_submission": existing_submission}
+        ).data
+        return Response(status=200, data=data)
+
+
+class AssessmentInviteConfirmView(APIView):
+    """POST /assessments/invite/<token>/confirm/ -- candidate confirms/edits
+    their display name for this attempt. Creates the CandidateAssessmentSubmission
+    row (if one doesn't already exist) so later steps (snapshots, questions)
+    have a stable submission to attach to."""
+
+    permission_classes = [AllowAny]
+
+    def post(self, request, token):
+        assessment = _get_assessment_by_invite_token(token)
+        if not assessment:
+            return Response(status=404, data={"error": "This assessment invite link is invalid or has expired."})
+
+        serializer = AssessmentInviteConfirmSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        talent = assessment.job_application.applicant
+        submission, _created = CandidateAssessmentSubmission.objects.get_or_create(
+            candidate=talent, skill_assessment=assessment, defaults={"is_completed": False}
+        )
+        submission.candidate_display_name = serializer.validated_data["full_name"]
+        update_fields = ["candidate_display_name"]
+        if _created:
+            submission.started_at = timezone.now()
+            update_fields.append("started_at")
+        submission.save(update_fields=update_fields)
+
+        return Response(status=200, data={"submission_id": submission.id})
+
+
+class AssessmentInviteQuestionsView(APIView):
+    """GET /assessments/invite/<token>/questions/ -- full assessment with real
+    question content (never the answer key) for the token holder."""
+
+    permission_classes = [AllowAny]
+
+    def get(self, request, token):
+        assessment = _get_assessment_by_invite_token(token)
+        if not assessment:
+            return Response(status=404, data={"error": "This assessment invite link is invalid or has expired."})
+
+        assessment = _assessment_detail_base_qs().filter(id=assessment.id).first()
+        data = GeneralSkillAssessmentListSerializer(
+            assessment,
+            context={"include_section_questions": True, "include_correct_answers": False},
+        ).data
+        return Response(status=200, data=data)
+
+
+class AssessmentInviteSubmitView(APIView):
+    """POST /assessments/invite/<token>/submit/ -- submit answers without a
+    login session. Identity is resolved from the token, never request.user."""
+
+    permission_classes = [AllowAny]
+
+    def post(self, request, token):
+        assessment = _get_assessment_by_invite_token(token)
+        if not assessment:
+            return Response(status=404, data={"error": "This assessment invite link is invalid or has expired."})
+
+        talent = assessment.job_application.applicant
+        return submit_general_skill_assessment_answers(talent, assessment, request.data)
+
+
+class AssessmentInviteSnapshotUploadView(APIView):
+    """POST /assessments/invite/<token>/snapshot/ -- periodic proctoring
+    camera capture during the live attempt. Requires the candidate to already
+    have confirmed their details (AssessmentInviteConfirmView), since that's
+    what creates the submission row snapshots attach to."""
+
+    permission_classes = [AllowAny]
+    parser_classes = [MultiPartParser]
+
+    def post(self, request, token):
+        assessment = _get_assessment_by_invite_token(token)
+        if not assessment:
+            return Response(status=404, data={"error": "This assessment invite link is invalid or has expired."})
+
+        talent = assessment.job_application.applicant
+        submission = CandidateAssessmentSubmission.objects.filter(
+            candidate=talent, skill_assessment=assessment
+        ).first()
+        if not submission:
+            return Response(status=400, data={"error": "Please confirm your details before starting."})
+
+        image = request.FILES.get("image")
+        if not image:
+            return Response(status=400, data={"error": "No image provided."})
+
+        snapshot = AssessmentSubmissionSnapshot.objects.create(submission=submission, image=image)
+        return Response(status=201, data=AssessmentSubmissionSnapshotSerializer(snapshot).data)
+
+
+class AssessmentInviteFeedbackView(APIView):
+    """POST /assessments/invite/<token>/feedback/ -- optional star rating +
+    comment shown on the post-submit "thank you" screen."""
+
+    permission_classes = [AllowAny]
+
+    def post(self, request, token):
+        assessment = _get_assessment_by_invite_token(token)
+        if not assessment:
+            return Response(status=404, data={"error": "This assessment invite link is invalid or has expired."})
+
+        talent = assessment.job_application.applicant
+        submission = CandidateAssessmentSubmission.objects.filter(
+            candidate=talent, skill_assessment=assessment
+        ).first()
+        if not submission:
+            return Response(status=400, data={"error": "No submission found for this assessment."})
+
+        serializer = AssessmentInviteFeedbackSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        if "rating" in serializer.validated_data:
+            submission.feedback_rating = serializer.validated_data["rating"]
+        if "comment" in serializer.validated_data:
+            submission.feedback_comment = serializer.validated_data["comment"]
+        submission.save(update_fields=["feedback_rating", "feedback_comment"])
+
+        return Response(status=200, data={"message": "Thanks for your feedback!"})
+
+
+class CandidateSubmissionSnapshotListView(APIView):
+    """GET /submissions/<submission_id>/snapshots/ -- lets the owning
+    company (or staff) spot-check the periodic camera captures taken during
+    a no-login candidate's attempt."""
+
+    permission_classes = [IsCompanyRepOrStaffUser]
+
+    def get(self, request, submission_id):
+        submission = (
+            CandidateAssessmentSubmission.objects
+            .select_related("skill_assessment", "skill_assessment__job_application", "skill_assessment__job_application__job")
+            .filter(id=submission_id)
+            .first()
+        )
+        if not submission:
+            return Response(status=404, data={"error": "Submission not found"})
+
+        if not request.user.is_staff:
+            job = getattr(submission.skill_assessment.job_application, "job", None) if submission.skill_assessment else None
+            company = get_user_company(request.user)
+            if not job or not company or job.company_id != company.id:
+                return Response(status=403, data={"error": "You do not have access to this submission"})
+
+        snapshots = submission.snapshots.order_by("created_at")
+        data = AssessmentSubmissionSnapshotSerializer(snapshots, many=True, context={"request": request}).data
+        return Response(status=200, data=data)
 
 
 class TakeAGeneralSkillAssessmentAPIView_V1(APIView):
@@ -722,6 +930,9 @@ class TakeAGeneralSkillAssessmentAPIView_V1(APIView):
                 skill_assessment=skill_assessment,
                 defaults={"is_completed": False}
             )
+            if _created:
+                submission.started_at = timezone.now()
+                submission.save(update_fields=["started_at"])
 
             # Map existing section submissions for this submission
             existing_secs = {
@@ -1225,15 +1436,15 @@ class AIOperationsFeedback(APIView, PaginationHandlerMixin):
     """Endpoint to get feedback from AI analysis of resume and cultural fitness with results showing in descending order"""
     permission_classes = [IsCompanyRepOrStaffUser]
 
-    def get(self, request, job_id, *args, **kwargs):
+    def get(self, request, public_id, *args, **kwargs):
         # Company reps must be Admin or Recruiter for the job's company
-        job = Job.objects.filter(id=job_id).first()
+        job = Job.objects.filter(public_id=public_id).first()
         if request.user.is_company() and job:
             if not user_is_company_role(request.user, job.company, [CompanyTeamMember.ROLE.ADMIN, CompanyTeamMember.ROLE.RECRUITER]):
                 return Response(status=status.HTTP_403_FORBIDDEN, data={"error": "You are not authorized to access AI feedback for this job."})
 
         job_applications = JobApplication.objects.select_related("job", "job__company", "job__company__company_rep", "applicant").filter(
-            job__id=job_id
+            job__id=job.id if job else None
         )
         
         """job_applications = JobApplication.objects.select_related("job", "job__company", "job__company__company_rep", "applicant").filter(
@@ -1262,6 +1473,13 @@ class AIOperationsFeedback(APIView, PaginationHandlerMixin):
 
         submission_map = {
             s.skill_assessment_id: s for s in submissions
+        }
+
+        from proctoring.models import ProctoringSession
+        proctoring_map = {
+            p.assessment_attempt_id: p
+            for p in ProctoringSession.objects.filter(assessment_attempt__in=submissions)
+            .prefetch_related("events")
         }
 
         feedback = []
@@ -1299,6 +1517,7 @@ class AIOperationsFeedback(APIView, PaginationHandlerMixin):
             resume_recommendations = resume.recommendation if resume and resume.recommendation else ""
             resume_experience_relevance_score = resume.experience_relevance_score if resume and resume.experience_relevance_score is not None else 0
             resume_achievement_quality= resume.achievement_quality if resume and resume.achievement_quality is not None else ''
+            proctoring_session = proctoring_map.get(submission.id) if submission else None
             feedback.append({
                 "application_id": job_apps.id,
                 "talent_name": job_apps.applicant.user.get_full_name,
@@ -1334,7 +1553,12 @@ class AIOperationsFeedback(APIView, PaginationHandlerMixin):
                 "resume_achievement_quality": resume_achievement_quality,
                 "time_taken": time_taken,
                 "difficulty_level": difficulty_level,
-                
+                "submission_id": submission.id if submission else None,
+                "proctoring_integrity_score": proctoring_session.integrity_score if proctoring_session else None,
+                "proctoring_risk_level": proctoring_session.risk_level if proctoring_session else None,
+                "proctoring_has_violation": bool(
+                    proctoring_session and any(e.severity == "VIOLATION" for e in proctoring_session.events.all())
+                ),
             })
 
         #return leaderbord in descending order

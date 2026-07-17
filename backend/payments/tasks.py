@@ -13,8 +13,8 @@ from django.conf        import settings
 
 PAYSTACK_SECRET_KEY = settings.PAYSTACK_PRIVATE_KEY
 
-@shared_task(name="charge_startup_card_task", bind=True, max_retries=2)
-def charge_startup_card_task(self):
+@shared_task(name="charge_recruiter_card_task", bind=True, max_retries=2)
+def charge_recruiter_card_task(self):
     try:
         current_month = now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
         # Retrieve all contract IDs

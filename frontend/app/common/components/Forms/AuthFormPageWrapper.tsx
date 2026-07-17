@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { BiSolidChat } from "react-icons/bi";
 
-import { cn } from "../../utils";
+import { cn, getRoleUrlSegment } from "../../utils";
 import { BasePageProps } from "../../types";
 import BrandLink from "../BrandLink";
 import Image from "next/image";
@@ -28,15 +28,16 @@ const AuthFormPageWrapper = ({
   altLinkClassName,
   titleContainerClassName,
   isSignIn,
-  as = "startup",
+  as = "recruiter",
   goBackHref,
   hideSupport,
   next,
 }: Props) => {
   const hrefSuffix = next ? `?next=${next}` : "";
+  const roleSegment = as === "staff" ? "admin" : getRoleUrlSegment(as!);
   const href = isSignIn
-    ? `/${as === "staff" ? "startups" : `${as}s`}/signup${hrefSuffix}`
-    : `/${as === "staff" ? "admin" : `${as}s`}/signin${hrefSuffix}`;
+    ? `/${as === "staff" ? "recruiter" : roleSegment}/signup${hrefSuffix}`
+    : `/${roleSegment}/signin${hrefSuffix}`;
   return (
     <div className='h-[100svh] w-[100svw] bg-white scrollbar-none md:scrollbar-thin relative overflow-x-hidden'>
       <Image
@@ -130,7 +131,7 @@ const AuthFormPageWrapper = ({
                   className={cn(
                     "text-[#5F6264] text-sm font-onest mt-2 mb-8",
                     altLinkClassName,
-                    href === `/startups/signup${hrefSuffix}` && "invisible"
+                    href === `/recruiter/signup${hrefSuffix}` && "invisible"
                   )}
                 >
                   {isSignIn ? "Don't" : "Already"} have an account?{" "}

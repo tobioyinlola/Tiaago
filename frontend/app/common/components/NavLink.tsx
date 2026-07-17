@@ -38,8 +38,8 @@ const NavLink = ({
     ? pathName === href
     : pathName.includes(href.split("?").at(0) ?? "");
   const jobsPostedOvveride =
-    pathName === "/startups/dashboard/jobs/jobs-posted" &&
-    href === "/startups/dashboard/jobs/create";
+    pathName === "/recruiter/dashboard/jobs/jobs-posted" &&
+    href === "/recruiter/dashboard/jobs/create";
   const _isActive = isActive || jobsPostedOvveride;
 
   return (

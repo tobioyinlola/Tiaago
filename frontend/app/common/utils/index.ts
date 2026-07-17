@@ -37,7 +37,7 @@ export const getFullUserType = (
     case "T":
       return "talent";
     case "CR":
-      return "startup";
+      return "recruiter";
     case "ST":
       return "staff";
   }
@@ -49,10 +49,26 @@ export const asToUserType = (
   switch (as) {
     case "talent":
       return "T";
-    case "startup":
+    case "recruiter":
       return "CR";
     case "staff":
       return "ST";
+  }
+};
+
+// URL path segment for each role -- NOT a blind pluralization: "talent" is
+// plural ("talents") but "recruiter" is intentionally kept singular, so
+// every route-building call site must go through this instead of `${as}s`.
+export const getRoleUrlSegment = (
+  as: NonNullable<BasePageProps["as"]>
+): string => {
+  switch (as) {
+    case "talent":
+      return "talents";
+    case "recruiter":
+      return "recruiter";
+    case "staff":
+      return "admin";
   }
 };
 
@@ -141,13 +157,13 @@ export const optimizeCount = (count: number) => (count >= 100 ? "99+" : count);
 
 export const getOnboardingUrl = (as?: BasePageProps["as"]) => {
   if (as === "staff") return "/admin/signin";
-  if (as) return `/${as}s/signin`;
+  if (as) return `/${getRoleUrlSegment(as)}/signin`;
   return "/onboarding";
 };
 
 export const getDashboardUrl = (type?: User["user_type"]) => {
   if (type === "ST") return "/admin";
-  if (type) return `/${getFullUserType(type)}s/dashboard`;
+  if (type) return `/${getRoleUrlSegment(getFullUserType(type))}/dashboard`;
   return "";
 };
 

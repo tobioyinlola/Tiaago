@@ -3,11 +3,11 @@ import Image from "next/image";
 import { PropsWithChildren } from "react";
 import { MdHelpOutline } from "react-icons/md";
 
-import { cn } from "../../utils";
+import { cn, getRoleUrlSegment } from "../../utils";
 import BrandLink from "../BrandLink";
 import SupportFAB from "../SupportFAB";
 import TalentTexts from "./TalentTexts";
-import StartupTexts from "./StartupTexts";
+import RecruiterTexts from "./RecruiterTexts";
 import { BasePageProps } from "../../types";
 import SetUserProfile from "../Layout/SetUserProfile";
 import { getCurrentUser } from "../../services/profile";
@@ -18,7 +18,7 @@ type Props = BasePageProps & {
 
 const SideSection = async ({
   children,
-  as = "startup",
+  as = "recruiter",
   isSignIn,
   className,
 }: PropsWithChildren<Props>) => {
@@ -26,10 +26,11 @@ const SideSection = async ({
     validUserRedirect: "dashboard",
     allowNull: true,
   });
-  const isStartup = as === "startup";
-  const mainText = isStartup ? <StartupTexts /> : <TalentTexts />;
-  const href = isSignIn ? `/${as}s/signup` : `/${as}s/signin`;
-  const imgTag = as === "talent" ? "talent" : "startup";
+  const isRecruiter = as === "recruiter";
+  const mainText = isRecruiter ? <RecruiterTexts /> : <TalentTexts />;
+  const roleSegment = getRoleUrlSegment(as);
+  const href = isSignIn ? `/${roleSegment}/signup` : `/${roleSegment}/signin`;
+  const imgTag = as === "talent" ? "talent" : "recruiter";
   return (
     <header
       className={cn(
@@ -60,7 +61,7 @@ const SideSection = async ({
           <Link
             className='hover:text-primary flex items-center gap-2'
             href={
-              isStartup
+              isRecruiter
                 ? "https://calendly.com/talentsyncglobal/talk-to-our-talent-support-team"
                 : "mailto:support@talentsync.co"
             }

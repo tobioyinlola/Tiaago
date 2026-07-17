@@ -18,7 +18,7 @@ new_talent_roles = [
     {"title": "Brand Designer", "is_technical": False},
 ]
 
-new_startup_roles = [
+new_recruiter_roles = [
     {"title": "HR", "is_technical": False},
     {"title": "Talent acquisition expert", "is_technical": False},
     {"title": "Recruiter", "is_technical": False},
@@ -35,22 +35,22 @@ class Command(BaseCommand):
             if corr_role:
                 corr_role.is_technical = role["is_technical"]
                 corr_role.active = True
-                corr_role.is_startup_role = False
+                corr_role.is_recruiter_role = False
                 corr_role.save()
             else:
                 Role.objects.create(
-                    title=role["title"], active=True, is_technical=role["is_technical"], is_startup_role=False
+                    title=role["title"], active=True, is_technical=role["is_technical"], is_recruiter_role=False
                 )
-        # startup roles
-        for role in new_startup_roles:
+        # recruiter roles
+        for role in new_recruiter_roles:
             corr_role = Role.objects.filter(title__iexact=role["title"]).first()
             if corr_role:
                 corr_role.is_technical = role["is_technical"]
                 corr_role.active = True
-                corr_role.is_startup_role = True
+                corr_role.is_recruiter_role = True
                 corr_role.save()
             else:
                 Role.objects.create(
-                    title=role["title"], active=True, is_technical=role["is_technical"], is_startup_role=True
+                    title=role["title"], active=True, is_technical=role["is_technical"], is_recruiter_role=True
                 )
         self.stdout.write(self.style.SUCCESS("Roles sorted ✅"))

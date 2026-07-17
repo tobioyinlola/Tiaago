@@ -13,7 +13,7 @@ const CarouselItemOne = () => {
         Welcome To Tiaago
       </h3>
       <p className='text-center text-xl font-medium max-w-[526px] mt-6 mx-auto'>
-        We connect vetted and verified talents with startups offering a
+        We connect vetted and verified talents with recruiters offering a
         launchpad for global growth.
       </p>
     </div>
@@ -52,7 +52,7 @@ const MVPs = () => {
     {
       image: ConnectionIcon,
       header: "Connection",
-      details: "Seamless connection with talents, startup and organizations.",
+      details: "Seamless connection with talents, recruiter and organizations.",
       borderTop: "#4AB4FF",
     },
   ];

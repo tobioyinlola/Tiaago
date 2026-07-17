@@ -9,7 +9,7 @@ if (!MIXPANEL_TOKEN && isProd) {
   throw new Error("MIXPANEL_TOKEN is not defined");
 }
 
-type UserType = "startup" | "talent";
+type UserType = "recruiter" | "talent";
 
 const mixpanel = isProd ? Mixpanel.init(MIXPANEL_TOKEN!) : null;
 
@@ -40,8 +40,8 @@ type TalentSignupEventInput = BaseSignupEventInput & {
   experience_level?: string;
 };
 
-type StartupSignupEventInput = BaseSignupEventInput & {
-  user_type: "startup";
+type RecruiterSignupEventInput = BaseSignupEventInput & {
+  user_type: "recruiter";
   company_name?: string;
   company_email?: string;
   // size and website are collected post-signup in the onboarding cards
@@ -50,7 +50,7 @@ type StartupSignupEventInput = BaseSignupEventInput & {
   website?: string;
 };
 
-export type SignupEventInput = TalentSignupEventInput | StartupSignupEventInput;
+export type SignupEventInput = TalentSignupEventInput | RecruiterSignupEventInput;
 
 export const mixpanelTrackSignup = async (
   input: SignupEventInput,

@@ -1178,7 +1178,10 @@ def paystack_wallet_fund_webhook(request):
                     return JsonResponse({'status': 'already processed'}, status=200)
 
                 # credit wallet
-                wallet.credit(amount=amount, reference=reference, description="Wallet funding via Paystack", currency="NGN")
+                wallet.credit(amount=amount, reference=reference, description="Wallet funding via Paystack", currency="NGN", service_type=WalletTransaction.ServiceType.WALLET_TOPUP)
+
+                from tags.tasks import evaluate_company_tags
+                evaluate_company_tags.delay(company.id)
 
                 # log entry
                 log_entry.processed = True
@@ -1274,8 +1277,12 @@ def stripe_wallet_fund_webhook(request):
                     return JsonResponse({'status': 'already processed'}, status=200)
 
                 # credit wallet
-                wallet.credit(amount=amount_total, reference=reference, description="Wallet funding via Stripe", currency="USD")
+                wallet.credit(amount=amount_total, reference=reference, description="Wallet funding via Stripe", currency="USD", service_type=WalletTransaction.ServiceType.WALLET_TOPUP)
                 logger.info(f"Wallet funded successfully via Stripe for company: {company.company_email}")
+
+                from tags.tasks import evaluate_company_tags
+                evaluate_company_tags.delay(company.id)
+
                 return JsonResponse({'status': 'wallet funded successfully'}, status=200)
             else:
                 logger.error(f"Company not found for wallet funding with reference: {reference}")

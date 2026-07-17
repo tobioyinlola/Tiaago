@@ -81,7 +81,7 @@ const Terms: React.FC = () => {
                     <Building className='w-8 h-8 text-primary' />
                   </div>
                   <h3 className='font-semibold text-gray-900 mb-2'>
-                    For Recruiters & Startups
+                    For Recruiters & Recruiters
                   </h3>
                   <p className='text-gray-600 text-sm'>
                     Job postings, talent discovery, AI-powered screening, and
@@ -124,7 +124,7 @@ const Terms: React.FC = () => {
                     <div className='prose prose-lg max-w-none'>
                       <p className='text-gray-600 mb-6'>
                         Welcome to TIAAGO, a smart hiring operating system
-                        powered by AI to help recruiters, HR teams, and startups
+                        powered by AI to help recruiters, HR teams, and recruiters
                         automate the process of screening, assessing, and
                         interviewing candidates. These Terms of Service
                         (&quot;Terms&quot;) govern your use of our platform
@@ -137,7 +137,7 @@ const Terms: React.FC = () => {
                         <p className='text-gray-700'>
                           <strong>
                             By accessing or using TIAAGO, whether as a talent,
-                            recruiter, HR professional, or startup, you agree to
+                            recruiter, HR professional, or recruiter, you agree to
                             be bound by these Terms. If you do not agree, please
                             do not use our Services.
                           </strong>
@@ -199,7 +199,7 @@ const Terms: React.FC = () => {
                         </div>
                         <div className='bg-gray-50 rounded-lg p-6'>
                           <h4 className='font-semibold text-gray-900 mb-3'>
-                            For Recruiters & Startups:
+                            For Recruiters & Recruiters:
                           </h4>
                           <ul className='space-y-2 text-sm text-gray-600'>
                             <li>• Post jobs and invite talents</li>
@@ -250,7 +250,7 @@ const Terms: React.FC = () => {
 
                         <div className='bg-green-50 rounded-lg p-6'>
                           <h4 className='font-semibold text-gray-900 mb-3'>
-                            Recruiters/Startups:
+                            Recruiters/Recruiters:
                           </h4>
                           <p className='text-gray-700'>
                             Job postings, talent discovery, resume screening,
@@ -298,7 +298,7 @@ const Terms: React.FC = () => {
                         </div>
                         <div className='border border-gray-200 rounded-lg p-6'>
                           <h4 className='font-semibold text-gray-900 mb-3'>
-                            For Recruiters & Startups:
+                            For Recruiters & Recruiters:
                           </h4>
                           <ul className='space-y-2 text-sm text-gray-600'>
                             <li>• Use candidate data responsibly</li>
@@ -331,7 +331,7 @@ const Terms: React.FC = () => {
                     <div className='prose prose-lg max-w-none'>
                       <p className='text-gray-600 mb-6'>
                         TIAAGO offers a usage-based pricing model for recruiters
-                        and startups. You will be billed monthly based on
+                        and recruiters. You will be billed monthly based on
                         metered usage of AI services such as resume screening,
                         assessment delivery, and pre-screening interviews.
                       </p>
@@ -386,7 +386,7 @@ const Terms: React.FC = () => {
                       <p className='text-gray-600 mb-6'>
                         Our platform facilitates talent discovery and hiring.
                         TIAAGO is not a party to employment contracts between
-                        talents and recruiters/startups.
+                        talents and recruiters/recruiters.
                       </p>
 
                       <div className='space-y-4 mb-6'>
@@ -402,7 +402,7 @@ const Terms: React.FC = () => {
 
                         <div className='bg-green-50 rounded-lg p-4'>
                           <h4 className='font-semibold text-gray-900 mb-2'>
-                            For Recruiters/Startups:
+                            For Recruiters/Recruiters:
                           </h4>
                           <p className='text-gray-700 text-sm'>
                             You are responsible for due diligence, compliance,

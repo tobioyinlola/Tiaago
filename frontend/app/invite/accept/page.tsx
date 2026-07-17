@@ -128,7 +128,7 @@ export default async function InviteAcceptPage({ searchParams }: Props) {
       allowNull: true,
     });
     if (loggedInUser) {
-      redirect("/startups/dashboard");
+      redirect("/recruiter/dashboard");
     }
     return (
       <ErrorState

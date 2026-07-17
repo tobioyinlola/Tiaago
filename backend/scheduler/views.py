@@ -1,7 +1,6 @@
 import logging
 import datetime
 import requests
-import uuid
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.utils import timezone
@@ -33,8 +32,9 @@ from .tasks import (
     meeting_invite_mail,
     meeting_invite_others,
     send_meeting_reminder,
-    startup_interview_acceptance_mail
+    recruiter_interview_acceptance_mail
 )
+from .services import provision_daily_room, DailyRoomProvisioningError
 from .models import Scheduler
 from .permissions import  IsScheduledByCompanyOrTalent
 from .serializers import (
@@ -140,149 +140,20 @@ class SchedulerMeetingUpdateView(UpdateAPIView):
         if user.user_type == User.USER_TYPE.COMPANY_REP and "accepted" in request.data:
             return Response("Invalid value: accepted", status=HTTP_400_BAD_REQUEST)
         if user.user_type == User.USER_TYPE.TALENT:
-            start_date = datetime.combine(instance.meeting_date, instance.start_time)
-            end_date = datetime.combine(instance.meeting_date, instance.end_time)
-            epoch_start_time_in_seconds = int(timezone.make_aware(start_date).timestamp())
-            epoch_end_time_in_seconds = int(timezone.make_aware(end_date).timestamp())
             accepted = request.data.get("accepted", False)
-           
-            
-            if accepted:
-                # Send an api requests to daily api to create a room and corresponding tokens
-                DAILY_API_TOKEN = getattr(settings, 'DAILY_API_TOKEN', None)
-                if not DAILY_API_TOKEN:
-                    logger.error("DAILY_API_TOKEN not found in settings")
-                    return Response(
-                        {"detail": "Video conferencing configuration error"}, 
-                        status=HTTP_500_INTERNAL_SERVER_ERROR
-                    )
-                
-                try:
-                    # Log request data
-                    request_data = {
-                        "privacy": "private",
-                        "properties": {
-                            "nbf": str(epoch_start_time_in_seconds),
-                            "exp": str(epoch_end_time_in_seconds)
-                        }
-                    }
-                    logger.info(f"Sending request to Daily.co with data: {request_data}")
-                    
-                    res = requests.post(
-                        "https://api.daily.co/v1/rooms/",
-                        json=request_data,
-                        headers={
-                            'Accept': 'application/json',
-                            "Content-Type": "application/json",
-                            "Authorization": f"Bearer {DAILY_API_TOKEN}"
-                        }
-                    )
-                    
-                    if res.status_code != 200:
-                        logger.error(f"Daily.co API error: Status {res.status_code}, Response: {res.text}")
-                        return Response(
-                            {"detail": f"Room creation failed: {res.text}"}, 
-                            status=HTTP_500_INTERNAL_SERVER_ERROR
-                        )
-                        
-                    result = res.json()
-                    logger.info(f"Successfully created Daily.co room: {result}")
-                    
-                except requests.HTTPError as e:
-                    logger.error(f"HTTP Error creating Daily.co room: {str(e)}")
-                    return Response(
-                        {"detail": f"Cannot create room: {str(e)}"}, 
-                        status=HTTP_400_BAD_REQUEST
-                    )
-                except requests.RequestException as e:
-                    logger.error(f"Network error with Daily.co API: {str(e)}")
-                    return Response(
-                        {"detail": f"Network error. Try again: {str(e)}"}, 
-                        status=HTTP_500_INTERNAL_SERVER_ERROR
-                    )
-                except requests.exceptions.ConnectionError as e:
-                    logger.error(f"Connection error with Daily.co API: {str(e)}")
-                    return Response(
-                        {"detail": f"Connection error. Try again: {str(e)}"}, 
-                        status=HTTP_400_BAD_REQUEST
-                    )
-                except Exception as e:
-                    logger.error(f"Unexpected error creating Daily.co room: {str(e)}")
-                    return Response(
-                        {"detail": f"An unexpected error occurred: {str(e)}"}, 
-                        status=HTTP_500_INTERNAL_SERVER_ERROR
-                    )
 
-                if result["api_created"]:
-                    instance.room_id = uuid.UUID(result.get("id"))
-                    instance.room_name = result.get('name')
-                    instance.room_url = result.get('url')
-                    # generate a corresponding token
-                    try:
-                        token_request_data = {
-                            "properties": {
-                                "room_name": result.get("name"),
-                                "eject_at_token_exp": True,
-                                "nbf": str(epoch_start_time_in_seconds),
-                                "exp": str(epoch_end_time_in_seconds),
-                                "is_owner": True,
-                                "enable_screenshare": True
-                            }
-                        }
-                        logger.info(f"Requesting Daily.co token with data: {token_request_data}")
-                        
-                        res = requests.post(
-                            "https://api.daily.co/v1/meeting-tokens",
-                            json=token_request_data,
-                            headers={
-                                'Content-Type': 'application/json',
-                                'Authorization': f'Bearer {DAILY_API_TOKEN}'
-                            }
-                        )
-                        
-                        if res.status_code != 200:
-                            logger.error(f"Daily.co token creation error: Status {res.status_code}, Response: {res.text}")
-                            return Response(
-                                {"detail": f"Token creation failed: {res.text}"}, 
-                                status=HTTP_500_INTERNAL_SERVER_ERROR
-                            )
-                            
-                        token_result = res.json()
-                        logger.info("Successfully created Daily.co token")
-                        
-                        if 'token' not in token_result:
-                            logger.error(f"No token in Daily.co response: {token_result}")
-                            return Response(
-                                {"detail": "Invalid token response from server"}, 
-                                status=HTTP_500_INTERNAL_SERVER_ERROR
-                            )
-                            
-                        instance.token = token_result.get('token')
-                        
-                    except requests.HTTPError as e:
-                        logger.error(f"HTTP Error creating Daily.co token: {str(e)}")
-                        return Response(
-                            {"detail": f"Cannot create token: {str(e)}"}, 
-                            status=HTTP_400_BAD_REQUEST
-                        )
-                    except requests.RequestException as e:
-                        logger.error(f"Network error creating token: {str(e)}")
-                        return Response(
-                            {"detail": f"Network error. Try again: {str(e)}"}, 
-                            status=HTTP_500_INTERNAL_SERVER_ERROR
-                        )
-                    except requests.exceptions.ConnectionError as e:
-                        logger.error(f"Connection error creating token: {str(e)}")
-                        return Response(
-                            {"detail": f"Connection error. Try again: {str(e)}"}, 
-                            status=HTTP_400_BAD_REQUEST
-                        )
-                    except Exception as e:
-                        logger.error(f"Unexpected error creating token: {str(e)}")
-                        return Response(
-                            {"detail": f"An unexpected error occurred: {str(e)}"}, 
-                            status=HTTP_500_INTERNAL_SERVER_ERROR
-                        )
+            if accepted:
+                try:
+                    room = provision_daily_room(
+                        instance.meeting_date, instance.start_time, instance.end_time
+                    )
+                except DailyRoomProvisioningError as e:
+                    return Response({"detail": e.detail}, status=e.status_code)
+
+                instance.room_id = room["room_id"]
+                instance.room_name = room["room_name"]
+                instance.room_url = room["room_url"]
+                instance.token = room["token"]
 
             instance.accepted = accepted
         self.perform_update(serializer)
@@ -310,7 +181,7 @@ class SchedulerMeetingUpdateView(UpdateAPIView):
                 "company_logo": instance.company.get_logo_url(),
             }
             # Send acceptance notification to company
-            startup_interview_acceptance_mail.delay(
+            recruiter_interview_acceptance_mail.delay(
                 instance.company.company_rep.id,
                 instance.company.company_name,
                 str(instance.id)

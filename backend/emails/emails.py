@@ -3,6 +3,7 @@
 from typing import Literal, Optional, Tuple, Dict, Any, List
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.utils import timezone
 import logging
 
 from utils.email_handler import EmailHandler, EmailTypes
@@ -26,11 +27,15 @@ EmailType = Literal[
     "job_deactivated",
     "job_reactivated",
     "talent_assessment_pass_mail",
-    "startup_interview_acceptance_mail",
+    "recruiter_interview_acceptance_mail",
     "talent_vetting_pass",
     "talent_vetting_fail",
+    "application_received",
     "ASSESSMENT_PASS",
     "ASSESSMENT_FAILURE",
+    "ticket_received",
+    "ticket_admin_replied",
+    "ticket_resolved",
 ]
 
 EMAIL_TYPE_TO_ENUM = {
@@ -217,7 +222,7 @@ def get_email_template_and_context(
         context = {
             "first_name": user.first_name,
             "job_title": getattr(job, "title", "") if job else "",
-            "dashboard_url": f"{settings.FRONTEND_BASE_URL}/startups/dashboard/jobs/jobs-posted",
+            "dashboard_url": f"{settings.FRONTEND_BASE_URL}/recruiter/dashboard/jobs/jobs-posted",
         }
 
     elif email_type == "talent_assessment_pass_mail":
@@ -227,7 +232,7 @@ def get_email_template_and_context(
             "profile_url": settings.TIAAGO_TALENT_LOGIN_URL,
         }
 
-    elif email_type == "startup_interview_acceptance_mail":
+    elif email_type == "recruiter_interview_acceptance_mail":
         md = kwargs.get("meeting_details") or {}
         meeting_ctx = _flatten_meeting(md, kwargs.get("company_name"))
         template_file = "emails/interview_accepted.html"
@@ -268,7 +273,54 @@ def get_email_template_and_context(
             "jobs_url": settings.TIAAGO_TALENT_LOGIN_URL,
         }
 
+    elif email_type == "application_received":
+        job = kwargs.get("job")
+        template_file = "emails/application_received.html"
+        context = {
+            "first_name": user.first_name,
+            "role": getattr(job, "title", "") if job else "",
+            "company": getattr(job.company, "company_name", "") if job and job.company else "",
+            "submitted": timezone.now().strftime("%b %-d, %Y"),
+        }
+
+    elif email_type == "ticket_received":
+        ticket = kwargs.get("ticket")
+        template_file = "emails/ticket_received.html"
+        context = {
+            "first_name": user.first_name,
+            "ticket_number": ticket.display_number,
+            "title": ticket.title,
+            "category": ticket.get_category_display(),
+            "ticket_url": _ticket_url(ticket),
+        }
+
+    elif email_type == "ticket_admin_replied":
+        ticket = kwargs.get("ticket")
+        reply = kwargs.get("reply")
+        template_file = "emails/ticket_admin_replied.html"
+        context = {
+            "first_name": user.first_name,
+            "ticket_number": ticket.display_number,
+            "title": ticket.title,
+            "reply_message": reply.message if reply else "",
+            "ticket_url": _ticket_url(ticket),
+        }
+
+    elif email_type == "ticket_resolved":
+        ticket = kwargs.get("ticket")
+        template_file = "emails/ticket_resolved.html"
+        context = {
+            "first_name": user.first_name,
+            "ticket_number": ticket.display_number,
+            "title": ticket.title,
+            "ticket_url": _ticket_url(ticket),
+        }
+
     return template_file, context
+
+
+def _ticket_url(ticket):
+    return f"{settings.FRONTEND_BASE_URL}/recruiter/dashboard/support/tickets/{ticket.id}"
 
 
 # ── Wrapper functions (preserve existing public API) ─────────────────────
@@ -363,7 +415,7 @@ def meeting_invite_others(user, user_emails: Optional[str], meeting_details):
     )
 
 
-def job_approved_status_for_startup_mail(user, job):
+def job_approved_status_for_recruiter_mail(user, job):
     template, ctx = get_email_template_and_context(user, "job_approved_status", job=job)
     if not template:
         return None
@@ -403,16 +455,16 @@ def talent_assessment_pass_mail(user):
     )
 
 
-def startup_interview_acceptance_mail(user, company_name, meeting_details):
+def recruiter_interview_acceptance_mail(user, company_name, meeting_details):
     template, ctx = get_email_template_and_context(
-        user, "startup_interview_acceptance_mail", company_name=company_name,
+        user, "recruiter_interview_acceptance_mail", company_name=company_name,
         meeting_details=meeting_details,
     )
     if not template:
         return None
     return _send_with_latest_flow(
         user.email, "Interview accepted", template, ctx,
-        email_type="startup_interview_acceptance_mail",
+        email_type="recruiter_interview_acceptance_mail",
     )
 
 
@@ -451,6 +503,52 @@ def applicant_vetting_mail(
 
     return _send_with_latest_flow(
         user.email, subject, template, ctx, email_type=etype,
+    )
+
+
+def application_received_mail(user, job):
+    """Confirmation sent immediately after a candidate submits a job
+    application through the no-login apply form -- separate from
+    `send_welcome_mail`, since no account signup actually happened here."""
+    subject = f"We've received your application for {job.title}"
+    template, ctx = get_email_template_and_context(user, "application_received", job=job)
+    if not template:
+        return None
+    return _send_with_latest_flow(
+        user.email, subject, template, ctx, email_type="application_received",
+    )
+
+
+def ticket_received_mail(user, ticket):
+    """Sent to the submitting user immediately after a support ticket is created."""
+    subject = f"Your support request has been received — {ticket.display_number}"
+    template, ctx = get_email_template_and_context(user, "ticket_received", ticket=ticket)
+    if not template:
+        return None
+    return _send_with_latest_flow(
+        user.email, subject, template, ctx, email_type="ticket_received",
+    )
+
+
+def ticket_admin_replied_mail(user, ticket, reply):
+    """Sent to the ticket's submitting user when an admin posts a (non-internal) reply."""
+    subject = f"Tiaago Support replied to your ticket — {ticket.display_number}"
+    template, ctx = get_email_template_and_context(user, "ticket_admin_replied", ticket=ticket, reply=reply)
+    if not template:
+        return None
+    return _send_with_latest_flow(
+        user.email, subject, template, ctx, email_type="ticket_admin_replied",
+    )
+
+
+def ticket_resolved_mail(user, ticket):
+    """Sent to the ticket's submitting user when an admin marks it RESOLVED."""
+    subject = f"Your support ticket has been resolved — {ticket.display_number}"
+    template, ctx = get_email_template_and_context(user, "ticket_resolved", ticket=ticket)
+    if not template:
+        return None
+    return _send_with_latest_flow(
+        user.email, subject, template, ctx, email_type="ticket_resolved",
     )
 
 

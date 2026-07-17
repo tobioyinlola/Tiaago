@@ -14,8 +14,8 @@ What happens next:
   - If it's a match, you'll get an interview invite
   - We'll keep you posted at every step, good or bad
 
-Track your application:
-{{ track_url|default:"https://app.tiaago.com/applications" }}
+There's nothing further you need to do right now -- if you're shortlisted,
+we'll follow up by email with next steps.
 
 --
 Tiaago - AI-powered end-to-end hiring platform for modern teams.

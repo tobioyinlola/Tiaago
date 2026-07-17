@@ -1,11 +1,11 @@
 "use client";
+import Link from "next/link";
 import Image from "next/image";
 import { format } from "date-fns";
 import { IoBusinessOutline } from "react-icons/io5";
 
 import { Job } from "@/app/common/types";
 import JobOptionsModal from "./JobOptionsModal";
-import JobApplicationModal from "./JobApplicationModal";
 import { cn, formatPrice, jobTypeEnumToLabel } from "@/app/common/utils";
 
 type JobDetailsCardProps = Job & {
@@ -113,11 +113,9 @@ const JobDetailsCard = ({
             : "N/A"}
         </p>
 
-        <JobApplicationModal
-          id={id}
-          role={title}
-          company={company.company_name}
-        />
+        <Link href={`/jobs/${id}/apply`} className='btn btn-primary text-white mt-4 rounded-xl'>
+          Apply
+        </Link>
         <button
           className='btn btn-outline mt-4 rounded-xl border-gray-300 text-gray-700 hover:bg-gray-700'
           onClick={() => setSelectedJob()}

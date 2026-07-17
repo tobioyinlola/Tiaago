@@ -36,7 +36,7 @@ const BaseTable = ({
           <thead>
             <tr>
               <th className='max-sm:hidden'>Job ID</th>
-              <th>Startup</th>
+              <th>Recruiter</th>
               <th>Job Title</th>
               <th>Country</th>
               <th>Date Posted</th>
@@ -48,7 +48,7 @@ const BaseTable = ({
             {jobs.length ? (
               jobs.map(job => (
                 <tr key={job.id}>
-                  <td className='max-sm:hidden'>{job.id}</td>
+                  <td className='max-sm:hidden'>{job.public_id}</td>
                   <td className='flex items-center gap-2'>
                     <UserAvatar
                       profilePic={job.company.logo}
@@ -90,11 +90,11 @@ const BaseTable = ({
                   </td>
                   <td className='flex items-center gap-1 justify-center'>
                     <DeactivateJob
-                      id={job.id}
+                      publicId={job.public_id}
                       deactivated={job.job_status !== "ACTIVE"}
                     />
                     <Link
-                      href={`jobs/${job.id}`}
+                      href={`jobs/${job.public_id}`}
                       className='btn btn-primary btn-sm btn-link no-underline'
                     >
                       View

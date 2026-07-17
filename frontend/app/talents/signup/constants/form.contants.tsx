@@ -182,7 +182,7 @@ export const allFields = [
   ...choosePasswordFormFields,
 ];
 
-export const startupSignupformSteps = [
+export const recruiterSignupformSteps = [
   {
     title: "Talent's Details",
     description: "Please provide the following information about yourself",

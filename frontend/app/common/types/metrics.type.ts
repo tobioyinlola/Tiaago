@@ -1,4 +1,4 @@
-type StartupMetrics = [
+type RecruiterMetrics = [
   {
     title: "Open Positions";
     valueLastMonth: number; // open positions last month
@@ -43,7 +43,7 @@ type TalentMetrics = [
 type AdminMetrics = {
   "User Details": AdminUserMetrics;
   "Talent Details": AdminTalentMetrics;
-  "Startup Details": AdminStartupMetrics;
+  "Recruiter Details": AdminRecruiterMetrics;
   Contracts: AdminContractMetrics;
   "Registrations this month": AdminRegistrationMetrics;
 };
@@ -62,10 +62,10 @@ type AdminUserMetrics = [
     currentVal: number; // total talent accounts created
   },
   {
-    title: "Startups";
-    valueLastMonth: number; // startup accounts created last month
-    valueThisMonth: number; // startup accounts created this month
-    currentVal: number; // total startup accounts created
+    title: "Recruiters";
+    valueLastMonth: number; // recruiter accounts created last month
+    valueThisMonth: number; // recruiter accounts created this month
+    currentVal: number; // total recruiter accounts created
   }
 ];
 
@@ -90,24 +90,24 @@ type AdminTalentMetrics = [
   }
 ];
 
-type AdminStartupMetrics = [
+type AdminRecruiterMetrics = [
   {
-    title: "Free Startups";
-    valueLastMonth: number; // free startup accounts created last month
-    valueThisMonth: number; // free startup accounts created this month
-    currentVal: number; // total free startup accounts created
+    title: "Free Recruiters";
+    valueLastMonth: number; // free recruiter accounts created last month
+    valueThisMonth: number; // free recruiter accounts created this month
+    currentVal: number; // total free recruiter accounts created
   },
   {
-    title: "Basic Startups";
-    valueLastMonth: number; // basic startup accounts created last month
-    valueThisMonth: number; // basic startup accounts created this month
-    currentVal: number; // total basic startup accounts created
+    title: "Basic Recruiters";
+    valueLastMonth: number; // basic recruiter accounts created last month
+    valueThisMonth: number; // basic recruiter accounts created this month
+    currentVal: number; // total basic recruiter accounts created
   },
   {
-    title: "Pro Startups";
-    valueLastMonth: number; // premium startup accounts created last month
-    valueThisMonth: number; // premium startup accounts created this month
-    currentVal: number; // total premium startup accounts created
+    title: "Pro Recruiters";
+    valueLastMonth: number; // premium recruiter accounts created last month
+    valueThisMonth: number; // premium recruiter accounts created this month
+    currentVal: number; // total premium recruiter accounts created
   }
 ];
 
@@ -129,9 +129,9 @@ type AdminContractMetrics = [
 type AdminRegistrationMetrics = [
     {
       title: "Total Registrations";
-      valueLastMonth: number; // talent and startup accounts created last month
-      valueThisMonth: number; // talent and startup accounts created this month
-      currentVal: number; // talent and startup accounts created this month
+      valueLastMonth: number; // talent and recruiter accounts created last month
+      valueThisMonth: number; // talent and recruiter accounts created this month
+      currentVal: number; // talent and recruiter accounts created this month
     },
     {
       title: "Talent Registrations";
@@ -140,9 +140,9 @@ type AdminRegistrationMetrics = [
       currentVal: number; // talent accounts created this month
     },
     {
-      title: "Startup Registrations";
-      valueLastMonth: number; // startup accounts created last month
-      valueThisMonth: number; // startup accounts created this month
-      currentVal: number; // startup accounts created this month
+      title: "Recruiter Registrations";
+      valueLastMonth: number; // recruiter accounts created last month
+      valueThisMonth: number; // recruiter accounts created this month
+      currentVal: number; // recruiter accounts created this month
     }
   ];

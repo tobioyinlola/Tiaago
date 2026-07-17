@@ -6,7 +6,10 @@ import {
   LinearScale,
   PointElement,
   LineElement,
+  BarElement,
+  ArcElement,
   Tooltip,
+  Legend,
   Filler,
 } from "chart.js";
 import { PropsWithChildren } from "react";
@@ -16,7 +19,10 @@ ChartJS.register(
   LinearScale,
   PointElement,
   LineElement,
+  BarElement,
+  ArcElement,
   Tooltip,
+  Legend,
   Filler
 );
 

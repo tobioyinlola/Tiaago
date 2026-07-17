@@ -584,7 +584,7 @@ const Companies = () => {
                       <Sparkles className='w-5 h-5 text-primary mr-3' />
                     </m.div>
                     <span className='text-primary font-medium'>
-                      Join 500+ Startups Building with Top 2% Talent
+                      Join 500+ Recruiters Building with Top 2% Talent
                     </span>
                   </div>
 
@@ -612,7 +612,7 @@ const Companies = () => {
                     {" "}
                     AI-matched. Instantly available.{" "}
                   </span>
-                  Ready to transform your startup.
+                  Ready to transform your recruiter.
                 </m.p>
 
                 <m.div
@@ -1016,7 +1016,7 @@ const Companies = () => {
               </h2>
               <p className='text-xl text-gray-600'>
                 From technical roles to creative positions, we have the
-                expertise you need to scale your startup.
+                expertise you need to scale your recruiter.
               </p>
             </div>
 
@@ -1345,10 +1345,10 @@ const Companies = () => {
           <div className='md:container mx-auto px-4'>
             <div className='text-center max-w-3xl mx-auto mb-16'>
               <h2 className='text-3xl lg:text-4xl font-bold text-gray-900 mb-6'>
-                Trusted by 500+ Startups Worldwide
+                Trusted by 500+ Recruiters Worldwide
               </h2>
               <p className='text-xl text-gray-600'>
-                See how startups are scaling their teams and accelerating growth
+                See how recruiters are scaling their teams and accelerating growth
                 with Tiaago.
               </p>
             </div>
@@ -1490,7 +1490,7 @@ const Companies = () => {
                 </h2>
 
                 <p className='text-xl mb-8 text-white/90 max-w-2xl mx-auto'>
-                  Join hundreds of successful startups who have scaled their
+                  Join hundreds of successful recruiters who have scaled their
                   teams with Tiaago. Start your free trial today and experience
                   the difference.
                 </p>

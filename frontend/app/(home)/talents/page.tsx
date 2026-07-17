@@ -67,7 +67,7 @@ const steps = [
     number: 5,
     title: "Get Hired",
     description:
-      "Land roles with startups or global companies, manage contracts, and get paid securely — all inside Tiaago.",
+      "Land roles with recruiters or global companies, manage contracts, and get paid securely — all inside Tiaago.",
     icon: <BriefcaseBusiness className='w-6 h-6 text-primary' />,
   },
 ];

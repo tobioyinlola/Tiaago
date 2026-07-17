@@ -9,7 +9,7 @@ import { GroupBase } from "react-select";
 import {
   allFields,
   initialValues,
-  startupSignupformSteps,
+  recruiterSignupformSteps,
 } from "../constants/form.contants";
 import { useAlert } from "@/app/common/store/useAlert";
 import clientKyInstance from "@/app/common/utils/client-ky.instance";
@@ -35,8 +35,8 @@ const SignupForm = ({
     nextStep,
     setStep: setActiveStep,
   } = useMultiStep();
-  const activeStep = startupSignupformSteps[activeStepIndex];
-  const isAtLastStep = activeStepIndex === startupSignupformSteps.length - 1;
+  const activeStep = recruiterSignupformSteps[activeStepIndex];
+  const isAtLastStep = activeStepIndex === recruiterSignupformSteps.length - 1;
   return (
     <Formik
       initialValues={initialValues}

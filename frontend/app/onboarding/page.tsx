@@ -33,7 +33,7 @@ const TalentIcon: IconType = propa => (
 
 const roles: RoleProps[] = [
   {
-    role: "startup",
+    role: "recruiter",
     detail: "I'm looking for skilled candidates to work for me.",
     Icon: IoMdBusiness,
     link: "https://cal.com/tiaago/book-a-demo-tiaago-ai-hiring-platform",
@@ -51,7 +51,7 @@ const Onboarding = async ({
   searchParams: Promise<{ as?: string; referral_code?: string }>;
 }) => {
   const { as, referral_code } = await searchParams;
-  const role = as === "talent" ? "talent" : "startup";
+  const role = as === "talent" ? "talent" : "recruiter";
   return (
     <AuthFormPageWrapper
       as={role}
@@ -74,7 +74,7 @@ const Onboarding = async ({
 export default Onboarding;
 
 type RoleProps = {
-  role: "talent" | "startup";
+  role: "talent" | "recruiter";
   Icon: IconType;
   detail: string;
   referral_code?: string;
@@ -100,7 +100,7 @@ const Role = (props: RoleProps) => {
       </div>
       <div>
         <h2 className='font-switzer font-bold text-2xl capitalize'>
-          {props.role === "startup" ? "Recruiter" : "Talent"}
+          {props.role === "recruiter" ? "Recruiter" : "Talent"}
         </h2>
         <p className='font-poppins text-base text-[#686b6d] mt-3'>
           {props.detail}

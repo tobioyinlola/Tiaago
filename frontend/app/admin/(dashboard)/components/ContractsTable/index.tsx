@@ -10,7 +10,7 @@ import ScrollArea from "@/app/common/components/ScrollArea";
 import StatusBadge from "@/app/common/components/StatusBadge";
 import CopyToClipboard from "@/app/common/components/CopyToClipboard";
 import EmptyState from "@/app/common/components/dashboard/EmptyState";
-import DeleteContractModal from "@/app/startups/dashboard/components/TalentDetailsTable/DeleteContractModal";
+import DeleteContractModal from "@/app/recruiter/dashboard/components/TalentDetailsTable/DeleteContractModal";
 
 type BaseProps = PropsWithChildren<{
   data: Contract[];
@@ -31,7 +31,7 @@ const BaseTable = ({ data, children, className }: BaseProps) => {
           <thead>
             <tr>
               <th className='max-sm:hidden'>Contract ID</th>
-              <th>Startup</th>
+              <th>Recruiter</th>
               <th>Talent</th>
               <th>Project/Role</th>
               <th>Value</th>

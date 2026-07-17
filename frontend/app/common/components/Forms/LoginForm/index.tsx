@@ -14,7 +14,11 @@ import {
 import { useAlert } from "@/app/common/store/useAlert";
 import { BasePageProps, User } from "@/app/common/types";
 import clientKyInstance from "@/app/common/utils/client-ky.instance";
-import { getFullUserType, handleFormSubmissionError } from "@/app/common/utils";
+import {
+  getFullUserType,
+  getRoleUrlSegment,
+  handleFormSubmissionError,
+} from "@/app/common/utils";
 import { TokensInput, setAuthCookies } from "@/app/common/actions";
 import FormikField from "@/app/common/components/Forms/FormikField";
 
@@ -23,11 +27,11 @@ type LoginSuccessResponse = TokensInput & {
   user: User;
 };
 
-const LoginForm = ({ as = "startup" }: { as?: Ias }) => {
+const LoginForm = ({ as = "recruiter" }: { as?: Ias }) => {
   const setAlert = useAlert(state => state.setAlert);
-  const opposite: Ias = as === "startup" ? "talent" : "startup";
+  const opposite: Ias = as === "recruiter" ? "talent" : "recruiter";
   const forgotPasswordHref =
-    as === "staff" ? "/admin/forgot-password" : `/${as}s/forgot-password`;
+    as === "staff" ? "/admin/forgot-password" : `/${getRoleUrlSegment(as!)}/forgot-password`;
   const onLoginSuccess = async (
     tokensInput?: TokensInput,
     userType?: User["user_type"]

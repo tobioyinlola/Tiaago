@@ -39,14 +39,14 @@ export const getCountryCitiesMap = async (): Promise<CountryCitiesMap> => {
 };
 
 export const getTalentRoles = async (
-  isStartupRoles?: boolean
+  isRecruiterRoles?: boolean
 ): Promise<TalentRole[]> => {
   const data = await serverKyInstance
     .get<TalentRole[]>(
       "roles",
-      isStartupRoles
+      isRecruiterRoles
         ? {
-            searchParams: { startup: true },
+            searchParams: { recruiter: true },
           }
         : undefined
     )

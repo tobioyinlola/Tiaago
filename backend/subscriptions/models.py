@@ -358,7 +358,7 @@ class Wallet(models.Model):
         return f"Wallet of {self.company.company_name} - Balance: {self.balance}"
     
     @transaction.atomic
-    def credit(self, amount, reference=None, description=None, currency=None):
+    def credit(self, amount, reference=None, description=None, currency=None, service_type=None):
         self.balance += amount
         self.currency = currency
         self.save(update_fields=['balance', 'currency'])
@@ -369,10 +369,11 @@ class Wallet(models.Model):
             currency=currency,
             reference=reference,
             description=description,
+            service_type=service_type,
         )
-    
+
     @transaction.atomic
-    def debit(self, amount, reference=None, description=None, currency=None):
+    def debit(self, amount, reference=None, description=None, currency=None, service_type=None):
         if amount > self.balance:
             raise ValueError("Insufficient balance in wallet.")
         self.balance -= amount
@@ -384,6 +385,7 @@ class Wallet(models.Model):
             currency=currency,
             reference=reference,
             description=description,
+            service_type=service_type,
         )
 
 
@@ -412,10 +414,19 @@ class WalletTransaction(models.Model):
         ("credit", "Credit"),
         ("debit", "Debit"),
     ]
-    
+
+    class ServiceType(models.TextChoices):
+        RESUME_SCREENING = "resume_screening", "Resume Screening"
+        ASSESSMENT = "assessment", "Assessment"
+        WALLET_TOPUP = "wallet_topup", "Wallet Top-up"
+        OTHER = "other", "Other"
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     wallet = models.ForeignKey(Wallet, on_delete=models.CASCADE, related_name="transactions")
     transaction_type = models.CharField(max_length=10, choices=TRANSACTION_TYPES)
+    service_type = models.CharField(
+        max_length=30, choices=ServiceType.choices, null=True, blank=True, db_index=True
+    )
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     currency = models.CharField(max_length=10, null=True, blank=True)
     reference = models.CharField(max_length=255, null=True, blank=True)

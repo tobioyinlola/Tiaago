@@ -1,12 +1,20 @@
-import { RiCoupon2Line } from "react-icons/ri";
 import type { IconBaseProps } from "react-icons";
-import { PiClipboardText, PiExam, PiHandshake } from "react-icons/pi";
+import { PiExam } from "react-icons/pi";
 import type { DashboardNavItemV3 } from "@/app/common/types";
 import {
   IoBusinessOutline,
   IoMailOutline,
+  IoNewspaperOutline,
   IoSettingsOutline,
-  IoWalletOutline,
+  IoCashOutline,
+  IoFunnelOutline,
+  IoGitNetworkOutline,
+  IoTrendingUpOutline,
+  IoAnalyticsOutline,
+  IoPulseOutline,
+  IoNotificationsOutline,
+  IoShieldCheckmarkOutline,
+  IoPricetagsOutline,
 } from "react-icons/io5";
 
 const baseHref = "/admin";
@@ -14,24 +22,10 @@ const baseHref = "/admin";
 
 export const navItems: DashboardNavItemV3[] = [
   {
-    name: "applications",
-    href: `${baseHref}/applications`,
-    Icon: PiClipboardText,
-    subLinks: [
-      {
-        name: "Talents",
-        href: `${baseHref}/applications/talents`,
-      },
-      {
-        name: "Startups",
-        href: `${baseHref}/applications/startups`,
-      },
-    ],
-  },
-  {
     name: "assessment",
     href: `${baseHref}/assessment`,
     Icon: PiExam,
+    section: "assessment_moderation",
     subLinks: [
       {
         name: "Assessments",
@@ -52,28 +46,27 @@ export const navItems: DashboardNavItemV3[] = [
     ],
   },
   {
-    name: "contracts",
-    href: `${baseHref}/contracts`,
-    Icon: PiHandshake,
-  },
-  {
-    name: "coupons",
-    href: `${baseHref}/coupons`,
-    Icon: RiCoupon2Line,
+    name: "blog",
+    href: `${baseHref}/blog`,
+    Icon: IoNewspaperOutline,
+    section: "blog",
   },
   {
     name: "email logs",
     href: `${baseHref}/email-logs`,
     Icon: IoMailOutline,
+    section: "email_logs",
   },
   {
-    name: "referral withdrawals",
-    href: `${baseHref}/referral-withdrawals`,
-    Icon: IoWalletOutline,
+    name: "notifications",
+    href: `${baseHref}/notifications`,
+    Icon: IoNotificationsOutline,
+    section: "notifications",
   },
   {
     name: "jobs",
     href: `${baseHref}/jobs`,
+    section: "jobs",
     Icon: (props: IconBaseProps) => (
       <svg
         xmlns='http://www.w3.org/2000/svg'
@@ -91,13 +84,15 @@ export const navItems: DashboardNavItemV3[] = [
     ),
   },
   {
-    name: "startups",
-    href: `${baseHref}/startups`,
+    name: "recruiters",
+    href: `${baseHref}/recruiters`,
     Icon: IoBusinessOutline,
+    section: "recruiters",
   },
   {
     name: "talents",
     href: `${baseHref}/talents`,
+    section: "talents",
     Icon: (props: IconBaseProps) => (
       <svg
         xmlns='http://www.w3.org/2000/svg'
@@ -125,6 +120,66 @@ export const navItems: DashboardNavItemV3[] = [
         name: "Security",
         href: `${baseHref}/settings?tab=security`,
       },
+    ],
+  },
+  { type: "divider" },
+  {
+    name: "organisations",
+    href: `${baseHref}/organisations`,
+    Icon: IoBusinessOutline,
+    section: "organisations",
+  },
+  {
+    name: "revenue",
+    href: `${baseHref}/revenue`,
+    Icon: IoCashOutline,
+    section: "revenue",
+  },
+  {
+    name: "funnel",
+    href: `${baseHref}/funnel`,
+    Icon: IoFunnelOutline,
+    section: "funnel",
+  },
+  {
+    name: "pipeline",
+    href: `${baseHref}/pipeline`,
+    Icon: IoGitNetworkOutline,
+    section: "pipeline",
+  },
+  {
+    name: "growth",
+    href: `${baseHref}/growth`,
+    Icon: IoTrendingUpOutline,
+    section: "growth",
+  },
+  {
+    name: "assessments",
+    href: `${baseHref}/assessments`,
+    Icon: IoAnalyticsOutline,
+    section: "assessment_analytics",
+  },
+  {
+    name: "proctoring",
+    href: `${baseHref}/proctoring`,
+    Icon: IoShieldCheckmarkOutline,
+    section: "proctoring",
+  },
+  {
+    name: "system health",
+    href: `${baseHref}/system`,
+    Icon: IoPulseOutline,
+    section: "system_health",
+  },
+  {
+    name: "marketing",
+    href: `${baseHref}/tags`,
+    Icon: IoPricetagsOutline,
+    section: "marketing",
+    subLinks: [
+      { name: "Tags", href: `${baseHref}/tags` },
+      { name: "Segments", href: `${baseHref}/segments` },
+      { name: "Campaigns", href: `${baseHref}/campaigns` },
     ],
   },
 ];

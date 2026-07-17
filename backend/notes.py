@@ -23,7 +23,7 @@ Theses are the roles we are starting with on the platform on the talent side, wh
 """
 
 """
-And for roles on the startup side 
+And for roles on the recruiter side 
 
 It's either these options because they are our target users
 

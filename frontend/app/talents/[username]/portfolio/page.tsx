@@ -72,7 +72,7 @@ const TalentPublicPortfolioPage = async ({
   const dashboardLink =
     as === "staff"
       ? "/admin"
-      : `/${as || "talent"}s${as === "startup" ? "/dashboard" : ""}`;
+      : `/${as || "talent"}s${as === "recruiter" ? "/dashboard" : ""}`;
   const certificates = await getTalentAssessmentCerts(username).catch(
     async e => {
       const error = await handleServerApiCallError(e);
@@ -159,7 +159,7 @@ const TalentPublicPortfolioPage = async ({
             {!!(!currentUser || currentUser?.user_type === "CR") && (
               <Link
                 href={{
-                  pathname: "/startups/dashboard/messages",
+                  pathname: "/recruiter/dashboard/messages",
                   // query: { user: user.id },
                 }}
                 className='btn btn-ghost w-fit bg-white border-[#D0D5DD] border text-base text-primary font-medium'

@@ -7,5 +7,5 @@ class RoleSerializer(ModelSerializer):
 
     class Meta:
         model = Role
-        fields = ("id", "title", "is_technical", "slug", "is_startup_role")
+        fields = ("id", "title", "is_technical", "slug", "is_recruiter_role")
         read_only_fields = ("id", "slug")

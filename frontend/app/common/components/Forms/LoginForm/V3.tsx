@@ -6,8 +6,8 @@ import { Formik } from "formik";
 import { HTTPError } from "ky";
 
 import {
-  cn,
   getFullUserType,
+  getRoleUrlSegment,
   handleFormSubmissionError,
 } from "@/app/common/utils";
 
@@ -30,11 +30,11 @@ type LoginSuccessResponse = TokensInput & {
   user: User;
 };
 
-const LoginForm = ({ as = "startup", next }: { as?: Ias; next?: string }) => {
+const LoginForm = ({ as = "recruiter", next }: { as?: Ias; next?: string }) => {
   const setAlert = useAlert(state => state.setAlert);
-  const opposite: Ias = as === "startup" ? "talent" : "startup";
+  const opposite: Ias = as === "recruiter" ? "talent" : "recruiter";
   const forgotPasswordHref =
-    as === "staff" ? "/admin/forgot-password" : `/${as}s/forgot-password`;
+    as === "staff" ? "/admin/forgot-password" : `/${getRoleUrlSegment(as!)}/forgot-password`;
 
   const onLoginSuccess = async (
     tokensInput?: TokensInput,
@@ -49,7 +49,7 @@ const LoginForm = ({ as = "startup", next }: { as?: Ias; next?: string }) => {
       } else {
         const _as = userType ? getFullUserType(userType) : as;
         if (_as === "staff") window.location.href = "/admin";
-        else window.location.href = `/${_as}s/dashboard`;
+        else window.location.href = `/${getRoleUrlSegment(_as)}/dashboard`;
       }
     }, 500);
   };
@@ -156,7 +156,7 @@ const LoginForm = ({ as = "startup", next }: { as?: Ias; next?: string }) => {
         </Link>{" "}
         to log in as a{" "}
         <span className='capitalize'>
-          {opposite === "startup" ? "Recruiter" : "Talent"}
+          {opposite === "recruiter" ? "Recruiter" : "Talent"}
         </span>{" "}
         instead
       </p>

@@ -44,10 +44,10 @@ const ApproveJob = ({ id, approved }: { id: ID; approved: boolean }) => {
 };
 
 export const DeactivateJob = ({
-  id,
+  publicId,
   deactivated,
 }: {
-  id: ID;
+  publicId: string;
   deactivated: boolean;
 }) => {
   const [loading, setLoading] = useState(false);
@@ -59,7 +59,7 @@ export const DeactivateJob = ({
     try {
       const newStatus = deactivated ? "ACTIVE" : "ON_HOLD";
       await clientKyInstance
-        .patch(`jobs/${id}/`, {
+        .patch(`jobs/${publicId}/`, {
           json: { job_status: newStatus },
         })
         .json();

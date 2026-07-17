@@ -1,140 +1,183 @@
-import React from "react";
-import Image from "next/image";
+import { Metadata } from "next";
 import Link from "next/link";
+import Image from "next/image";
+import { notFound } from "next/navigation";
+import { ArrowLeft, Clock } from "lucide-react";
 
-import { FaChevronLeft } from "react-icons/fa6";
-import { BsTwitter } from "react-icons/bs";
-import { FiInstagram } from "react-icons/fi";
-import { FaSquareXTwitter } from "react-icons/fa6";
-import { FaFacebook, FaLinkedin, FaLinkedinIn } from "react-icons/fa";
+import { BASE_URL } from "@/app/common/constants";
+import Footer from "@/app/common/components/Layout/Footer";
+import { getBlogPost, getBlogPosts } from "@/app/common/services/blog";
 
-import BlogPoster from "../components/BlogPoster";
-import BlogCard from "../components/BlogCard";
-import BlogPost from "../components/BlogPost";
-import { BlogsItems } from "../constant/blogContent";
-import assets from "../assets/assets";
+import JsonLd from "../_components/JsonLd";
+import PostContent from "../_components/PostContent";
+import BlogPostCard from "../_components/BlogPostCard";
+import { formatBlogDate, getInitials } from "../utils";
 
-const socialLinks = [
-  //   {
-  //     name: "Facebook",
-  //     url: "#",
-  //     Icon: FaFacebook,
-  //   },
-  {
-    url: "https://instagram.com/talentsynchq?utm_source=qr&igshid=MzNlNGNkZWQ4Mg%3D%3D",
-    Icon: FiInstagram,
-  },
-  {
-    url: "https://twitter.com/_talentsync",
-    Icon: FaSquareXTwitter,
-  },
-  {
-    url: "https://www.linkedin.com/company/talentsyncglobal/",
-    Icon: FaLinkedin,
-  },
-];
+// NOTE: this route segment is named `[id]` (not `[slug]`) because Next.js
+// doesn't allow two differently-named dynamic segments at the same path
+// level, and an older static blog route already claimed `[id]` here. The
+// param value is a post's slug, not a numeric id -- only the folder/param
+// name is `id` for that historical reason.
+type Props = {
+  params: Promise<{ id: string }>;
+};
 
-const page = async ({ params }: { params: Promise<{ id: number }> }) => {
-  const resolvedParams = await params;
-  const relatedArticles = BlogsItems.slice(1, 4);
-  const blogs = BlogsItems.filter(blog => blog.id == resolvedParams.id);
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { id: slug } = await params;
+  const post = await getBlogPost(slug);
+  if (!post) return { title: "Blog" };
+
+  const description = post.excerpt || post.title;
+
+  return {
+    title: post.title,
+    description,
+    alternates: {
+      canonical: `${BASE_URL}/blogs/${post.slug}`,
+    },
+    openGraph: {
+      title: post.title,
+      description,
+      siteName: "TIAAGO",
+      type: "article",
+      url: `${BASE_URL}/blogs/${post.slug}`,
+      publishedTime: post.published_at || undefined,
+      authors: post.author?.name ? [post.author.name] : undefined,
+      images: post.featured_image ? [{ url: post.featured_image }] : undefined,
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: post.title,
+      description,
+      images: post.featured_image ? [post.featured_image] : undefined,
+    },
+  };
+}
+
+const BlogPostPage = async ({ params }: Props) => {
+  const { id: slug } = await params;
+  const post = await getBlogPost(slug);
+  if (!post) return notFound();
+
+  const relatedRes = post.category
+    ? await getBlogPosts(1, post.category.slug).catch(() => null)
+    : null;
+  const relatedPosts = (relatedRes?.results || []).filter(p => p.slug !== post.slug).slice(0, 3);
+
+  const postUrl = `${BASE_URL}/blogs/${post.slug}`;
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    headline: post.title,
+    description: post.excerpt || undefined,
+    image: post.featured_image ? [post.featured_image] : undefined,
+    datePublished: post.published_at || undefined,
+    dateModified: post.published_at || undefined,
+    author: {
+      "@type": "Person",
+      name: post.author?.name || "Tiaago",
+    },
+    publisher: {
+      "@type": "Organization",
+      name: "TIAAGO",
+      logo: {
+        "@type": "ImageObject",
+        url: `${BASE_URL}/opengraph-image.png`,
+      },
+    },
+    mainEntityOfPage: {
+      "@type": "WebPage",
+      "@id": postUrl,
+    },
+    articleSection: post.category?.name || undefined,
+    url: postUrl,
+  };
 
   return (
-    <main className='flex justify-center flex-col items-center mb-20'>
-      <div className='w-[90%] mt-5'>
-        <Link href='/blogs' className='flex items-center'>
-          <FaChevronLeft className='text-xl' />
-          <p className='ms-1 text-xl'>Back</p>
-        </Link>
+    <>
+      <JsonLd data={jsonLd} />
+      <main className='pt-24 pb-20'>
+        <article className='max-w-3xl mx-auto px-4'>
+          <Link
+            href='/blogs'
+            className='inline-flex items-center gap-2 text-sm text-gray-500 hover:text-[#5465FF] transition-colors duration-200 mb-8'
+          >
+            <ArrowLeft className='h-4 w-4' /> Back to blog
+          </Link>
 
-        <header className='mt-10'>
-          <h1 className='text-xl  md:text-5xl font-bold'>
-            {blogs.map(title => title.title)}
+          {post.category && (
+            <Link
+              href={`/blogs?category=${post.category.slug}`}
+              className='inline-block bg-[#5465FF]/10 text-[#5465FF] text-xs font-semibold px-3 py-1 rounded-full mb-4'
+            >
+              {post.category.name}
+            </Link>
+          )}
+
+          <h1 className='text-3xl md:text-5xl font-bold text-gray-900 mb-6 leading-tight'>
+            {post.title}
           </h1>
 
-          {blogs.map((content, i) => (
-            <p
-              className='text-[#353B3C] font-normal mt-5 text-lg md:text-2xl'
-              key={i}
-            >
-              {content.content.mainparagraph[0].slice(0, 210)}....
-            </p>
-          ))}
-
-          <BlogPoster id={resolvedParams.id} />
-        </header>
-
-        <BlogPost id={resolvedParams.id} />
-
-        <div>
-          <ul className='flex mt-7 mb-2'>
-            <li className='me-3 text-center bg-[#0108090a] p-2 w-28 rounded-2xl font-semibold text-xs text-[#010809]'>
-              Technology
-            </li>
-            <li className='me-3 text-center bg-[#FDF0EE] p-2 w-20 rounded-2xl text-[#691B0D] font-semibold text-xs'>
-              AI
-            </li>
-            <li className='me-3 text-center bg-[#5465ff2a] p-2 w-36 rounded-2xl text-[#5465FF] font-semibold text-xs'>
-              Start Up
-            </li>
-          </ul>
-
-          <div className='my-10 md:flex md:justify-between md:w-[100%]'>
-            <div className='flex justify-between items-center'>
-              <h1 className='font-normal text-xl md:text-3xl text-[#555E5F]'>
-                Share This Post
-              </h1>
-              <button className='ms-4 flex justify-center items-center md:my-0  px-1 py-1 border border-[#5465FF] text-[#5465FF] rounded-3xl w-40 text-sm text-center font-semibold'>
-                <Image
-                  src={assets.share}
-                  alt='shear'
-                  width={30}
-                  className='me-1'
-                />
-                <p>Share article</p>
-              </button>
+          <div className='flex items-center gap-4 text-sm text-gray-500 mb-10 pb-8 border-b border-gray-100'>
+            <div className='flex items-center gap-2'>
+              <div className='h-9 w-9 rounded-full bg-[#5465FF]/10 text-[#5465FF] flex items-center justify-center text-xs font-semibold overflow-hidden'>
+                {post.author?.avatar ? (
+                  <Image
+                    src={post.author.avatar}
+                    alt={post.author.name}
+                    width={36}
+                    height={36}
+                    className='object-cover w-full h-full'
+                  />
+                ) : (
+                  getInitials(post.author?.name)
+                )}
+              </div>
+              <span className='font-medium text-gray-700'>
+                {post.author?.name || "Tiaago"}
+                {post.author?.title && <span className='text-gray-400 font-normal'>, {post.author.title}</span>}
+              </span>
             </div>
+            <span>{formatBlogDate(post.published_at)}</span>
+            <span className='flex items-center gap-1'>
+              <Clock className='h-3.5 w-3.5' /> {post.reading_time_minutes} min read
+            </span>
+          </div>
+        </article>
 
-            <div className='mt-5 mb-5   md:my-0 flex justify-between items-center'>
-              <h1 className='text-xl md:text-2xl text-[#555E5F] w-36 me-5'>
-                Follow us
-              </h1>
-              <ul className='flex justify-between item-center w-[50%]'>
-                {socialLinks.map((social, i) => (
-                  <Link
-                    target='_blank'
-                    href={social.url}
-                    className='text-xl'
-                    key={i}
-                  >
-                    <social.Icon />
-                  </Link>
-                ))}
-              </ul>
+        {post.featured_image && (
+          <div className='max-w-4xl mx-auto px-4 mb-12'>
+            <div className='relative w-full aspect-[16/9] rounded-2xl overflow-hidden bg-gray-100'>
+              <Image
+                src={post.featured_image}
+                alt={post.title}
+                fill
+                priority
+                sizes='(max-width: 1024px) 100vw, 1024px'
+                className='object-cover'
+              />
             </div>
           </div>
+        )}
 
-          <div className='mb-10'>
-            <h1 className='mb-4 font-bold text-4xl text-[#151718]'>
-              Related Articles
-            </h1>
+        <article className='max-w-3xl mx-auto px-4'>
+          <PostContent html={post.content} />
+        </article>
 
-            <div className='grid gap-4 mt-5 md:grid-cols-2 lg:grid-cols-3'>
-              {relatedArticles.map(blog => (
-                <BlogCard
-                  key={blog.id}
-                  id={blog.id}
-                  image={blog.image}
-                  title={blog.title}
-                  content={blog.content}
-                />
+        {!!relatedPosts.length && (
+          <section className='max-w-6xl mx-auto px-4 mt-20 pt-12 border-t border-gray-100'>
+            <h2 className='text-2xl font-bold text-gray-900 mb-8'>More in {post.category?.name}</h2>
+            <div className='grid gap-6 sm:grid-cols-2 lg:grid-cols-3'>
+              {relatedPosts.map(related => (
+                <BlogPostCard key={related.id} post={related} />
               ))}
             </div>
-          </div>
-        </div>
-      </div>
-    </main>
+          </section>
+        )}
+      </main>
+      <Footer />
+    </>
   );
 };
 
-export default page;
+export default BlogPostPage;

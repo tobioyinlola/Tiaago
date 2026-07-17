@@ -307,7 +307,7 @@ export const fundWallet = async (
         json: {
           amount,
           provider,
-          success_url: `${BASE_URL}/startups/dashboard/billing`,
+          success_url: `${BASE_URL}/recruiter/dashboard/billing`,
         },
       })
       .json<{

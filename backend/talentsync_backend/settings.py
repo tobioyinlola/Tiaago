@@ -69,6 +69,14 @@ INSTALLED_APPS = [
     "marketing.apps.MarketingConfig",
     "emails_app.apps.EmailsAppConfig",
     "sourcing.apps.SourcingConfig",
+    "blog.apps.BlogConfig",
+    "analytics.apps.AnalyticsConfig",
+    "support.apps.SupportConfig",
+    "notifications.apps.NotificationsConfig",
+    "proctoring.apps.ProctoringConfig",
+    "tags.apps.TagsConfig",
+    "segments.apps.SegmentsConfig",
+    "campaigns.apps.CampaignsConfig",
     # 3rd party apps
     "allauth",
     "allauth.account",
@@ -84,7 +92,9 @@ INSTALLED_APPS = [
     "rest_framework",
     "rest_framework.authtoken",
     "django_filters",
-    "django_bunny"
+    "django_bunny",
+    "ckeditor",
+    "ckeditor_uploader",
 ]
 
 MIDDLEWARE = [
@@ -110,7 +120,7 @@ ROOT_URLCONF = "talentsync_backend.urls"
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [BASE_DIR / "templates", BASE_DIR / "emails" / "email_templates" / "talents" , BASE_DIR / "emails" / "email_templates" / "startups"],
+        "DIRS": [BASE_DIR / "templates", BASE_DIR / "emails" / "email_templates" / "talents" , BASE_DIR / "emails" / "email_templates" / "recruiters"],
         "APP_DIRS": True,
         "OPTIONS": {
             "builtins": ["django.templatetags.static"], 
@@ -245,6 +255,24 @@ else:
     MEDIA_ROOT = BASE_DIR / "media"
 
 
+# CKEditor -- rich text authoring for blog posts (images + link embeds) in Django admin.
+# Uploads flow through whichever STORAGES["default"] backend is active above.
+CKEDITOR_UPLOAD_PATH = "blog_uploads/"
+CKEDITOR_IMAGE_BACKEND = "pillow"
+CKEDITOR_CONFIGS = {
+    "default": {
+        "toolbar": "Custom",
+        "toolbar_Custom": [
+            ["Format", "Bold", "Italic", "Underline", "Strike"],
+            ["NumberedList", "BulletedList", "Blockquote"],
+            ["Link", "Unlink", "Image"],
+            ["Undo", "Redo"],
+            ["Source"],
+        ],
+        "height": 400,
+        "width": "100%",
+    },
+}
 
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
@@ -400,7 +428,10 @@ TIAAGO_TALENT_LOGIN_URL = _required_url_in_prod(
     "TIAAGO_TALENT_LOGIN_URL", "https://www.tiaago.com/talents/signin"
 )
 TIAAGO_STARTUP_LOGIN_URL = _required_url_in_prod(
-    "TIAAGO_STARTUP_LOGIN_URL", "https://www.tiaago.com/startups/signin"
+    # NOTE: env var key intentionally left as TIAAGO_STARTUP_LOGIN_URL -- if this
+    # is overridden in prod, rename the env var there too before renaming the key
+    # here, otherwise a configured custom URL silently reverts to this default.
+    "TIAAGO_STARTUP_LOGIN_URL", "https://www.tiaago.com/recruiter/signin"
 )
 FRONTEND_URL = _required_url_in_prod("FRONTEND_URL", "https://www.tiaago.com/")
 FRONTEND_BASE_URL = _required_url_in_prod("FRONTEND_BASE_URL", "https://www.tiaago.com")
@@ -416,11 +447,11 @@ logger.info(f"Environment:working on {FRONTEND_URL}")
 # Prices for wallet deduction
 PAYG_PRICES = {
     "resume_screening": {
-        "ngn": Decimal("50.00"),
+        "ngn": Decimal("40.00"),
         "usd": Decimal("0.030"),
     },
     "assessment": {
-        "ngn": Decimal("150.00"),
+        "ngn": Decimal("100.00"),
         "usd": Decimal("0.090"),
     }
 }

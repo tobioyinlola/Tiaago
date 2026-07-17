@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 
-import { getJob } from "@/app/common/services/jobs";
+import { getPublicJobByPublicId } from "@/app/common/services/jobs";
 import { getCurrentUser } from "@/app/common/services/profile";
 import AssessmentDetails from "@/app/common/components/AssessmentDetails";
 import { getCompanyAssessment as getAssessment } from "@/app/common/services/assessment";
@@ -19,7 +19,7 @@ const JobApplicationAssessmentLandingPage = async ({
   const { job_id, assessment_id } = resolvedParams;
 
   // Verify the job exists
-  const job = await getJob(job_id).catch(() => null);
+  const job = await getPublicJobByPublicId(job_id).catch(() => null);
   if (!job) return notFound();
 
   // Get assessment details

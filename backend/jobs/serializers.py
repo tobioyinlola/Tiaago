@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from django.utils import timezone
 from django.conf import settings
+from django.db import transaction
 from datetime import date
 
 from base.utils import get_media_url
@@ -9,7 +10,7 @@ from create_user.api.serializers import (
     ApplicantDetailSerializer,
 )
 
-from create_user.models import Company
+from create_user.models import Company, CustomUser, TalentProfile
 
 from roles.models import Role
 from .models import (
@@ -21,28 +22,77 @@ from .models import (
     Certification,
     Tool,
     Project,
-    
+    JobAssessmentTemplate,
+    JobAssessmentTemplateSection,
+    JobAssessmentTemplateQuestion,
+    JobInterviewAvailabilitySlot,
 )
+
+
+class RoleOrTitleField(serializers.Field):
+    """Accepts either an existing Role's PK or a free-text title.
+
+    Lets the job-creation wizard's "Title/Position" field be a fully open text
+    input (with suggestions from existing roles) instead of being locked to a
+    dropdown -- a title that doesn't match an existing Role gets one created
+    on the fly (case-insensitive match first, to avoid near-duplicate roles).
+    Read side keeps serializing as the plain PK, matching the existing contract
+    other consumers (e.g. EditJobForm) rely on.
+    """
+
+    def to_representation(self, value):
+        return value.id if hasattr(value, "id") else value
+
+    def to_internal_value(self, data):
+        if isinstance(data, int) or (isinstance(data, str) and data.strip().isdigit()):
+            try:
+                return Role.objects.get(id=int(data))
+            except Role.DoesNotExist:
+                raise serializers.ValidationError("Invalid role id")
+
+        title = str(data or "").strip()
+        if not title:
+            raise serializers.ValidationError("Role/title is required")
+
+        role = Role.objects.filter(title__iexact=title).first()
+        if not role:
+            role = Role.objects.create(title=title)
+        return role
 
 
 class JobSerializer(serializers.ModelSerializer):
     company = CompanyDetailSerializer(read_only=True)
+    role = RoleOrTitleField()
     role_title = serializers.SerializerMethodField()
     no_of_applications = serializers.IntegerField(read_only=True)
     get_apply_url = serializers.SerializerMethodField()
-    title = serializers.SerializerMethodField() 
+    title = serializers.SerializerMethodField()
     payment_range = serializers.SerializerMethodField()
     detail_url = serializers.SerializerMethodField()
     payment_range_usd = serializers.ChoiceField(choices=Job.DollarPaymentRange.choices, required=False, allow_null=True)
     payment_range_ngn = serializers.ChoiceField(choices=Job.NairaPaymentRange.choices, required=False, allow_null=True)
     payment_currency = serializers.ChoiceField(choices=Job.PaymentCurrency.choices)
     completed_assessments_count = serializers.IntegerField(read_only=True)
+    screening_threshold = serializers.IntegerField(
+        required=False, allow_null=True, min_value=0, max_value=100
+    )
+    assessment_time_limit = serializers.IntegerField(
+        required=False, allow_null=True, min_value=1
+    )
+    passing_grade = serializers.IntegerField(
+        required=False, allow_null=True, min_value=0, max_value=100
+    )
+    # Write-only nested input assembled by the job-creation wizard's final submit.
+    # Not model fields -- consumed in create() to build the related template/slot rows.
+    assessment_questions = serializers.JSONField(write_only=True, required=False, default=list)
+    interview_slots = serializers.JSONField(write_only=True, required=False, default=list)
 
 
     class Meta:
         model = Job
         fields = (
             "id",
+            "public_id",
             "title",
             "role_title",
             "role",
@@ -61,13 +111,30 @@ class JobSerializer(serializers.ModelSerializer):
             "hiring_type",
             "get_apply_url",
             "detail_url",
+            "apply_token",
             "date_created",
             "company",
             "job_status",
             "no_of_applications",
-            "completed_assessments_count"
+            "completed_assessments_count",
+            "screening_threshold",
+            "assessment_time_limit",
+            "passing_grade",
+            "assessment_questions",
+            "interview_slots",
+            "proctoring_enabled",
+            "require_fullscreen",
+            "require_webcam",
+            "webcam_snapshots_enabled",
+            "snapshot_interval_seconds",
+            "max_tab_switches_before_warning",
+            "max_tab_switches_before_termination",
+            "copy_paste_blocked",
+            "right_click_blocked",
+            "devtools_detection_enabled",
+            "force_submit_on_critical_violation",
         )
-        read_only_fields = ("id", "company", "title", "no_of_applications","completed_assessments_count")
+        read_only_fields = ("id", "public_id", "apply_token", "company", "title", "no_of_applications","completed_assessments_count")
       
 
     def get_role_title(self, obj):
@@ -128,10 +195,54 @@ class JobSerializer(serializers.ModelSerializer):
             if not attrs.get("payment_range_ngn"):
                 raise serializers.ValidationError({"payment_range_ngn": "Naira payment range is required when currency is NGN"})
             
-        if not self.instance: 
+        if not self.instance:
             attrs['job_status'] = Job.JobStatus.ACTIVE
 
         return attrs
+
+    def create(self, validated_data):
+        assessment_questions = validated_data.pop("assessment_questions", []) or []
+        interview_slots = validated_data.pop("interview_slots", []) or []
+
+        with transaction.atomic():
+            job = super().create(validated_data)
+
+            if assessment_questions:
+                template = JobAssessmentTemplate.objects.create(
+                    job=job, status=JobAssessmentTemplate.Status.READY
+                )
+                for section_order, section_data in enumerate(assessment_questions):
+                    section = JobAssessmentTemplateSection.objects.create(
+                        template=template,
+                        name=section_data.get("category") or f"Category {section_order + 1}",
+                        order=section_order,
+                    )
+                    for question_order, question in enumerate(section_data.get("questions", [])):
+                        JobAssessmentTemplateQuestion.objects.create(
+                            section=section,
+                            question=question["question"],
+                            options=question["options"],
+                            correct_option_index=question["correct_option_index"],
+                            is_ai_generated=question.get("is_ai_generated", True),
+                            order=question_order,
+                        )
+
+            for slot in interview_slots:
+                JobInterviewAvailabilitySlot.objects.create(
+                    job=job,
+                    date=slot["date"],
+                    start_time=slot["start_time"],
+                    end_time=slot["end_time"],
+                )
+
+        return job
+
+
+class JobInterviewAvailabilitySlotSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = JobInterviewAvailabilitySlot
+        fields = ("id", "job", "date", "start_time", "end_time", "is_claimed")
+        read_only_fields = fields
 
 
 class JobUpdateSerializer(serializers.ModelSerializer):
@@ -143,6 +254,7 @@ class JobUpdateSerializer(serializers.ModelSerializer):
         model = Job
         fields = (
             "id",
+            "public_id",
             "title",
             "role",
             "role_title",
@@ -161,6 +273,7 @@ class JobUpdateSerializer(serializers.ModelSerializer):
         )
         read_only_fields = (
             "id",
+            "public_id",
             "role_title",
         )
 
@@ -253,7 +366,114 @@ class JobApplicationSerializer(serializers.ModelSerializer):
         # Update cover letter
         application.cover_letter = cover_letter
         application.save()
-        
+
+        return application
+
+
+GUEST_APPLY_MAX_RESUME_SIZE = 5 * 1024 * 1024  # 5MB, per the no-login application form's own limit
+
+
+class GuestJobApplicationSerializer(serializers.Serializer):
+    """No-login job application: takes the candidate's details directly on the
+    form (name/email/phone/LinkedIn/resume) instead of assuming a logged-in
+    TalentProfile already has them. Resolves (or silently provisions) a
+    CustomUser + TalentProfile by email so the resulting JobApplication is a
+    completely ordinary row -- same table, same downstream pipeline, same
+    recruiter-facing Applications list as any other application."""
+
+    full_name = serializers.CharField(max_length=255, allow_blank=False, trim_whitespace=True)
+    email = serializers.EmailField()
+    phone_number = serializers.CharField(max_length=30, allow_blank=False, trim_whitespace=True)
+    linkedin_url = serializers.URLField()
+    resume = serializers.FileField()
+    cover_letter = serializers.CharField(required=False, allow_blank=True, max_length=3000)
+    additional_info = serializers.CharField(required=False, allow_blank=True, max_length=3000)
+    terms_accepted = serializers.BooleanField()
+
+    def validate_email(self, value):
+        return value.strip().lower()
+
+    def validate_terms_accepted(self, value):
+        if not value:
+            raise serializers.ValidationError("You must agree to the Terms & Conditions and Privacy Policy.")
+        return value
+
+    def validate_resume(self, value):
+        if value.size > GUEST_APPLY_MAX_RESUME_SIZE:
+            raise serializers.ValidationError("Resume file size too large. Max size is 5MB.")
+        file_extension = value.name.split(".")[-1].lower()
+        allowed_extensions = settings.WHITELISTED_RESUME_FORMAT.keys()
+        if file_extension not in allowed_extensions:
+            raise serializers.ValidationError(f"Only {', '.join(allowed_extensions)} files are allowed.")
+        return value
+
+    def validate(self, attrs):
+        job = self.context["job"]
+        if job.job_status != Job.JobStatus.ACTIVE:
+            status_display = dict(Job.JobStatus.choices)[job.job_status]
+            raise serializers.ValidationError(
+                f"This job is currently {status_display.lower()} and not accepting applications"
+            )
+
+        # Guest apply must never touch a pre-existing account: it has no way to prove the
+        # submitter actually controls this email, so it would otherwise let anyone silently
+        # overwrite a real talent's profile (name/LinkedIn/resume) and see their PII in the
+        # response just by knowing their email address. Existing accounts must log in and use
+        # the authenticated apply flow instead.
+        existing_user = CustomUser.objects.filter(email__iexact=attrs["email"]).first()
+        if existing_user:
+            raise serializers.ValidationError(
+                {"email": "An account already exists for this email. Please log in and apply "
+                          "from your account instead."}
+            )
+
+        return attrs
+
+    def _split_name(self, full_name):
+        parts = full_name.strip().split(None, 1)
+        first_name = parts[0] if parts else ""
+        last_name = parts[1] if len(parts) > 1 else ""
+        return first_name, last_name
+
+    def create(self, validated_data):
+        job = self.context["job"]
+        first_name, last_name = self._split_name(validated_data["full_name"])
+
+        with transaction.atomic():
+            # Re-check for a race: an account may have been created for this email between
+            # validate() and here. Never fall through to editing an existing profile - always
+            # either reject or create fresh, never reuse/overwrite.
+            if CustomUser.objects.filter(email__iexact=validated_data["email"]).exists():
+                raise serializers.ValidationError(
+                    {"email": "An account already exists for this email. Please log in and apply "
+                              "from your account instead."}
+                )
+
+            user = CustomUser.objects.create_user(
+                username=validated_data["email"],
+                email=validated_data["email"],
+                first_name=first_name,
+                last_name=last_name,
+                phone_number=validated_data["phone_number"],
+                user_type=CustomUser.USER_TYPE.TALENT,
+                is_verified=False,
+                password=None,
+            )
+
+            talent_profile = TalentProfile.objects.create(
+                user=user,
+                full_name=validated_data["full_name"].strip(),
+                linkedin_url=validated_data["linkedin_url"],
+                resume=validated_data["resume"],
+            )
+
+            application = JobApplication.objects.create(
+                applicant=talent_profile,
+                job=job,
+                cover_letter=validated_data.get("cover_letter", ""),
+                additional_info=validated_data.get("additional_info", ""),
+                is_external_application=False,
+            )
         return application
 
 
@@ -724,6 +944,7 @@ class GenericJobSerializer(serializers.ModelSerializer):
             "hiring_type",
             "no_of_applications",
             "get_apply_url",
+            "apply_token",
             "date_created",
             "company",
             "job_status",

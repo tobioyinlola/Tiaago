@@ -4,7 +4,7 @@ import { ShieldX } from "lucide-react";
 export default function AccessDenied({
   title = "Access Restricted",
   message = "You do not have permission to view this page. Contact your team admin for access.",
-  backHref = "/startups/dashboard",
+  backHref = "/recruiter/dashboard",
   backLabel = "Go to Dashboard",
 }: {
   title?: string;

@@ -328,7 +328,7 @@ const SignUpFormV3 = ({
             Click{" "}
             <Link
               className='text-primary hover:underline font-semibold'
-              href={`/startups/signin${
+              href={`/recruiter/signin${
                 urlSearchParams.size ? "?" + urlSearchParams.toString() : ""
               }`}
             >

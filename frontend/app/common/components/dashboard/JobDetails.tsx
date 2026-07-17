@@ -3,7 +3,7 @@ import { HiOutlineBriefcase } from "react-icons/hi2";
 
 import MoneyBagIcon from "../../icons/MoneyBagIcon";
 import { jobSalaryTypeToLabel, jobTypeEnumToLabel } from "../../utils";
-import { InitialValues as JobV3 } from "@/app/startups/dashboard/jobs/create/CreateJobForm/form.constants";
+import { InitialValues as JobV3 } from "@/app/recruiter/dashboard/jobs/create/CreateJobForm/form.constants";
 
 const JobDetails = ({ job }: { job: JobV3 }) => {
   // const [minSalary, maxSalary] = (job.payment_range ?? "")

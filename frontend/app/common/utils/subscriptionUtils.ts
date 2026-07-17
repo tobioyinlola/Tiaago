@@ -1,17 +1,17 @@
 import {
-  BASIC_STARTUP_MAX_JOB_POSTS_PER_MONTH,
-  FREE_STARTUP_MAX_JOB_POSTS_PER_MONTH,
-  FREE_STARTUP_MAX_MEETINGS_PER_MONTH,
+  BASIC_RECRUITER_MAX_JOB_POSTS_PER_MONTH,
+  FREE_RECRUITER_MAX_JOB_POSTS_PER_MONTH,
+  FREE_RECRUITER_MAX_MEETINGS_PER_MONTH,
   FREE_TALENT_MAX_JOB_APPLICATIONS_PER_MONTH,
 } from "../constants";
 import { BasePageProps, SubscriptionPlan } from "../types";
 
-export const getStartupSubPlanBenefits = (plan?: SubscriptionPlan) => {
+export const getRecruiterSubPlanBenefits = (plan?: SubscriptionPlan) => {
   switch (plan?.sub_type) {
     case "BS":
       return [
         "All benefits in Free plan",
-        BASIC_STARTUP_MAX_JOB_POSTS_PER_MONTH + " job posts monthly",
+        BASIC_RECRUITER_MAX_JOB_POSTS_PER_MONTH + " job posts monthly",
         "Unlimited meeting invites",
         "Interview scheduling",
       ];
@@ -27,9 +27,9 @@ export const getStartupSubPlanBenefits = (plan?: SubscriptionPlan) => {
       return [
         "Candidate pipeline Management",
         "Access to prescreened talents",
-        `${FREE_STARTUP_MAX_JOB_POSTS_PER_MONTH} job posts monthly (entry level and internship roles)`,
+        `${FREE_RECRUITER_MAX_JOB_POSTS_PER_MONTH} job posts monthly (entry level and internship roles)`,
         "Applicant Tracking system",
-        `${FREE_STARTUP_MAX_MEETINGS_PER_MONTH} meeting invites`,
+        `${FREE_RECRUITER_MAX_MEETINGS_PER_MONTH} meeting invites`,
         "Customer support",
       ];
   }
@@ -58,8 +58,8 @@ export const getSubPlanBenefits = (
   plan?: SubscriptionPlan
 ) => {
   switch (as) {
-    case "startup":
-      return getStartupSubPlanBenefits(plan);
+    case "recruiter":
+      return getRecruiterSubPlanBenefits(plan);
     case "talent":
       return getTalentSubPlanBenefits(plan);
     default:

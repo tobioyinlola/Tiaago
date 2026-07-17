@@ -107,7 +107,7 @@ const TalentDashboardLayout = async ({ children }: PropsWithChildren) => {
           <div className='h-8' />
           {children}
           <HideOnPathnames
-            pathnames={["/talents/messages", "/startups/dashboard/messages"]}
+            pathnames={["/talents/messages", "/recruiter/dashboard/messages"]}
             exact={false}
           >
             <div className='h-8' />

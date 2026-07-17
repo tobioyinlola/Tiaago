@@ -2,6 +2,9 @@ from django.urls import path
 
 from .views import (
     JobListCreateView,
+    GenerateAssessmentQuestionsView,
+    JobInterviewSlotListView,
+    JobInterviewSlotClaimView,
     JobApplicationListView,
     JobApplyView,
     JobRetrieveUpdateView,
@@ -10,6 +13,7 @@ from .views import (
     ToolsListAPIView,
     PortfolioRetreiveAPIView,
     JobDetailView,
+    JobDetailByPublicIdView,
     JobByTokenAPIView,
     JobApplyByIdView,
     JobApplyByTokenView,
@@ -35,8 +39,9 @@ from .views import (
 
 urlpatterns = [
     path("", JobListCreateView.as_view(), name="job-list-create"),
+    path("generate-assessment-questions/", GenerateAssessmentQuestionsView.as_view(), name="generate-assessment-questions"),
     path("job-detail/<int:pk>", JobDetailView.as_view(), name="generic-job-detail"),
-    path("<int:pk>/", JobRetrieveUpdateView.as_view(), name="job-detail"),
+    path("job-detail/by-public-id/<str:public_id>", JobDetailByPublicIdView.as_view(), name="generic-job-detail-by-public-id"),
     path(
         "job-applications/",
         JobApplicationListView.as_view(),
@@ -47,7 +52,6 @@ urlpatterns = [
         JobApplicationRetrieveUpdateView.as_view(),
         name="job-application-detail",
     ),
-    path("<int:pk>/delete", JobDeleteView.as_view(), name="job-delete"),
 
     path("companies/<str:company_name>/", CompanyProfileView.as_view(), name="company-profile"),
     # Portfolio URLs
@@ -71,11 +75,20 @@ urlpatterns = [
     path("portfolio/educations/<int:pk>/", PortfolioEducationDetailView.as_view(), name="portfolio-education-detail"),
 
     path("apply/<uuid:apply_token>/", JobByTokenAPIView.as_view(), name="job-by-token"),
-    path('<int:job_id>/apply/', JobApplyByIdView.as_view(), name='job-apply-by-id'),
+    path('apply/<uuid:apply_token>/guest/', JobApplyByIdView.as_view(), name='job-apply-by-id'),
     path('apply/<uuid:apply_token>/apply/', JobApplyByTokenView.as_view(), name='job-apply-by-token'),
     path('external-apply/<uuid:apply_token>/', ExternalJobApplyRedirectView.as_view(), name='external-job-apply-redirect'),
     path('apply-pending-job/', ApplyToPendingJobView.as_view(), name='apply-pending-job'),
     path('external-application/', ExternalJobApplicationView.as_view(), name='external-job-application'),
     path('verify-otp/', JobApplicationOtpVerificationView.as_view(), name='job-application-otp-verification'),
     path('resend-otp/', JobApplicationResendOtpView.as_view(), name='job-application-resend-otp'),
+
+    # `<str:public_id>`-based routes are a single-segment wildcard (unlike the
+    # old `<int:pk>`, which only matched digits) -- must stay LAST among
+    # single-segment patterns so they never shadow the literal paths above
+    # (job-applications/, portfolio/, apply-pending-job/, etc.).
+    path("<str:public_id>/", JobRetrieveUpdateView.as_view(), name="job-detail"),
+    path("<str:public_id>/delete", JobDeleteView.as_view(), name="job-delete"),
+    path("<str:public_id>/interview-slots/", JobInterviewSlotListView.as_view(), name="job-interview-slots"),
+    path("<str:public_id>/interview-slots/<int:slot_id>/claim/", JobInterviewSlotClaimView.as_view(), name="job-interview-slot-claim"),
 ]

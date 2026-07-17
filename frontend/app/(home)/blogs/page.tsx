@@ -1,175 +1,135 @@
 import { Metadata } from "next";
-import { BlogsItems } from "./constant/blogContent";
+import { Suspense } from "react";
+import { BASE_URL } from "@/app/common/constants";
+import Footer from "@/app/common/components/Layout/Footer";
+import { getBlogCategories, getBlogPosts } from "@/app/common/services/blog";
 
-import Image from "next/image";
-import Link from "next/link";
+import JsonLd from "./_components/JsonLd";
+import CategoryFilter from "./_components/CategoryFilter";
+import FeaturedPost from "./_components/FeaturedPost";
+import BlogPostCard from "./_components/BlogPostCard";
+import BlogPagination from "./_components/Pagination";
+
+const PAGE_SIZE = 9;
 
 export const metadata: Metadata = {
   title: "Blog",
-  description: "Insights on hiring, talent acquisition, AI in recruitment, and building remote teams in Africa.",
-  openGraph: { title: "TIAAGO Blog", description: "Insights on hiring, talent acquisition, and AI in recruitment.", siteName: "TIAAGO", type: "website" },
-  twitter: { card: "summary_large_image", title: "TIAAGO Blog", description: "Insights on hiring, talent acquisition, and AI in recruitment." },
+  description:
+    "Insights on hiring, talent acquisition, AI in recruitment, and building remote teams in Africa.",
+  // Pagination/category query variants all canonicalize back to the plain
+  // /blogs URL -- they're not meant to compete for indexing individually.
+  alternates: {
+    canonical: `${BASE_URL}/blogs`,
+  },
+  openGraph: {
+    title: "TIAAGO Blog",
+    description: "Insights on hiring, talent acquisition, and AI in recruitment.",
+    siteName: "TIAAGO",
+    type: "website",
+    url: `${BASE_URL}/blogs`,
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "TIAAGO Blog",
+    description: "Insights on hiring, talent acquisition, and AI in recruitment.",
+  },
 };
 
-// import { FaChevronLeft, FaChevronRight } from "react-icons/fa6";
+type Props = {
+  searchParams: Promise<{ page?: string; category?: string }>;
+};
 
-import BlogCard from "./components/BlogCard";
-// import Shape from "./assets/shape1.png";
-// import Shape2 from "./assets/shape1.png";
+const BlogsPage = async ({ searchParams }: Props) => {
+  const { page: pageParam, category } = await searchParams;
+  const page = Number(pageParam) || 1;
 
-type Props = {};
+  const [postsRes, categories] = await Promise.all([
+    getBlogPosts(page, category).catch(() => null),
+    getBlogCategories(),
+  ]);
 
-const Page = (props: Props) => {
-  const LatestBlog = BlogsItems[0];
-  const AllPost = BlogsItems.slice(1);
+  const posts = postsRes?.results || [];
+  const totalCount = postsRes?.count || 0;
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 
-  const latestblogIntroText = LatestBlog.content.mainparagraph[0].slice(0, 250);
-  console.log(latestblogIntroText);
-  const id = LatestBlog.id;
+  const featuredPost = page === 1 && !category ? posts.find(p => p.is_featured) || posts[0] : undefined;
+  const gridPosts = featuredPost ? posts.filter(p => p.id !== featuredPost.id) : posts;
+
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Blog",
+    name: "TIAAGO Blog",
+    url: `${BASE_URL}/blogs`,
+    description:
+      "Insights on hiring, talent acquisition, AI in recruitment, and building remote teams in Africa.",
+    publisher: {
+      "@type": "Organization",
+      name: "TIAAGO",
+      logo: {
+        "@type": "ImageObject",
+        url: `${BASE_URL}/opengraph-image.png`,
+      },
+    },
+    blogPost: posts.slice(0, 10).map(post => ({
+      "@type": "BlogPosting",
+      headline: post.title,
+      url: `${BASE_URL}/blogs/${post.slug}`,
+      datePublished: post.published_at || undefined,
+      image: post.featured_image || undefined,
+    })),
+  };
+
   return (
-    <main className='flex justify-center flex-col items-center mb-20'>
-      <div className='w-[90%] mt-10 lg:mt-16'>
-        {/* Introductory header */}
-        <header className='flex justify-center text-center'>
-          <h1 className='text-4xl pb-5 text-center md:text-6xl font-bold font-inter '>
-            Feed Your Soul with Our Insights!
+    <>
+      <JsonLd data={jsonLd} />
+      <main className='pt-24 pb-20'>
+        <section className='max-w-3xl mx-auto text-center px-4 mb-14'>
+          <span className='text-[11px] font-jetbrains-mono uppercase tracking-widest text-[#5465FF] font-semibold'>
+            The Tiaago Blog
+          </span>
+          <h1 className='text-4xl md:text-5xl font-bold text-gray-900 mt-3 mb-6'>
+            Insights on hiring great talent
           </h1>
-        </header>
+          <p className='text-lg text-gray-600'>
+            Practical advice on recruiting, AI-assisted hiring, and building
+            world-class remote teams -- straight from the team at Tiaago.
+          </p>
+        </section>
 
-        {/* Latest Articles */}
-        <div className='my-5 lg:my-10'>
-          <Link
-            href={`/blogs/${id}`}
-            className='md:hidden text-[#5465FF] mt-4 lg:text-xl font-medium font-inter'
-          >
-            Latest Artitcle
-          </Link>
+        <section className='max-w-6xl mx-auto px-4 mb-12'>
+          <Suspense fallback={null}>
+            <CategoryFilter categories={categories} />
+          </Suspense>
+        </section>
 
-          {[LatestBlog].map(blog => {
-            const { id } = blog;
-            return (
-              <div
-                className='md:flex items-center mt-5 gap-3 md:mt-0'
-                key={blog.id}
-              >
-                <Image
-                  src={blog.image}
-                  alt=''
-                  className=' w-[100%] md:w-[350px] lg:w-[800px] h-[250px] rounded-lg'
-                />
+        {!posts.length ? (
+          <section className='max-w-2xl mx-auto text-center px-4 py-20'>
+            <h2 className='text-2xl font-bold text-gray-900 mb-2'>
+              No posts yet
+            </h2>
+            <p className='text-gray-600'>
+              We&apos;re working on our first stories. Check back soon.
+            </p>
+          </section>
+        ) : (
+          <div className='max-w-6xl mx-auto px-4 flex flex-col gap-12'>
+            {featuredPost && <FeaturedPost post={featuredPost} />}
 
-                <div className='flex flex-col'>
-                  <Link
-                    href={`/blogs/${id}`}
-                    className='hidden md:block text-[#5465FF] mt-4 lg:text-xl font-medium font-inter'
-                  >
-                    Latest Artitcle
-                  </Link>
-
-                  <h1 className='mt-4 md:mt-2 text-base md:text-xl font-inter lg:text-3xl text-[#010809] font-bold'>
-                    {LatestBlog.title}
-                  </h1>
-                  <h6 className='mt-4 md:mt-2 text-base md:text-base lg:text-xl text-[#353B3C] font-inter font-normal'>
-                    {latestblogIntroText}.....
-                  </h6>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        <div className='w-[100%] mt-5'>
-          <h2 className='font-bold text-3xl text-[#010809] font-inter mb-10'>
-            All Posts
-          </h2>
-
-          {/* Blogcard post */}
-          <div className='grid gap-4 lg:gap-6 mt-5 md:grid-cols-2 lg:grid-cols-3'>
-            {AllPost.map(blog => (
-              <BlogCard
-                key={blog.id}
-                id={blog.id}
-                image={blog.image}
-                title={blog.title}
-                content={blog.content}
-              />
-            ))}
-          </div>
-        </div>
-
-        {/* Input form for blogs writter */}
-        {/* <div className='hidden md:flex flex-col items-center relative mb-10 mt-16'>
-          <div className='w-[90%] bg-blogWriters  rounded-xl'>
-            <Image src={Shape} alt='' className='absolute top-0 left-12' />
-            <div className='flex flex-col items-center py-10 mb-5'>
-              <div className='w-[70%]'>
-                <h1 className='font-semibold md:text-5xl font-inter text-center px-12'>
-                  Become one of our blog writers
-                </h1>
-                <h6 className='font-normal text-xl font-inter text-center text-[#555E5F] my-5'>
-                  Use your creative voice to contribute compelling and
-                  insightful content that enlightens the tech space and empowers
-                  individuals.
-                </h6>
-                <form action=''>
-                  <input
-                    type='text'
-                    placeholder='First name'
-                    className='rounded-3xl w-full p-2 border-[1px] border-[#555E5F] outline-none'
-                  />
-                  <input
-                    type='email'
-                    placeholder='Email address'
-                    className='rounded-3xl w-full p-2 my-5 border-[1px] border-[#555E5F] outline-none'
-                  />
-                  <button
-                    type='submit'
-                    className='px-4 py-2 border border-[#5465FF] text-white rounded-full w-[100%] text-xs text-center font-semibold bg-[#5465FF]'
-                  >
-                    Send
-                  </button>
-                </form>
-              </div>
-            </div>
-
-            <Image
-              src={Shape2}
-              alt=''
-              className='absolute right-14 bottom-0 '
-            />
-          </div>
-        </div>
-
-        // Pagination
-        <div className='mt-20 mb-10 md:mt-10'>
-          <div className='flex justify-between items-center gap-4'>
-            <p className='font-bold text-sm'>Page 1 of 30</p>
-
-            <div className='w-[30%] md:w-[40%]'>
-              <ul className='flex justify-between'>
-                {[1, 2, 3, 4, 5, 6].map((nu, i) => (
-                  <li
-                    key={i}
-                    className='text-[#C0C5C6] font-ubuntu font-normal text-sm'
-                  >
-                    {nu}
-                  </li>
+            {!!gridPosts.length && (
+              <div className='grid gap-6 sm:grid-cols-2 lg:grid-cols-3'>
+                {gridPosts.map(post => (
+                  <BlogPostCard key={post.id} post={post} />
                 ))}
-              </ul>
-            </div>
+              </div>
+            )}
 
-            <div
-              className=' bg-[#C0C5C6]
-          flex items-center justify-between md:flex:1'
-            >
-              <FaChevronLeft className='me-4 text-white text-3xl p-2' />
-              <FaChevronRight className='ms-4 text-white  text-3xl p-2' />
-            </div>
+            <BlogPagination current={page} totalPages={totalPages} category={category} />
           </div>
-        </div> */}
-      </div>
-    </main>
+        )}
+      </main>
+      <Footer />
+    </>
   );
 };
 
-export default Page;
+export default BlogsPage;

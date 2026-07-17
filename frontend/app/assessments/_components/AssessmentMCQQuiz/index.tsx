@@ -1,7 +1,7 @@
 "use client";
 
 import { toast } from "sonner";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { LuX } from "react-icons/lu";
 import { addMinutes } from "date-fns";
 import { BsDot } from "react-icons/bs";
@@ -10,6 +10,7 @@ import Button from "@/app/common/components/DaisyButton";
 import DaisyCountdown from "@/app/common/components/DaisyCountdown";
 
 import {
+  ApiResponse,
   CompanySkillAssessment,
   ID,
   MCQAnswer,
@@ -36,16 +37,30 @@ const AssessmentMCQQuiz = ({
   mode = "talent-verification",
   jobId,
   daysLeftToTakeAssessment,
+  skipIntro = false,
+  submitOverride,
+  onComplete,
 }: {
   mcqSection: MCQSection;
   assessment: CompanySkillAssessment;
   checkoutUrl?: string;
-  mode?: "talent-verification" | "job-application";
+  mode?: "talent-verification" | "job-application" | "invite";
   jobId?: string;
   daysLeftToTakeAssessment?: number;
+  /** Skip this component's own pre-start instructions screen -- used by the
+   * no-login invite flow, which already shows its own instructions/ready
+   * screens before the candidate ever reaches this component. */
+  skipIntro?: boolean;
+  /** Overrides the default authenticated submit call -- used by the no-login
+   * invite flow to submit via its token-based endpoint instead. */
+  submitOverride?: (data: {
+    answers: { section_id: ID; mcq_answers: MCQAnswer[] }[];
+  }) => Promise<ApiResponse<unknown>>;
+  /** Overrides the default mode-based redirect on successful submit. */
+  onComplete?: () => void;
 }) => {
   const setAlert = useAlert(state => state.setAlert);
-  const [hasStarted, setHasStarted] = useState(false);
+  const [hasStarted, setHasStarted] = useState(skipIntro);
   const [disabled, setDisabled] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [timeAlmostUp, setTimeAlmostUp] = useState(false);
@@ -59,6 +74,17 @@ const AssessmentMCQQuiz = ({
   // Enable assessment security measures
   useAssessmentSecurity();
 
+  // Invite mode arrives here already "started" -- the invite flow shows its
+  // own instructions/ready screens before this component mounts, so the
+  // countdown needs to be kicked off immediately rather than waiting for the
+  // "Start Now" click (which this mode never shows).
+  useEffect(() => {
+    if (skipIntro) {
+      setEndDateTime(addMinutes(new Date(), assessmentDurationInMinutes));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const questions = mcqSection.mcq_questions;
   const maxStepIndex = questions.length - 1;
   const activeQuestion = questions[activeStepIndex];
@@ -68,17 +94,21 @@ const AssessmentMCQQuiz = ({
     if (submitting) return;
     try {
       setSubmitting(true);
-      const res = await attemptCompanyAssessmentMCQs(assessment.id, {
+      const payload = {
         answers: [{ section_id: mcqSection.id, mcq_answers: _answers }],
-      });
+      };
+      const res = submitOverride
+        ? await submitOverride(payload)
+        : await attemptCompanyAssessmentMCQs(assessment.id, payload);
       if (!res.success) {
         throw Error(res.error);
       }
       setStep(0);
       toast.success("Your score has been recorded");
 
-      // Handle different completion flows based on mode
-      if (mode === "job-application") {
+      if (onComplete) {
+        onComplete();
+      } else if (mode === "job-application") {
         window.location.href = `/jobs/${jobId}/assessment/${assessment.id}/results`;
       } else {
         window.location.href = `/assessments/${assessment.id}/results`;
@@ -373,22 +403,6 @@ const AssessmentMCQQuiz = ({
         >
           Previous
         </Button>
-        {process.env.NODE_ENV === "development" && (
-          <Button
-            onClick={() => {
-              setActiveOption(activeQuestion.correct_option_index);
-              handleSubmit(
-                activeQuestion.id,
-                activeQuestion.correct_option_index,
-                true
-              );
-            }}
-            disabled={!hasStarted}
-            className='btn btn-warning text-white py-3 mx-3 sm:max-w-[253px] font-medium disabled:text-white'
-          >
-            Pick correct answer
-          </Button>
-        )}
         <Button
           loading={submitting}
           onClick={handleOnclick}

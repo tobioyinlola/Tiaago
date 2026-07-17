@@ -1244,6 +1244,161 @@ Count your questions and verify:
         logger.error(f"Batch {batch_num} traceback: {traceback.format_exc()}")
         raise ValueError(f"Failed to generate batch {batch_num}: {str(e)}")
 
+def generate_categorized_mcq_batch(job_description: str, category: str, num_questions: int, role_type: Optional[str] = None) -> dict:
+    """
+    Generate one category's worth of MCQ questions, tagged with that category.
+
+    Modeled directly on generate_mcq_batch's prompt/parsing pipeline, but generalized
+    (no role hardcoded into the prompt) and framed around a specific question category
+    instead of a numbered batch.
+    """
+    try:
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            raise ValueError("OPENAI_API_KEY environment variable is not set")
+
+        model_name = settings.OPENAI_MODEL_NAME
+        max_tokens = 2000 if "gpt-4" in model_name.lower() else 1500
+
+        chat = ChatOpenAI(
+            api_key=api_key,
+            model_name=model_name,
+            temperature=0,
+            timeout=60,
+            # No automatic retries here -- a client-level retry silently doubles
+            # token spend on every transient hiccup. The wizard's UI already gives
+            # the recruiter an explicit, user-controlled "Retry" button instead.
+            max_retries=0,
+            max_tokens=max_tokens,
+            logit_bias=OPENING_PHRASE_LOGIT_BIAS,
+            model_kwargs={"response_format": {"type": "json_object"}},
+        )
+
+        system_prompt = f"""You are generating MCQ assessment questions for a specific job, for the question category "{category}".
+
+        ========================================
+        AI ASSESSMENT GENERATION GUIDELINES FOR TIAAGO
+        ========================================
+
+        1. QUESTION COUNT & ACCURACY (CRITICAL - SYSTEM REQUIREMENT):
+           - MANDATORY: Generate EXACTLY {num_questions} questions - no more, no less
+           - The response WILL BE REJECTED if the question count does not match
+           - Your "questions" array must contain EXACTLY {num_questions} items
+
+        2. CATEGORY FOCUS: Every question must clearly belong to the "{category}" category and test that specific dimension of the role.
+
+        3. ROLE-SPECIFIC RELEVANCE: Questions must be directly related to the exact job role described below. Avoid unrelated domains.
+
+        4. AVOID COMPANY REFERENCES: Keep questions neutral and role-focused. Do not reference specific companies.
+
+        5. NO REPETITION: Every question must be distinct, covering different subtopics within the category.
+
+        6. QUESTION QUALITY: Test conceptual understanding, critical thinking, and problem-solving using practical scenarios, not rote definitions.
+
+        7. OPTIONS AND ANSWERS: All 4 options must be plausible. Avoid "odd one out" answers. Only one option is correct.
+
+        ========================================
+
+        Respond with ONLY this JSON format:
+        {{
+            "ai_determined_difficulty": "intermediate",
+            "role_type": "{role_type or 'non-technical'}",
+            "skills_assessed": ["skill1", "skill2", "skill3"],
+            "questions": [
+                {{
+                    "question": "Specific scenario question for this category",
+                    "answers": ["A) Option 1", "B) Option 2", "C) Correct answer", "D) Option 4"],
+                    "correct_answer": "C) Correct answer"
+                }}
+            ]
+        }}"""
+
+        human_prompt = f"""CRITICAL: You MUST generate EXACTLY {num_questions} questions for the "{category}" category.
+
+JOB DESCRIPTION:
+{job_description}
+
+Generate questions that test practical decision-making and problem-solving skills specific to "{category}". Make them challenging and require deep thinking.
+
+MANDATORY VERIFICATION BEFORE RESPONDING:
+Count your questions and verify:
+1. I generated EXACTLY {num_questions} questions (the "questions" array has {num_questions} items)
+2. No question mentions any company, brand, or product name
+3. Every question is clearly about "{category}" and tests a different scenario
+4. All four options are plausible; none are "obviously wrong\""""
+
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "human", "content": human_prompt},
+        ]
+
+        content, usage = _invoke_chat_and_get_content(chat, messages)
+        batch_dict = extract_and_parse_json(content)
+
+        if not isinstance(batch_dict, dict) or "questions" not in batch_dict:
+            raise ValueError(f"Invalid response structure for category '{category}'")
+
+        questions = batch_dict.get("questions", [])
+        if not isinstance(questions, list) or len(questions) != num_questions:
+            raise ValueError(
+                f"Category '{category}': AI returned {len(questions) if isinstance(questions, list) else 'invalid'} "
+                f"questions instead of required {num_questions}."
+            )
+
+        if usage:
+            batch_dict["token_usage"] = usage
+
+        return batch_dict
+
+    except Exception as e:
+        logger.error(f"Error generating category '{category}': {e}")
+        raise ValueError(f"Failed to generate category '{category}': {str(e)}")
+
+
+def create_categorized_mcq_assessment(
+    job_description: str,
+    categories: List[str],
+    questions_per_category: int = 10,
+    role_type: Optional[str] = None,
+) -> "CategorizedAssessmentResult":
+    """
+    Generate an MCQ assessment split into named categories (e.g. 3 categories x 10 questions).
+
+    Treats each category as one batch, reusing the same batching/parsing approach as
+    create_large_mcq_assessment/generate_mcq_batch — one category maps naturally onto
+    one ~10-question batch.
+    """
+    from app.models.assessment import CategorizedAssessmentResult, CategorizedSection
+
+    sections: List[CategorizedSection] = []
+    token_usage: Dict[str, int] = {}
+    difficulty = "intermediate"
+    skills_assessed: List[str] = []
+
+    for category in categories:
+        batch_result = generate_categorized_mcq_batch(
+            job_description=job_description,
+            category=category,
+            num_questions=questions_per_category,
+            role_type=role_type,
+        )
+        sections.append(CategorizedSection(category=category, questions=batch_result.get("questions", [])))
+        token_usage = _merge_token_usage(token_usage, batch_result.get("token_usage"))
+        difficulty = batch_result.get("ai_determined_difficulty", difficulty)
+        skills_assessed.extend(batch_result.get("skills_assessed", []))
+
+    if not sections or any(not s.questions for s in sections):
+        raise ValueError("Failed to generate questions for one or more categories")
+
+    return CategorizedAssessmentResult(
+        sections=sections,
+        ai_determined_difficulty=difficulty,
+        role_type=role_type,
+        skills_assessed=list(dict.fromkeys(skills_assessed)) or None,
+        token_usage=token_usage or None,
+    )
+
+
 def create_non_technical_assessment(job_description: str, mcq_questions: int = 50) -> AssessmentResult:
     """
     Create a comprehensive MCQ assessment for non-technical roles.

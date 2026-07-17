@@ -187,6 +187,62 @@ class AIServiceHandler:
             print(str(e))
             return None
 
+    def get_categorized_mcq_questions(
+        self,
+        job_description: str,
+        categories: List[str],
+        questions_per_category: int = 10,
+        role_type: str = "non-technical",
+    ):
+        """Fetch MCQ questions grouped into named categories from the AI service.
+
+        Returns a list of {"category": str, "questions": [formatted question dicts]}
+        using the same question-formatting shape as get_mcq_questions, or None on failure.
+        """
+        data = {
+            "job_description": job_description,
+            "categories": categories,
+            "questions_per_category": questions_per_category,
+            "role_type": role_type,
+        }
+        # 3 categories are generated sequentially server-side (~60s ceiling each),
+        # so this needs headroom well beyond the other single-call AI endpoints.
+        response = self.post(
+            "/create-categorized-assessment", params=data, timeout=180
+        )
+        try:
+            response = response.json()
+            if "sections" not in response:
+                logger.error(f"Categorized assessment error: {response}")
+                return None
+            formatted_sections = []
+            for section in response["sections"]:
+                formatted_questions = []
+                for question in section.get("questions", []):
+                    main_question = question.get("question")
+                    options = question.get("answers", [])
+                    correct_answer = self.clean_option(question.get("correct_answer"))
+                    formatted_options = [self.clean_option(option) for option in options]
+                    correct_option_index = formatted_options.index(correct_answer)
+                    formatted_questions.append(
+                        {
+                            "is_ai_generated": True,
+                            "question": main_question,
+                            "options": [
+                                {"index": index, "value": option}
+                                for (index, option) in enumerate(formatted_options)
+                            ],
+                            "correct_option_index": correct_option_index,
+                        }
+                    )
+                formatted_sections.append(
+                    {"category": section.get("category"), "questions": formatted_questions}
+                )
+            return formatted_sections
+        except Exception as e:
+            logger.error(f"Failed to parse categorized assessment response: {str(e)}")
+            return None
+
     def get_talent_coding_questions(
         self,
         programming_languages: str,

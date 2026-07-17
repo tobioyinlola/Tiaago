@@ -125,6 +125,7 @@ class TalentProfile(models.Model):
         "self", blank=True, null=True, on_delete=models.SET_NULL
     )
     portfolio = models.URLField(blank=True)
+    linkedin_url = models.URLField(blank=True, default="")
     resume = models.FileField(
         upload_to="resumes/%Y/%m/%d/",
         null=True,
@@ -239,6 +240,16 @@ class Company(models.Model):
     # but shows a finish-setup banner until onboarding_completed_at is set.
     onboarding_skipped_at = models.DateTimeField(null=True, blank=True)
 
+    # Acquisition/growth tracking -- all nullable, populated at signup time only.
+    # Historical companies predating this field will simply have null values.
+    referral_code = models.CharField(max_length=20, unique=True, blank=True, null=True)
+    referred_by = models.ForeignKey(
+        "self", related_name="referrals", null=True, blank=True, on_delete=models.SET_NULL
+    )
+    utm_source = models.CharField(max_length=100, blank=True, null=True)
+    utm_medium = models.CharField(max_length=100, blank=True, null=True)
+    utm_campaign = models.CharField(max_length=100, blank=True, null=True)
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -257,7 +268,17 @@ class Company(models.Model):
     def save(self, *args, **kwargs):
         # populate company_email from the linked user's email
         self.company_email = self.company_rep.email
+        if not self.referral_code:
+            self.referral_code = self._generate_referral_code()
         super().save(*args, **kwargs)
+
+    def _generate_referral_code(self):
+        import secrets
+        for _ in range(10):
+            code = secrets.token_hex(4)
+            if not Company.objects.filter(referral_code=code).exists():
+                return code
+        raise RuntimeError("Could not generate a unique referral code after 10 attempts.")
     
     @property
     def active_subscription(self):

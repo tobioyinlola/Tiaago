@@ -38,7 +38,7 @@ class MinimalCompanyRegistrationTests(APITestCase):
         self.assertIsNone(company.onboarding_completed_at)
 
     def test_full_registration_still_accepts_role_size_website(self):
-        role = Role.objects.create(title="Hiring Manager", is_startup_role=True)
+        role = Role.objects.create(title="Hiring Manager", is_recruiter_role=True)
         response = register_company(
             self.client,
             email="full@acme.com",
@@ -178,7 +178,7 @@ class CompanyOnboardingAPITests(APITestCase):
         self.assertEqual(response.status_code, 200, response.content)
 
         # card 3: about you
-        role = Role.objects.create(title="Talent Lead", is_startup_role=True)
+        role = Role.objects.create(title="Talent Lead", is_recruiter_role=True)
         response = self.client.patch(
             self.url, {"role": role.slug, "phone_number": "+2348012345678"}
         )

@@ -47,7 +47,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return {
     title: "Talent Pipeline Invite | TIAAGO",
     description:
-      "You've been invited to join a talent pipeline on TIAAGO. Apply now to get discovered by top startups.",
+      "You've been invited to join a talent pipeline on TIAAGO. Apply now to get discovered by top recruiters.",
   };
 }
 

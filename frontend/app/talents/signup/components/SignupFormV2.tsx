@@ -293,10 +293,10 @@ const SignupFormV2 = ({ talentRoles }: { talentRoles: TalentRole[] }) => {
       </Button>
       <p className='text-center'>
         Click{" "}
-        <Link href='/startups/signup' className='text-primary'>
+        <Link href='/recruiter/signup' className='text-primary'>
           here
         </Link>{" "}
-        to Sign Up as a Startup instead.
+        to Sign Up as a Recruiter instead.
       </p>
     </form>
   );

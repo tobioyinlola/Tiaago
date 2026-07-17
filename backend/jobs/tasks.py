@@ -8,12 +8,13 @@ from jobs.models import (
     CandidateResumeScreening,
     Job,
     JobApplication,
+    JobAssessmentTemplate,
     SkillAssessmentScreening,
     TalentScreening
 )
 from payments.billing_utils import (
     get_latest_tiaago_pricing,
-    startup_has_exceeded_free_candidate_screening,
+    recruiter_has_exceeded_free_candidate_screening,
 )
 from roles.models import Role
 from skill_assessment.constants import (
@@ -41,11 +42,28 @@ from payments.models import UsageEvent,ReportPAYGFlowStatus
 from django.db.models import Count
 from subscriptions.models import UserUsage, WalletUserUsage
 from subscriptions.helper import get_payg_price, check_subscription_wallet_fallback
+from analytics.models import AIUsageLog
 import json
 
 logger = logging.getLogger(__name__)
 
 # logger = logging.getLogger("tasks")
+
+
+def _log_ai_usage(service_type, job_application, company, succeeded, error_message=None):
+    """Best-effort AI-call instrumentation for admin analytics (Board 2/7).
+    Never raises -- a logging failure must not break the underlying AI-driven
+    resume screening / assessment generation flow it's observing."""
+    try:
+        AIUsageLog.objects.create(
+            service_type=service_type,
+            job_application=job_application,
+            company=company,
+            succeeded=succeeded,
+            error_message=error_message,
+        )
+    except Exception:
+        logger.exception("Failed to write AIUsageLog for %s", service_type)
 
 REJECTION_MAIL_DELAY_SECONDS = settings.REJECTION_MAIL_DELAY_SECONDS
 ACCEPTANCE_MAIL_DELAY_SECONDS = settings.ACCEPTANCE_MAIL_DELAY_SECONDS
@@ -162,7 +180,7 @@ def create_talent_screening(
         job_application=job_application
     ).first()
     if not existing_talent_screening:
-        is_paid_screening = startup_has_exceeded_free_candidate_screening(
+        is_paid_screening = recruiter_has_exceeded_free_candidate_screening(
             job_application.job.company
         )
         resume_screening_fee = 0
@@ -181,7 +199,7 @@ def create_talent_screening(
                 fee_note=f"Resume screening for {job_application.applicant.user.get_full_name()} for job {job_application.job.title}",
                 resume_analysis=resume_analysis,
             )
-            # The startup should be charged here since it's PAYG
+            # The recruiter should be charged here since it's PAYG
         return talent_screening
 
 
@@ -219,7 +237,7 @@ def add_skill_assessment_to_talent_screening(
             fee_note=fee_note,
             skill_assessment=skill_assessment,
         )
-        # charge startup here cause its PAYG
+        # charge recruiter here cause its PAYG
 
 
 @shared_task
@@ -333,24 +351,66 @@ def send_assessment_link(job_application_id, trials=0):
             job_difficulty = "advanced"
             coding_task_difficulty_level = "Hard"
             assessment_difficulty_level = SkillAssessmentDifficultyLevels.SENIOR
-        mcq_questions = []
+        mcq_sections = []  # list of {"name": str, "questions": [formatted question dicts]}
         coding_questions = []
         assessment_id = None  # Initialize for all job types
-        
+
+        assessment_template = getattr(job, "assessment_template", None)
+        use_template = bool(
+            assessment_template and assessment_template.status == JobAssessmentTemplate.Status.READY
+        )
+
         try:
-            if not is_technical:
+            if use_template:
+                # Recruiter-approved question set from the job-creation wizard -- every
+                # candidate for this job gets the same, reviewed questions instead of a
+                # fresh AI call. One section per category, matching the template.
+                for section in assessment_template.sections.all().prefetch_related("questions"):
+                    mcq_sections.append(
+                        {
+                            "name": section.name,
+                            "questions": [
+                                {
+                                    "question": q.question,
+                                    "options": q.options,
+                                    "correct_option_index": q.correct_option_index,
+                                    "is_ai_generated": q.is_ai_generated,
+                                }
+                                for q in section.questions.all()
+                            ],
+                        }
+                    )
+                if not mcq_sections:
+                    return try_again("Job assessment template has no sections")
+
+                if is_technical:
+                    # Coding questions aren't part of the wizard's scope -- still generate
+                    # those fresh per candidate, same as the legacy (non-template) path.
+                    multistage_assessment = AIService.get_multistage_technical_assessment(
+                        job_description=job.description, mcq_questions=1, coding_questions=1
+                    )
+                    _log_ai_usage("coding_assessment", job_application, company, succeeded=bool(multistage_assessment))
+                    if not multistage_assessment:
+                        return try_again("Failed to get coding questions from AI service")
+                    coding_questions = multistage_assessment.get("coding_questions") or []
+                    if not coding_questions:
+                        return try_again("Failed to get coding questions from AI service")
+            elif not is_technical:
                 mcq_questions = AIService.get_mcq_questions(
                     job_description=job.description,
                     # assessment_type="mcq",
                     num_questions=30
                 )
+                _log_ai_usage("mcq_generation", job_application, company, succeeded=bool(mcq_questions))
                 if not mcq_questions:
                     return try_again("Failed to get mcq questions from AI service")
+                mcq_sections = [{"name": "Multiple Choice Questions", "questions": mcq_questions}]
                 coding_questions = []
             else:
                 multistage_assessment = AIService.get_multistage_technical_assessment(
                     job_description=job.description, mcq_questions=20, coding_questions=1
                 )
+                _log_ai_usage("coding_assessment", job_application, company, succeeded=bool(multistage_assessment))
                 if not multistage_assessment:
                     return try_again("Failed to get multistage assessment from AI service")
 
@@ -362,10 +422,15 @@ def send_assessment_link(job_application_id, trials=0):
                     return try_again("Failed to get mcq questions from AI service")
                 if not coding_questions:
                     return try_again("Failed to get coding questions from AI service")
+                mcq_sections = [{"name": "Multiple Choice Questions", "questions": mcq_questions}]
         except Exception as e:
             logger.exception("AI service error: %s", e)
+            _log_ai_usage(
+                "coding_assessment" if is_technical else "mcq_generation",
+                job_application, company, succeeded=False, error_message=str(e),
+            )
             return try_again(f"AI service error: {e}")
-        duration_minutes = 30 if coding_questions else 10#10 for non tech and 30 for tech
+        duration_minutes = job.assessment_time_limit or (30 if coding_questions else 10)  # 10 for non tech and 30 for tech
         try:
             with transaction.atomic():
                 company_skill_assessment = GeneralSkillAssessment.objects.create(
@@ -375,7 +440,7 @@ def send_assessment_link(job_application_id, trials=0):
                     difficulty_level=assessment_difficulty_level,
                     description=f"Assessment for {job.role} role at {job.company.company_name} for  {talent_profile.user.get_full_name()}",
                     duration_minutes=duration_minutes,
-                    passing_grade=getattr(job, "passing_grade", 70.0),
+                    passing_grade=job.get_passing_grade(),
                     reference=str(uuid.uuid4().hex)[:15],
                     assessment_id=assessment_id if is_technical else None,
                     assessment_type=SkillAssessmentTypes.CUSTOM,
@@ -384,15 +449,19 @@ def send_assessment_link(job_application_id, trials=0):
                 # attach skillset/role
                 company_skill_assessment.skillsets.set([job.role])
 
-                # Create MCQ section if MCQs exist
-                if mcq_questions:
+                # Create one MCQ section per category (a single "Multiple Choice
+                # Questions" section in the legacy/fallback path, or one section per
+                # JobAssessmentTemplateSection when sourced from the wizard's template).
+                for mcq_section_data in mcq_sections:
+                    section_questions = mcq_section_data.get("questions") or []
+                    if not section_questions:
+                        continue
                     mcq_section = GeneralSkillAssessmentSection.objects.create(
-                        name="Multiple Choice Questions",
+                        name=mcq_section_data["name"],
                         company_skill_assessment=company_skill_assessment,
                         type=SkillAssessmentTypes.MCQ,
                     )
-                    # create MCQ objects
-                    for mcq in mcq_questions:
+                    for mcq in section_questions:
                         is_ai_generated = mcq.get("is_ai_generated", False)
                         question = mcq.get("question")
                         options = mcq.get("options", [])
@@ -437,8 +506,9 @@ def send_assessment_link(job_application_id, trials=0):
                             )
                         if test_case_objs:
                             TestCase.objects.bulk_create(test_case_objs)
-            assessment_link = f"{settings.FRONTEND_BASE_URL}/jobs/{job.id}/assessment/{company_skill_assessment.id}/"  #TODO url of page for user to access skill assessment should replace id
-            # assessment_link = f"https://tiaago.com/jobs/{job.id}/assessment/{company_skill_assessment.id}/?base={settings.FRONTEND_URL}"
+            # No-login candidate flow: the invite token is unguessable and scoped to this
+            # one assessment/candidate, so the link needs no login/account on the other end.
+            assessment_link = f"{settings.FRONTEND_BASE_URL}/assessment-invite/{company_skill_assessment.invite_token}/"
             logger.info(f"Assessment link: {assessment_link}")
         except Exception as e:
             logger.exception("Failed to create skill assessment: %s", e)
@@ -461,7 +531,7 @@ def send_assessment_link(job_application_id, trials=0):
         )
         logger.info("Applicant vetting mail function executed")
         add_skill_assessment_to_talent_screening(
-            skill_assessment=company_skill_assessment, mcq=bool(mcq_questions), coding_task=bool(coding_questions)
+            skill_assessment=company_skill_assessment, mcq=bool(mcq_sections), coding_task=bool(coding_questions)
         )
         flow_status.status = ReportPAYGFlowStatus.Status.COMPLETED
         flow_status.error_message = ""
@@ -480,6 +550,10 @@ def on_analyze_resume(
         resume_name=resume_name,
         resume_path=resume_path,
         job_description=job_description,
+    )
+    _log_ai_usage(
+        "resume_analysis", job_application, getattr(job_application.job, "company", None),
+        succeeded=bool(response),
     )
     if response:
         recommendation = response.get("recommendation")
@@ -507,6 +581,10 @@ def on_analyze_resume(
             experience_validation_explanation=response.get("experience_validation_explanation"),
             achievement_quality=achievement_quality,
         )
+        company_id = getattr(job_application.job, "company_id", None)
+        if company_id:
+            from tags.tasks import evaluate_company_tags
+            evaluate_company_tags.delay(company_id)
         return resume_analysis, recommendation, areas_for_improvement
     return None, None, None
 
@@ -558,7 +636,7 @@ def carry_out_resume_analysis(job_application_id):
                     logger.warning(f"Recommendation: {recommendation}")
                     logger.warning(f"areas_for_improvement: {areas_for_improvement}")
                     logger.warning(f"Total Score: {resume_analysis_obj.total_score}")
-                    if resume_analysis_obj.total_score >= 70:
+                    if resume_analysis_obj.total_score >= job.get_screening_threshold():
                         send_assessment_link.apply_async(
                             args=[job_application_id],
                             countdown=ACCEPTANCE_MAIL_DELAY_SECONDS,
@@ -643,7 +721,7 @@ def carry_out_pending_resume_analyses():
                 try:
                     create_talent_screening(job_application, resume_analysis_obj)
                     if talent_profile.user:
-                        if resume_analysis_obj.total_score >= 70:
+                        if resume_analysis_obj.total_score >= job.get_screening_threshold():
                             send_assessment_link.apply_async(
                                 args=[job_application.id],
                                 countdown=ACCEPTANCE_MAIL_DELAY_SECONDS,
