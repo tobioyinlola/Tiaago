@@ -77,6 +77,7 @@ INSTALLED_APPS = [
     "tags.apps.TagsConfig",
     "segments.apps.SegmentsConfig",
     "campaigns.apps.CampaignsConfig",
+    "staff.apps.StaffConfig",
     # 3rd party apps
     "allauth",
     "allauth.account",

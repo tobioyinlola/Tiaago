@@ -45,7 +45,7 @@ const PipelinePage = async () => {
       <div className='border-b w-full border-border pb-1 mb-6'>
         <h1 className='text-2xl font-bold mb-1 font-space-grotesk'>Pipeline and Talent Pool</h1>
         <h4 className='text-foreground text-sm md:text-base'>
-          Health of the free talent pipeline feature — the platform's primary retention mechanism.
+          Health of the free talent pipeline feature — the platform&apos;s primary retention mechanism.
         </h4>
       </div>
 
@@ -80,7 +80,7 @@ const PipelinePage = async () => {
         Organisations with zero pipeline entries
       </h3>
       <p className='text-sm text-muted-foreground mb-4'>
-        These organisations aren't using the retention feature and are at higher churn risk.
+        These organisations aren&apos;t using the retention feature and are at higher churn risk.
       </p>
       <DataTable
         columns={zeroPipelineColumns}

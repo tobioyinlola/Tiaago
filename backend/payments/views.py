@@ -14,6 +14,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated, AllowAny, IsAdminUser
 from base.permissions import IsCompanyRepUser
+from staff.permissions import requirePermission
 from create_user.models import Company, TalentProfile, Referral
 from create_user.permissions import get_user_company
 from subscriptions.models import SubPlan
@@ -605,7 +606,7 @@ class ChargeAndVerifyCard(generics.GenericAPIView):
     """
 
     serializer_class = WalletTransactionSerializer
-    permission_classes = [IsAdminUser]
+    permission_classes = [requirePermission("revenue.manage")]
 
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -1172,7 +1173,7 @@ class TalentWithdrawalHistoryView(generics.ListAPIView):
 class PricingCreateView(generics.CreateAPIView):
     queryset = Pricing.objects.all()
     serializer_class = PricingSerializer
-    permission_classes = [IsAdminUser]
+    permission_classes = [requirePermission("revenue.manage")]
     def post(self, request, *args, **kwargs):
         return super().post(request, *args, **kwargs)
 class PricingListView(generics.ListAPIView):
@@ -1644,17 +1645,17 @@ class UpcomingInvoiceView(ListAPIView):
 class CommunityViewSet(viewsets.ModelViewSet):
     queryset = Community.objects.all().order_by("-created_at")
     serializer_class = CommunitySerializer
-    permission_classes = [IsAdminUser] 
+    permission_classes = [requirePermission("revenue.manage")]
     filter_backends = [SearchFilter, OrderingFilter]
     search_fields = ["name"]
     ordering_fields = ["created_at", "name"]
     ordering = ["-created_at"]
     pagination_class = TiaagoPagination
-    
+
 class CouponViewSet(viewsets.ModelViewSet):
     queryset = Coupon.objects.select_related("community").all().order_by("-created_at")
     serializer_class = CouponSerializer
-    permission_classes = [IsAdminUser]
+    permission_classes = [requirePermission("revenue.manage")]
     filter_backends = [SearchFilter, OrderingFilter]
     search_fields = ["code", "community__name"] 
     ordering_fields = ["created_at", "expires_at", "max_usage", "used_count"]

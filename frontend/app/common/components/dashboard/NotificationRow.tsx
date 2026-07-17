@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { format, formatDistanceToNowStrict } from "date-fns";
 
 import { cn } from "@/app/common/utils";
@@ -14,10 +14,14 @@ const NotificationRow = ({ notification }: { notification: NotificationItem }) =
   const [isRead, setIsRead] = useState(notification.is_read);
 
   // Server refresh (e.g. after "mark all as read") delivers a new `is_read`
-  // prop to this already-mounted row -- resync local state to it.
-  useEffect(() => {
+  // prop to this already-mounted row -- resync local state to it during
+  // render rather than an effect, per
+  // https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes.
+  const [syncedIsRead, setSyncedIsRead] = useState(notification.is_read);
+  if (notification.is_read !== syncedIsRead) {
+    setSyncedIsRead(notification.is_read);
     setIsRead(notification.is_read);
-  }, [notification.is_read]);
+  }
 
   const handleClick = async () => {
     if (!isRead) {

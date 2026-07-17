@@ -32,6 +32,7 @@ class EmailTypes:
     USER_INVITE = "User Invite to join Tiaago"
     PASSWORD_RESET = "Password Reset"
     COMPANY_TEAM_INVITE = "Company Team Invite"
+    STAFF_INVITE = "Staff Invite"
     BILLING_NOTIFICATION = "Billing Notification"
     INTERVIEW_SLOT_SELECTION_MAIL = "Interview Slot Selection Mail"
 

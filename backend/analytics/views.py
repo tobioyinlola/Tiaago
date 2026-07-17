@@ -3,10 +3,13 @@ from rest_framework.response import Response
 from rest_framework import status
 
 from subscriptions.permissions import IsStaffUser
+from staff.permissions import requirePermission
 from . import utils
 
 
 class _AnalyticsBaseView(APIView):
+    # Out-of-scope views (overview/funnel/pipeline/assessment intelligence)
+    # keep the flat staff-only gate; in-scope views below override this.
     permission_classes = [IsStaffUser]
 
 
@@ -16,6 +19,8 @@ class OverviewAPIView(_AnalyticsBaseView):
 
 
 class OrganisationListAPIView(_AnalyticsBaseView):
+    permission_classes = [requirePermission("organisations.view")]
+
     def get(self, request):
         page = int(request.query_params.get("page", 1))
         page_size = int(request.query_params.get("page_size", 20))
@@ -46,6 +51,8 @@ class OrganisationListAPIView(_AnalyticsBaseView):
 
 
 class OrganisationDetailAPIView(_AnalyticsBaseView):
+    permission_classes = [requirePermission("organisations.view")]
+
     def get(self, request, company_id):
         data = utils.get_organisation_detail(company_id)
         if not data:
@@ -54,11 +61,15 @@ class OrganisationDetailAPIView(_AnalyticsBaseView):
 
 
 class OrganisationAlertsAPIView(_AnalyticsBaseView):
+    permission_classes = [requirePermission("organisations.view")]
+
     def get(self, request):
         return Response(status=200, data=utils.get_organisation_alerts())
 
 
 class RevenueAPIView(_AnalyticsBaseView):
+    permission_classes = [requirePermission("revenue.view")]
+
     def get(self, request):
         days = int(request.query_params.get("days", 30))
         days = 90 if days == 90 else 30
@@ -87,6 +98,8 @@ class PipelineAPIView(_AnalyticsBaseView):
 
 
 class GrowthAPIView(_AnalyticsBaseView):
+    permission_classes = [requirePermission("revenue.view")]
+
     def get(self, request):
         return Response(status=200, data=utils.get_growth_summary())
 
@@ -97,5 +110,7 @@ class AssessmentIntelligenceAPIView(_AnalyticsBaseView):
 
 
 class SystemHealthAPIView(_AnalyticsBaseView):
+    permission_classes = [requirePermission("system.view")]
+
     def get(self, request):
         return Response(status=200, data=utils.get_system_health_summary())

@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import DataTable, { DataTableColumn } from "@/app/common/components/dashboard/DataTable";
 import { setSystemTagActive } from "@/app/common/services/tags";
 import { Tag } from "@/app/common/types/tags.type";
+import PermissionGuard from "../../components/PermissionGuard";
 
 const CATEGORY_LABELS: Record<string, string> = {
   LIFECYCLE: "Lifecycle",
@@ -72,14 +73,16 @@ const SystemTagsTable = ({ tags, lastRuleRun }: { tags: Tag[]; lastRuleRun: stri
       key: "actions",
       header: "",
       render: row => (
-        <button
-          type="button"
-          className="btn btn-xs btn-outline"
-          disabled={pendingId === row.id}
-          onClick={() => toggleActive(row)}
-        >
-          {row.is_active ? "Deactivate" : "Activate"}
-        </button>
+        <PermissionGuard permission="tags.manage">
+          <button
+            type="button"
+            className="btn btn-xs btn-outline"
+            disabled={pendingId === row.id}
+            onClick={() => toggleActive(row)}
+          >
+            {row.is_active ? "Deactivate" : "Activate"}
+          </button>
+        </PermissionGuard>
       ),
     },
   ];

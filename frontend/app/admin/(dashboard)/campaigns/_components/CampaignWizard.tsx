@@ -15,6 +15,7 @@ import {
   updateCampaign,
 } from "@/app/common/services/campaigns";
 import { AudiencePreview, CampaignScheduleType, EmailCampaign, EmailTemplate } from "@/app/common/types/campaigns.type";
+import PermissionGuard from "../../components/PermissionGuard";
 import StepIndicator from "./StepIndicator";
 import TemplateStep from "./steps/TemplateStep";
 import CustomiseStep from "./steps/CustomiseStep";
@@ -305,14 +306,19 @@ const CampaignWizard = ({ initialCampaign }: { initialCampaign: EmailCampaign | 
             <SummaryRow label="Estimated recipients" value={String(audiencePreview?.estimated_recipients ?? "—")} />
           </div>
 
-          <div className="flex items-center gap-3">
-            <button type="button" className="btn btn-outline" disabled={sendingTest || !campaignId} onClick={handleSendTest}>
-              {sendingTest ? "Sending..." : "Send test email to me"}
-            </button>
-            <button type="button" className="btn btn-primary" disabled={confirming} onClick={handleConfirmSend}>
-              {confirming ? "Working..." : scheduleType === "IMMEDIATE" ? "Confirm and send" : "Confirm and schedule"}
-            </button>
-          </div>
+          <PermissionGuard
+            permission="campaigns.send"
+            fallback={<p className="text-sm text-muted-foreground">You don&apos;t have permission to send campaigns.</p>}
+          >
+            <div className="flex items-center gap-3">
+              <button type="button" className="btn btn-outline" disabled={sendingTest || !campaignId} onClick={handleSendTest}>
+                {sendingTest ? "Sending..." : "Send test email to me"}
+              </button>
+              <button type="button" className="btn btn-primary" disabled={confirming} onClick={handleConfirmSend}>
+                {confirming ? "Working..." : scheduleType === "IMMEDIATE" ? "Confirm and send" : "Confirm and schedule"}
+              </button>
+            </div>
+          </PermissionGuard>
         </div>
       )}
 

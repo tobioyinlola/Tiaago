@@ -5,11 +5,16 @@ from rest_framework.views import APIView
 from segments.evaluation import evaluate_segment
 from segments.models import AudienceSegment
 from segments.serializers import AudienceSegmentSerializer
-from subscriptions.permissions import IsStaffUser
+from staff.permissions import requirePermission
 
 
 class _SegmentsBaseView(APIView):
-    permission_classes = [IsStaffUser]
+    """Segments reuse the tags.* permission slugs (spec groups Tags and
+    Segments together with no separate segments.* namespace)."""
+
+    def get_permissions(self):
+        slug = "tags.view" if self.request.method == "GET" else "tags.manage"
+        return [requirePermission(slug)()]
 
 
 def _refresh_estimated_size(segment):
@@ -58,6 +63,9 @@ class SegmentDetailView(_SegmentsBaseView):
 class SegmentPreviewView(_SegmentsBaseView):
     """Live, un-saved preview for the segment builder -- debounced on the
     frontend. Always uses .count() for size, never a full fetch."""
+
+    def get_permissions(self):
+        return [requirePermission("tags.view")()]
 
     def post(self, request):
         conditions = request.data.get("conditions") or []

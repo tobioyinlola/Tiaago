@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { addOrganisationTag, removeOrganisationTag } from "@/app/common/services/tags";
 import { SelectInput } from "@/app/common/components/dashboard/SelectInput";
 import { OrganisationTag, Tag, TagAuditLogEntry } from "@/app/common/types/tags.type";
+import PermissionGuard from "../../components/PermissionGuard";
 
 const formatExact = (value: string) => format(new Date(value), "MMM dd, yyyy hh:mm a");
 const formatRelative = (value: string) => formatDistanceToNowStrict(new Date(value), { addSuffix: true });
@@ -72,35 +73,39 @@ const OrganisationTagsSection = ({
             {ot.tag.name}
             <span className="opacity-75 text-[10px] uppercase">{ot.tag.tag_type === "SYSTEM" ? "auto" : "manual"}</span>
             {ot.tag.tag_type === "CUSTOM" && (
-              <button
-                type="button"
-                onClick={() => handleRemove(ot.tag)}
-                disabled={submitting}
-                aria-label={`Remove ${ot.tag.name}`}
-                className="ml-1"
-              >
-                ×
-              </button>
+              <PermissionGuard permission="organisations.tags.manage">
+                <button
+                  type="button"
+                  onClick={() => handleRemove(ot.tag)}
+                  disabled={submitting}
+                  aria-label={`Remove ${ot.tag.name}`}
+                  className="ml-1"
+                >
+                  ×
+                </button>
+              </PermissionGuard>
             )}
           </span>
         ))}
         {!currentTags.length && <span className="text-sm text-muted-foreground">No tags yet.</span>}
       </div>
 
-      <div className="flex items-center gap-2 mb-4">
-        <div className="w-64">
-          <SelectInput
-            size="sm"
-            placeholder="Add a custom tag..."
-            options={availableCustomTags.map(tag => ({ value: tag.id, label: tag.name, colour: tag.colour }))}
-            value={selectedTagId || null}
-            onChange={value => setSelectedTagId(value ?? "")}
-          />
+      <PermissionGuard permission="organisations.tags.manage">
+        <div className="flex items-center gap-2 mb-4">
+          <div className="w-64">
+            <SelectInput
+              size="sm"
+              placeholder="Add a custom tag..."
+              options={availableCustomTags.map(tag => ({ value: tag.id, label: tag.name, colour: tag.colour }))}
+              value={selectedTagId || null}
+              onChange={value => setSelectedTagId(value ?? "")}
+            />
+          </div>
+          <button type="button" className="btn btn-sm btn-primary" disabled={!selectedTagId || submitting} onClick={handleAdd}>
+            Add
+          </button>
         </div>
-        <button type="button" className="btn btn-sm btn-primary" disabled={!selectedTagId || submitting} onClick={handleAdd}>
-          Add
-        </button>
-      </div>
+      </PermissionGuard>
 
       <button type="button" className="text-sm text-primary hover:underline" onClick={() => setShowTimeline(s => !s)}>
         {showTimeline ? "Hide" : "Show"} tag change history ({timeline.length})

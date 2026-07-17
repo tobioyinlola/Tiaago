@@ -61,6 +61,7 @@ export type DashboardNavItemV3 =
         name: string;
         href: string;
         requiredRoles?: TeamMemberRole[];
+        section?: string;
       }[];
     }
   | {
@@ -191,9 +192,17 @@ export type Recruiter = BaseUser & {
   onboarding_skipped_at?: string | null;
 };
 
+export type StaffRole = {
+  name: string;
+  slug: string;
+};
+
 export type Staff = BaseUser & {
   user_type: "ST";
   is_staff: true;
+  staff_role: StaffRole | null;
+  permissions: string[];
+  is_super_admin: boolean;
 };
 
 export type User = Talent | Recruiter | Staff;

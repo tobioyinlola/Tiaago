@@ -11,6 +11,7 @@ import DaisyButton from "@/app/common/components/DaisyButton";
 import FileDropzone from "@/app/common/components/dashboard/FileDropzone";
 import { replyToTicketAsAdmin } from "@/app/common/services/support";
 import { TicketDetail } from "@/app/common/types/support.type";
+import { useAnyPermission, usePermission } from "../../../hooks/usePermission";
 
 const Initials = ({ name }: { name: string }) => {
   const initials = name
@@ -44,6 +45,12 @@ const AdminTicketThread = ({ ticket }: { ticket: TicketDetail }) => {
   const [replyFiles, setReplyFiles] = useState<File[]>([]);
   const [isInternalNote, setIsInternalNote] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const canReply = usePermission("support.reply");
+  const canAddInternalNotes = usePermission("support.internal_notes");
+  // "any of" rather than PermissionGuard's single-permission check: a
+  // custom role could hold only support.internal_notes without
+  // support.reply, and should still see the composer to add notes.
+  const canUseComposer = useAnyPermission(["support.reply", "support.internal_notes"]);
 
   const handleReply = async () => {
     if (replyMessage.trim().length < 1) {
@@ -51,7 +58,7 @@ const AdminTicketThread = ({ ticket }: { ticket: TicketDetail }) => {
       return;
     }
     setSubmitting(true);
-    const result = await replyToTicketAsAdmin(ticket.id, replyMessage.trim(), replyFiles, isInternalNote);
+    const result = await replyToTicketAsAdmin(ticket.id, replyMessage.trim(), replyFiles, isInternalNote || !canReply);
     setSubmitting(false);
     if (!result.success) {
       toast.error(result.error);
@@ -140,29 +147,44 @@ const AdminTicketThread = ({ ticket }: { ticket: TicketDetail }) => {
         })}
       </div>
 
-      <div className="rounded-lg border border-[#EAECEE] bg-white p-4">
-        <textarea
-          value={replyMessage}
-          onChange={e => setReplyMessage(e.target.value)}
-          placeholder={isInternalNote ? "Write an internal note (not visible to the user)..." : "Write a reply..."}
-          className={cn("textarea textarea-bordered w-full min-h-[100px] mb-3", isInternalNote && "textarea-warning")}
-        />
-        <FileDropzone files={replyFiles} onChange={setReplyFiles} className="mb-3" />
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <label className="flex items-center gap-2 text-sm text-secondary-black cursor-pointer">
-            <input
-              type="checkbox"
-              checked={isInternalNote}
-              onChange={e => setIsInternalNote(e.target.checked)}
-              className="checkbox checkbox-sm"
-            />
-            Internal note (not visible to user)
-          </label>
-          <DaisyButton color="primary" className="text-white" onClick={handleReply} loading={submitting}>
-            {submitting ? "" : isInternalNote ? "Add internal note" : "Send reply"}
-          </DaisyButton>
+      {canUseComposer ? (
+        <div className="rounded-lg border border-[#EAECEE] bg-white p-4">
+          <textarea
+            value={replyMessage}
+            onChange={e => setReplyMessage(e.target.value)}
+            placeholder={
+              isInternalNote || !canReply ? "Write an internal note (not visible to the user)..." : "Write a reply..."
+            }
+            className={cn(
+              "textarea textarea-bordered w-full min-h-[100px] mb-3",
+              (isInternalNote || !canReply) && "textarea-warning"
+            )}
+          />
+          <FileDropzone files={replyFiles} onChange={setReplyFiles} className="mb-3" />
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            {canAddInternalNotes && canReply ? (
+              <label className="flex items-center gap-2 text-sm text-secondary-black cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={isInternalNote}
+                  onChange={e => setIsInternalNote(e.target.checked)}
+                  className="checkbox checkbox-sm"
+                />
+                Internal note (not visible to user)
+              </label>
+            ) : (
+              <span />
+            )}
+            <DaisyButton color="primary" className="text-white" onClick={handleReply} loading={submitting}>
+              {submitting ? "" : isInternalNote || !canReply ? "Add internal note" : "Send reply"}
+            </DaisyButton>
+          </div>
         </div>
-      </div>
+      ) : (
+        <p className="text-sm text-secondary-black rounded-lg border border-[#EAECEE] bg-gray-50 p-4">
+          You don&apos;t have permission to reply to tickets.
+        </p>
+      )}
     </div>
   );
 };

@@ -4,7 +4,8 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from create_user.models import Company
-from subscriptions.permissions import IsStaffUser
+from staff.permissions import requirePermission
+from staff.utils import log_staff_activity
 from tags.models import OrganisationTag, Tag, TagAuditLog
 from tags.serializers import (
     CustomTagCreateSerializer,
@@ -16,7 +17,14 @@ from tags.tasks import evaluate_company_tags, get_last_rule_run
 
 
 class _TagsBaseView(APIView):
-    permission_classes = [IsStaffUser]
+    permission_classes = [requirePermission("tags.view")]
+
+
+class _TagsManageMixin:
+    """Views that only write (no GET) -- everything here needs tags.manage."""
+
+    def get_permissions(self):
+        return [requirePermission("tags.manage")()]
 
 
 def _with_tagged_counts(qs):
@@ -37,7 +45,7 @@ class SystemTagListView(_TagsBaseView):
         })
 
 
-class SystemTagDeactivateView(_TagsBaseView):
+class SystemTagDeactivateView(_TagsManageMixin, _TagsBaseView):
     def post(self, request, tag_id):
         tag = Tag.objects.filter(id=tag_id, tag_type=Tag.TagType.SYSTEM).first()
         if not tag:
@@ -47,7 +55,7 @@ class SystemTagDeactivateView(_TagsBaseView):
         return Response(TagSerializer(tag).data)
 
 
-class SystemTagActivateView(_TagsBaseView):
+class SystemTagActivateView(_TagsManageMixin, _TagsBaseView):
     def post(self, request, tag_id):
         tag = Tag.objects.filter(id=tag_id, tag_type=Tag.TagType.SYSTEM).first()
         if not tag:
@@ -58,6 +66,10 @@ class SystemTagActivateView(_TagsBaseView):
 
 
 class CustomTagListCreateView(_TagsBaseView):
+    def get_permissions(self):
+        slug = "tags.view" if self.request.method == "GET" else "tags.manage"
+        return [requirePermission(slug)()]
+
     def get(self, request):
         tags = _with_tagged_counts(Tag.objects.filter(tag_type=Tag.TagType.CUSTOM)).order_by("-created_at")
         return Response(TagSerializer(tags, many=True).data)
@@ -69,7 +81,7 @@ class CustomTagListCreateView(_TagsBaseView):
         return Response(TagSerializer(tag).data, status=201)
 
 
-class CustomTagApplyView(_TagsBaseView):
+class CustomTagApplyView(_TagsManageMixin, _TagsBaseView):
     def post(self, request, tag_id):
         tag = Tag.objects.filter(id=tag_id, tag_type=Tag.TagType.CUSTOM).first()
         if not tag:
@@ -97,7 +109,7 @@ class CustomTagApplyView(_TagsBaseView):
         return Response({"applied": len(to_apply), "already_tagged": len(existing)})
 
 
-class CustomTagRemoveView(_TagsBaseView):
+class CustomTagRemoveView(_TagsManageMixin, _TagsBaseView):
     def post(self, request, tag_id):
         tag = Tag.objects.filter(id=tag_id, tag_type=Tag.TagType.CUSTOM).first()
         if not tag:
@@ -134,6 +146,10 @@ class TagOrganisationsView(_TagsBaseView):
 
 
 class OrganisationTagsView(_TagsBaseView):
+    def get_permissions(self):
+        slug = "organisations.view" if self.request.method == "GET" else "organisations.tags.manage"
+        return [requirePermission(slug)()]
+
     def get(self, request, company_id):
         rows = OrganisationTag.objects.filter(
             organisation_id=company_id, removed_at__isnull=True
@@ -162,6 +178,10 @@ class OrganisationTagsView(_TagsBaseView):
                 triggered_by=TagAuditLog.TriggeredBy.ADMIN_MANUAL, admin=request.user,
                 reason="Manually applied by admin",
             )
+            log_staff_activity(
+                request.user, "organisations.tags.change", "Company", company_id,
+                {"tag": tag.name, "action": "apply"},
+            )
         return Response(OrganisationTagSerializer(obj).data, status=201 if created else 200)
 
     def delete(self, request, company_id):
@@ -178,10 +198,16 @@ class OrganisationTagsView(_TagsBaseView):
                 triggered_by=TagAuditLog.TriggeredBy.ADMIN_MANUAL, admin=request.user,
                 reason="Manually removed by admin",
             )
+            log_staff_activity(
+                request.user, "organisations.tags.change", "Company", company_id,
+                {"tag": tag.name, "action": "remove"},
+            )
         return Response({"removed": bool(updated)})
 
 
 class OrganisationTagTimelineView(_TagsBaseView):
+    permission_classes = [requirePermission("organisations.view")]
+
     def get(self, request, company_id):
         logs = TagAuditLog.objects.filter(organisation_id=company_id).select_related("tag", "admin")[:50]
         return Response(TagAuditLogSerializer(logs, many=True).data)
@@ -191,6 +217,8 @@ class OrganisationReevaluateView(_TagsBaseView):
     """Manual "re-run rules now" trigger for a single organisation, exposed
     from the org detail page -- uses the same immediate-eval path as the
     real-time triggers, just admin-initiated rather than event-initiated."""
+
+    permission_classes = [requirePermission("organisations.tags.manage")]
 
     def post(self, request, company_id):
         if not Company.objects.filter(id=company_id).exists():
