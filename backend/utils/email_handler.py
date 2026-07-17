@@ -33,6 +33,7 @@ class EmailTypes:
     PASSWORD_RESET = "Password Reset"
     COMPANY_TEAM_INVITE = "Company Team Invite"
     BILLING_NOTIFICATION = "Billing Notification"
+    INTERVIEW_SLOT_SELECTION_MAIL = "Interview Slot Selection Mail"
 
 MAILGUN_DOMAIN = os.getenv("MAILGUN_DOMAIN")  # e.g. "mg.yourdomain.com"
 MAILGUN_API_KEY = os.getenv("MAILGUN_API_KEY")

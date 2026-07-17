@@ -3,7 +3,7 @@ import VerifyAccountModal from "./VerifyAccountModal";
 
 import { BasePageProps } from "@/app/common/types";
 
-const VerifyAccount = ({ as = "startup" }: { as?: BasePageProps["as"] }) => {
+const VerifyAccount = ({ as = "recruiter" }: { as?: BasePageProps["as"] }) => {
   return (
     <div className='bg-verify-pattern bg-no-repeat bg-bottom bg-[#1C3477] rounded-xl p-8 text-white mb-8 flex max-md:flex-col justify-between'>
       <div>
@@ -39,7 +39,7 @@ const VerifyAccount = ({ as = "startup" }: { as?: BasePageProps["as"] }) => {
 };
 
 export const DashboardWelcome = ({
-  as = "startup",
+  as = "recruiter",
 }: {
   as?: BasePageProps["as"];
 }) => {

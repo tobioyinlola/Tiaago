@@ -1,4 +1,6 @@
+import logging
 from warnings import filters
+from django.db import transaction
 from django.db.models import Prefetch
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import cache_page
@@ -49,7 +51,10 @@ from .models import (
     Tool,
     Project,
     Experience,
-    Education
+    Education,
+    JobInterviewAvailabilitySlot,
+    TalentScreening,
+    InterviewScreening,
 )
 from .permissions import (
     IsJobApplicationCompany,
@@ -67,13 +72,16 @@ from .serializers import (
     ExternalJobApplicationSerializer,
     JobApplicationVerificationSerializer,
     JobTokenValidationSerializer,
+    GuestJobApplicationSerializer,
     PortfolioSerializer,
     ToolSerializer,
     ExperienceSerializer,
     EducationSerializer,
     CompanySerializer,
+    JobInterviewAvailabilitySlotSerializer,
 )
 from .tasks import carry_out_resume_analysis
+from emails import emails
 from rest_framework.permissions import AllowAny
 from payments.models import PaymentMethod
 from payments.utils import usage_unbilled_for_company, UNIT_PRICE_NGN
@@ -86,8 +94,19 @@ from django_filters import rest_framework as filters
 from rest_framework.exceptions import ValidationError
 from subscriptions.models import UserUsage, WalletUserUsage
 from subscriptions.helper import get_payg_price, check_subscription_wallet_fallback
+from utils.ai_service import AIService
+from roles.models import Role
+from scheduler.models import Scheduler
+from scheduler.services import provision_daily_room, DailyRoomProvisioningError
+from scheduler.tasks import recruiter_interview_acceptance_mail
+from skill_assessment.models import CandidateAssessmentSubmission
+
+logger = logging.getLogger(__name__)
 
 User = get_user_model()
+
+NON_TECHNICAL_ASSESSMENT_CATEGORIES = ["Role Knowledge", "Practical Scenarios", "Problem Solving"]
+TECHNICAL_ASSESSMENT_CATEGORIES = ["Technical Knowledge", "Practical Scenarios", "Problem Solving"]
 
 
 class JobPagination(PageNumberPagination):
@@ -105,6 +124,16 @@ class JobDetailView(RetrieveAPIView):
 
     def get_queryset(self):
         return Job.approved.select_related("company", "role").all()
+
+
+@method_decorator(cache_page(60), name="dispatch")
+class JobDetailByPublicIdView(JobDetailView):
+    """Same public/approved-only job data as JobDetailView, keyed on
+    public_id -- for pages that already carry a job's public_id (e.g. a
+    talent's own interview-slots page) rather than its int pk or apply_token,
+    without requiring the JobRetrieveUpdateView owner-only auth."""
+
+    lookup_field = "public_id"
 
 
 class JobFilter(filters.FilterSet):
@@ -269,10 +298,185 @@ class JobListCreateView(ListCreateAPIView):
 
 
 
+class GenerateAssessmentQuestionsView(APIView):
+    """Stateless live-generation endpoint used by the job-creation wizard's Step 3.
+
+    No Job row needs to exist yet -- takes the Step 1 job details directly in the
+    request body and returns a categorized MCQ question set for the recruiter to
+    review/edit before final job submit persists it via JobSerializer.create().
+    """
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        description = (request.data.get("description") or "").strip()
+        job_requirement = (request.data.get("job_requirement") or "").strip()
+        role_id = request.data.get("role")
+
+        if not description and not job_requirement:
+            return Response(
+                {"detail": "A job description or job requirement is required to generate questions."},
+                status=HTTP_400_BAD_REQUEST,
+            )
+
+        job_description = "\n\n".join(part for part in [description, job_requirement] if part)
+
+        is_technical = True
+        if role_id:
+            if isinstance(role_id, int) or (isinstance(role_id, str) and role_id.strip().isdigit()):
+                role = Role.objects.filter(id=int(role_id)).first()
+            else:
+                role = Role.objects.filter(title__iexact=str(role_id).strip()).first()
+            if role:
+                is_technical = role.is_technical
+
+        categories = (
+            TECHNICAL_ASSESSMENT_CATEGORIES if is_technical else NON_TECHNICAL_ASSESSMENT_CATEGORIES
+        )
+
+        try:
+            sections = AIService.get_categorized_mcq_questions(
+                job_description=job_description,
+                categories=categories,
+                questions_per_category=10,
+                role_type="technical" if is_technical else "non-technical",
+            )
+        except Exception:
+            logger.exception("AI service call failed while generating assessment questions")
+            sections = None
+
+        if not sections:
+            return Response(
+                {"detail": "Failed to generate assessment questions. Please try again."},
+                status=HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        return Response({"sections": sections}, status=HTTP_200_OK)
+
+
+def _get_passing_job_application(user, job_id):
+    """Resolve the talent's JobApplication for this job, only if they've passed
+    the job's assessment stage. Returns None otherwise (no application, or applied
+    but not yet passed)."""
+    try:
+        profile = user.profile
+    except Exception:
+        return None
+    job_application = JobApplication.objects.filter(job_id=job_id, applicant=profile).first()
+    if not job_application:
+        return None
+    has_passed = CandidateAssessmentSubmission.objects.filter(
+        skill_assessment__job_application=job_application, is_passed=True
+    ).exists()
+    return job_application if has_passed else None
+
+
+class JobInterviewSlotListView(ListAPIView):
+    """Unclaimed interview slots for a job -- visible only to a talent who has
+    passed that job's assessment stage."""
+
+    serializer_class = JobInterviewAvailabilitySlotSerializer
+    permission_classes = [IsTalentUser]
+
+    def get_queryset(self):
+        job = Job.objects.filter(public_id=self.kwargs["public_id"]).first()
+        if not job:
+            return JobInterviewAvailabilitySlot.objects.none()
+        return JobInterviewAvailabilitySlot.objects.filter(job_id=job.id, is_claimed=False)
+
+    def list(self, request, *args, **kwargs):
+        job = Job.objects.filter(public_id=self.kwargs["public_id"]).first()
+        job_application = _get_passing_job_application(request.user, job.id) if job else None
+        if not job_application:
+            return Response(
+                {"detail": "You do not have a passing assessment for this job."},
+                status=HTTP_403_FORBIDDEN,
+            )
+        return super().list(request, *args, **kwargs)
+
+
+class JobInterviewSlotClaimView(APIView):
+    """Claim a published interview slot, turning it into a confirmed Scheduler meeting."""
+
+    permission_classes = [IsTalentUser]
+
+    def post(self, request, public_id, slot_id, *args, **kwargs):
+        job = Job.objects.filter(public_id=public_id).first()
+        job_application = _get_passing_job_application(request.user, job.id) if job else None
+        if not job_application:
+            return Response(
+                {"detail": "You do not have a passing assessment for this job."},
+                status=HTTP_403_FORBIDDEN,
+            )
+
+        profile = request.user.profile
+        job_id = job.id
+
+        with transaction.atomic():
+            slot = (
+                JobInterviewAvailabilitySlot.objects.select_for_update()
+                .filter(id=slot_id, job_id=job_id, is_claimed=False)
+                .first()
+            )
+            if not slot:
+                return Response(
+                    {"detail": "This slot is no longer available."}, status=HTTP_400_BAD_REQUEST
+                )
+
+            job = slot.job
+            meeting = Scheduler.objects.create(
+                title=f"Interview for {job.title}",
+                meeting_date=slot.date,
+                start_time=slot.start_time,
+                end_time=slot.end_time,
+                talent=profile,
+                company=job.company,
+                accepted=True,
+                description=f"Interview for {job.title} at {job.company.company_name}",
+            )
+
+            try:
+                room = provision_daily_room(slot.date, slot.start_time, slot.end_time)
+                meeting.room_id = room["room_id"]
+                meeting.room_name = room["room_name"]
+                meeting.room_url = room["room_url"]
+                meeting.token = room["token"]
+                meeting.save(update_fields=["room_id", "room_name", "room_url", "token"])
+            except DailyRoomProvisioningError as e:
+                # The meeting is still confirmed even if video-room provisioning fails --
+                # this can be retried/fixed operationally rather than blocking the booking.
+                logger.error(f"Daily.co provisioning failed for claimed slot {slot.id}: {e.detail}")
+
+            slot.is_claimed = True
+            slot.claimed_by_application = job_application
+            slot.save(update_fields=["is_claimed", "claimed_by_application"])
+
+            talent_screening = TalentScreening.objects.filter(job_application=job_application).first()
+            if talent_screening:
+                InterviewScreening.objects.update_or_create(
+                    talent_screening=talent_screening,
+                    defaults={"meeting": meeting, "fee_note": f"Interview for {job.title}"},
+                )
+
+            job_application.status = JobApplication.JobApplicationStatus.INTERVIEW_SCHEDULED
+            job_application.save(update_fields=["status"])
+
+        try:
+            if job.company.company_rep_id:
+                recruiter_interview_acceptance_mail.delay(
+                    job.company.company_rep_id, job.company.company_name, str(meeting.id)
+                )
+        except Exception as e:
+            logger.error(f"Failed to send interview acceptance email: {e}")
+
+        return Response(JobInterviewAvailabilitySlotSerializer(slot).data, status=HTTP_200_OK)
+
+
 class JobRetrieveUpdateView(RetrieveUpdateAPIView):
     queryset = Job.objects.select_related("company", "role").all()
     permission_classes = [IsJobCreatorOrReadOnly]
-    
+    lookup_field = "public_id"
+
     def get_serializer_class(self):
         if self.request.method in ["PUT", "PATCH"]:
             return JobUpdateSerializer
@@ -306,6 +510,7 @@ class JobDeleteView(DestroyAPIView):
     queryset = Job.objects.select_related('company', 'role').all()
     serializer_class = JobSerializer
     permission_classes = [IsJobCreatorOrReadOnly, permissions.IsAuthenticated]
+    lookup_field = "public_id"
 
     def delete(self, request, *args, **kwargs):
         job = self.get_object()
@@ -771,57 +976,49 @@ class JobByTokenAPIView(RetrieveAPIView):
 
 
 class JobApplyByIdView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
-    
-    def post(self, request, job_id):
-        user = request.user
+    """No-login job application: any visitor can apply directly with their own
+    name/email/phone/LinkedIn/resume -- no Tiaago account required. A
+    CustomUser + TalentProfile is resolved (or silently provisioned) by email
+    behind the scenes so the resulting JobApplication is completely ordinary:
+    same table, same resume-screening/assessment pipeline, same recruiter
+    Applications list as every other application."""
+
+    permission_classes = [AllowAny]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def post(self, request, apply_token):
         try:
-            _ = user.profile
-        except CustomUser.profile.RelatedObjectDoesNotExist:
-            return Response({'error': 'User is not a talent'}, status=HTTP_400_BAD_REQUEST)
-        
-        try:
-            job = Job.objects.get(id=job_id)
+            job = Job.objects.get(apply_token=apply_token)
         except Job.DoesNotExist:
             return Response({'error': 'Job not found'}, status=HTTP_404_NOT_FOUND)
-        
-        print("This Endpoint was hit")
-        
-        # Check if job is active and accepting applications
-        if job.job_status != Job.JobStatus.ACTIVE:
-            status_display = dict(Job.JobStatus.choices)[job.job_status]
-            return Response(
-                {'error': f'This job is currently {status_display.lower()} and not accepting applications'}, 
-                status=HTTP_400_BAD_REQUEST
-            )
-        
-        if JobApplication.objects.filter(applicant=user.profile, job=job).exists():
-            return Response({'error': 'Already applied to this job'}, status=HTTP_400_BAD_REQUEST)
-        
-        # Get cover letter from request data
-        cover_letter = request.data.get('cover_letter', '')
-        
-        application = JobApplication.objects.create(
-            applicant=user.profile, 
-            job=job, 
-            cover_letter=cover_letter,
-            is_external_application=False
-        )
-        
-        # get the owner of the job
+
+        serializer = GuestJobApplicationSerializer(data=request.data, context={"job": job})
+        serializer.is_valid(raise_exception=True)
+        application = serializer.save()
+
         job_owner = job.company
         usage = UserUsage.objects.filter(company=job_owner).first()
-        
+
         # --- SUBSCRIPTION + WALLET CHECK HAPPENS FIRST ---
         check_subscription_wallet_fallback(job_owner, usage, determiner="resume-analyzes")
-        print("It stuck, because of my logic")
-        
-        # If job uses AI hiring, trigger resume analysis
+
+        try:
+            emails.application_received_mail(application.applicant.user, job)
+        except Exception:
+            logger.exception("Failed to send application-received email for application %s", application.id)
+
+        # If job uses AI hiring, trigger resume analysis. Dispatch failures
+        # (e.g. AI service unreachable, or CELERY_TASK_ALWAYS_EAGER running the
+        # task inline in dev) must never fail the candidate's own request --
+        # the application itself is already saved successfully at this point.
         if job.hires_with_ai:
-            carry_out_resume_analysis.delay(application.id)
-        
-        serializer = JobApplicationSerializer(application)
-        return Response(serializer.data, status=HTTP_201_CREATED)
+            try:
+                carry_out_resume_analysis.delay(application.id)
+            except Exception:
+                logger.exception("Failed to dispatch resume analysis for application %s", application.id)
+
+        response_serializer = JobApplicationSerializer(application)
+        return Response(response_serializer.data, status=HTTP_201_CREATED)
 
 
 

@@ -31,7 +31,9 @@ schema_view = get_schema_view(
 
 urlpatterns = [
     path("admin-xfghlabdfgv/", admin.site.urls),
+    path("ckeditor/", include("ckeditor_uploader.urls")),
     path("api/auth/", include("create_user.urls")),
+    path("api/blog/", include("blog.urls")),
     path("api/case-study-projects/", include("case_study_projects.urls")),
     path("api/chats/", include("chats.urls")),
     path("api/contracts/", include("contract.urls")),
@@ -43,7 +45,15 @@ urlpatterns = [
     path("api/subscriptions/", include("subscriptions.urls")),
     path("api/work-experiences/", include("work_experience.urls")),
     path("api/management/", include("management.urls")),
+    path("api/analytics/", include("analytics.urls")),
+    path("api/support/", include("support.urls")),
+    path("api/notifications/", include("notifications.urls")),
+    path("api/proctoring/", include("proctoring.urls")),
     path("api/sourcing/", include("sourcing.urls")),
+    path("api/tags/", include("tags.urls")),
+    path("api/segments/", include("segments.urls")),
+    path("api/campaigns/", include("campaigns.urls")),
+    path("api/email/", include("campaigns.tracking_urls")),
     # Registered before the router include so it can never be shadowed.
     path("api/health/", health_status, name="health-status"),
     path("api/", include(router.urls)),

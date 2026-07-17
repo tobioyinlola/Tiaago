@@ -1,4 +1,4 @@
-export const startupBenefits = [
+export const recruiterBenefits = [
   "Recruit Talents",
   "Get Talent referrals in 48 hours",
   "Stay updated with best talent in the market",

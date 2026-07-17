@@ -24,7 +24,7 @@ export const mockCandidates: Candidate[] = [
     overallScore: 89,
     linkedIn: "linkedin.com/in/oliviarhye",
     summary:
-      "Senior Product Designer with 6 years of experience creating user-centered digital products. Led design teams at Fortune 500 companies and startups alike.",
+      "Senior Product Designer with 6 years of experience creating user-centered digital products. Led design teams at Fortune 500 companies and recruiters alike.",
     currentCompany: "Airbnb",
     workExperience: [
       {
@@ -243,7 +243,7 @@ export const mockCandidates: Candidate[] = [
     overallScore: 88,
     linkedIn: "linkedin.com/in/sarahchen",
     summary:
-      "Award-winning marketing leader with expertise in brand building and digital transformation. Grew startup from 0 to 1M users.",
+      "Award-winning marketing leader with expertise in brand building and digital transformation. Grew recruiter from 0 to 1M users.",
     currentCompany: "HubSpot",
     education: "UCLA - MBA Marketing",
     status: "new",

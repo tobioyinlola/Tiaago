@@ -13,7 +13,7 @@ import {
   ReferredUser,
   ReferralWithdrawal,
   Staff,
-  Startup,
+  Recruiter,
   Talent,
   User,
 } from "../types";
@@ -23,6 +23,7 @@ import {
   _handleServerApiCallError,
   getFullUserType,
   getOnboardingUrl,
+  getRoleUrlSegment,
   handleServerApiCallError,
 } from "../utils";
 
@@ -74,7 +75,7 @@ const _getCurrentUserImpl = cache(async function getCurrentUserImpl(
   const as = getFullUserType(currentUser.user_type);
 
   if (!currentUser.verified && as !== "staff") {
-    const role = as === "startup" ? "startup" : "talent";
+    const role = as === "recruiter" ? "recruiter" : "talent";
     return redirect(
       `/verify-email?email=${encodeURIComponent(currentUser.email)}&as=${role}`
     );
@@ -85,14 +86,14 @@ const _getCurrentUserImpl = cache(async function getCurrentUserImpl(
     getFullUserType(currentUser.user_type) !== requiredUserType
   ) {
     if (currentUser.user_type === "ST") return redirect("/admin");
-    return redirect(`/${as}s/dashboard`);
+    return redirect(`/${getRoleUrlSegment(as)}/dashboard`);
   }
   if (validUserRedirect)
     return redirect(
       validUserRedirect === "dashboard"
         ? as === "staff"
           ? "/admin"
-          : `/${as}s/dashboard`
+          : `/${getRoleUrlSegment(as)}/dashboard`
         : validUserRedirect
     );
   return { removeAuthCookies, currentUser };
@@ -108,9 +109,9 @@ export async function getCurrentUser(
   getProfileArgs?: GetProfileArgs
 ): Promise<GetCurrentUserReturnType<Talent>>;
 export async function getCurrentUser(
-  requiredUserType: "startup",
+  requiredUserType: "recruiter",
   getProfileArgs?: GetProfileArgs
-): Promise<GetCurrentUserReturnType<Startup>>;
+): Promise<GetCurrentUserReturnType<Recruiter>>;
 export async function getCurrentUser(
   requiredUserType: "staff",
   getProfileArgs?: GetProfileArgs
@@ -127,7 +128,7 @@ export const getAllUsers = async (includeUnverifiedUsers?: boolean) => {
   return data.filter(user => includeUnverifiedUsers || user.verified);
 };
 
-export const getAllStartups = async (
+export const getAllRecruiters = async (
   page = 1,
   verified?: boolean | null,
   search?: string
@@ -142,9 +143,9 @@ export const getAllStartups = async (
   return {
     ...data,
     results: data.results.map(
-      ({ user, ...rest }) => ({ ...rest, ...user } as Startup)
+      ({ user, ...rest }) => ({ ...rest, ...user } as Recruiter)
     ),
-  } as PagedResource<Startup>;
+  } as PagedResource<Recruiter>;
 };
 
 export const getAllTalents = async (

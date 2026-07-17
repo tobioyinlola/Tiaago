@@ -1,9 +1,9 @@
+import Link from "next/link";
 import { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { getPublicJob } from "@/app/common/services/jobs";
 import JobDetails from "@/app/common/components/dashboard/JobDetails";
-import JobApplicationModal from "@/app/talents/(dashboard)/(requires-verification)/jobs/components/JobApplicationModal";
 
 type Props = { params: Promise<{ job_id: string }> };
 
@@ -39,13 +39,12 @@ const JobDetailsPage = async ({ params }: { params: Promise<{ job_id: string }> 
         <JobDetails job={job as any} />
 
         <div className='mt-11 flex justify-end'>
-          <JobApplicationModal
-            id={job.id}
-            role={job.title}
-            company={job.company?.company_name}
-            buttonText='Apply'
-            buttonClassName='btn-primary min-w-[156px] rounded-lg min-h-11 h-11 font-inter'
-          />
+          <Link
+            href={job.get_apply_url || "#"}
+            className='btn btn-primary text-white min-w-[156px] rounded-lg min-h-11 h-11 font-inter'
+          >
+            Apply
+          </Link>
         </div>
       </div>
     </main>

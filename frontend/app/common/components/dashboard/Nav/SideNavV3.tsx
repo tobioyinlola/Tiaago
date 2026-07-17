@@ -7,12 +7,12 @@ import { MdKeyboardDoubleArrowRight } from "react-icons/md";
 
 import Logout from "./Logout";
 import NavLink from "../../NavLink";
-import { cn } from "@/app/common/utils";
+import { cn, getRoleUrlSegment } from "@/app/common/utils";
 import ScrollArea from "../../ScrollArea";
 import { BasePageProps } from "@/app/common/types";
 import { SUPPORT_EMAIL } from "@/app/common/constants";
 import { talentNavItems } from "@/app/talents/(dashboard)/constants/nav";
-import { startupNavItems } from "@/app/startups/dashboard/constants/nav";
+import { recruiterNavItems } from "@/app/recruiter/dashboard/constants/nav";
 import { navItems as adminNavItems } from "@/app/admin/(dashboard)/constants/nav";
 import { usePersistedStore } from "@/app/common/store/usePersistedStore";
 import NavDropdown from "../../NavDropdown";
@@ -33,7 +33,7 @@ const SideNavV3 = ({
     state.toggleSideBarExpanded,
   ]);
 
-  const baseHref = as === "staff" ? "/admin" : `/${as}s`;
+  const baseHref = as === "staff" ? "/admin" : `/${getRoleUrlSegment(as!)}`;
   const homeItem = {
     name: "home",
     href: as === "staff" ? baseHref : `${baseHref}/dashboard`,
@@ -45,7 +45,7 @@ const SideNavV3 = ({
       ? talentNavItems
       : as === "staff"
       ? adminNavItems
-      : startupNavItems;
+      : recruiterNavItems;
 
   // Filter nav items and sublinks based on team role
   const navItems = rawNavItems.filter(item => {

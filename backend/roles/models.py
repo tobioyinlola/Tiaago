@@ -5,7 +5,7 @@ from django.utils.text import slugify
 class Role(models.Model):
     title = models.CharField(max_length=70, unique=True)
     is_technical = models.BooleanField(default=True)
-    is_startup_role = models.BooleanField(default=False)
+    is_recruiter_role = models.BooleanField(default=False)
     slug = models.SlugField(blank=True, max_length=70, unique=True)
     created = models.DateTimeField(auto_now_add=True)
     active = models.BooleanField(default=True)

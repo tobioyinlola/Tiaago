@@ -1,0 +1,22 @@
+{% autoescape off %}YOUR TICKET HAS BEEN RESOLVED
+
+Hi {{ first_name|default:"there" }}, the Tiaago team has marked your ticket
+{{ ticket_number|default:"TKT-00042" }} -- "{{ title|default:"Support request" }}" -- as resolved.
+
+  Ticket number: {{ ticket_number|default:"TKT-00042" }}
+  Status:        Resolved
+
+View your ticket: {{ ticket_url }}
+
+If your issue isn't fully fixed, you can reopen the ticket from that page at
+any time.
+
+--
+Tiaago - AI-powered end-to-end hiring platform for modern teams.
+X: https://x.com/TiaagoHq
+Instagram: https://www.instagram.com/tiaago_hq
+LinkedIn: https://www.linkedin.com/company/tiaagohq/
+Questions? support@tiaago.com
+1942 Broadway St, Suite 314C, Boulder, CO, US
+(c) Tiaago. All rights reserved.
+{% endautoescape %}

@@ -1,5 +1,5 @@
 "use server";
-import { ID, ScheduledMeeting } from "../types";
+import { ApiResponse, ID, InterviewSlot, ScheduledMeeting } from "../types";
 import { handleServerApiCallError } from "../utils";
 import serverKyInstance from "../utils/server-ky.instance";
 
@@ -34,5 +34,36 @@ export const deleteMeeting = async (id: ID) => {
     return data;
   } catch (error) {
     throw Error(await handleServerApiCallError(error));
+  }
+};
+
+export const getJobInterviewSlots = async (
+  jobId: ID
+): Promise<ApiResponse<InterviewSlot[]>> => {
+  try {
+    const data = await serverKyInstance
+      .get(`jobs/${jobId}/interview-slots/`)
+      .json<InterviewSlot[]>();
+    return { success: true, data };
+  } catch (error) {
+    const errMsg = await handleServerApiCallError(error);
+    console.log("getJobInterviewSlots Error: ", errMsg);
+    return { success: false, error: errMsg };
+  }
+};
+
+export const claimInterviewSlot = async (
+  jobId: ID,
+  slotId: ID
+): Promise<ApiResponse<InterviewSlot>> => {
+  try {
+    const data = await serverKyInstance
+      .post(`jobs/${jobId}/interview-slots/${slotId}/claim/`)
+      .json<InterviewSlot>();
+    return { success: true, data };
+  } catch (error) {
+    const errMsg = await handleServerApiCallError(error);
+    console.log("claimInterviewSlot Error: ", errMsg);
+    return { success: false, error: errMsg };
   }
 };

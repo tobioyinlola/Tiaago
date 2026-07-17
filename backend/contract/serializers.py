@@ -11,7 +11,7 @@ class ContractSerializer(serializers.ModelSerializer):
     talent_email = serializers.ReadOnlyField(source="talent.user.email")
     full_name = serializers.SerializerMethodField()
     talent_profile_pic = serializers.SerializerMethodField()
-    startup_profile_pic = serializers.SerializerMethodField()
+    recruiter_profile_pic = serializers.SerializerMethodField()
     account_name = serializers.ReadOnlyField(source="talent.account_name")
     bank_name = serializers.ReadOnlyField(source="talent.bank_name")
     account_number = serializers.ReadOnlyField(source="talent.account_number")
@@ -21,7 +21,7 @@ class ContractSerializer(serializers.ModelSerializer):
         fields = (
             'id', 'talent', 'company', 'company_email', 'role', 'role_name', 
             'mode', 'value', 'expires', 'created', 'updated',  "talent_email", 
-            "full_name", "talent_profile_pic", "startup_profile_pic",
+            "full_name", "talent_profile_pic", "recruiter_profile_pic",
             "account_name", "account_number", "bank_name", "talent_salary"
         )
         read_only_fields = ('talent', 'company')
@@ -37,5 +37,5 @@ class ContractSerializer(serializers.ModelSerializer):
     def get_talent_profile_pic(self, obj):
         return obj.talent.user.get_profile_pic()
 
-    def get_startup_profile_pic(self, obj):
+    def get_recruiter_profile_pic(self, obj):
         return obj.company.company_rep.get_profile_pic()

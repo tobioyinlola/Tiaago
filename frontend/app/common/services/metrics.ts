@@ -12,7 +12,7 @@ type ServerMetricItem = {
 type ServerAdminMetrics = {
   talent_metrics: ServerMetricItem[];
   user_metrics: ServerMetricItem[];
-  startup_metrics: ServerMetricItem[];
+  recruiter_metrics: ServerMetricItem[];
   contract_metrics: ServerMetricItem[];
   registration_metrics: ServerMetricItem[];
 };
@@ -24,7 +24,7 @@ export const getAdminMetrics = async () => {
   const final = {
     "User Details": data.user_metrics,
     "Talent Details": data.talent_metrics,
-    "Startup Details": data.startup_metrics,
+    "Recruiter Details": data.recruiter_metrics,
     Contracts: data.contract_metrics.map(item => ({
       ...item,
       current_value: formatPrice({

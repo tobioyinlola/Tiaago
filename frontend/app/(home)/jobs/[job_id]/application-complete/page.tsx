@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { getJob } from "@/app/common/services/jobs";
+import { getPublicJob } from "@/app/common/services/jobs";
 import { SuccessIconWithConfetti } from "@/app/common/icons/SuccessIcon";
 
 export const metadata = {
@@ -17,7 +17,7 @@ const JobApplicationCompletePage = async ({
   const { job_id } = resolvedParams;
 
   // Verify the job exists
-  const job = await getJob(job_id).catch(() => null);
+  const job = await getPublicJob(job_id).catch(() => null);
   if (!job) return notFound();
 
   return (

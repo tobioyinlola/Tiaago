@@ -1,7 +1,7 @@
 "use client";
 
 import { toast } from "sonner";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { LuX } from "react-icons/lu";
 import { addMinutes } from "date-fns";
 import { useRouter } from "next/navigation";
@@ -23,7 +23,7 @@ import {
 import { useAlert } from "@/app/common/store/useAlert";
 import StopWatchIcon from "@/app/common/icons/StopWatchIcon";
 import { mcqInstructions } from "../../constants/mcq.constants";
-import { CodingTaskSection, CompanySkillAssessment } from "@/app/common/types";
+import { ApiResponse, CodingTaskSection, CompanySkillAssessment } from "@/app/common/types";
 import { attemptCompanyAssessmentCodeSection } from "@/app/common/services/assessment";
 import { useAssessmentSecurity } from "@/app/common/hooks/useAssessmentSecurity";
 
@@ -34,17 +34,28 @@ const AssessmentCodingTask = ({
   mode = "talent-verification",
   jobId,
   onComplete,
+  skipIntro = false,
+  submitOverride,
 }: {
   codeSection: CodingTaskSection;
   assessment: CompanySkillAssessment;
   checkoutUrl?: string;
-  mode?: "talent-verification" | "job-application";
+  mode?: "talent-verification" | "job-application" | "invite";
   jobId?: string;
   onComplete?: () => void;
+  /** Skip this component's own pre-start instructions screen -- used by the
+   * no-login invite flow, which already shows its own instructions/ready
+   * screens before the candidate ever reaches this component. */
+  skipIntro?: boolean;
+  /** Overrides the default authenticated submit call -- used by the no-login
+   * invite flow to submit via its token-based endpoint instead. */
+  submitOverride?: (data: {
+    answers: { section_id: number | string; coding_task_answers: { coding_task_id: number | string; user_answer: string }[] }[];
+  }) => Promise<ApiResponse<unknown>>;
 }) => {
   const router = useRouter();
   const setAlert = useAlert(state => state.setAlert);
-  const [hasStarted, setHasStarted] = useState(false);
+  const [hasStarted, setHasStarted] = useState(skipIntro);
   const [disabled, setDisabled] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [timeAlmostUp, setTimeAlmostUp] = useState(false);
@@ -58,33 +69,48 @@ const AssessmentCodingTask = ({
   // Enable assessment security measures
   useAssessmentSecurity();
 
+  useEffect(() => {
+    if (skipIntro) {
+      setEndDateTime(addMinutes(new Date(), assessmentDurationInMinutes));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const submit = async () => {
     if (submitting) return;
     try {
       setSubmitting(true);
-      const res = await attemptCompanyAssessmentCodeSection(
-        assessment.id,
-        codeSection.id,
-        [
+      const payload = {
+        answers: [
           {
-            user_answer: code,
-            coding_task_id: codeSection.coding_tasks?.at(0)?.id!,
+            section_id: codeSection.id,
+            coding_task_answers: [
+              {
+                user_answer: code,
+                coding_task_id: codeSection.coding_tasks?.at(0)?.id!,
+              },
+            ],
           },
-        ]
-      );
+        ],
+      };
+      const res = submitOverride
+        ? await submitOverride(payload)
+        : await attemptCompanyAssessmentCodeSection(
+            assessment.id,
+            codeSection.id,
+            payload.answers[0].coding_task_answers
+          );
       if (!res.success) {
         throw Error(res.error);
       }
       toast.success("Your score has been recorded");
 
       // Handle different completion flows based on mode
-      if (mode === "job-application") {
-        if (onComplete) {
-          onComplete();
-        } else {
-          // Redirect to job application results
-          window.location.href = `/jobs/${jobId}/assessment/${assessment.id}/results?tab=coding_task`;
-        }
+      if (onComplete) {
+        onComplete();
+      } else if (mode === "job-application") {
+        // Redirect to job application results
+        window.location.href = `/jobs/${jobId}/assessment/${assessment.id}/results?tab=coding_task`;
       } else {
         // Talent verification flow - go to results
         window.location.href = `/assessments/${assessment.id}/results?tab=coding_task`;

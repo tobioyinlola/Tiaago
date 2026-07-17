@@ -150,7 +150,7 @@ const ProfileModal = ({
             {!pathName.includes("messages") && isUser && (
               <Link
                 href={{
-                  pathname: "/startups/dashboard/messages",
+                  pathname: "/recruiter/dashboard/messages",
                   query: { user: user.id },
                 }}
                 className={cn(

@@ -159,7 +159,7 @@ const PublicCompanyProfileJobList = ({ jobs }: { jobs: Job[] }) => {
                   </div>
 
                   <Link
-                    href={job.get_apply_url || `/jobs/${job.id}`}
+                    href={job.get_apply_url || "#"}
                     className='w-full flex items-center justify-center gap-2 px-4 sm:px-6 py-3 sm:py-4 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white text-base sm:text-lg font-bold rounded-lg sm:rounded-xl transition-all shadow-xl shadow-blue-600/30 hover:shadow-2xl hover:shadow-blue-600/40 hover:-translate-y-0.5'
                   >
                     <span>Apply Now</span>

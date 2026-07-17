@@ -381,12 +381,21 @@ class CompanySerializer(RegisterSerializer):
                 role = Role.objects.get(slug=role_slug)
             except Role.DoesNotExist:
                 raise serializers.ValidationError({"role": "Invalid role provided."})
+        referred_by = None
+        ref_code = request.data.get("ref")
+        if ref_code:
+            referred_by = Company.objects.filter(referral_code=ref_code).first()
+
         company = Company.objects.create(
             company_rep_id=user.id,
             company_name=self.validated_data.get("company_name", ""),
             website=self.validated_data.get("website") or None,
             size=self.validated_data.get("size") or None,
             role=role,
+            referred_by=referred_by,
+            utm_source=request.data.get("utm_source") or None,
+            utm_medium=request.data.get("utm_medium") or None,
+            utm_campaign=request.data.get("utm_campaign") or None,
         )
         # Ensure the registering company rep is added to the company team as ADMIN
         try:
@@ -457,7 +466,7 @@ class CompanyOnboardingSerializer(serializers.ModelSerializer):
     """Per-card saves for the post-signup company onboarding flow."""
 
     role = serializers.SlugRelatedField(
-        queryset=Role.objects.filter(is_startup_role=True),
+        queryset=Role.objects.filter(is_recruiter_role=True),
         slug_field="slug",
         required=False,
         allow_null=True,
@@ -698,7 +707,7 @@ class CompanyDetailSerializer(serializers.ModelSerializer):
 
 class CompanyForUserProfileSerializer(serializers.ModelSerializer):
     user = CustomUserSerializer(source="company_rep", read_only=True)
-    role = serializers.SlugRelatedField(queryset=Role.objects.filter(is_startup_role=True), slug_field="slug", required=False)
+    role = serializers.SlugRelatedField(queryset=Role.objects.filter(is_recruiter_role=True), slug_field="slug", required=False)
     user_role = serializers.SerializerMethodField(read_only=True)
     user_role_display = serializers.SerializerMethodField(read_only=True)
 

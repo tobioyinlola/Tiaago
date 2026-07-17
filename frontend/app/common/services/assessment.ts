@@ -19,7 +19,7 @@ import {
 } from "../types";
 import { _handleServerApiCallError, handleServerApiCallError } from "../utils";
 import serverKyInstance from "../utils/server-ky.instance";
-import { initialValues } from "@/app/startups/dashboard/constants/assessment-form.constants";
+import { initialValues } from "@/app/recruiter/dashboard/constants/assessment-form.constants";
 
 export const getSkillAssessments = async () => {
   const data = await serverKyInstance
@@ -403,11 +403,11 @@ export const createCodeAssessment = async (json: {
   }
 };
 
-export const getAiFeedback = async (job_id: ID) => {
+export const getAiFeedback = async (publicId: string) => {
   try {
     const response = await serverKyInstance
       .get<PagedResource<AiFeedbackItem>>(
-        `skill-assessments/company-ai-applications/${job_id}/summary`
+        `skill-assessments/company-ai-applications/${publicId}/summary`
       )
       .json();
     return response;
@@ -522,5 +522,22 @@ export const getCompanyAssessmentCooldownStatus = async (id: ID) => {
     const errMsg = await handleServerApiCallError(error);
     console.log("getCompanyAssessmentCooldownStatus Error: ", errMsg);
     throw Error(errMsg);
+  }
+};
+
+export const getSubmissionSnapshots = async (
+  submissionId: ID
+): Promise<{ id: ID; image: string; created_at: string }[]> => {
+  try {
+    const response = await serverKyInstance
+      .get<{ id: ID; image: string; created_at: string }[]>(
+        `skill-assessments/submissions/${submissionId}/snapshots/`
+      )
+      .json();
+    return response;
+  } catch (error) {
+    const errMsg = await handleServerApiCallError(error);
+    console.log("getSubmissionSnapshots Error: ", errMsg);
+    return [];
   }
 };

@@ -119,8 +119,8 @@ const JobReviewPage = async ({ params }: Props) => {
   return (
     <>
       <div className='flex justify-between items-center border-b pb-3'>
-        <h1 className='text-2xl font-semibold'>Job #{job.id}</h1>
-        <DeactivateJob id={job.id} deactivated={job.job_status !== "ACTIVE"} />
+        <h1 className='text-2xl font-semibold'>Job #{job.public_id}</h1>
+        <DeactivateJob publicId={job.public_id} deactivated={job.job_status !== "ACTIVE"} />
       </div>
       {sections.map(({ items, title }) => (
         <div className='mt-8' key={title}>

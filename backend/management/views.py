@@ -25,7 +25,7 @@ from base.mixins.pagination import TiaagoPagination
 from subscriptions.permissions import IsStaffUser
 from .models import EmailTrack, ProcessedWebhookEvent
 from .serializers import EmailTrackSerializer
-from .utils import get_user_and_registration_metrics, get_startup_metrics, get_contract_metrics, get_talent_metrics
+from .utils import get_user_and_registration_metrics, get_recruiter_metrics, get_contract_metrics, get_talent_metrics
 
 logger = logging.getLogger(__name__)
 
@@ -33,19 +33,19 @@ class AdminMetricsAPIView(APIView):
     '''
     API Endpoint to fetch statistics.
 
-    Returns user metrics, talent metrics, startup metrics and contract metrics
+    Returns user metrics, talent metrics, recruiter metrics and contract metrics
     '''
     permission_classes = [IsAdminUser]
 
     def get(self, request):
         talent_metrics = get_talent_metrics()
         user_metrics, registration_metrics = get_user_and_registration_metrics()
-        startup_metrics = get_startup_metrics()
+        recruiter_metrics = get_recruiter_metrics()
         contract_metrics = get_contract_metrics()
         data = {
             "talent_metrics":talent_metrics,
             "user_metrics":user_metrics,
-            "startup_metrics":startup_metrics,
+            "recruiter_metrics":recruiter_metrics,
             "contract_metrics":contract_metrics,
             "registration_metrics":registration_metrics
         }

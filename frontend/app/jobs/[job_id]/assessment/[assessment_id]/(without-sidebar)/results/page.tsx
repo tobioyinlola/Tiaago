@@ -4,7 +4,7 @@ import DisplayErrorMessages, {
   DisplayErrorMessagesProps,
 } from "@/app/common/components/DisplayErrorMessages";
 
-import { getJob } from "@/app/common/services/jobs";
+import { getPublicJobByPublicId } from "@/app/common/services/jobs";
 import { handleServerApiCallError } from "@/app/common/utils";
 import { getCompanyAssessment } from "@/app/common/services/assessment";
 import AssessmentResults from "@/app/assessments/_components/AssessmentResults";
@@ -27,7 +27,7 @@ const JobApplicationResultsPage = async ({
   const errors: DisplayErrorMessagesProps["errors"] = [];
 
   // Verify the job exists
-  const job = await getJob(job_id).catch(async e => {
+  const job = await getPublicJobByPublicId(job_id).catch(async e => {
     const error = await handleServerApiCallError(e);
     errors.push({
       message: error,

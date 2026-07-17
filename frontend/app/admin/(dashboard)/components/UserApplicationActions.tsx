@@ -13,10 +13,10 @@ import { cn, handleFormSubmissionError } from "@/app/common/utils";
 
 const UserApplicationActions = ({
   id,
-  isStartup,
+  isRecruiter,
 }: {
   id: ID;
-  isStartup?: boolean;
+  isRecruiter?: boolean;
 }) => {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -25,7 +25,7 @@ const UserApplicationActions = ({
   const setAlert = useAlert(state => state.setAlert);
 
   const accepted = action === "accept";
-  const name = isStartup ? "startup" : "talent";
+  const name = isRecruiter ? "recruiter" : "talent";
 
   const handleAction = async () => {
     if (loading) return;

@@ -138,14 +138,14 @@ def meeting_invite_others(user_id, meeting_id, user_emails=None):
         raise
     
 @shared_task
-def startup_interview_acceptance_mail(user_id, company_name, meeting_id):
+def recruiter_interview_acceptance_mail(user_id, company_name, meeting_id):
     """Send email notification to company when talent accepts interview"""
     logger.info(f"Sending interview acceptance notification for meeting {meeting_id}")
     try:
         user = User.objects.get(id=user_id)
         meeting_instance = Scheduler.objects.get(id=meeting_id)
         meeting_details = get_meeting_details(meeting_instance)
-        result = emails.startup_interview_acceptance_mail(user, company_name, meeting_details)
+        result = emails.recruiter_interview_acceptance_mail(user, company_name, meeting_details)
         logger.info(f"Successfully sent interview acceptance notification for meeting {meeting_id}")
         return result
     except Scheduler.DoesNotExist:

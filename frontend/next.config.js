@@ -48,6 +48,7 @@ const nextConfig = {
       },
       { hostname: "flagcdn.com", protocol: "https" },
       { hostname: "images.pexels.com", protocol: "https" },
+      { hostname: "localhost", port: "8000", protocol: "http" },
     ],
   },
 };

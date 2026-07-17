@@ -8,7 +8,7 @@ import {
 } from "@react-oauth/google";
 import { setAuthCookies, TokensInput } from "@/app/common/actions";
 import { publicKyInstance } from "@/app/common/utils/client-ky.instance";
-import { getFullUserType } from "@/app/common/utils";
+import { getFullUserType, getRoleUrlSegment } from "@/app/common/utils";
 import { Loader2 } from "lucide-react";
 
 const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "";
@@ -22,10 +22,18 @@ function GoogleButtonInner({
   userType,
   next,
   label = "Sign in with Google",
+  orgRefCode,
+  utm_source,
+  utm_medium,
+  utm_campaign,
 }: {
   userType: "company" | "talent";
   next?: string;
   label?: string;
+  orgRefCode?: string;
+  utm_source?: string;
+  utm_medium?: string;
+  utm_campaign?: string;
 }) {
   const [loading, setLoading] = useState(false);
 
@@ -38,6 +46,10 @@ function GoogleButtonInner({
             json: {
               access_token: tokenResponse.access_token,
               user_type: userType,
+              ...(orgRefCode ? { ref: orgRefCode } : {}),
+              ...(utm_source ? { utm_source } : {}),
+              ...(utm_medium ? { utm_medium } : {}),
+              ...(utm_campaign ? { utm_campaign } : {}),
             },
           })
           .json<GoogleSignInResponse>();
@@ -51,7 +63,7 @@ function GoogleButtonInner({
             window.location.href = next;
           } else {
             const fullType = getFullUserType(user_type as "T" | "CR" | "ST");
-            window.location.href = `/${fullType}s/dashboard`;
+            window.location.href = `/${getRoleUrlSegment(fullType)}/dashboard`;
           }
         }, 500);
       } catch {
@@ -116,16 +128,32 @@ export default function GoogleSignInButton({
   userType = "company",
   next,
   label,
+  orgRefCode,
+  utm_source,
+  utm_medium,
+  utm_campaign,
 }: {
   userType?: "company" | "talent";
   next?: string;
   label?: string;
+  orgRefCode?: string;
+  utm_source?: string;
+  utm_medium?: string;
+  utm_campaign?: string;
 }) {
   if (!GOOGLE_CLIENT_ID) return null;
 
   return (
     <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
-      <GoogleButtonInner userType={userType} next={next} label={label} />
+      <GoogleButtonInner
+        userType={userType}
+        next={next}
+        label={label}
+        orgRefCode={orgRefCode}
+        utm_source={utm_source}
+        utm_medium={utm_medium}
+        utm_campaign={utm_campaign}
+      />
     </GoogleOAuthProvider>
   );
 }

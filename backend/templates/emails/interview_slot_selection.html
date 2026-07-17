@@ -1,0 +1,33 @@
+{% extends "emails/base.html" %}
+{% block title %}Pick your interview time{% endblock %}
+{% block preheader %}{{ company|default:"Paystack" }} would like to interview you -- choose a time that works.{% endblock %}
+{% block content %}
+  <h1 class="h1" style="margin:0 0 14px; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:33px; line-height:1.15; letter-spacing:-0.6px; font-weight:800; color:#0F172A;">You're interviewing with {{ company|default:"Paystack" }}</h1>
+
+  <p style="margin:0 0 14px; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:16px; line-height:1.65; color:#475569;">Great news, {{ first_name|default:"Amara" }}. You passed the assessment for {{ role|default:"the role" }} and the team would like to meet you. Pick a time that works from their available slots below.</p>
+
+  <!-- detail box -->
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:24px 0 28px; background-color:#F8FAFC; border:1px solid #E2E8F0; border-radius:0;">
+    <tr><td style="padding:18px 22px 4px; font-family:'Inter',Arial,sans-serif; font-size:11px; font-weight:700; letter-spacing:1.2px; text-transform:uppercase; color:#64748B;">Interview details</td></tr>
+    <tr><td style="padding:0 22px;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td style="padding:10px 0; font-family:'Inter',Arial,sans-serif; font-size:14px; color:#64748B; border-bottom:1px solid #EAEEF5;">Role</td>
+          <td align="right" style="padding:10px 0; font-family:'Inter',Arial,sans-serif; font-size:14px; font-weight:600; color:#0F172A; border-bottom:1px solid #EAEEF5;">{{ role|default:"Senior Frontend Engineer" }}</td>
+        </tr>
+        <tr>
+          <td style="padding:10px 0 18px; font-family:'Inter',Arial,sans-serif; font-size:14px; color:#64748B;">Company</td>
+          <td align="right" style="padding:10px 0 18px; font-family:'Inter',Arial,sans-serif; font-size:14px; font-weight:600; color:#0F172A;">{{ company|default:"Paystack" }}</td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+
+  <!-- CTA -->
+  <table role="presentation" class="cta-table" cellpadding="0" cellspacing="0" border="0"><tr>
+    <td align="center" bgcolor="#1C3477" style="background-color:#1C3477; border-radius:0;"><a href="{{ slots_url|default:'https://app.tiaago.com' }}" target="_blank" class="cta-a" style="display:inline-block; padding:15px 30px; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:15px; font-weight:700; line-height:20px; color:#FFFFFF; text-decoration:none; border-radius:0;">Pick your interview time&nbsp;&rarr;</a></td>
+  </tr></table>
+
+  <p style="margin:18px 0 0; font-family:'Inter',Arial,sans-serif; font-size:13px; line-height:1.6; color:#64748B;">Slots are first come, first served -- pick one soon before it's taken.</p>
+
+{% endblock %}

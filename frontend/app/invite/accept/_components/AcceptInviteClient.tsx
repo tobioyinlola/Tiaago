@@ -36,11 +36,11 @@ const ROLE_DESCRIPTIONS: Record<TeamMemberRole, string> = {
 function getDashboardUrl(role: TeamMemberRole): string {
   switch (role) {
     case "recruiter":
-      return "/startups/dashboard";
+      return "/recruiter/dashboard";
     case "admin":
     case "viewer":
     default:
-      return "/startups/dashboard";
+      return "/recruiter/dashboard";
   }
 }
 
@@ -101,8 +101,8 @@ export default function AcceptInviteClient({
     }
   }, [isLoggedIn, emailMatches, accepted, accepting, token, dashboardUrl, router]);
 
-  const loginUrl = `/startups/signin?next=${encodeURIComponent(`/invite/accept?token=${token}`)}`;
-  const signupUrl = `/startups/signup?next=${encodeURIComponent(`/invite/accept?token=${token}`)}&email=${encodeURIComponent(email)}&invite_token=${token}`;
+  const loginUrl = `/recruiter/signin?next=${encodeURIComponent(`/invite/accept?token=${token}`)}`;
+  const signupUrl = `/recruiter/signup?next=${encodeURIComponent(`/invite/accept?token=${token}`)}&email=${encodeURIComponent(email)}&invite_token=${token}`;
 
   if (accepted) {
     return (

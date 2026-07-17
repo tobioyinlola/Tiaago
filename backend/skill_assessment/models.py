@@ -1,3 +1,4 @@
+import uuid
 from pathlib import Path
 from django.db import models
 from rest_framework.serializers import ValidationError
@@ -174,6 +175,15 @@ class GeneralSkillAssessment(TimeStampedModel):
     assessment_stack = models.ForeignKey(
         TechStack, related_name="skill_assessment_stack",
         on_delete=models.CASCADE, null=True, blank=True,)
+    invite_token = models.UUIDField(
+        default=uuid.uuid4,
+        unique=True,
+        editable=False,
+        db_index=True,
+        help_text="Unguessable token used in the candidate invite link -- lets a candidate "
+        "open and take this specific assessment without logging in.",
+    )
+
     def __str__(self):
         return self.title
 
@@ -207,7 +217,13 @@ class GeneralSkillAssessmentSection(TimeStampedModel):
     coding_tasks = models.ManyToManyField(
         "CodingTask", blank=True
     )
-    
+
+    class Meta:
+        # Sections are created in the intended candidate-facing order (one per
+        # category, matching JobAssessmentTemplateSection's `order` field at
+        # clone time in send_assessment_link) -- ordering by id preserves that
+        # instead of relying on the DB's incidental row-return order.
+        ordering = ("id",)
 
     def __str__(self):
         return f"{self.company_skill_assessment.title} - {self.name}"
@@ -236,8 +252,11 @@ class GeneralSkillAssessmentMCQQuestion(TimeStampedModel):
 
     is_ai_generated = models.BooleanField(default=False)
     question = models.TextField()
-    options = models.JSONField() 
+    options = models.JSONField()
     correct_option_index = models.IntegerField()
+
+    class Meta:
+        ordering = ("id",)
 
     def __str__(self):
         return self.question
@@ -426,6 +445,7 @@ class CandidateAssessmentSubmission(TimeStampedModel):
         help_text="Time taken in minutes.", null=True, blank=True
     )
     total_score = models.FloatField(null=True, blank=True)
+    started_at = models.DateTimeField(null=True, blank=True)
     completed_at = models.DateTimeField(null=True, blank=True)
     is_completed = models.BooleanField(default=False)
     is_passed = models.BooleanField(default=False)
@@ -434,6 +454,15 @@ class CandidateAssessmentSubmission(TimeStampedModel):
         choices=MarkStatusChoices.choices,
         default=MarkStatusChoices.PENDING,
     )
+    candidate_display_name = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+        help_text="Name the candidate confirmed/edited on the no-login invite flow for this "
+        "specific attempt -- display only, does not update the candidate's TalentProfile.",
+    )
+    feedback_rating = models.PositiveSmallIntegerField(null=True, blank=True)
+    feedback_comment = models.TextField(blank=True, default="")
 
     class Meta:
         indexes = [
@@ -443,6 +472,22 @@ class CandidateAssessmentSubmission(TimeStampedModel):
 
     def __str__(self):
         return f"{self.candidate} - {self.skill_assessment.title}"
+
+
+class AssessmentSubmissionSnapshot(TimeStampedModel):
+    """Periodic camera captures taken during a no-login candidate's assessment
+    attempt, for the recruiter to spot-check afterward."""
+
+    def upload_to(instance, filename):
+        return "/".join(["assessment-snapshots", str(instance.submission_id), filename])
+
+    submission = models.ForeignKey(
+        CandidateAssessmentSubmission, on_delete=models.CASCADE, related_name="snapshots"
+    )
+    image = models.ImageField(upload_to=upload_to)
+
+    def __str__(self):
+        return f"Snapshot for submission {self.submission_id}"
 
 
 class PendingResumeAnalysis(TimeStampedModel):
@@ -622,6 +667,7 @@ class GeneralSkillAssessmentSectionMCQ(models.Model):
 
     class Meta:
         unique_together = ("section", "mcq")
+        ordering = ("id",)
         indexes = [
             models.Index(fields=["section", "mcq"]),
             models.Index(fields=["mcq", "section"]),

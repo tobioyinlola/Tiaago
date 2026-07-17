@@ -29,7 +29,6 @@
     "@stripe/stripe-js": "^7.4.0",
     "@uiw/react-codemirror": "^4.23.11",
     "@yet3/use-calendar": "^1.1.0",
-
     "canvas-confetti": "^1.9.4",
     "chart.js": "^4.4.1",
     "class-variance-authority": "^0.7.1",
@@ -49,7 +48,6 @@
     "react": "^19.1.1",
     "react-chartjs-2": "^5.2.0",
     "react-countdown": "^2.3.5",
-
     "react-datepicker": "^5.0.0",
     "react-dom": "^19.1.1",
     "react-icons": "^4.12.0",
@@ -60,6 +58,7 @@
     "react-select": "^5.8.0",
     "react-use-websocket": "^4.8.1",
     "react-web-share": "^2.0.2",
+    "sanitize-html": "^2.17.6",
     "sharp": "^0.34.4",
     "sonner": "^1.2.4",
     "tailwind-merge": "^2.0.0",
@@ -71,12 +70,14 @@
     "zustand": "^4.4.6"
   },
   "devDependencies": {
+    "@tailwindcss/typography": "^0.5.20",
     "@types/canvas-confetti": "^1.9.0",
     "@types/insert-text-at-cursor": "^0.3.2",
     "@types/node": "^20",
     "@types/react": "^18.2.38",
     "@types/react-datepicker": "^4.19.5",
     "@types/react-dom": "^18",
+    "@types/sanitize-html": "^2.16.1",
     "@types/ua-parser-js": "^0.7.39",
     "@types/uuid": "^10.0.0",
     "autoprefixer": "^10.4.16",

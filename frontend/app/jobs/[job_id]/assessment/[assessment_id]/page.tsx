@@ -16,7 +16,7 @@ import { notFound } from "next/navigation";
 import DisplayErrorMessages, {
   DisplayErrorMessagesProps,
 } from "@/app/common/components/DisplayErrorMessages";
-import { getJob } from "@/app/common/services/jobs";
+import { getPublicJobByPublicId } from "@/app/common/services/jobs";
 import { getCurrentUser } from "@/app/common/services/profile";
 import { getCompanyAssessment as getAssessment } from "@/app/common/services/assessment";
 import SetTalentProfile from "@/app/talents/(dashboard)/components/SetTalentProfile";
@@ -69,7 +69,7 @@ const JobApplicationAssessmentLandingPage = async ({
   const isProfileComplete = Object.values(profileStatus).every(Boolean);
 
   // Verify the job exists
-  const job = await getJob(job_id).catch(async e => {
+  const job = await getPublicJobByPublicId(job_id).catch(async e => {
     const error = await handleServerApiCallError(e);
     console.log("Get job error (job assessment page): ", error);
     errors.push({

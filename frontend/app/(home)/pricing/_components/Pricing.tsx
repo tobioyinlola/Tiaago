@@ -131,7 +131,7 @@ const Pricing = ({
         icon: "info",
         title: "This feature requires a recruiter account",
         buttonText: "Sign in as a recruiter",
-        buttonLink: `/startups/signin?next=${encodeURIComponent(
+        buttonLink: `/recruiter/signin?next=${encodeURIComponent(
           window.location.pathname
         )}`,
         secondaryButton: {
@@ -156,7 +156,7 @@ const Pricing = ({
     } else {
       const res = await subscribeToStripePlan(
         plan_code,
-        `${BASE_URL}/startups/dashboard/billing`
+        `${BASE_URL}/recruiter/dashboard/billing`
       );
       if (res.success && res.data?.data?.checkout_url) {
         window.location.assign(res.data.data.checkout_url);
@@ -174,7 +174,7 @@ const Pricing = ({
         icon: "info",
         title: "This feature requires a recruiter account",
         buttonText: "Sign in as a recruiter",
-        buttonLink: `/startups/signin?next=${encodeURIComponent(
+        buttonLink: `/recruiter/signin?next=${encodeURIComponent(
           window.location.pathname
         )}`,
         secondaryButton: {
@@ -216,7 +216,7 @@ const Pricing = ({
               </h1>
               <p className='text-sm md:text-lg text-[#5F6264] font-onest mb-6'>
                 Flexible pricing designed to scale with your needs. Whether
-                you’re a startup agency or a recuiter, find the right plan to
+                you’re a recruiter agency or a recuiter, find the right plan to
                 unlock all the features you need.
               </p>
 

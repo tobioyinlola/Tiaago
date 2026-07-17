@@ -31,7 +31,7 @@ from .utils import (
 )
 from .models import CouponUsage,Coupon,Payment,Pricing,PaymentMethod,Invoice,UsageEvent
 from skill_assessment.models import SkillAssessmentPayment
-from .tasks import charge_startup_card_task
+from .tasks import charge_recruiter_card_task
 from .serializers import *
 import stripe
 from django.shortcuts import get_object_or_404
@@ -590,7 +590,7 @@ class ChargeAndVerifyCardAutomatic(generics.GenericAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        charge_startup_card_task.delay()
+        charge_recruiter_card_task.delay()
 
         return Response(
             {"message": "Payment processing has started"}, status=status.HTTP_200_OK
@@ -668,7 +668,7 @@ class ChargeAndVerifyCard(generics.GenericAPIView):
                         reference
                     )
                     if verification_response["data"]["status"] == "success":
-                        # Notify startup and talent
+                        # Notify recruiter and talent
                         EmailHandler(
                             [company_email, contract.talent.user.email]
                         ).send_basic_email(

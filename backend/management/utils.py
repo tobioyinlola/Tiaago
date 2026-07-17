@@ -75,13 +75,13 @@ def get_user_and_registration_metrics():
     companies_last_month = total_companies.filter(**last_month_filter_params)
     companis_this_month = total_companies.filter(**this_month_filter_params)
     registration_metrics.append({
-        "title":"Startup Registrations",
+        "title":"Recruiter Registrations",
          "current_value":total_companies.count(),
         "value_last_month":companies_last_month.count(),
         "value_this_month":companis_this_month.count()
     })
     user_metrics.append({
-        "title":"Startups",
+        "title":"Recruiters",
         "current_value":total_companies.filter(verified=True).count(),
         "value_last_month":companies_last_month.filter(verified=True).count(),
         "value_this_month":companis_this_month.filter(verified=True).count()
@@ -134,47 +134,47 @@ def get_talent_metrics():
     return talent_metrics
 
 
-def get_startup_metrics():
-    cache_key = "get_startup_metrics"
+def get_recruiter_metrics():
+    cache_key = "get_recruiter_metrics"
     cached_data = cache.get(cache_key)
     if cached_data:
         return cached_data
     now = timezone.now()
-    startup_metrics = []
+    recruiter_metrics = []
     first_day_of_last_month, last_day_of_last_month = get_previous_month_range(now)
     first_day_of_this_month, last_day_of_this_month = get_this_month_range()
     # free talents
-    free_startups_last_month = CustomUser.objects.filter(subscription=None,date_joined__range=[first_day_of_last_month, last_day_of_last_month], user_type=UserTypes.company).count()
-    free_startups_this_month = CustomUser.objects.filter(subscription=None,date_joined__range=[first_day_of_this_month, last_day_of_this_month], user_type=UserTypes.company).count()
-    all_free_startups = CustomUser.objects.filter(subscription=None, user_type=UserTypes.company).count()
-    startup_metrics.append({
-        "title":"Free Startups",
-        "value_last_month":free_startups_last_month,
-        "value_this_month":free_startups_this_month,
-        "current_value": all_free_startups
+    free_recruiters_last_month = CustomUser.objects.filter(subscription=None,date_joined__range=[first_day_of_last_month, last_day_of_last_month], user_type=UserTypes.company).count()
+    free_recruiters_this_month = CustomUser.objects.filter(subscription=None,date_joined__range=[first_day_of_this_month, last_day_of_this_month], user_type=UserTypes.company).count()
+    all_free_recruiters = CustomUser.objects.filter(subscription=None, user_type=UserTypes.company).count()
+    recruiter_metrics.append({
+        "title":"Free Recruiters",
+        "value_last_month":free_recruiters_last_month,
+        "value_this_month":free_recruiters_this_month,
+        "current_value": all_free_recruiters
     })
     # basic talents
-    basic_startups_last_month = CustomUser.objects.filter(subscription__sub_plan__sub_type=SubPlan.SUB_TYPE.BASIC,date_joined__range=[first_day_of_last_month, last_day_of_last_month], user_type=UserTypes.company).count()
-    basic_startups_this_month = CustomUser.objects.filter(subscription__sub_plan__sub_type=SubPlan.SUB_TYPE.BASIC,date_joined__range=[first_day_of_this_month, last_day_of_this_month], user_type=UserTypes.company).count()
-    all_basic_startups = CustomUser.objects.filter(subscription__sub_plan__sub_type=SubPlan.SUB_TYPE.BASIC, user_type=UserTypes.company).count()
-    startup_metrics.append({
-        "title":"Basic Startups",
-        "value_last_month":basic_startups_last_month,
-        "value_this_month":basic_startups_this_month,
-        "current_value": all_basic_startups
+    basic_recruiters_last_month = CustomUser.objects.filter(subscription__sub_plan__sub_type=SubPlan.SUB_TYPE.BASIC,date_joined__range=[first_day_of_last_month, last_day_of_last_month], user_type=UserTypes.company).count()
+    basic_recruiters_this_month = CustomUser.objects.filter(subscription__sub_plan__sub_type=SubPlan.SUB_TYPE.BASIC,date_joined__range=[first_day_of_this_month, last_day_of_this_month], user_type=UserTypes.company).count()
+    all_basic_recruiters = CustomUser.objects.filter(subscription__sub_plan__sub_type=SubPlan.SUB_TYPE.BASIC, user_type=UserTypes.company).count()
+    recruiter_metrics.append({
+        "title":"Basic Recruiters",
+        "value_last_month":basic_recruiters_last_month,
+        "value_this_month":basic_recruiters_this_month,
+        "current_value": all_basic_recruiters
     })
     # pro talents
     pro_talents_last_month = CustomUser.objects.filter(subscription__sub_plan__sub_type=SubPlan.SUB_TYPE.PREMIUM,date_joined__range=[first_day_of_last_month, last_day_of_last_month], user_type=UserTypes.company).count()
     pro_talents_this_month = CustomUser.objects.filter(subscription__sub_plan__sub_type=SubPlan.SUB_TYPE.PREMIUM,date_joined__range=[first_day_of_this_month, last_day_of_this_month], user_type=UserTypes.company).count()
     all_pro_talents = CustomUser.objects.filter(subscription__sub_plan__sub_type=SubPlan.SUB_TYPE.PREMIUM, user_type=UserTypes.company).count()
-    startup_metrics.append({
-        "title":"Pro Startups",
+    recruiter_metrics.append({
+        "title":"Pro Recruiters",
         "value_last_month":pro_talents_last_month,
         "value_this_month":pro_talents_this_month,
         "current_value": all_pro_talents
     })
-    cache.set(cache_key, startup_metrics, timeout=300)
-    return startup_metrics
+    cache.set(cache_key, recruiter_metrics, timeout=300)
+    return recruiter_metrics
 
 
 def get_contract_metrics():

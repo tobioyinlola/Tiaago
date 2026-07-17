@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Fragment } from "react";
 
 import { BasePageProps } from "@/app/common/types";
+import { getRoleUrlSegment } from "@/app/common/utils";
 import { ButtonModal } from "@/app/common/components/Modal";
 
 const steps = [
@@ -23,7 +24,7 @@ const steps = [
 ];
 
 const VerifyAccountModal = ({
-  as = "startup",
+  as = "recruiter",
 }: {
   as?: BasePageProps["as"];
 }) => {
@@ -79,7 +80,7 @@ const VerifyAccountModal = ({
         ))}
         <div className='p-6'>
           <Link
-            href={`/${as}s/dashboard/skill-assessment`}
+            href={`/${getRoleUrlSegment(as!)}/dashboard/skill-assessment`}
             className='btn btn-primary w-full'
           >
             Get Started

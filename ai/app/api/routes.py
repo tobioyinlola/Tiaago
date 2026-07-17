@@ -1,12 +1,13 @@
 from fastapi import APIRouter, HTTPException, Query, File, UploadFile
 from fastapi.responses import JSONResponse
 from typing import List, Optional
-from app.services.assessment_service import assess_candidate, grade_coding_assessment, grade_single_coding_question, generate_culture_fit_questions, create_technical_multi_stage_assessment, create_non_technical_assessment, evaluate_stage_progression, get_assessment_by_id, get_current_stage_data, complete_assessment_stage, generate_overall_feedback
+from app.services.assessment_service import assess_candidate, grade_coding_assessment, grade_single_coding_question, generate_culture_fit_questions, create_technical_multi_stage_assessment, create_non_technical_assessment, evaluate_stage_progression, get_assessment_by_id, get_current_stage_data, complete_assessment_stage, generate_overall_feedback, create_categorized_mcq_assessment
 from app.services.resume_analyzer import analyze_resume
 from app.models.assessment import (
-    AssessmentResult, Question, CodingAnswer, MCQAnswer, GradingResult, 
-    CultureFitQuestion, CultureFitAssessment, AssessmentSubmission, 
-    MultiStageAssessment, StageResult, CultureFitResults, SkillsAssessmentResults
+    AssessmentResult, Question, CodingAnswer, MCQAnswer, GradingResult,
+    CultureFitQuestion, CultureFitAssessment, AssessmentSubmission,
+    MultiStageAssessment, StageResult, CultureFitResults, SkillsAssessmentResults,
+    CategorizedAssessmentResult
 )
 from app.models.resume import ResumeAnalysis
 import io
@@ -287,6 +288,45 @@ async def create_non_technical_assessment_endpoint(
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error creating non-technical assessment: {str(e)}")
+
+@router.post("/create-categorized-assessment", response_model=CategorizedAssessmentResult, tags=["Assessment"])
+async def create_categorized_assessment_endpoint(
+    job_description: str = Query(..., description="Complete job description for AI analysis"),
+    categories: List[str] = Query(..., description="Question category labels, e.g. ['Role Knowledge', 'Practical Scenarios', 'Problem Solving']"),
+    questions_per_category: int = Query(10, description="Number of MCQ questions to generate per category"),
+    role_type: Optional[str] = Query(None, description="Role type: technical or non-technical")
+):
+    """
+    Generate an MCQ assessment split into named categories (e.g. 3 categories x 10 questions).
+
+    Each category is generated as its own batch so results stay on-topic per category
+    and avoid duplicate questions across categories.
+
+    Parameters:
+    - job_description: Complete job description including requirements, responsibilities, skills needed
+    - categories: List of category labels to generate questions for
+    - questions_per_category: How many MCQ questions to generate per category
+    - role_type: Whether this is for a technical or non-technical role
+
+    Returns:
+    A CategorizedAssessmentResult object containing:
+    - sections: One entry per category, each with its generated questions
+    - ai_determined_difficulty: AI-analyzed difficulty level from job description
+    - role_type: The detected or specified role type
+    - skills_assessed: List of skills being tested
+    """
+    try:
+        result = create_categorized_mcq_assessment(
+            job_description=job_description,
+            categories=categories,
+            questions_per_category=questions_per_category,
+            role_type=role_type,
+        )
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error creating categorized assessment: {str(e)}")
 
 @router.get("/assessment-stage/{assessment_id}", response_model=dict, tags=["Assessment"])
 async def get_current_assessment_stage(assessment_id: str):

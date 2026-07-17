@@ -26,7 +26,7 @@ const testimonials = [
   },
   {
     quote:
-      "As a fast-growing startup, we needed to scale our team quickly without sacrificing quality. Tiaago helped us do exactly that, identifying candidates that were perfect cultural and technical fits.",
+      "As a fast-growing recruiter, we needed to scale our team quickly without sacrificing quality. Tiaago helped us do exactly that, identifying candidates that were perfect cultural and technical fits.",
     author: "Sophia Chen",
     position: "VP of Engineering",
     company: "BuilderAI",

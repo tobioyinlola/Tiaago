@@ -1,0 +1,263 @@
+import logging
+
+from django.utils import timezone
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework import generics
+from rest_framework.filters import SearchFilter, OrderingFilter
+from rest_framework.views import APIView
+from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.response import Response
+from rest_framework import status
+
+from base.mixins.pagination import PaginationHandlerMixin, TiaagoPagination
+from create_user.models import CustomUser
+from create_user.permissions import get_user_company
+from subscriptions.permissions import IsCompanyRepUser, IsStaffUser
+from .models import SupportTicket
+from .serializers import (
+    SupportTicketCreateSerializer,
+    SupportTicketReplyCreateSerializer,
+    SupportTicketAdminUpdateSerializer,
+    SupportTicketListSerializer,
+    SupportTicketAdminListSerializer,
+    SupportTicketDetailSerializer,
+    SupportStaffSerializer,
+    create_attachments,
+)
+
+logger = logging.getLogger(__name__)
+
+
+def _get_ticket_for_company(ticket_id, company):
+    return SupportTicket.objects.filter(id=ticket_id, company=company).first()
+
+
+class TicketListCreateView(APIView, PaginationHandlerMixin):
+    permission_classes = [IsCompanyRepUser]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def get(self, request):
+        company = get_user_company(request.user)
+        if not company:
+            return Response(status=403, data={"error": "No organisation found for this account."})
+        qs = SupportTicket.objects.filter(company=company).order_by("-created_at")
+        page = self.paginate_queryset(qs)
+        serializer = SupportTicketListSerializer(page, many=True)
+        return Response(self.get_paginated_response(serializer.data))
+
+    def post(self, request):
+        company = get_user_company(request.user)
+        if not company:
+            return Response(status=403, data={"error": "No organisation found for this account."})
+
+        serializer = SupportTicketCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        ticket = SupportTicket.objects.create(
+            company=company,
+            submitted_by=request.user,
+            title=data["title"],
+            message=data["message"],
+            category=data["category"],
+        )
+        create_attachments(data.get("attachments") or [], ticket=ticket)
+
+        from emails import emails
+        try:
+            emails.ticket_received_mail(request.user, ticket)
+        except Exception:
+            logger.exception("Failed to send ticket_received email for %s", ticket.id)
+
+        return Response(
+            status=status.HTTP_201_CREATED,
+            data=SupportTicketDetailSerializer(ticket).data,
+        )
+
+
+class TicketDetailView(APIView):
+    permission_classes = [IsCompanyRepUser]
+
+    def get(self, request, ticket_id):
+        company = get_user_company(request.user)
+        ticket = _get_ticket_for_company(ticket_id, company) if company else None
+        if not ticket:
+            return Response(status=404, data={"error": "Ticket not found."})
+        return Response(status=200, data=SupportTicketDetailSerializer(ticket).data)
+
+
+class TicketReplyView(APIView):
+    permission_classes = [IsCompanyRepUser]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def post(self, request, ticket_id):
+        company = get_user_company(request.user)
+        ticket = _get_ticket_for_company(ticket_id, company) if company else None
+        if not ticket:
+            return Response(status=404, data={"error": "Ticket not found."})
+        if ticket.status in (SupportTicket.Status.RESOLVED, SupportTicket.Status.CLOSED):
+            return Response(
+                status=403,
+                data={"error": "This ticket is no longer open for replies. Reopen it first."},
+            )
+
+        serializer = SupportTicketReplyCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        reply = ticket.replies.create(
+            sent_by=request.user, is_admin_reply=False, message=data["message"],
+        )
+        create_attachments(data.get("attachments") or [], ticket=ticket, reply=reply)
+        ticket.save(update_fields=["updated_at"])  # auto_now bump
+
+        return Response(status=201, data=SupportTicketDetailSerializer(ticket).data)
+
+
+class TicketReopenView(APIView):
+    permission_classes = [IsCompanyRepUser]
+
+    def post(self, request, ticket_id):
+        company = get_user_company(request.user)
+        ticket = _get_ticket_for_company(ticket_id, company) if company else None
+        if not ticket:
+            return Response(status=404, data={"error": "Ticket not found."})
+        if ticket.status != SupportTicket.Status.RESOLVED:
+            return Response(status=400, data={"error": "Only resolved tickets can be reopened."})
+
+        ticket.status = SupportTicket.Status.IN_PROGRESS
+        ticket.resolved_at = None
+        ticket.save(update_fields=["status", "resolved_at", "updated_at"])
+        return Response(status=200, data=SupportTicketDetailSerializer(ticket).data)
+
+
+class AdminStaffListView(generics.ListAPIView):
+    """Staff-only: list staff accounts for the ticket 'assigned to' picker."""
+
+    serializer_class = SupportStaffSerializer
+    permission_classes = [IsStaffUser]
+    pagination_class = None
+    queryset = CustomUser.objects.filter(user_type=CustomUser.USER_TYPE.STAFF).order_by(
+        "first_name", "username"
+    )
+
+
+class AdminTicketListView(generics.ListAPIView):
+    """Staff-only: every ticket across every organisation."""
+
+    serializer_class = SupportTicketAdminListSerializer
+    permission_classes = [IsStaffUser]
+    filter_backends = [SearchFilter, DjangoFilterBackend, OrderingFilter]
+    filterset_fields = ["status", "priority", "category"]
+    search_fields = ["title", "company__company_name"]
+    ordering_fields = ["created_at", "updated_at"]
+    ordering = ["-created_at"]
+    pagination_class = TiaagoPagination
+    queryset = SupportTicket.objects.select_related("company", "submitted_by", "assigned_to").all()
+
+
+class AdminTicketDetailView(APIView):
+    permission_classes = [IsStaffUser]
+
+    def get(self, request, ticket_id):
+        ticket = SupportTicket.objects.filter(id=ticket_id).first()
+        if not ticket:
+            return Response(status=404, data={"error": "Ticket not found."})
+        return Response(
+            status=200,
+            data=SupportTicketDetailSerializer(ticket, context={"include_internal_notes": True}).data,
+        )
+
+    def patch(self, request, ticket_id):
+        ticket = SupportTicket.objects.filter(id=ticket_id).first()
+        if not ticket:
+            return Response(status=404, data={"error": "Ticket not found."})
+
+        serializer = SupportTicketAdminUpdateSerializer(data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        update_fields = []
+        old_status = ticket.status
+
+        if "category" in data:
+            ticket.category = data["category"]
+            update_fields.append("category")
+        if "priority" in data:
+            ticket.priority = data["priority"]
+            update_fields.append("priority")
+        if "assigned_to" in data:
+            ticket.assigned_to = data["assigned_to"]
+            update_fields.append("assigned_to")
+        if "status" in data and data["status"] != old_status:
+            new_status = data["status"]
+            ticket.status = new_status
+            update_fields.append("status")
+            if new_status == SupportTicket.Status.RESOLVED:
+                ticket.resolved_at = timezone.now()
+                update_fields.append("resolved_at")
+            elif old_status == SupportTicket.Status.RESOLVED:
+                # Moving away from RESOLVED (e.g. admin reopens it) -- clear
+                # the stale timestamp, matching TicketReopenView's behaviour.
+                ticket.resolved_at = None
+                update_fields.append("resolved_at")
+            if new_status == SupportTicket.Status.CLOSED:
+                ticket.closed_at = timezone.now()
+                update_fields.append("closed_at")
+            elif old_status == SupportTicket.Status.CLOSED:
+                ticket.closed_at = None
+                update_fields.append("closed_at")
+
+        update_fields.append("updated_at")
+        ticket.save(update_fields=update_fields)
+
+        if "status" in data and data["status"] == SupportTicket.Status.RESOLVED and old_status != SupportTicket.Status.RESOLVED:
+            from emails import emails
+            try:
+                emails.ticket_resolved_mail(ticket.submitted_by, ticket)
+            except Exception:
+                logger.exception("Failed to send ticket_resolved email for %s", ticket.id)
+
+        return Response(status=200, data=SupportTicketDetailSerializer(ticket, context={"include_internal_notes": True}).data)
+
+
+class AdminTicketReplyView(APIView):
+    permission_classes = [IsStaffUser]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def post(self, request, ticket_id):
+        ticket = SupportTicket.objects.filter(id=ticket_id).first()
+        if not ticket:
+            return Response(status=404, data={"error": "Ticket not found."})
+
+        serializer = SupportTicketReplyCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        is_internal_note = data.get("is_internal_note", False)
+
+        reply = ticket.replies.create(
+            sent_by=request.user,
+            is_admin_reply=not is_internal_note,
+            is_internal_note=is_internal_note,
+            message=data["message"],
+        )
+        create_attachments(data.get("attachments") or [], ticket=ticket, reply=reply)
+
+        update_fields = ["updated_at"]
+        if not is_internal_note:
+            if ticket.status == SupportTicket.Status.OPEN:
+                ticket.status = SupportTicket.Status.IN_PROGRESS
+                update_fields.append("status")
+        ticket.save(update_fields=update_fields)
+
+        if not is_internal_note:
+            from emails import emails
+            try:
+                emails.ticket_admin_replied_mail(ticket.submitted_by, ticket, reply)
+            except Exception:
+                logger.exception("Failed to send ticket_admin_replied email for %s", ticket.id)
+
+        return Response(
+            status=201,
+            data=SupportTicketDetailSerializer(ticket, context={"include_internal_notes": True}).data,
+        )

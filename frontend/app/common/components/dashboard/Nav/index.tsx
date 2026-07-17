@@ -1,15 +1,15 @@
 import Link from "next/link";
-import { FiBell } from "react-icons/fi";
 
 import MobileNav from "./MobileNav";
 import UserAvatar, {
   type UserAvatarProps,
 } from "@/app/common/components/UserAvatar";
 
-import { cn } from "@/app/common/utils";
+import { cn, getRoleUrlSegment } from "@/app/common/utils";
 import { BasePageProps } from "@/app/common/types";
 import BrandLink from "@/app/common/components/BrandLink";
 import SearchBar from "@/app/common/components/SearchBar";
+import NotificationBell from "@/app/common/components/dashboard/NotificationBell";
 // import UpgradePlanModal from "../subscription/UpgradePlanModal";
 // import { getAvailableSubscriptionPlans } from "@/app/common/services/subscription";
 
@@ -29,7 +29,7 @@ const Nav = ({
 }: NavProps) => {
   const isStaff = as === "staff";
   // const availablePlans =
-  //   as !== "startup" ? [] : await getAvailableSubscriptionPlans();
+  //   as !== "recruiter" ? [] : await getAvailableSubscriptionPlans();
   // const highestPlan = !availablePlans.length
   //   ? null
   //   : availablePlans.reduce((prev, current) =>
@@ -41,7 +41,7 @@ const Nav = ({
   const dashboardLink =
     as === "staff"
       ? "/admin"
-      : `/${as}s${as === "startup" ? "/dashboard" : ""}`;
+      : `/${getRoleUrlSegment(as!)}${as === "recruiter" ? "/dashboard" : ""}`;
   // console.dir(
   //   { availablePlans, subscribedPlan, isOnHighestPlan },
   //   { depth: 5 }
@@ -64,7 +64,7 @@ const Nav = ({
 
       <div className='flex items-center gap-4 lg:gap-6 max-lg:hidden'>
         {/* CTA */}
-        {/* {as === "startup" && !isOnHighestPlan && (
+        {/* {as === "recruiter" && !isOnHighestPlan && (
           <UpgradePlanModal
             subscriptionPlans={availablePlans}
             subscribedPlan={subscribedPlan}
@@ -74,14 +74,7 @@ const Nav = ({
           />
         )} */}
         {/* Notifications */}
-        {!isStaff && (
-          <Link
-            href={`${dashboardLink}/settings?tab=notifications`}
-            className='text-2xl text-gray-500 hover:text-gray-700'
-          >
-            <FiBell />
-          </Link>
-        )}
+        {!isStaff && <NotificationBell viewAllHref={`${dashboardLink}/notifications`} />}
         {/* Avatar */}
         <Link href={`${dashboardLink}/settings?tab=profile`}>
           <UserAvatar forCurrentUser {...userAvatarProps} />

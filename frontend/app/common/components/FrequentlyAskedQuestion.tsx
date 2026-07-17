@@ -13,7 +13,7 @@ const accordion_content = [
   {
     question: "What is Tiaago?",
     answer:
-      "Tiaago is a private marketplace connecting vetted and qualified talent with startups and businesses worldwide across various technical and non-technical skills sets",
+      "Tiaago is a private marketplace connecting vetted and qualified talent with recruiters and businesses worldwide across various technical and non-technical skills sets",
   },
   {
     question: "How does Tiaago vet its talents?",

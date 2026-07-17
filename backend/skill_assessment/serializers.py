@@ -29,6 +29,7 @@ from .models import (
     TechStack,
     TalentQuestionBank,
     AssessmentCooldown,
+    AssessmentSubmissionSnapshot,
 )
 from .tasks import create_talent_coding_assessment_task_v2
 from roles.models import Role
@@ -1169,10 +1170,11 @@ class AIFeedbackSerializer(serializers.Serializer):
     resume_achievement_quality=serializers.CharField(allow_blank=True)
     time_taken=serializers.CharField()
     difficulty_level=serializers.CharField()
-    
-    
+    submission_id = serializers.IntegerField(allow_null=True)
+    proctoring_integrity_score = serializers.IntegerField(allow_null=True)
+    proctoring_risk_level = serializers.CharField(allow_null=True)
+    proctoring_has_violation = serializers.BooleanField()
 
-        
 
 
 # serializer to start pre-screening interview
@@ -1373,3 +1375,103 @@ class AssessmentCooldownSerializer(serializers.ModelSerializer):
             "days_remaining",
             "is_active"
         ]
+
+
+# --- No-login candidate invite flow ---------------------------------------
+# A candidate reaches these via an unguessable per-assessment `invite_token`
+# instead of a Tiaago login session. Identity is resolved server-side from
+# `assessment.job_application.applicant`, never from `request.user`.
+
+
+class AssessmentInviteSectionFormatSerializer(serializers.ModelSerializer):
+    """Section name + question count only -- shown on the pre-start "Test
+    Format" screen, before any real question content is exposed."""
+
+    question_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = GeneralSkillAssessmentSection
+        fields = ["id", "name", "type", "question_count"]
+
+    def get_question_count(self, section):
+        if section.type == SkillAssessmentTypes.MCQ:
+            return section.mcq_questions.all().count()
+        if section.type == SkillAssessmentTypes.CODING_TASK:
+            return section.coding_tasks.all().count()
+        return 0
+
+
+class AssessmentInviteDetailSerializer(serializers.Serializer):
+    """Everything the pre-start screens need: who the candidate is, what job/
+    company this is for, and the test format -- no question content."""
+
+    assessment_title = serializers.CharField(source="title")
+    duration_minutes = serializers.IntegerField()
+    sections = AssessmentInviteSectionFormatSerializer(many=True)
+    job_title = serializers.SerializerMethodField()
+    company_name = serializers.SerializerMethodField()
+    candidate_name = serializers.SerializerMethodField()
+    candidate_email = serializers.SerializerMethodField()
+    already_submitted = serializers.SerializerMethodField()
+    proctoring = serializers.SerializerMethodField()
+
+    def get_proctoring(self, assessment):
+        """Job's proctoring settings, for the pre-assessment briefing page to
+        render conditionally. None if proctoring is off for this job."""
+        job = getattr(assessment.job_application, "job", None)
+        if not job or not job.proctoring_enabled:
+            return None
+        return {
+            "proctoring_enabled": job.proctoring_enabled,
+            "require_fullscreen": job.require_fullscreen,
+            "require_webcam": job.require_webcam,
+            "webcam_snapshots_enabled": job.webcam_snapshots_enabled,
+            "snapshot_interval_seconds": job.snapshot_interval_seconds,
+            "max_tab_switches_before_warning": job.max_tab_switches_before_warning,
+            "max_tab_switches_before_termination": job.max_tab_switches_before_termination,
+            "copy_paste_blocked": job.copy_paste_blocked,
+            "right_click_blocked": job.right_click_blocked,
+            "devtools_detection_enabled": job.devtools_detection_enabled,
+            "force_submit_on_critical_violation": job.force_submit_on_critical_violation,
+        }
+
+    def get_job_title(self, assessment):
+        job = getattr(assessment.job_application, "job", None)
+        return job.title if job else None
+
+    def get_company_name(self, assessment):
+        job = getattr(assessment.job_application, "job", None)
+        return job.company.company_name if job and job.company_id else None
+
+    def _talent(self, assessment):
+        return assessment.job_application.applicant
+
+    def get_candidate_name(self, assessment):
+        talent = self._talent(assessment)
+        existing = self.context.get("existing_submission")
+        if existing and existing.candidate_display_name:
+            return existing.candidate_display_name
+        return talent.full_name or talent.user.get_full_name() or talent.user.username
+
+    def get_candidate_email(self, assessment):
+        return self._talent(assessment).user.email
+
+    def get_already_submitted(self, assessment):
+        existing = self.context.get("existing_submission")
+        return bool(existing and existing.is_completed)
+
+
+class AssessmentInviteConfirmSerializer(serializers.Serializer):
+    full_name = serializers.CharField(max_length=255, allow_blank=False, trim_whitespace=True)
+
+
+class AssessmentInviteFeedbackSerializer(serializers.Serializer):
+    rating = serializers.IntegerField(min_value=1, max_value=5, required=False, allow_null=True)
+    comment = serializers.CharField(required=False, allow_blank=True, max_length=2000)
+
+
+class AssessmentSubmissionSnapshotSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AssessmentSubmissionSnapshot
+        fields = ["id", "image", "created_at"]
+        read_only_fields = fields

@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 
-import { getJob } from "@/app/common/services/jobs";
+import { getPublicJobByPublicId } from "@/app/common/services/jobs";
 import { getCompanyAssessment } from "@/app/common/services/assessment";
 import DisplayErrorMessages, {
   DisplayErrorMessagesProps,
@@ -24,7 +24,7 @@ const JobApplicationCodingTaskPage = async ({
   const errors: DisplayErrorMessagesProps["errors"] = [];
   
   // Verify the job exists
-  const job = await getJob(job_id).catch(async e => {
+  const job = await getPublicJobByPublicId(job_id).catch(async e => {
     const error = await handleServerApiCallError(e);
     errors.push({
       message: error,

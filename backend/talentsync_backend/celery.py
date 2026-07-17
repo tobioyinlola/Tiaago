@@ -20,8 +20,8 @@ app.conf.beat_schedule = {
         "task": "carry_out_pending_resume_analyses",
         "schedule": crontab(minute='*/15'),
     },
-    "charge_startup_card_task": {
-        "task": "charge_startup_card_task",
+    "charge_recruiter_card_task": {
+        "task": "charge_recruiter_card_task",
         "schedule": crontab(day_of_month=20, hour=0, minute=0),  # Run at midnight on 20th, 25th, 30th
     },
     "charge_monthly_payg_card_task": {
@@ -37,6 +37,19 @@ app.conf.beat_schedule = {
     "batch_check_incomplete_profiles": {
         "task": "marketing.tasks.batch_check_incomplete_profiles",
         "schedule": crontab(hour=9, minute=30),  # Run daily at 9:30 AM
+    },
+    # Tagging / segmentation
+    "run_tag_rule_engine": {
+        "task": "tags.tasks.run_tag_rule_engine",
+        "schedule": crontab(minute=0),  # Run hourly, on the hour
+    },
+    "refresh_all_segment_sizes": {
+        "task": "segments.tasks.refresh_all_segment_sizes",
+        "schedule": crontab(minute=5),  # Run hourly, 5 min after the tag rule engine
+    },
+    "dispatch_scheduled_campaigns": {
+        "task": "campaigns.tasks.dispatch_scheduled_campaigns",
+        "schedule": crontab(minute="*/5"),  # Check for due scheduled campaigns every 5 min
     },
 }
 

@@ -28,7 +28,7 @@ export type PagedResource<T> = {
 };
 
 export type BasePageProps = {
-  as?: "startup" | "talent" | "staff";
+  as?: "recruiter" | "talent" | "staff";
   isSignIn?: boolean;
 };
 
@@ -53,6 +53,10 @@ export type DashboardNavItemV3 =
       tag?: string;
       exact?: boolean;
       requiredRoles?: TeamMemberRole[];
+      // Admin/staff-only: maps this nav item to a staff RBAC section key
+      // (see admin/(dashboard)/constants/nav.tsx and AdminSectionGate).
+      // Unrelated to requiredRoles, which is company-team-scoped.
+      section?: string;
       subLinks?: {
         name: string;
         href: string;
@@ -169,7 +173,7 @@ export type Talent = BaseUser & {
   social_media_links: { name: string; url: string }[];
 };
 
-export type Startup = BaseUser & {
+export type Recruiter = BaseUser & {
   bio?: string;
   role: string;
   size: string;
@@ -192,7 +196,7 @@ export type Staff = BaseUser & {
   is_staff: true;
 };
 
-export type User = Talent | Startup | Staff;
+export type User = Talent | Recruiter | Staff;
 
 export type TeamMemberRole = "admin" | "recruiter" | "viewer";
 
@@ -338,7 +342,7 @@ export type SubscriptionPlan = {
   pk: number;
   name: string;
   sub_type: "PR" | "BS";
-  user_type: Talent["user_type"] | Startup["user_type"];
+  user_type: Talent["user_type"] | Recruiter["user_type"];
   amount: string;
   no_of_days: number;
   details?: string;
@@ -382,6 +386,9 @@ export type GetProfileArgs = {
 
 export type Job = {
   id: ID;
+  /** Non-guessable identifier for recruiter/admin/talent dashboard URLs --
+   * use this (never the raw `id`) when building any internal link. */
+  public_id: string;
   title: string;
   tags: string[];
   role: ID;
@@ -407,6 +414,10 @@ export type Job = {
   assessment_id?: ID;
   get_apply_url?: string;
   detail_url?: string;
+  /** Public candidate-facing token -- only present on public job-detail
+   * responses (JobDetailView/JobByTokenAPIView), never on the internal
+   * recruiter/admin JobRetrieveUpdateView response. */
+  apply_token?: string;
   company: {
     id: ID;
     company_name: string;
@@ -415,6 +426,121 @@ export type Job = {
     logo?: string;
   };
   completed_assessments_count?: number;
+  screening_threshold?: number | null;
+  assessment_time_limit?: number | null;
+  proctoring_enabled?: boolean;
+  require_fullscreen?: boolean;
+  require_webcam?: boolean;
+  webcam_snapshots_enabled?: boolean;
+  snapshot_interval_seconds?: number;
+  max_tab_switches_before_warning?: number;
+  max_tab_switches_before_termination?: number;
+  copy_paste_blocked?: boolean;
+  right_click_blocked?: boolean;
+  devtools_detection_enabled?: boolean;
+  force_submit_on_critical_violation?: boolean;
+};
+
+export type InterviewSlotInput = {
+  date: string;
+  start_time: string;
+  end_time: string;
+};
+
+export type InterviewSlot = InterviewSlotInput & {
+  id: ID;
+  job: ID;
+  is_claimed: boolean;
+};
+
+export type JobAssessmentQuestionOption = {
+  index: number;
+  value: string;
+};
+
+export type JobAssessmentQuestion = {
+  question: string;
+  options: JobAssessmentQuestionOption[];
+  correct_option_index: number;
+  is_ai_generated?: boolean;
+};
+
+export type AssessmentQuestionSection = {
+  category: string;
+  questions: JobAssessmentQuestion[];
+};
+
+export type BlogCategory = {
+  id: ID;
+  name: string;
+  slug: string;
+  description: string;
+  post_count: number;
+};
+
+export type BlogAuthor = {
+  name: string;
+  avatar: string | null;
+  title: string | null;
+};
+
+export type BlogPostSummary = {
+  id: ID;
+  title: string;
+  slug: string;
+  excerpt: string;
+  featured_image: string | null;
+  category: BlogCategory | null;
+  author: BlogAuthor | null;
+  is_featured: boolean;
+  is_pinned: boolean;
+  published_at: string | null;
+  reading_time_minutes: number;
+};
+
+export type BlogPost = BlogPostSummary & {
+  content: string;
+};
+
+export type BlogPostManage = {
+  id: ID;
+  title: string;
+  slug: string;
+  excerpt: string;
+  content: string;
+  featured_image: string | null;
+  category: ID | null;
+  category_detail: BlogCategory | null;
+  author: ID | null;
+  author_name: string | null;
+  custom_author_name: string;
+  author_title: string;
+  is_featured: boolean;
+  is_pinned: boolean;
+  status: "DRAFT" | "PUBLISHED";
+  published_at: string | null;
+  reading_time_minutes: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type BlogStaffAuthor = {
+  id: ID;
+  name: string;
+};
+
+export type BlogPostWritePayload = {
+  title: string;
+  category: ID | null;
+  excerpt: string;
+  content: string;
+  status: "DRAFT" | "PUBLISHED";
+  author: ID | null;
+  custom_author_name: string;
+  author_title: string;
+  is_featured: boolean;
+  is_pinned: boolean;
+  featured_image_path?: string;
 };
 
 export type JobFormPayload = {
@@ -550,6 +676,32 @@ export type CodingTaskSection = {
   }[];
 };
 
+export type ProctoringSettings = {
+  proctoring_enabled: boolean;
+  require_fullscreen: boolean;
+  require_webcam: boolean;
+  webcam_snapshots_enabled: boolean;
+  snapshot_interval_seconds: number;
+  max_tab_switches_before_warning: number;
+  max_tab_switches_before_termination: number;
+  copy_paste_blocked: boolean;
+  right_click_blocked: boolean;
+  devtools_detection_enabled: boolean;
+  force_submit_on_critical_violation: boolean;
+};
+
+export type AssessmentInviteDetail = {
+  assessment_title: string;
+  duration_minutes: number;
+  sections: { id: ID; name: string; type: "MCQ" | "CODING_TASK"; question_count: number }[];
+  job_title: string | null;
+  company_name: string | null;
+  candidate_name: string;
+  candidate_email: string;
+  already_submitted: boolean;
+  proctoring: ProctoringSettings | null;
+};
+
 export type CompanySkillAssessment = {
   id: ID;
   title: string;
@@ -632,6 +784,10 @@ export type AiFeedbackItem = {
   time_taken: string;
   difficulty_level: CompanySkillAssessment["difficulty_level"];
   cover_letter: string;
+  submission_id: ID | null;
+  proctoring_integrity_score: number | null;
+  proctoring_risk_level: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL" | null;
+  proctoring_has_violation: boolean;
 };
 
 export type QuizAttempt = {

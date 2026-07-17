@@ -1,7 +1,7 @@
 import { PropsWithChildren } from "react";
 
 import {
-  getAllStartups,
+  getAllRecruiters,
   getAllTalents,
   getCurrentUser,
 } from "@/app/common/services/profile";
@@ -23,22 +23,22 @@ const AdminDashboardLayout = async ({ children }: PropsWithChildren) => {
   const { currentUser: user } = result;
   useAdminStore.setState({ profile: user });
   const as = "staff";
-  const [talentsRes, startupsRes] = await Promise.all([
+  const [talentsRes, recruitersRes] = await Promise.all([
     getAllTalents(1, false).catch(async e => {
       const error = await handleServerApiCallError(e);
       console.log("Get talents error (admin dashboard layout): ", error);
       errors.push({ message: error, title: "Error getting talents" });
       return { count: 0 };
     }),
-    getAllStartups(1, false).catch(async e => {
+    getAllRecruiters(1, false).catch(async e => {
       const error = await handleServerApiCallError(e);
-      console.log("Get startups error (admin dashboard layout): ", error);
-      errors.push({ message: error, title: "Error getting startups" });
+      console.log("Get recruiters error (admin dashboard layout): ", error);
+      errors.push({ message: error, title: "Error getting recruiters" });
       return { count: 0 };
     }),
   ]);
   const noOfUnverifiedTalents = talentsRes.count;
-  const noOfUnverifiedStartups = startupsRes.count;
+  const noOfUnverifiedRecruiters = recruitersRes.count;
   return (
     <>
       <BackendWarmupPing />
@@ -70,7 +70,7 @@ const AdminDashboardLayout = async ({ children }: PropsWithChildren) => {
                 as={as}
                 badges={{
                   Talents: noOfUnverifiedTalents,
-                  Startups: noOfUnverifiedStartups,
+                  Recruiters: noOfUnverifiedRecruiters,
                 }}
               />
             </div>

@@ -1,0 +1,140 @@
+import * as Yup from "yup";
+
+import { AssessmentQuestionSection, InterviewSlotInput } from "@/app/common/types";
+import {
+  jobBasicDetailsValidationSchema,
+  companyDescriptionValidationSchema,
+  jobRequirementValidationSchema,
+  jobDescriptionValidationSchema,
+} from "./form.constants";
+
+export const jobDetailsValidationSchema = jobBasicDetailsValidationSchema
+  .concat(jobRequirementValidationSchema)
+  .concat(jobDescriptionValidationSchema)
+  .concat(companyDescriptionValidationSchema);
+
+export const criteriaAvailabilityValidationSchema = Yup.object().shape({
+  screening_threshold: Yup.number()
+    .typeError("Please enter a screening threshold")
+    .required("Please set a screening threshold")
+    .min(0, "Must be at least 0%")
+    .max(100, "Must be at most 100%")
+    .label("Screening threshold"),
+  passing_grade: Yup.number()
+    .typeError("Please enter an assessment passing grade")
+    .required("Please set an assessment passing grade")
+    .min(0, "Must be at least 0%")
+    .max(100, "Must be at most 100%")
+    .label("Assessment passing grade"),
+  interview_slots: Yup.array()
+    .of(
+      Yup.object().shape({
+        date: Yup.string().required(),
+        start_time: Yup.string().required(),
+        end_time: Yup.string().required(),
+      })
+    )
+    .min(1, "Add at least one interview time slot")
+    .label("Interview availability"),
+});
+
+export const assessmentGenerationValidationSchema = Yup.object().shape({
+  assessment_time_limit: Yup.number()
+    .typeError("Please enter a time limit")
+    .required("Please set a time limit")
+    .min(5, "Must be at least 5 minutes")
+    .label("Assessment time limit"),
+  assessment_questions: Yup.array()
+    .min(1, "Please generate and review assessment questions before posting")
+    .label("Assessment questions"),
+  proctoring_enabled: Yup.boolean(),
+  require_fullscreen: Yup.boolean(),
+  require_webcam: Yup.boolean(),
+  webcam_snapshots_enabled: Yup.boolean(),
+  snapshot_interval_seconds: Yup.number()
+    .typeError("Enter a number of seconds")
+    .min(15, "Must be at least 15 seconds")
+    .label("Snapshot interval"),
+  max_tab_switches_before_warning: Yup.number()
+    .typeError("Enter a number of tab switches")
+    .min(0, "Must be 0 or more")
+    .label("Tab switches before warning"),
+  max_tab_switches_before_termination: Yup.number()
+    .typeError("Enter a number of tab switches")
+    .min(Yup.ref("max_tab_switches_before_warning"), "Must be at least the warning threshold")
+    .label("Tab switches before termination"),
+  copy_paste_blocked: Yup.boolean(),
+  right_click_blocked: Yup.boolean(),
+  devtools_detection_enabled: Yup.boolean(),
+  force_submit_on_critical_violation: Yup.boolean(),
+});
+
+export type CriteriaAvailabilityFormValues = {
+  screening_threshold: number | "";
+  passing_grade: number | "";
+  interview_slots: InterviewSlotInput[];
+};
+
+export type AssessmentGenerationFormValues = {
+  assessment_time_limit: number | "";
+  assessment_questions: AssessmentQuestionSection[];
+  proctoring_enabled: boolean;
+  require_fullscreen: boolean;
+  require_webcam: boolean;
+  webcam_snapshots_enabled: boolean;
+  snapshot_interval_seconds: number | "";
+  max_tab_switches_before_warning: number | "";
+  max_tab_switches_before_termination: number | "";
+  copy_paste_blocked: boolean;
+  right_click_blocked: boolean;
+  devtools_detection_enabled: boolean;
+  force_submit_on_critical_violation: boolean;
+};
+
+export const criteriaAvailabilityInitialValues: CriteriaAvailabilityFormValues = {
+  // Intentionally blank -- no default values, recruiter must set these explicitly.
+  screening_threshold: "",
+  passing_grade: "",
+  interview_slots: [],
+};
+
+export const assessmentGenerationInitialValues: AssessmentGenerationFormValues = {
+  assessment_time_limit: "",
+  assessment_questions: [],
+  // Proctoring defaults -- match Job model defaults exactly, so a recruiter
+  // who never opens the proctoring section still gets these applied.
+  proctoring_enabled: true,
+  require_fullscreen: true,
+  require_webcam: false,
+  webcam_snapshots_enabled: false,
+  snapshot_interval_seconds: 60,
+  max_tab_switches_before_warning: 2,
+  max_tab_switches_before_termination: 5,
+  copy_paste_blocked: true,
+  right_click_blocked: true,
+  devtools_detection_enabled: true,
+  force_submit_on_critical_violation: false,
+};
+
+export const ASSESSMENT_QUESTIONS_PER_CATEGORY = 10;
+
+export const wizardSteps = [
+  {
+    key: "job-details",
+    title: "Job Details",
+    description: "Tell candidates about the role, company, and requirements.",
+    validationSchema: jobDetailsValidationSchema,
+  },
+  {
+    key: "criteria-availability",
+    title: "Criteria & Availability",
+    description: "Set your screening threshold and post-assessment interview availability.",
+    validationSchema: criteriaAvailabilityValidationSchema,
+  },
+  {
+    key: "assessment-generation",
+    title: "Assessment Generation",
+    description: "Generate and review AI-written assessment questions.",
+    validationSchema: assessmentGenerationValidationSchema,
+  },
+] as const;

@@ -1,3 +1,6 @@
+import secrets
+import string
+
 import pycountry
 from django.contrib.postgres.fields import ArrayField
 from django.db import models
@@ -142,7 +145,58 @@ class Job(models.Model):
     apply_token = models.UUIDField(default=uuid4, editable=False, unique=True)
     external_apply_token_expires = models.DateTimeField(null=True, blank=True)
     external_skip_verification = models.BooleanField(default=False)
-    
+
+    # Non-guessable identifier for internal (recruiter/admin/talent dashboard)
+    # URLs -- unlike apply_token (public candidate-facing apply/detail links),
+    # this is never exposed to unauthenticated visitors. Short alphanumeric
+    # rather than a UUID, matching this codebase's existing short-code style
+    # (see Company._generate_referral_code).
+    public_id = models.CharField(max_length=12, unique=True, editable=False, blank=True)
+
+    DEFAULT_SCREENING_THRESHOLD = 70
+    DEFAULT_PASSING_GRADE = 70
+
+    screening_threshold = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        help_text=(
+            "Minimum resume-screening match percentage required for a candidate "
+            "to auto-progress from resume screening to the assessment stage. "
+            "No default is set here on purpose -- recruiters must set this explicitly."
+        ),
+    )
+    assessment_time_limit = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Minutes candidates have to complete this job's assessment.",
+    )
+    passing_grade = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        help_text=(
+            "Minimum assessment score required for a candidate to be invited to "
+            "pick a post-assessment interview slot. No default is set here on "
+            "purpose -- recruiters must set this explicitly."
+        ),
+    )
+
+    # Proctoring settings -- captured once at job-creation time (assessment
+    # config as a whole is create-time-only today, see assessment_time_limit
+    # above), applied to every ProctoringSession created for this job's
+    # assessment. snapshot_interval_seconds/webcam_snapshots_enabled are
+    # inert until the webcam/face-detection phase ships, but are captured
+    # now so that phase doesn't need a second edit path.
+    proctoring_enabled = models.BooleanField(default=True)
+    require_fullscreen = models.BooleanField(default=True)
+    require_webcam = models.BooleanField(default=False)
+    webcam_snapshots_enabled = models.BooleanField(default=False)
+    snapshot_interval_seconds = models.PositiveIntegerField(default=60)
+    max_tab_switches_before_warning = models.PositiveIntegerField(default=2)
+    max_tab_switches_before_termination = models.PositiveIntegerField(default=5)
+    copy_paste_blocked = models.BooleanField(default=True)
+    right_click_blocked = models.BooleanField(default=True)
+    devtools_detection_enabled = models.BooleanField(default=True)
+    force_submit_on_critical_violation = models.BooleanField(default=False)
 
     class Meta:
         indexes = [
@@ -154,10 +208,12 @@ class Job(models.Model):
         return f"{self.role.title if self.role else 'Unknown Role'} - {self.job_type}"
 
     def get_apply_url(self):
-        return f"{settings.FRONTEND_URL}/jobs/{self.apply_token}/apply"
-    
+        base = str(settings.FRONTEND_URL).rstrip("/")
+        return f"{base}/jobs/{self.apply_token}/apply"
+
     def get_detail_url(self):
-        return f"{settings.FRONTEND_URL}/jobs/{self.apply_token}"
+        base = str(settings.FRONTEND_URL).rstrip("/")
+        return f"{base}/jobs/{self.apply_token}"
 
     
     @property
@@ -184,6 +240,129 @@ class Job(models.Model):
             if self.payment_range_ngn:
                 return dict(self.NairaPaymentRange.choices)[self.payment_range_ngn]
         return ""
+
+    def get_screening_threshold(self):
+        """Resume-screening pass threshold, falling back to the legacy hardcoded value
+        for jobs created before this field existed."""
+        return (
+            self.screening_threshold
+            if self.screening_threshold is not None
+            else self.DEFAULT_SCREENING_THRESHOLD
+        )
+
+    def get_passing_grade(self):
+        """Assessment passing grade -- candidates scoring at or above this are invited
+        to pick an interview slot. Falls back to the legacy hardcoded value for jobs
+        created before this field existed."""
+        return (
+            self.passing_grade
+            if self.passing_grade is not None
+            else self.DEFAULT_PASSING_GRADE
+        )
+
+    def save(self, *args, **kwargs):
+        if not self.public_id:
+            self.public_id = self._generate_public_id()
+        super().save(*args, **kwargs)
+
+    def _generate_public_id(self):
+        alphabet = string.ascii_letters + string.digits
+        for _ in range(10):
+            code = "".join(secrets.choice(alphabet) for _ in range(10))
+            if not Job.objects.filter(public_id=code).exists():
+                return code
+        raise RuntimeError("Could not generate a unique job public_id after 10 attempts.")
+
+
+class JobAssessmentTemplate(TimeStampedModel):
+    """Recruiter-approved assessment questions captured at job-creation time.
+
+    Cloned into a per-application GeneralSkillAssessment by send_assessment_link
+    so every candidate for this job sees the same, recruiter-reviewed question set.
+    """
+
+    class Status(models.TextChoices):
+        DRAFT = "DRAFT", _("Draft")
+        GENERATING = "GENERATING", _("Generating")
+        READY = "READY", _("Ready")
+        FAILED = "FAILED", _("Failed")
+
+    job = models.OneToOneField(Job, on_delete=models.CASCADE, related_name="assessment_template")
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.DRAFT)
+    generation_error = models.TextField(blank=True, default="")
+
+    def __str__(self):
+        return f"Assessment template for {self.job}"
+
+
+class JobAssessmentTemplateSection(TimeStampedModel):
+    """One question category within a job's assessment template (e.g. 'Role Knowledge')."""
+
+    template = models.ForeignKey(
+        JobAssessmentTemplate, on_delete=models.CASCADE, related_name="sections"
+    )
+    name = models.CharField(max_length=255)
+    order = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        ordering = ("order", "id")
+
+    def __str__(self):
+        return f"{self.name} ({self.template.job})"
+
+
+class JobAssessmentTemplateQuestion(TimeStampedModel):
+    """A single MCQ question within a job assessment template section.
+
+    Shape mirrors skill_assessment.GeneralSkillAssessmentMCQQuestion so cloning
+    into a real per-application assessment is a field-for-field copy.
+    """
+
+    section = models.ForeignKey(
+        JobAssessmentTemplateSection, on_delete=models.CASCADE, related_name="questions"
+    )
+    question = models.TextField()
+    options = models.JSONField(default=list, help_text='[{"index": 0, "value": "..."}]')
+    correct_option_index = models.IntegerField()
+    is_ai_generated = models.BooleanField(default=True)
+    order = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        ordering = ("order", "id")
+
+    def __str__(self):
+        return self.question[:80]
+
+
+class JobInterviewAvailabilitySlot(TimeStampedModel):
+    """A recruiter-published interview time slot for a job.
+
+    Only surfaced to candidates who have passed the job's assessment stage.
+    """
+
+    job = models.ForeignKey(
+        Job, on_delete=models.CASCADE, related_name="interview_availability_slots"
+    )
+    date = models.DateField()
+    start_time = models.TimeField()
+    end_time = models.TimeField()
+    is_claimed = models.BooleanField(default=False)
+    claimed_by_application = models.ForeignKey(
+        "jobs.JobApplication",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="claimed_interview_slot",
+    )
+
+    class Meta:
+        ordering = ("date", "start_time")
+        indexes = [
+            models.Index(fields=["job", "is_claimed"]),
+        ]
+
+    def __str__(self):
+        return f"{self.job} - {self.date} {self.start_time}-{self.end_time}"
 
 
 class JobApplication(models.Model):
@@ -226,6 +405,12 @@ class JobApplication(models.Model):
     )
     applied_date = models.DateTimeField(auto_now_add=True)
     cover_letter = models.TextField(max_length=3000, blank=True, default="")
+    additional_info = models.TextField(
+        max_length=3000,
+        blank=True,
+        default="",
+        help_text="Free-text answer to \"Anything else you'd like us to know?\" on the application form.",
+    )
     status = models.CharField(
         max_length=20,
         choices=JobApplicationStatus.choices,

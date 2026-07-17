@@ -59,7 +59,7 @@ const HeroSection = () => {
         >
 
     
-          We connect the top 3% of technical and non-technical talents with the businesses and startups to build, scale and grow.
+          We connect the top 3% of technical and non-technical talents with the businesses and recruiters to build, scale and grow.
         </m.p>
        
 

@@ -166,25 +166,25 @@ tools_data = [
 
 role_data = [
     # Talent roles
-    {"title": "Full stack Engineer", "is_technical": True, "is_startup_role": False},
-    {"title": "Mobile App Engineer", "is_technical": True, "is_startup_role": False},
-    {"title": "Technical Product Manager", "is_technical": False, "is_startup_role": False},
-    {"title": "Product Manager", "is_technical": False, "is_startup_role": False},
-    {"title": "Product Designer", "is_technical": False, "is_startup_role": False},
-    {"title": "Frontend Engineer", "is_technical": True, "is_startup_role": False},
-    {"title": "Backend Engineer", "is_technical": True, "is_startup_role": False},
-    {"title": "AI/ML Engineer", "is_technical": True, "is_startup_role": False},
-    {"title": "Social Media Manager", "is_technical": False, "is_startup_role": False},
-    {"title": "Community Manager", "is_technical": False, "is_startup_role": False},
-    {"title": "Customer Support", "is_technical": False, "is_startup_role": False},
-    {"title": "Copywriter/Content Writer", "is_technical": False, "is_startup_role": False},
-    {"title": "Virtual Assistant", "is_technical": False, "is_startup_role": False},
-    {"title": "Brand Designer", "is_technical": False, "is_startup_role": False},
+    {"title": "Full stack Engineer", "is_technical": True, "is_recruiter_role": False},
+    {"title": "Mobile App Engineer", "is_technical": True, "is_recruiter_role": False},
+    {"title": "Technical Product Manager", "is_technical": False, "is_recruiter_role": False},
+    {"title": "Product Manager", "is_technical": False, "is_recruiter_role": False},
+    {"title": "Product Designer", "is_technical": False, "is_recruiter_role": False},
+    {"title": "Frontend Engineer", "is_technical": True, "is_recruiter_role": False},
+    {"title": "Backend Engineer", "is_technical": True, "is_recruiter_role": False},
+    {"title": "AI/ML Engineer", "is_technical": True, "is_recruiter_role": False},
+    {"title": "Social Media Manager", "is_technical": False, "is_recruiter_role": False},
+    {"title": "Community Manager", "is_technical": False, "is_recruiter_role": False},
+    {"title": "Customer Support", "is_technical": False, "is_recruiter_role": False},
+    {"title": "Copywriter/Content Writer", "is_technical": False, "is_recruiter_role": False},
+    {"title": "Virtual Assistant", "is_technical": False, "is_recruiter_role": False},
+    {"title": "Brand Designer", "is_technical": False, "is_recruiter_role": False},
 
-    # Startup roles
-    {"title": "HR Manager", "is_technical": False, "is_startup_role": True},
-    {"title": "Recruiter", "is_technical": False, "is_startup_role": True},
-    {"title": "Startup", "is_technical": False, "is_startup_role": True},
+    # Recruiter roles
+    {"title": "HR Manager", "is_technical": False, "is_recruiter_role": True},
+    {"title": "Recruiter", "is_technical": False, "is_recruiter_role": True},
+    {"title": "Startup", "is_technical": False, "is_recruiter_role": True},
 ]
 
 
@@ -358,7 +358,7 @@ class Command(BaseCommand):
         for role in role_data:
             Role.objects.update_or_create(
                 title=role["title"],
-                defaults={"is_technical": role["is_technical"], "is_startup_role": role["is_startup_role"]},
+                defaults={"is_technical": role["is_technical"], "is_recruiter_role": role["is_recruiter_role"]},
             )
         log_success("Roles created ✅", self)
 

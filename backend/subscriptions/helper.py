@@ -2,7 +2,7 @@ from django.conf import settings
 from decimal import Decimal
 from rest_framework.response import Response
 from rest_framework.status import HTTP_402_PAYMENT_REQUIRED
-from subscriptions.models import WalletUserUsage, UserUsage
+from subscriptions.models import WalletUserUsage, UserUsage, WalletTransaction
 from django.db import transaction
 import uuid
 
@@ -108,6 +108,7 @@ def check_subscription_wallet_fallback(company, usage, determiner="resume-analyz
             reference=str(uuid.uuid4()),
             description=f"Deduction for resume screening.",
             currency=currency,
+            service_type=WalletTransaction.ServiceType.RESUME_SCREENING,
         )
         
         # Increment usage in wallet
@@ -159,6 +160,7 @@ def check_subscription_wallet_fallback(company, usage, determiner="resume-analyz
             reference=str(uuid.uuid4()),
             description=f"Deduction for assessment",
             currency=currency,
+            service_type=WalletTransaction.ServiceType.ASSESSMENT,
         )
         
         # Increment usage in wallet

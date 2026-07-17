@@ -1,12 +1,12 @@
 import Image from "next/image";
 import { PiCheckCircleFill } from "react-icons/pi";
 
-import { startupBenefits, talentBenefits } from "../constants";
+import { recruiterBenefits, talentBenefits } from "../constants";
 
-const InfoCard = ({ as }: { as: "startup" | "talent" }) => {
-  const isStartup = as === "startup";
-  const benefits = isStartup ? startupBenefits : talentBenefits;
-  const width = isStartup ? 150 : 100;
+const InfoCard = ({ as }: { as: "recruiter" | "talent" }) => {
+  const isRecruiter = as === "recruiter";
+  const benefits = isRecruiter ? recruiterBenefits : talentBenefits;
+  const width = isRecruiter ? 150 : 100;
   return (
     <div className='bg-white rounded-[13px] pt-5 px-5 flex gap-1'>
       <div>

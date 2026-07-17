@@ -186,6 +186,7 @@ def mark_skill_assessment_submission(self, skill_assessment_submission_id: int):
             "candidate",
             "skill_assessment",
             "skill_assessment__job_application",
+            "skill_assessment__job_application__job",
             "skill_assessment__company",
         )
         .prefetch_related(
@@ -269,6 +270,10 @@ def mark_skill_assessment_submission(self, skill_assessment_submission_id: int):
                 "total_score", "is_passed", "mark_status", "is_completed", "completed_at"
             ])
 
+            if assessment.company_id:
+                from tags.tasks import evaluate_company_tags
+                evaluate_company_tags.delay(assessment.company_id)
+
             if assessment.job_application_id:
                 flow_status, _ = ReportPAYGFlowStatus.objects.select_for_update().get_or_create(
                     job_application=assessment.job_application
@@ -297,10 +302,15 @@ def mark_skill_assessment_submission(self, skill_assessment_submission_id: int):
                 ).update(has_passed_tiaago_assessment=True)
 
             if assessment.job_application_id and assessment.company_id:
+                job = assessment.job_application.job
+                has_published_slots = job.interview_availability_slots.filter(is_claimed=False).exists()
                 try:
-                    send_interview_invite(submission)
+                    if has_published_slots:
+                        send_interview_slot_selection_invite(submission, job)
+                    else:
+                        send_interview_invite(submission)
                 except Exception:
-                    logger.exception("send_interview_invite failed for submission %s", submission.id)
+                    logger.exception("Interview invite email failed for submission %s", submission.id)
 
         return {
             "status": "marked",
@@ -344,6 +354,38 @@ def send_interview_invite(skill_assessment_submission):
         context=context,
         template="emails/interview_invite.html",
         email_type=EmailTypes.TALENT_ASSESSMENT_PASS_MAIL,
+    )
+
+
+def send_interview_slot_selection_invite(skill_assessment_submission, job):
+    """Invite a candidate who passed their assessment to pick a human-interview
+    time slot the recruiter published for this job.
+
+    Sent instead of send_interview_invite (Tiaago's AI pre-screening invite) when
+    the job has unclaimed JobInterviewAvailabilitySlots -- see mark_skill_assessment_submission.
+    """
+    base = str(FRONTEND_URL).rstrip('/') + '/'
+    slots_url = f"https://{base}talents/jobs/{job.public_id}/interview-slots"
+
+    candidate_email = skill_assessment_submission.candidate.user.email
+    first_name = skill_assessment_submission.candidate.user.first_name
+
+    company = getattr(skill_assessment_submission.skill_assessment, "company", None)
+    company_name = getattr(company, "company_name", "") if company else ""
+
+    context = {
+        "first_name": first_name,
+        "company": company_name,
+        "role": job.title,
+        "slots_url": slots_url,
+    }
+
+    email_handler = EmailHandler(recipients=[candidate_email])
+    email_handler.send_mail(
+        subject="Pick your interview time",
+        context=context,
+        template="emails/interview_slot_selection.html",
+        email_type=EmailTypes.INTERVIEW_SLOT_SELECTION_MAIL,
     )
 
 

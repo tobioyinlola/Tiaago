@@ -153,9 +153,17 @@ class GoogleSignInView(APIView):
                 auth_provider=CustomUser.AuthProvider.GOOGLE,
             )
             if django_user_type == CustomUser.USER_TYPE.COMPANY_REP:
+                referred_by = None
+                ref_code = request.data.get("ref")
+                if ref_code:
+                    referred_by = Company.objects.filter(referral_code=ref_code).first()
                 company = Company.objects.create(
                     company_rep=user,
                     company_email=email,
+                    referred_by=referred_by,
+                    utm_source=request.data.get("utm_source") or None,
+                    utm_medium=request.data.get("utm_medium") or None,
+                    utm_campaign=request.data.get("utm_campaign") or None,
                 )
                 FreePlan.objects.get_or_create(
                     company=company, defaults={"company_email": email}
@@ -476,7 +484,7 @@ class CustomPasswordResetView(APIView):
         if user.is_talent():
             reset_url = f"{base_url}/talents/reset-password/?uid={uid}&token={token}"
         elif user.is_company():
-            reset_url = f"{base_url}/startups/reset-password/?uid={uid}&token={token}"
+            reset_url = f"{base_url}/recruiter/reset-password/?uid={uid}&token={token}"
         else:
             reset_url = f"{base_url}/admin/reset-password/?uid={uid}&token={token}"
 
