@@ -50,7 +50,11 @@ jobs:
             echo "Waiting for web container to be healthy..."
             healthy=0
             for i in $(seq 1 30); do
-              if docker compose exec -T web python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/')" 2>/dev/null; then
+              # X-Forwarded-Proto is required: SECURE_SSL_REDIRECT in prod
+              # settings 301s any probe without it to https://localhost:8000,
+              # which fails TLS against uvicorn's plaintext port -- this probe
+              # had never passed (every run since #60 exhausted all 30 attempts).
+              if docker compose exec -T web python -c "import urllib.request as u; u.urlopen(u.Request('http://localhost:8000/', headers={'X-Forwarded-Proto': 'https'}), timeout=5)" 2>/dev/null; then
                 echo "Web is healthy after ${i}0 seconds"
                 healthy=1
                 break

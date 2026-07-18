@@ -26,7 +26,11 @@ services:
       - ai
       - vector
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/')"]
+      # X-Forwarded-Proto is required: SECURE_SSL_REDIRECT in prod settings
+      # 301s any probe without it to https://localhost:8000, where the TLS
+      # handshake fails against uvicorn's plaintext port -- so a bare
+      # urlopen('http://localhost:8000/') can never report healthy.
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen(u.Request('http://localhost:8000/', headers={'X-Forwarded-Proto': 'https'}), timeout=5)"]
       interval: 10s
       timeout: 5s
       retries: 12
