@@ -275,52 +275,61 @@ def get_email_template_and_context(
 
     elif email_type == "application_received":
         job = kwargs.get("job")
-        template_file = "emails/application_received.html"
-        context = {
-            "first_name": user.first_name,
-            "role": getattr(job, "title", "") if job else "",
-            "company": getattr(job.company, "company_name", "") if job and job.company else "",
-            "submitted": timezone.now().strftime("%b %-d, %Y"),
-        }
+        if job:
+            template_file = "emails/application_received.html"
+            context = {
+                "first_name": user.first_name,
+                "role": getattr(job, "title", ""),
+                "company": getattr(job.company, "company_name", "") if job.company else "",
+                "submitted": timezone.now().strftime("%b %-d, %Y"),
+            }
 
     elif email_type == "ticket_received":
         ticket = kwargs.get("ticket")
-        template_file = "emails/ticket_received.html"
-        context = {
-            "first_name": user.first_name,
-            "ticket_number": ticket.display_number,
-            "title": ticket.title,
-            "category": ticket.get_category_display(),
-            "ticket_url": _ticket_url(ticket),
-        }
+        if ticket:
+            template_file = "emails/ticket_received.html"
+            context = {
+                "first_name": user.first_name,
+                "ticket_number": getattr(ticket, "display_number", ""),
+                "title": getattr(ticket, "title", ""),
+                "category": ticket.get_category_display() if hasattr(ticket, "get_category_display") else "",
+                "ticket_url": _ticket_url(ticket),
+            }
 
     elif email_type == "ticket_admin_replied":
         ticket = kwargs.get("ticket")
         reply = kwargs.get("reply")
-        template_file = "emails/ticket_admin_replied.html"
-        context = {
-            "first_name": user.first_name,
-            "ticket_number": ticket.display_number,
-            "title": ticket.title,
-            "reply_message": reply.message if reply else "",
-            "ticket_url": _ticket_url(ticket),
-        }
+        if ticket:
+            template_file = "emails/ticket_admin_replied.html"
+            context = {
+                "first_name": user.first_name,
+                "ticket_number": getattr(ticket, "display_number", ""),
+                "title": getattr(ticket, "title", ""),
+                "reply_message": getattr(reply, "message", "") if reply else "",
+                "ticket_url": _ticket_url(ticket),
+            }
 
     elif email_type == "ticket_resolved":
         ticket = kwargs.get("ticket")
-        template_file = "emails/ticket_resolved.html"
-        context = {
-            "first_name": user.first_name,
-            "ticket_number": ticket.display_number,
-            "title": ticket.title,
-            "ticket_url": _ticket_url(ticket),
-        }
+        if ticket:
+            template_file = "emails/ticket_resolved.html"
+            context = {
+                "first_name": user.first_name,
+                "ticket_number": getattr(ticket, "display_number", ""),
+                "title": getattr(ticket, "title", ""),
+                "ticket_url": _ticket_url(ticket),
+            }
 
     return template_file, context
 
 
 def _ticket_url(ticket):
-    return f"{settings.FRONTEND_BASE_URL}/recruiter/dashboard/support/tickets/{ticket.id}"
+    if not ticket:
+        return ""
+    ticket_id = getattr(ticket, "id", None)
+    if not ticket_id:
+        return ""
+    return f"{settings.FRONTEND_BASE_URL}/recruiter/dashboard/support/tickets/{ticket_id}"
 
 
 # ── Wrapper functions (preserve existing public API) ─────────────────────
@@ -510,7 +519,9 @@ def application_received_mail(user, job):
     """Confirmation sent immediately after a candidate submits a job
     application through the no-login apply form -- separate from
     `send_welcome_mail`, since no account signup actually happened here."""
-    subject = f"We've received your application for {job.title}"
+    if not job:
+        return None
+    subject = f"We've received your application for {getattr(job, 'title', 'the role')}"
     template, ctx = get_email_template_and_context(user, "application_received", job=job)
     if not template:
         return None
@@ -521,7 +532,9 @@ def application_received_mail(user, job):
 
 def ticket_received_mail(user, ticket):
     """Sent to the submitting user immediately after a support ticket is created."""
-    subject = f"Your support request has been received — {ticket.display_number}"
+    if not ticket:
+        return None
+    subject = f"Your support request has been received — {getattr(ticket, 'display_number', '')}"
     template, ctx = get_email_template_and_context(user, "ticket_received", ticket=ticket)
     if not template:
         return None
@@ -532,7 +545,9 @@ def ticket_received_mail(user, ticket):
 
 def ticket_admin_replied_mail(user, ticket, reply):
     """Sent to the ticket's submitting user when an admin posts a (non-internal) reply."""
-    subject = f"Tiaago Support replied to your ticket — {ticket.display_number}"
+    if not ticket:
+        return None
+    subject = f"Tiaago Support replied to your ticket — {getattr(ticket, 'display_number', '')}"
     template, ctx = get_email_template_and_context(user, "ticket_admin_replied", ticket=ticket, reply=reply)
     if not template:
         return None
@@ -543,7 +558,9 @@ def ticket_admin_replied_mail(user, ticket, reply):
 
 def ticket_resolved_mail(user, ticket):
     """Sent to the ticket's submitting user when an admin marks it RESOLVED."""
-    subject = f"Your support ticket has been resolved — {ticket.display_number}"
+    if not ticket:
+        return None
+    subject = f"Your support ticket has been resolved — {getattr(ticket, 'display_number', '')}"
     template, ctx = get_email_template_and_context(user, "ticket_resolved", ticket=ticket)
     if not template:
         return None
