@@ -1244,21 +1244,35 @@ Count your questions and verify:
         logger.error(f"Batch {batch_num} traceback: {traceback.format_exc()}")
         raise ValueError(f"Failed to generate batch {batch_num}: {str(e)}")
 
+CODING_CATEGORY_NAMES = {"coding", "coding questions", "coding challenge", "coding challenges"}
+
+
 def generate_categorized_mcq_batch(job_description: str, category: str, num_questions: int, role_type: Optional[str] = None) -> dict:
     """
     Generate one category's worth of MCQ questions, tagged with that category.
 
     Modeled directly on generate_mcq_batch's prompt/parsing pipeline, but generalized
     (no role hardcoded into the prompt) and framed around a specific question category
-    instead of a numbered batch.
+    instead of a numbered batch. When the category is a "Coding" category, a
+    specialized prompt is used instead -- still MCQ (question/answers/correct_answer),
+    but the question text embeds a real code snippet (output-prediction, bug-spotting,
+    or fill-in-the-snippet style) so recruiters get genuine coding questions with a
+    pickable correct option, not free-form/graded coding tasks.
     """
     try:
         api_key = os.getenv("OPENAI_API_KEY")
         if not api_key:
             raise ValueError("OPENAI_API_KEY environment variable is not set")
 
+        is_coding_category = category.strip().lower() in CODING_CATEGORY_NAMES
+
         model_name = settings.OPENAI_MODEL_NAME
-        max_tokens = 2000 if "gpt-4" in model_name.lower() else 1500
+        if is_coding_category:
+            # Code snippets embedded in both the question and the 4 options eat far
+            # more tokens per question than plain-text MCQs.
+            max_tokens = 3000 if "gpt-4" in model_name.lower() else 2000
+        else:
+            max_tokens = 2000 if "gpt-4" in model_name.lower() else 1500
 
         chat = ChatOpenAI(
             api_key=api_key,
@@ -1274,7 +1288,76 @@ def generate_categorized_mcq_batch(job_description: str, category: str, num_ques
             model_kwargs={"response_format": {"type": "json_object"}},
         )
 
-        system_prompt = f"""You are generating MCQ assessment questions for a specific job, for the question category "{category}".
+        if is_coding_category:
+            system_prompt = f"""You are generating REAL CODING multiple-choice assessment questions for a specific job.
+
+        ========================================
+        AI CODING MCQ GENERATION GUIDELINES FOR TIAAGO
+        ========================================
+
+        1. QUESTION COUNT & ACCURACY (CRITICAL - SYSTEM REQUIREMENT):
+           - MANDATORY: Generate EXACTLY {num_questions} questions - no more, no less
+           - The response WILL BE REJECTED if the question count does not match
+           - Your "questions" array must contain EXACTLY {num_questions} items
+
+        2. PICK 1-2 PROGRAMMING LANGUAGES most relevant to the job description below (e.g. Python,
+           JavaScript/TypeScript, Java, Go, SQL) and write every code snippet in one of those languages.
+
+        3. EVERY QUESTION MUST CONTAIN A REAL CODE SNIPPET embedded directly in the "question" text,
+           wrapped in a markdown code fence (```language ... ```). Vary the question style across:
+           - Output prediction ("What does this code print/return?")
+           - Bug spotting ("Which line contains the bug?" / "Which option fixes the bug below?")
+           - Fill-in-the-snippet ("Which option correctly completes this function to do X?")
+           - Behavior/complexity analysis ("What is the time complexity of this function?")
+           Snippets must be short (roughly 5-15 lines), syntactically valid, and self-contained enough
+           to reason about without external context.
+
+        4. ROLE-SPECIFIC RELEVANCE: Questions must be directly related to the exact job role described
+           below (its languages/frameworks/domain). Avoid unrelated domains.
+
+        5. AVOID COMPANY REFERENCES: Keep questions neutral and role-focused. Do not reference specific companies.
+
+        6. NO REPETITION: Every question must be distinct, covering different subtopics/snippets.
+
+        7. OPTIONS AND ANSWERS: All 4 options must be plausible (e.g. subtly wrong outputs, off-by-one
+           variants, plausible-but-wrong fixes). Avoid "odd one out" answers. Only one option is correct.
+           Options may themselves contain short code/values, not just prose.
+
+        ========================================
+
+        Respond with ONLY this JSON format:
+        {{
+            "ai_determined_difficulty": "intermediate",
+            "role_type": "{role_type or 'non-technical'}",
+            "skills_assessed": ["skill1", "skill2", "skill3"],
+            "questions": [
+                {{
+                    "question": "Explanatory setup, then a fenced code snippet, then the actual question",
+                    "answers": ["A) Option 1", "B) Option 2", "C) Correct answer", "D) Option 4"],
+                    "correct_answer": "C) Correct answer"
+                }}
+            ]
+        }}"""
+
+            human_prompt = f"""CRITICAL: You MUST generate EXACTLY {num_questions} real coding questions, each containing
+an embedded, fenced code snippet, based on the job description below.
+
+JOB DESCRIPTION:
+{job_description}
+
+Generate challenging coding questions (output prediction, bug-spotting, fill-in-the-snippet, or
+complexity analysis) using languages/frameworks relevant to this role. Each question's 4 options
+must be plausible outputs/fixes/completions of that specific snippet.
+
+MANDATORY VERIFICATION BEFORE RESPONDING:
+Count your questions and verify:
+1. I generated EXACTLY {num_questions} questions (the "questions" array has {num_questions} items)
+2. Every single question contains a fenced code snippet (```language ... ```) in its "question" text
+3. No question mentions any company, brand, or product name
+4. Every question tests a different snippet/subtopic
+5. All four options are plausible; none are "obviously wrong\""""
+        else:
+            system_prompt = f"""You are generating MCQ assessment questions for a specific job, for the question category "{category}".
 
         ========================================
         AI ASSESSMENT GENERATION GUIDELINES FOR TIAAGO
@@ -1313,7 +1396,7 @@ def generate_categorized_mcq_batch(job_description: str, category: str, num_ques
             ]
         }}"""
 
-        human_prompt = f"""CRITICAL: You MUST generate EXACTLY {num_questions} questions for the "{category}" category.
+            human_prompt = f"""CRITICAL: You MUST generate EXACTLY {num_questions} questions for the "{category}" category.
 
 JOB DESCRIPTION:
 {job_description}
@@ -1362,7 +1445,7 @@ def create_categorized_mcq_assessment(
     role_type: Optional[str] = None,
 ) -> "CategorizedAssessmentResult":
     """
-    Generate an MCQ assessment split into named categories (e.g. 3 categories x 10 questions).
+    Generate an MCQ assessment split into named categories (e.g. 3-4 categories x 10 questions; a "Coding" category yields MCQ questions with embedded code snippets).
 
     Treats each category as one batch, reusing the same batching/parsing approach as
     create_large_mcq_assessment/generate_mcq_batch — one category maps naturally onto

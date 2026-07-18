@@ -272,7 +272,7 @@ const AssessmentGenerationStep = ({
           <div className='flex flex-col items-center justify-center gap-3 py-16 rounded-lg border border-dashed border-[#EAECF0] animate-fade-in'>
             <Loader2 className='h-8 w-8 animate-spin text-primary' />
             <p className='text-sm text-secondary-black'>
-              Writing 30 questions across 3 categories -- this can take a minute...
+              Writing your assessment questions across multiple categories -- this can take a minute...
             </p>
           </div>
         )}
@@ -298,9 +298,9 @@ const AssessmentGenerationStep = ({
         {status === "idle" && !hasQuestions && (
           <div className='flex flex-col items-center justify-center gap-3 py-16 rounded-lg border border-dashed border-[#EAECF0] text-center'>
             <p className='text-sm text-secondary-black max-w-sm'>
-              No questions generated yet. Click &quot;Generate Questions&quot; to create a
-              30-question assessment from your job details, or load sample questions to preview
-              this step.
+              No questions generated yet. Click &quot;Generate Questions&quot; to create an
+              assessment from your job details (technical roles include a coding section), or
+              load sample questions to preview this step.
             </p>
             <button type='button' onClick={handleLoadSample} className='btn btn-outline btn-sm gap-2'>
               <Wand2 className='h-4 w-4' /> Load Sample
