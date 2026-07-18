@@ -19,7 +19,6 @@ from .models import (
 @admin.register(Job)
 class JobAdmin(admin.ModelAdmin):
     model = Job
-    autocomplete_fields = ["role"]
     list_display = ("title", "id", "company", "job_status", "job_type")
 
 

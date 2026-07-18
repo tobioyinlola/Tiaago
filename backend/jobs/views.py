@@ -126,7 +126,7 @@ class JobDetailView(RetrieveAPIView):
     serializer_class = GenericJobSerializer
 
     def get_queryset(self):
-        return Job.approved.select_related("company", "role").all()
+        return Job.approved.select_related("company").all()
 
 
 @method_decorator(cache_page(60), name="dispatch")
@@ -140,8 +140,8 @@ class JobDetailByPublicIdView(JobDetailView):
 
 
 class JobFilter(filters.FilterSet):
-    role = filters.CharFilter(field_name='role__title', lookup_expr='icontains')
-    role__in = filters.BaseInFilter(field_name='role__title')
+    role = filters.CharFilter(field_name='role', lookup_expr='icontains')
+    role__in = filters.BaseInFilter(field_name='role')
     location = filters.CharFilter(field_name='location', lookup_expr='icontains')
 
     class Meta:
@@ -180,7 +180,7 @@ class JobListCreateView(ListCreateAPIView):
         - Staff: see all jobs (approved or not).
         """
         user = self.request.user
-        queryset = Job.objects.select_related('company', 'role').all()  
+        queryset = Job.objects.select_related('company').all()
         queryset = queryset.annotate(
             completed_assessments_count=Count(
                 "job_applications__job_applications__candidateassessmentsubmission",
@@ -476,7 +476,7 @@ class JobInterviewSlotClaimView(APIView):
 
 
 class JobRetrieveUpdateView(RetrieveUpdateAPIView):
-    queryset = Job.objects.select_related("company", "role").all()
+    queryset = Job.objects.select_related("company").all()
     permission_classes = [IsJobCreatorOrReadOnly]
     lookup_field = "public_id"
 
@@ -510,7 +510,7 @@ class JobRetrieveUpdateView(RetrieveUpdateAPIView):
 
 
 class JobDeleteView(DestroyAPIView):
-    queryset = Job.objects.select_related('company', 'role').all()
+    queryset = Job.objects.select_related('company').all()
     serializer_class = JobSerializer
     permission_classes = [IsJobCreatorOrReadOnly, permissions.IsAuthenticated]
     lookup_field = "public_id"
@@ -537,7 +537,7 @@ class JobApplicationListView(ListAPIView):
     def get_queryset(self):
         user = self.request.user
         qs = JobApplication.objects.select_related(
-            "job", "job__company", "job__role",
+            "job", "job__company",
             "applicant", "applicant__user",
         )
 
@@ -636,7 +636,12 @@ class JobApplyView(CreateAPIView):
         if job.job_status != Job.JobStatus.ACTIVE:
             return Response({"detail": "Job not active"}, status=HTTP_400_BAD_REQUEST)
 
-        if job.role != user.profile.role:
+        # job.role is now free text (not a Role FK) -- compare case-insensitively
+        # against the talent's own Role.title, matching how role titles are
+        # already treated as equivalent regardless of case elsewhere (e.g.
+        # Role.objects.filter(title__iexact=...) in the assessment-generation view).
+        talent_role_title = user.profile.role.title if user.profile.role else ""
+        if (job.role or "").strip().lower() != talent_role_title.strip().lower():
             return Response(
                 {"detail": "You cannot apply to the job specified"},
                 status=HTTP_400_BAD_REQUEST,
@@ -1290,7 +1295,7 @@ class CompanyProfileView(RetrieveAPIView):
     def get(self, request, *args, **kwargs):
         company_name = self.kwargs.get("company_name")
         company = Company.objects.select_related("company_rep").prefetch_related(
-            Prefetch("jobs", queryset=Job.objects.filter(job_status="ACTIVE").select_related("role"))
+            Prefetch("jobs", queryset=Job.objects.filter(job_status="ACTIVE"))
         ).filter(company_name__iexact=company_name).first()
         if not company:
             return Response({"detail": "Not found."}, status=404)

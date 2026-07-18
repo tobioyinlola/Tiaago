@@ -7,7 +7,7 @@ from .models import ProctoringSession, ProctoringEvent
 class ProctoringSessionAdmin(admin.ModelAdmin):
     list_display = ("id", "candidate", "job", "status", "risk_level", "integrity_score", "started_at")
     list_filter = ("status", "risk_level")
-    search_fields = ("candidate__user__email", "job__role__title")
+    search_fields = ("candidate__user__email", "job__role")
 
 
 @admin.register(ProctoringEvent)

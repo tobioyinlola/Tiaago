@@ -337,7 +337,11 @@ def send_assessment_link(job_application_id, trials=0):
         flow_status.error_message = f"Assessment error: {error_message}"
         flow_status.save()
     job = job_application.job
-    is_technical = job.role.is_technical
+    # job.role is free text (not a Role FK) -- resolve is_technical via a
+    # case-insensitive title lookup, same fallback-to-technical default used
+    # in GenerateAssessmentQuestionsView when no matching Role row exists.
+    matched_role = Role.objects.filter(title__iexact=job.role).first()
+    is_technical = matched_role.is_technical if matched_role else True
     talent_profile = job_application.applicant
     if job and talent_profile and talent_profile.user:
         job_difficulty = "beginner"
@@ -446,8 +450,10 @@ def send_assessment_link(job_application_id, trials=0):
                     assessment_type=SkillAssessmentTypes.CUSTOM,
                     job_application=job_application,
                 )
-                # attach skillset/role
-                company_skill_assessment.skillsets.set([job.role])
+                # attach skillset/role -- skillsets is a Role FK M2M, so resolve
+                # (or create) a Role row matching job.role's free-text title.
+                skillset_role = matched_role or Role.objects.create(title=job.role)
+                company_skill_assessment.skillsets.set([skillset_role])
 
                 # Create one MCQ section per category (a single "Multiple Choice
                 # Questions" section in the legacy/fallback path, or one section per
