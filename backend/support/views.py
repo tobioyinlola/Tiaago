@@ -15,6 +15,8 @@ from create_user.permissions import get_user_company
 from subscriptions.permissions import IsCompanyRepUser
 from staff.permissions import get_staff_permissions, is_super_admin, requirePermission
 from staff.utils import log_staff_activity
+from notifications.models import Notification
+from notifications.utils import notify_user
 from .models import SupportTicket
 from .serializers import (
     SupportTicketCreateSerializer,
@@ -275,6 +277,19 @@ class AdminTicketReplyView(APIView):
                 emails.ticket_admin_replied_mail(ticket.submitted_by, ticket, reply)
             except Exception:
                 logger.exception("Failed to send ticket_admin_replied email for %s", ticket.id)
+
+            try:
+                notify_user(
+                    ticket.submitted_by,
+                    title=f"New reply on {ticket.display_number}",
+                    message=reply.message[:200],
+                    notification_type=Notification.Type.GENERAL,
+                    link_path=f"recruiter/dashboard/support/tickets/{ticket.id}",
+                    link_label="View ticket",
+                    sent_by=request.user,
+                )
+            except Exception:
+                logger.exception("Failed to create in-app notification for ticket %s", ticket.id)
 
         log_staff_activity(
             request.user,
