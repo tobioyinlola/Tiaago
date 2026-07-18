@@ -2,6 +2,15 @@
 const nextConfig = {
   experimental: {
     instrumentationHook: true,
+    // Support-ticket attachments are Server Action arguments (see
+    // submitTicket in app/common/services/support.ts), so they're subject to
+    // Next's own body-size guard -- default 1MB -- independent of the
+    // backend's 10MB/file, 3-file cap (backend/support/serializers.py).
+    // Without this override, any attachment over ~1MB fails before the
+    // request ever reaches Django.
+    serverActions: {
+      bodySizeLimit: "30mb",
+    },
     optimizePackageImports: [
       "react-icons",
       "lucide-react",
