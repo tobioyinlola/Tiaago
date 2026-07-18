@@ -8,7 +8,6 @@ from django.utils.translation import gettext_lazy as _
 from base.models import TimeStampedModel
 from create_user.models import Company, TalentProfile
 from jobs.constants import MANUALLY, WITH_AI
-from roles.models import Role
 from uuid import uuid4
 from django.utils import timezone
 from django.conf import settings
@@ -88,8 +87,9 @@ class Job(models.Model):
 
     HIRING_TYPES = ((MANUALLY, MANUALLY), (WITH_AI, WITH_AI))
 
-    # Title will be dropdown from job roles (using role field)
-    role = models.ForeignKey(Role, on_delete=models.CASCADE, related_name="jobs")
+    # Free-text role/title typed by the recruiter -- not a Role FK, so any
+    # title (including ones not in the predefined roles list) is allowed.
+    role = models.CharField(max_length=255)
     #tags = models.JSONField(blank=True, default=list, help_text="Optional tags for categorizing the job")
 
     
@@ -200,12 +200,12 @@ class Job(models.Model):
 
     class Meta:
         indexes = [
-            models.Index(fields=["role", "company"]),
+            models.Index(fields=["role", "company"], name="jobs_job_role_company_idx"),
         ]
         ordering = ("-date_created",)
 
     def __str__(self):
-        return f"{self.role.title if self.role else 'Unknown Role'} - {self.job_type}"
+        return f"{self.role or 'Unknown Role'} - {self.job_type}"
 
     def get_apply_url(self):
         base = str(settings.FRONTEND_URL).rstrip("/")
@@ -224,7 +224,7 @@ class Job(models.Model):
     
     @property
     def title(self):
-        return self.role.title if self.role else "Unknown Role"
+        return self.role or "Unknown Role"
 
     @property
     def hires_with_ai(self):

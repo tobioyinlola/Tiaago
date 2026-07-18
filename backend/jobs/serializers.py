@@ -29,40 +29,10 @@ from .models import (
 )
 
 
-class RoleOrTitleField(serializers.Field):
-    """Accepts either an existing Role's PK or a free-text title.
-
-    Lets the job-creation wizard's "Title/Position" field be a fully open text
-    input (with suggestions from existing roles) instead of being locked to a
-    dropdown -- a title that doesn't match an existing Role gets one created
-    on the fly (case-insensitive match first, to avoid near-duplicate roles).
-    Read side keeps serializing as the plain PK, matching the existing contract
-    other consumers (e.g. EditJobForm) rely on.
-    """
-
-    def to_representation(self, value):
-        return value.id if hasattr(value, "id") else value
-
-    def to_internal_value(self, data):
-        if isinstance(data, int) or (isinstance(data, str) and data.strip().isdigit()):
-            try:
-                return Role.objects.get(id=int(data))
-            except Role.DoesNotExist:
-                raise serializers.ValidationError("Invalid role id")
-
-        title = str(data or "").strip()
-        if not title:
-            raise serializers.ValidationError("Role/title is required")
-
-        role = Role.objects.filter(title__iexact=title).first()
-        if not role:
-            role = Role.objects.create(title=title)
-        return role
-
-
 class JobSerializer(serializers.ModelSerializer):
     company = CompanyDetailSerializer(read_only=True)
-    role = RoleOrTitleField()
+    # role is a plain CharField on the Job model (free text, not a Role FK) --
+    # DRF auto-generates a CharField for it from the model, no override needed.
     role_title = serializers.SerializerMethodField()
     no_of_applications = serializers.IntegerField(read_only=True)
     get_apply_url = serializers.SerializerMethodField()
@@ -138,12 +108,7 @@ class JobSerializer(serializers.ModelSerializer):
       
 
     def get_role_title(self, obj):
-        try:
-            if obj.role:
-                return obj.role.title
-            return ""
-        except (Role.DoesNotExist, AttributeError):
-            return ""
+        return obj.role or ""
 
     def get_title(self, obj):
         """Get title from role for backward compatibility"""
@@ -288,16 +253,10 @@ class JobUpdateSerializer(serializers.ModelSerializer):
         return value
 
     def get_role_title(self, obj):
-        try:
-            return obj.role.title if obj.role else ""
-        except (Role.DoesNotExist, AttributeError):
-            return ""
-            
+        return obj.role or ""
+
     def get_title(self, obj):
-        try:
-            return obj.role.title if obj.role else ""
-        except (Role.DoesNotExist, AttributeError):
-            return ""
+        return obj.role or ""
 
 
 

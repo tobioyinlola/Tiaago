@@ -836,16 +836,16 @@ def get_assessment_intelligence_summary():
     job_stats = {}
     subs_with_job = CandidateAssessmentSubmission.objects.filter(
         is_completed=True, skill_assessment__job_application__isnull=False
-    ).select_related("skill_assessment__job_application__job__role").values(
+    ).values(
         "skill_assessment__job_application__job_id",
-        "skill_assessment__job_application__job__role__title",
+        "skill_assessment__job_application__job__role",
         "is_passed", "total_score",
     )
     for row in subs_with_job:
         job_id = row["skill_assessment__job_application__job_id"]
         entry = job_stats.setdefault(
             job_id,
-            {"title": row["skill_assessment__job_application__job__role__title"] or "Unknown Role", "total": 0, "failed": 0, "scores": []},
+            {"title": row["skill_assessment__job_application__job__role"] or "Unknown Role", "total": 0, "failed": 0, "scores": []},
         )
         entry["total"] += 1
         if not row["is_passed"]:

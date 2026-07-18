@@ -21,6 +21,7 @@ import { BASE_URL } from "@/app/common/constants";
 import { updateJob } from "@/app/common/services/jobs";
 import { useAlert } from "@/app/common/store/useAlert";
 import HiringProcess from "../../_components/HiringProcess";
+import RoleTitleField from "../../create/CreateJobForm/_components/RoleTitleField";
 import InfoCircleIcon from "@/app/common/icons/InfoCircleIcon";
 import { useMultiStep } from "@/app/common/store/useMultiStep";
 import { CountryField, TalentRole, Job } from "@/app/common/types";
@@ -143,8 +144,6 @@ const EditJobForm = ({
           else {
             updateJob(job.public_id, {
               ...values,
-              // @ts-ignore
-              title: talentRoles.find(t => t.id === values.role)?.title ?? "",
               payment_currency,
               ...(payment_currency === "USD"
                 ? { payment_range_usd: payment_range }
@@ -274,6 +273,19 @@ const EditJobForm = ({
                             },
                           ];
 
+                    if (name === "role")
+                      return (
+                        <RoleTitleField
+                          key={name}
+                          value={String(value ?? "")}
+                          onChange={val => setFieldValue("role", val)}
+                          talentRoles={talentRoles}
+                          error={error}
+                          touched={!!touched[name]}
+                          className={props.className}
+                        />
+                      );
+
                     if (name === "location")
                       return (
                         <CountrySelect
@@ -346,27 +358,13 @@ const EditJobForm = ({
                         touched={touched[name]}
                         {...(props.type === "select" && {
                           selectFieldProps: {
-                            options:
-                              name === "role"
-                                ? talentRoles.map(role => ({
-                                    label: role.title,
-                                    value: role.id,
-                                  }))
-                                : props.selectFieldProps?.options,
+                            options: props.selectFieldProps?.options,
                             value: props.selectFieldProps?.options
                               ? findOptionByValue(
                                   props.selectFieldProps.options,
                                   value
                                 )
-                              : name === "role"
-                                ? findOptionByValue(
-                                    talentRoles.map(role => ({
-                                      label: role.title,
-                                      value: role.id,
-                                    })),
-                                    value
-                                  )
-                                : undefined,
+                              : undefined,
                             ...props.selectFieldProps,
                           },
                         })}
@@ -459,9 +457,7 @@ const EditJobForm = ({
               <JobDetails
                 job={{
                   ...values,
-                  role:
-                    talentRoles.find(role => role.id === values.role)?.title ||
-                    "",
+                  role: values.role,
                 }}
               />
             </div>

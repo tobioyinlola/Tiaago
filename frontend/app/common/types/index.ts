@@ -400,7 +400,8 @@ export type Job = {
   public_id: string;
   title: string;
   tags: string[];
-  role: ID;
+  /** Free-text role/title typed by the recruiter -- not a Role id/FK. */
+  role: string;
   role_title: string;
   salary_duration: "PH" | "PM" | "CT";
   payment_range: string;
@@ -553,7 +554,7 @@ export type BlogPostWritePayload = {
 };
 
 export type JobFormPayload = {
-  role: ID;
+  role: string;
   experience: number;
   job_type: string;
   payment_type: string;
