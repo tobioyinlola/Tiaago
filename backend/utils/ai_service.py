@@ -205,10 +205,11 @@ class AIServiceHandler:
             "questions_per_category": questions_per_category,
             "role_type": role_type,
         }
-        # 3 categories are generated sequentially server-side (~60s ceiling each),
-        # so this needs headroom well beyond the other single-call AI endpoints.
+        # Categories are generated sequentially server-side (~60s ceiling each --
+        # up to 4 for technical roles, which add a "Coding" category), so this
+        # needs headroom well beyond the other single-call AI endpoints.
         response = self.post(
-            "/create-categorized-assessment", params=data, timeout=180
+            "/create-categorized-assessment", params=data, timeout=240
         )
         try:
             response = response.json()

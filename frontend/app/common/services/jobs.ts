@@ -126,12 +126,13 @@ export const generateAssessmentQuestions = async (details: {
   job_level?: string;
 }): Promise<ApiResponse<{ sections: AssessmentQuestionSection[] }>> => {
   try {
-    // A live LLM call generating 30 questions across 3 categories can take a
-    // while -- well beyond serverKyInstance's default 25s timeout.
+    // A live LLM call generating questions across up to 4 sequential categories
+    // (technical roles add a "Coding" category) can take a while -- well beyond
+    // serverKyInstance's default 25s timeout.
     const data = await serverKyInstance
       .post("jobs/generate-assessment-questions/", {
         json: details,
-        timeout: 200000,
+        timeout: 260000,
       })
       .json<{ sections: AssessmentQuestionSection[] }>();
     return {

@@ -297,7 +297,7 @@ async def create_categorized_assessment_endpoint(
     role_type: Optional[str] = Query(None, description="Role type: technical or non-technical")
 ):
     """
-    Generate an MCQ assessment split into named categories (e.g. 3 categories x 10 questions).
+    Generate an MCQ assessment split into named categories (e.g. 3-4 categories x 10 questions; a "Coding" category yields MCQ questions with embedded code snippets).
 
     Each category is generated as its own batch so results stay on-topic per category
     and avoid duplicate questions across categories.
