@@ -20,18 +20,43 @@ jobs:
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
+            set -euo pipefail
             cd ~/tiaago-monorepo1
-            git checkout -- .
-            git pull origin main
+
+            # git pull can silently no-op or fail on a diverged/detached
+            # checkout without this script noticing (no error handling
+            # previously existed here) -- fetch + hard-reset to the exact
+            # remote ref is unconditional and can't leave stale code behind.
+            # This only touches tracked files, so backend/.env (untracked,
+            # holds production secrets) is left alone.
+            git fetch origin main
+            git reset --hard origin/main
+
+            DEPLOYED_SHA=$(git rev-parse HEAD)
+            EXPECTED_SHA="${{ github.sha }}"
+            echo "Deployed SHA: $DEPLOYED_SHA (expected: $EXPECTED_SHA)"
+            if [ "$DEPLOYED_SHA" != "$EXPECTED_SHA" ]; then
+              echo "ERROR: checked-out commit does not match the commit that triggered this deploy."
+              exit 1
+            fi
+
             docker compose up --build -d
+
             echo "Waiting for web container to be healthy..."
+            healthy=0
             for i in $(seq 1 30); do
               if docker compose exec -T web python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/')" 2>/dev/null; then
                 echo "Web is healthy after ${i}0 seconds"
+                healthy=1
                 break
               fi
               echo "Attempt $i/30 - web not ready yet..."
               sleep 10
             done
+            if [ "$healthy" -ne 1 ]; then
+              echo "ERROR: web container never became healthy within 300s"
+              exit 1
+            fi
+
             docker compose restart nginx
             docker image prune -f
