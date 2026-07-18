@@ -46,13 +46,17 @@ const Navbar = ({ scrollElId = "", hideAuthButtons = false }) => {
 
   const isJobDetailsPage = pathname.includes("/jobs/");
   const isOnApplyPage = pathname.includes("/apply");
+  // The blog post (view) page has its own hero background right below the
+  // header, so a hard border line here would break that blend -- the blog
+  // *list* page (bare `/blogs`) keeps the border like every other page.
+  const isOnBlogPostPage = /^\/blogs\/.+/.test(pathname);
 
   return (
     <header
       className={cn(
         "absolute top-0 left-0 right-0 z-10 border-b border-[#DEE1E3] lg:px-6 xl:px-8 bg-transparent py-3 md:py-7",
         isOnHomePage && "border-b border-white/10",
-        isOnApplyPage && "border-b-0"
+        (isOnApplyPage || isOnBlogPostPage) && "border-b-0"
       )}
     >
       <div className='md:container mx-auto px-4'>

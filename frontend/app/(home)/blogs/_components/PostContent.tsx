@@ -18,7 +18,7 @@ const clean = (html: string) =>
 const PostContent = ({ html }: { html: string }) => {
   return (
     <div
-      className='prose prose-lg max-w-none prose-headings:font-bold prose-headings:text-gray-900 prose-p:text-gray-700 prose-a:text-[#5465FF] prose-a:no-underline hover:prose-a:underline prose-img:rounded-xl prose-blockquote:border-l-[#5465FF] prose-blockquote:text-gray-600'
+      className='prose prose-lg max-w-none prose-headings:font-bold prose-headings:text-gray-900 prose-headings:tracking-tight prose-p:text-gray-700 prose-p:leading-relaxed prose-a:text-[#5465FF] prose-a:no-underline hover:prose-a:underline prose-img:rounded-2xl prose-img:shadow-md prose-strong:text-gray-900 prose-blockquote:border-l-[3px] prose-blockquote:border-l-[#5465FF] prose-blockquote:not-italic prose-blockquote:font-medium prose-blockquote:text-gray-700 prose-blockquote:bg-[#5465FF]/[0.04] prose-blockquote:py-1 prose-blockquote:rounded-r-lg prose-code:text-[#5465FF] prose-code:bg-[#5465FF]/[0.06] prose-code:rounded prose-code:px-1.5 prose-code:py-0.5 prose-code:before:content-none prose-code:after:content-none'
       dangerouslySetInnerHTML={{ __html: clean(html) }}
     />
   );

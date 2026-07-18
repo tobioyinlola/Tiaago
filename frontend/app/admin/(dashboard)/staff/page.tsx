@@ -2,21 +2,21 @@ import { redirect } from "next/navigation";
 
 import { getCurrentUser } from "@/app/common/services/profile";
 import { getStaffMembers, getStaffRoles } from "@/app/common/services/staff";
-import ClientTabs from "@/app/common/components/ClientTabs";
-import TeamMembersTab from "./_components/TeamMembersTab";
-import RolesTab from "./_components/RolesTab";
+import MaintenancePage from "@/app/common/components/MaintenancePage";
+import StaffTabs from "./_components/StaffTabs";
 
 export const metadata = {
   title: "Staff",
 };
 
-const STAFF_TABS = [
-  { name: "members", label: "Team Members" },
-  { name: "roles", label: "Roles" },
-] as const;
-
 const StaffPage = async () => {
-  const { currentUser } = await getCurrentUser("staff");
+  // This page navigates independently of the admin layout's own
+  // getCurrentUser("staff") call (a soft client-side nav only re-fetches the
+  // page segment, not the already-mounted layout), so a transient backend
+  // hiccup here isn't caught by the layout's guard -- must handle it here too.
+  const result = await getCurrentUser("staff");
+  if (result.backendDown) return <MaintenancePage />;
+  const { currentUser } = result;
   const canView = currentUser.is_super_admin || currentUser.permissions.includes("staff.view");
   if (!canView) {
     redirect("/admin/unauthorised?permission=staff.view");
@@ -36,18 +36,7 @@ const StaffPage = async () => {
         </h4>
       </div>
 
-      <ClientTabs tabs={STAFF_TABS} defaultTab='members'>
-        {activeTab => {
-          switch (activeTab) {
-            case "members":
-              return <TeamMembersTab initialMembers={membersRes} roles={roles} />;
-            case "roles":
-              return <RolesTab initialRoles={roles} />;
-            default:
-              return null;
-          }
-        }}
-      </ClientTabs>
+      <StaffTabs membersRes={membersRes} roles={roles} />
     </>
   );
 };
