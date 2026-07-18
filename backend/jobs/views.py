@@ -315,6 +315,10 @@ class GenerateAssessmentQuestionsView(APIView):
         description = (request.data.get("description") or "").strip()
         job_requirement = (request.data.get("job_requirement") or "").strip()
         role_id = request.data.get("role")
+        logger.info(
+            "Assessment generation requested: role=%r, description_len=%d, job_requirement_len=%d",
+            role_id, len(description), len(job_requirement),
+        )
 
         if not description and not job_requirement:
             return Response(
