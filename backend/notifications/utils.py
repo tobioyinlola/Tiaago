@@ -1,8 +1,29 @@
+from django.conf import settings
 from django.db.models import Q
 
 from create_user.models import CustomUser, CompanyTeamMember, Company
 from create_user.permissions import get_user_company
 from .models import Notification
+
+
+def notify_user(
+    user, title, message, notification_type=Notification.Type.GENERAL,
+    link_path=None, link_label=None, sent_by=None,
+):
+    """Creates a single-recipient in-app notification. `link_path` is
+    appended to FRONTEND_URL (link_url is a URLField -- needs an absolute
+    URL, matching the pattern used for email links elsewhere)."""
+    link_url = f"{settings.FRONTEND_URL.rstrip('/')}/{link_path.lstrip('/')}" if link_path else None
+    return Notification.objects.create(
+        type=notification_type,
+        title=title,
+        message=message,
+        link_url=link_url,
+        link_label=link_label,
+        target_scope=Notification.TargetScope.SPECIFIC_USER,
+        target_user=user,
+        sent_by=sent_by,
+    )
 
 
 def _company_ids_for_notification(notification):
@@ -57,6 +78,9 @@ def get_recipient_user_ids(notification):
     if notification.target_scope in (notification.TargetScope.SEGMENT, notification.TargetScope.TAG):
         return _user_ids_for_companies(_company_ids_for_notification(notification))
 
+    if notification.target_scope == notification.TargetScope.SPECIFIC_USER:
+        return {notification.target_user_id} if notification.target_user_id else set()
+
     company = notification.target_organisation
     if not company:
         return set()
@@ -106,7 +130,9 @@ def get_visible_notifications_queryset(user):
     build (see get_recipient_user_ids)."""
     if user.user_type == CustomUser.USER_TYPE.STAFF:
         return Notification.objects.none()
-    q = Q(target_scope=Notification.TargetScope.ALL_USERS)
+    q = Q(target_scope=Notification.TargetScope.ALL_USERS) | Q(
+        target_scope=Notification.TargetScope.SPECIFIC_USER, target_user=user
+    )
     company = get_user_company(user)
     if company:
         q |= Q(target_scope=Notification.TargetScope.ORGANISATION, target_organisation=company)

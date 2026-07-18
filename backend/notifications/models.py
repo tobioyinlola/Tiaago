@@ -19,6 +19,7 @@ class Notification(models.Model):
         ORGANISATION = "ORGANISATION", "Organisation"
         SEGMENT = "SEGMENT", "Segment"
         TAG = "TAG", "Tag"
+        SPECIFIC_USER = "SPECIFIC_USER", "Specific User"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     type = models.CharField(max_length=20, choices=Type.choices, default=Type.GENERAL)
@@ -36,6 +37,10 @@ class Notification(models.Model):
     )
     tag = models.ForeignKey(
         "tags.Tag", related_name="notifications", on_delete=models.SET_NULL, null=True, blank=True
+    )
+    target_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, related_name="targeted_user_notifications",
+        on_delete=models.CASCADE, null=True, blank=True,
     )
 
     sent_by = models.ForeignKey(
