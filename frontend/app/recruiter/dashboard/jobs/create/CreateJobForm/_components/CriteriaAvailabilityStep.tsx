@@ -1,6 +1,6 @@
 "use client";
 
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Copy, Trash2, CalendarClock } from "lucide-react";
 import { FormikErrors, FormikTouched } from "formik";
 
 import { InterviewSlotInput } from "@/app/common/types";
@@ -28,6 +28,13 @@ const CriteriaAvailabilityStep = ({
   };
 
   const addSlot = () => setFieldValue("interview_slots", [...slots, { ...emptySlot }]);
+
+  const duplicateSlot = (index: number) =>
+    setFieldValue("interview_slots", [
+      ...slots.slice(0, index + 1),
+      { ...slots[index] },
+      ...slots.slice(index + 1),
+    ]);
 
   const removeSlot = (index: number) =>
     setFieldValue(
@@ -91,49 +98,59 @@ const CriteriaAvailabilityStep = ({
           become visible to candidates once they pass the assessment stage.
         </p>
 
-        <div className='flex flex-col gap-3'>
-          {slots.map((slot, index) => (
-            <div
-              key={index}
-              className='flex flex-wrap items-end gap-3 p-3 rounded-lg border border-[#EAECF0]'
-            >
-              <div className='flex flex-col gap-1'>
-                <label className='text-xs text-secondary-black'>Date</label>
+        <div className='rounded-lg border border-[#EAECF0] overflow-hidden'>
+          {slots.length === 0 ? (
+            <div className='flex flex-col items-center justify-center gap-2 py-10 text-center'>
+              <CalendarClock className='h-6 w-6 text-secondary-black' />
+              <p className='text-sm text-secondary-black'>No time slots added yet.</p>
+            </div>
+          ) : (
+            slots.map((slot, index) => (
+              <div
+                key={index}
+                className='flex flex-wrap items-center gap-3 px-4 py-3 border-b border-[#EAECF0] last:border-b-0'
+              >
                 <input
                   type='date'
-                  className='input input-bordered h-11'
+                  className='input input-bordered h-11 w-[150px]'
                   value={slot.date}
                   onChange={e => updateSlot(index, "date", e.target.value)}
                 />
-              </div>
-              <div className='flex flex-col gap-1'>
-                <label className='text-xs text-secondary-black'>Start time</label>
                 <input
                   type='time'
-                  className='input input-bordered h-11'
+                  className='input input-bordered h-11 w-[120px]'
                   value={slot.start_time}
                   onChange={e => updateSlot(index, "start_time", e.target.value)}
                 />
-              </div>
-              <div className='flex flex-col gap-1'>
-                <label className='text-xs text-secondary-black'>End time</label>
+                <span className='text-secondary-black'>-</span>
                 <input
                   type='time'
-                  className='input input-bordered h-11'
+                  className='input input-bordered h-11 w-[120px]'
                   value={slot.end_time}
                   onChange={e => updateSlot(index, "end_time", e.target.value)}
                 />
+
+                <div className='ml-auto flex items-center gap-2'>
+                  <button
+                    type='button'
+                    onClick={() => duplicateSlot(index)}
+                    className='h-9 w-9 flex items-center justify-center rounded-lg border border-[#EAECF0] text-secondary-black hover:border-primary hover:text-primary transition-colors'
+                    aria-label='Duplicate slot'
+                  >
+                    <Copy className='h-4 w-4' />
+                  </button>
+                  <button
+                    type='button'
+                    onClick={() => removeSlot(index)}
+                    className='h-9 w-9 flex items-center justify-center rounded-lg border border-[#EAECF0] text-error hover:border-error hover:bg-error/10 transition-colors'
+                    aria-label='Remove slot'
+                  >
+                    <Trash2 className='h-4 w-4' />
+                  </button>
+                </div>
               </div>
-              <button
-                type='button'
-                onClick={() => removeSlot(index)}
-                className='h-11 w-11 flex items-center justify-center rounded-lg text-error hover:bg-error/10 transition-colors'
-                aria-label='Remove slot'
-              >
-                <Trash2 className='h-4 w-4' />
-              </button>
-            </div>
-          ))}
+            ))
+          )}
         </div>
 
         {slotsError && touched.interview_slots && (
@@ -143,7 +160,7 @@ const CriteriaAvailabilityStep = ({
         <button
           type='button'
           onClick={addSlot}
-          className='mt-3 inline-flex items-center gap-2 text-sm font-medium text-primary hover:opacity-80 transition-opacity'
+          className='btn btn-outline btn-sm gap-2 mt-3'
         >
           <Plus className='h-4 w-4' /> Add time slot
         </button>
