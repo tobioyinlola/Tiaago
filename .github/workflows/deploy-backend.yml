@@ -1,6 +1,7 @@
 name: Deploy Backend to EC2
 
 on:
+  workflow_dispatch:
   push:
     branches: [main]
     paths:
@@ -19,6 +20,10 @@ jobs:
           host: ${{ secrets.EC2_HOST }}
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
+          # Default command_timeout is 10m; an uncached image build (~9m) plus
+          # migrations and the health-check loop exceeds it, killing the deploy
+          # mid-flight before the nginx restart.
+          command_timeout: 30m
           script: |
             set -euo pipefail
             cd ~/tiaago-monorepo1
