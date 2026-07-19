@@ -79,6 +79,7 @@ from .serializers import (
     EducationSerializer,
     CompanySerializer,
     JobInterviewAvailabilitySlotSerializer,
+    JobDraftSerializer,
 )
 from .tasks import carry_out_resume_analysis
 from emails import emails
@@ -221,7 +222,14 @@ class JobListCreateView(ListCreateAPIView):
 
         if company and not user_is_company_role(user, company, [CompanyTeamMember.ROLE.ADMIN, CompanyTeamMember.ROLE.RECRUITER]):
             return Response({"detail": "You do not have permission to post jobs for this company."}, status=HTTP_403_FORBIDDEN)
-        serializer = JobSerializer(data=request.data)
+
+        # Publishing converts an existing draft in place instead of creating
+        # a second row (see JobDraftSaveView) -- the draft-autosave endpoint
+        # already holds the recruiter's in-progress job under job_status=DRAFT.
+        existing_draft = (
+            Job.objects.filter(company=company, job_status=Job.JobStatus.DRAFT).first() if company else None
+        )
+        serializer = JobSerializer(instance=existing_draft, data=request.data)
         if not serializer.is_valid():
             print(serializer.errors)
             return Response({"errors": serializer.errors}, status=HTTP_400_BAD_REQUEST)
@@ -296,8 +304,47 @@ class JobListCreateView(ListCreateAPIView):
                 {"detail": "The user does not have an associated company"},
                 status=HTTP_400_BAD_REQUEST,
             )
-        serializer.save(company=company)
+        serializer.save(company=company, job_status=Job.JobStatus.ACTIVE)
         return Response(serializer.data, status=HTTP_201_CREATED)
+
+
+class JobDraftSaveView(GenericAPIView):
+    """Auto-save endpoint for the job-creation wizard. Upserts a single
+    job_status=DRAFT row per company -- never creates a second one (the
+    recruiter has exactly one in-progress draft at a time). GET restores it,
+    POST saves progress, DELETE discards it ("Start fresh")."""
+
+    serializer_class = JobDraftSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def _get_company(self, request):
+        return get_user_company(request.user)
+
+    def get(self, request):
+        company = self._get_company(request)
+        if not company:
+            return Response({"detail": "The user does not have an associated company"}, status=HTTP_400_BAD_REQUEST)
+        draft = Job.objects.filter(company=company, job_status=Job.JobStatus.DRAFT).first()
+        if not draft:
+            return Response(status=HTTP_404_NOT_FOUND)
+        return Response(JobDraftSerializer(draft).data)
+
+    def post(self, request):
+        company = self._get_company(request)
+        if not company:
+            return Response({"detail": "The user does not have an associated company"}, status=HTTP_400_BAD_REQUEST)
+        draft = Job.objects.filter(company=company, job_status=Job.JobStatus.DRAFT).first()
+        serializer = JobDraftSerializer(instance=draft, data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save(company=company, job_status=Job.JobStatus.DRAFT)
+        return Response(JobDraftSerializer(serializer.instance).data, status=HTTP_200_OK if draft else HTTP_201_CREATED)
+
+    def delete(self, request):
+        company = self._get_company(request)
+        if not company:
+            return Response({"detail": "The user does not have an associated company"}, status=HTTP_400_BAD_REQUEST)
+        deleted, _ = Job.objects.filter(company=company, job_status=Job.JobStatus.DRAFT).delete()
+        return Response(status=HTTP_204_NO_CONTENT if deleted else HTTP_404_NOT_FOUND)
 
 
 

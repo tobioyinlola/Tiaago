@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { addMinutes } from "date-fns";
 import { ArrowRight, CheckCircle2 } from "lucide-react";
 
 import DaisyButton from "@/app/common/components/DaisyButton";
@@ -48,13 +49,33 @@ const TakeAssessmentFlow = ({ assessment }: { assessment: CompanySkillAssessment
   const currentSection = sections[sectionIndex];
   const isLastSection = sectionIndex === sections.length - 1;
 
+  // Overall timer, computed once from the server-recorded start time --
+  // not per section, and not reset by a page refresh, since started_at is a
+  // fixed point fetched fresh from the backend on every load.
+  const endDateTime = useMemo(() => {
+    const anchor = assessment.started_at ? new Date(assessment.started_at) : new Date();
+    return addMinutes(anchor, assessment.duration_minutes);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const finishAssessment = () => {
+    if (proctoringSessionId) completeProctoringSession(token, proctoringSessionId);
+    router.push(`/assessment-invite/${token}/submitted`);
+  };
+
   const handleSectionComplete = () => {
     if (isLastSection) {
-      if (proctoringSessionId) completeProctoringSession(token, proctoringSessionId);
-      router.push(`/assessment-invite/${token}/submitted`);
+      finishAssessment();
     } else {
       setShowSectionComplete(true);
     }
+  };
+
+  // Time ran out -- whatever's answered in the current section has already
+  // been submitted by the child component; skip any remaining sections and
+  // go straight to done rather than showing "continue to next section".
+  const handleTimeExpired = () => {
+    finishAssessment();
   };
 
   const handleContinueToNext = () => {
@@ -136,6 +157,8 @@ const TakeAssessmentFlow = ({ assessment }: { assessment: CompanySkillAssessment
           skipIntro
           submitOverride={data => submitAssessmentInviteAnswers(token, data)}
           onComplete={handleSectionComplete}
+          sharedEndDateTime={endDateTime}
+          onTimeExpired={handleTimeExpired}
         />
       </>
     );
@@ -152,6 +175,8 @@ const TakeAssessmentFlow = ({ assessment }: { assessment: CompanySkillAssessment
         skipIntro
         submitOverride={data => submitAssessmentInviteAnswers(token, data)}
         onComplete={handleSectionComplete}
+        sharedEndDateTime={endDateTime}
+        onTimeExpired={handleTimeExpired}
       />
     </>
   );

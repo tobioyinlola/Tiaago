@@ -1,8 +1,8 @@
 "use client";
 
 import Image from "next/image";
-import { Formik } from "formik";
-import { useRef, useState } from "react";
+import { Formik, FormikProps } from "formik";
+import { useEffect, useRef, useState } from "react";
 import Button from "@/app/common/components/DaisyButton";
 import type { GroupBase } from "react-select";
 import { ArrowLeft, ArrowRight, Send } from "lucide-react";
@@ -16,8 +16,7 @@ import {
 
 import { useRouter } from "next/navigation";
 import Modal from "@/app/common/components/Modal";
-import { BASE_URL } from "@/app/common/constants";
-import { createJob } from "@/app/common/services/jobs";
+import { createJob, getJobDraft, saveJobDraft, deleteJobDraft } from "@/app/common/services/jobs";
 import { useAlert } from "@/app/common/store/useAlert";
 import InfoCircleIcon from "@/app/common/icons/InfoCircleIcon";
 import { CountryField, TalentRole } from "@/app/common/types";
@@ -35,6 +34,71 @@ import AssessmentGenerationStep from "./_components/AssessmentGenerationStep";
 
 const totalSteps = wizardSteps.length;
 
+const JOB_DRAFT_STORAGE_KEY = "tiaago_job_create_draft_v1";
+
+type JobWizardDraft = { step: number; values: Record<string, unknown> };
+
+/** Rendered inside Formik's render-prop children so its hooks attach to the
+ * right fiber (Formik's <Formik> is a class component internally -- a hook
+ * called directly in the children callback attaches to the wrong fiber and
+ * throws), mirroring the pattern already used in admin/blog's BlogPostForm.
+ *
+ * beforeunload can only reliably do a *synchronous* localStorage write --
+ * browsers do not wait for an in-flight network request (our DB draft-save
+ * is a server action / fetch) to finish once the tab is actually closing, so
+ * that path is best-effort only via the 30s interval + unmount save below,
+ * not attempted directly in the beforeunload handler itself. */
+const DraftAutosave = ({
+  step,
+  values,
+  onSaved,
+}: {
+  step: number;
+  values: Record<string, unknown>;
+  onSaved: (date: Date) => void;
+}) => {
+  const latestRef = useRef<JobWizardDraft>({ step, values });
+  latestRef.current = { step, values };
+
+  // Debounced localStorage write, instant-ish, always reliable.
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      window.localStorage.setItem(JOB_DRAFT_STORAGE_KEY, JSON.stringify(latestRef.current));
+    }, 800);
+    return () => clearTimeout(timeout);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, values]);
+
+  // Periodic DB save every 30s while the form stays open.
+  useEffect(() => {
+    const interval = setInterval(() => {
+      saveJobDraft(latestRef.current).then(res => {
+        if (res.success) onSaved(new Date());
+      });
+    }, 30000);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Tab close/refresh: synchronous localStorage flush only (see comment above).
+  // Unmount (in-app navigation away from this page): also flush to the DB --
+  // the request has time to complete since the page isn't being torn down.
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      window.localStorage.setItem(JOB_DRAFT_STORAGE_KEY, JSON.stringify(latestRef.current));
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+      window.localStorage.setItem(JOB_DRAFT_STORAGE_KEY, JSON.stringify(latestRef.current));
+      saveJobDraft(latestRef.current.values);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return null;
+};
+
 const CreateJobForm = ({
   groupedCountries,
   talentRoles,
@@ -51,6 +115,61 @@ const CreateJobForm = ({
   const currentStep = wizardSteps[step];
   const isLastStep = step === totalSteps - 1;
   const jobCreateSuccessModalRef = useRef<HTMLDialogElement>(null);
+  const formikRef = useRef<
+    FormikProps<
+      typeof initialValues & typeof criteriaAvailabilityInitialValues & typeof assessmentGenerationInitialValues
+    >
+  >(null);
+  const [foundDraft, setFoundDraft] = useState<JobWizardDraft | null>(null);
+  const [draftBannerDismissed, setDraftBannerDismissed] = useState(false);
+  const [draftSavedAt, setDraftSavedAt] = useState<Date | null>(null);
+
+  // Check for a recoverable draft on mount -- localStorage first (instant,
+  // same-browser), falling back to the DB copy (works across devices/tabs).
+  // Runs after mount, not during initial render, to avoid an SSR hydration
+  // mismatch between the server-rendered blank form and localStorage content.
+  useEffect(() => {
+    const local = window.localStorage.getItem(JOB_DRAFT_STORAGE_KEY);
+    if (local) {
+      try {
+        const parsed = JSON.parse(local) as JobWizardDraft;
+        if (parsed?.values && Object.keys(parsed.values).length) {
+          setFoundDraft(parsed);
+          return;
+        }
+      } catch {
+        // ignore corrupt local draft, fall through to the DB copy
+      }
+    }
+    getJobDraft().then(draft => {
+      if (draft?.draft_data && Object.keys(draft.draft_data).length) {
+        setFoundDraft({
+          step: Number(draft.draft_data.step) || 0,
+          values: (draft.draft_data.values as Record<string, unknown>) || {},
+        });
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleContinueDraft = () => {
+    if (!foundDraft) return;
+    formikRef.current?.setValues({
+      ...initialValues,
+      ...criteriaAvailabilityInitialValues,
+      ...assessmentGenerationInitialValues,
+      ...foundDraft.values,
+    });
+    setStep(Math.min(foundDraft.step, totalSteps - 1));
+    setDraftBannerDismissed(true);
+  };
+
+  const handleStartFresh = () => {
+    window.localStorage.removeItem(JOB_DRAFT_STORAGE_KEY);
+    deleteJobDraft();
+    setFoundDraft(null);
+    setDraftBannerDismissed(true);
+  };
 
   return (
     <>
@@ -61,7 +180,34 @@ const CreateJobForm = ({
           </h1>
         </div>
       </div>
+      {foundDraft && !draftBannerDismissed && (
+        <div className='flex items-center justify-between gap-4 bg-[#FFFAEB] border border-[#FEDF89] px-6 py-3 flex-wrap'>
+          <p className='text-sm text-[#7A5B00]'>
+            You have an unfinished job draft. Continue where you left off?
+          </p>
+          <div className='flex items-center gap-2'>
+            <Button
+              type='button'
+              color='primary'
+              variant='outline'
+              className='btn-sm'
+              onClick={handleStartFresh}
+            >
+              Start fresh
+            </Button>
+            <Button
+              type='button'
+              color='primary'
+              className='btn-sm text-white'
+              onClick={handleContinueDraft}
+            >
+              Continue draft
+            </Button>
+          </div>
+        </div>
+      )}
       <Formik
+        innerRef={formikRef}
         initialValues={{
           ...initialValues,
           ...criteriaAvailabilityInitialValues,
@@ -109,6 +255,11 @@ const CreateJobForm = ({
           })
             .then(res => {
               if (res.success) {
+                // The draft row was converted to the published job in place
+                // (see JobListCreateView.create), not deleted -- only the
+                // local/browser copy needs clearing here.
+                window.localStorage.removeItem(JOB_DRAFT_STORAGE_KEY);
+                setFoundDraft(null);
                 resetForm();
                 setStep(0);
                 scrollToTop();
@@ -135,6 +286,10 @@ const CreateJobForm = ({
             onSubmit={handleSubmit}
             className='p-5 pb-10 rounded-b-lg md:border border-gray-200 flex flex-col gap-10 mb-3'
           >
+            <DraftAutosave step={step} values={values} onSaved={setDraftSavedAt} />
+            {draftSavedAt && (
+              <span className='text-xs text-gray-400 text-right -mb-6'>Draft saved</span>
+            )}
             <StepIndicator
               step={step}
               totalSteps={totalSteps}
@@ -447,9 +602,9 @@ const JobCreateSuccessModal = ({
                 className='input input-bordered w-full input-primary bg-white'
                 type='url'
                 disabled
-                value={BASE_URL + link}
+                value={link}
               />
-              <CopyToClipboard text={BASE_URL + link} />
+              <CopyToClipboard text={link} />
             </div>
           </div>
         </div>

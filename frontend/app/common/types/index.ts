@@ -411,7 +411,7 @@ export type Job = {
   experience: number;
   job_type: "FT" | "PT" | "CW" | "IN"; //FT-full time, PT-part time, CW-contract, IN-internship
   job_level: "ENTRY" | "JUNIOR" | "SENIOR";
-  job_status: "ACTIVE" | "ON_HOLD" | "HIRED" | "EXPIRED";
+  job_status: "DRAFT" | "ACTIVE" | "ON_HOLD" | "HIRED" | "EXPIRED";
   location: string;
   description: string;
   about_company: string;
@@ -710,6 +710,9 @@ export type AssessmentInviteDetail = {
   candidate_email: string;
   already_submitted: boolean;
   proctoring: ProctoringSettings | null;
+  deadline: string | null;
+  deadline_formatted: string | null;
+  is_expired: boolean;
 };
 
 export type CompanySkillAssessment = {
@@ -730,6 +733,10 @@ export type CompanySkillAssessment = {
   use_start_and_end_time: boolean;
   assessment_type: string;
   sections: (MCQSection | CodingTaskSection)[];
+  /** When this candidate's attempt began -- only present on the no-login
+   * invite flow's questions response, anchors the overall countdown so it
+   * survives page refresh instead of resetting. */
+  started_at?: string | null;
 };
 
 export type SkillAssessmentResult = {

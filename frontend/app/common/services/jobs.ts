@@ -1,4 +1,5 @@
 "use server";
+import { HTTPError } from "ky";
 import { handleServerApiCallError } from "../utils";
 import serverKyInstance from "../utils/server-ky.instance";
 import {
@@ -116,6 +117,42 @@ export const createJob = async (
       success: false,
       error: errMsg,
     };
+  }
+};
+
+export type JobDraft = {
+  id: ID;
+  draft_data: Record<string, unknown>;
+  job_status: "DRAFT";
+  last_updated: string;
+};
+
+export const getJobDraft = async (): Promise<JobDraft | null> => {
+  try {
+    return await serverKyInstance.get("jobs/draft/").json<JobDraft>();
+  } catch (error) {
+    if (error instanceof HTTPError && error.response?.status === 404) return null;
+    throw error;
+  }
+};
+
+export const saveJobDraft = async (draft_data: Record<string, unknown>) => {
+  try {
+    const data = await serverKyInstance
+      .post("jobs/draft/", { json: { draft_data } })
+      .json<JobDraft>();
+    return { success: true as const, data };
+  } catch (error) {
+    return { success: false as const, error: await handleServerApiCallError(error) };
+  }
+};
+
+export const deleteJobDraft = async () => {
+  try {
+    await serverKyInstance.delete("jobs/draft/");
+    return { success: true as const };
+  } catch (error) {
+    return { success: false as const, error: await handleServerApiCallError(error) };
   }
 };
 

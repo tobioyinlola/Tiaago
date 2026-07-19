@@ -36,10 +36,14 @@ EmailType = Literal[
     "ticket_received",
     "ticket_admin_replied",
     "ticket_resolved",
+    "assessment_submitted",
+    "assessment_completed_recruiter_notice",
 ]
 
 EMAIL_TYPE_TO_ENUM = {
     "talent_assessment_pass_mail": EmailTypes.TALENT_ASSESSMENT_PASS_MAIL,
+    "assessment_submitted": EmailTypes.ASSESSMENT_SUBMITTED,
+    "assessment_completed_recruiter_notice": EmailTypes.ASSESSMENT_COMPLETED_RECRUITER_NOTICE,
 }
 
 
@@ -71,6 +75,15 @@ def _send_with_latest_flow(
         from_email=from_email,
         security=security,
     )
+
+
+def _format_deadline(dt):
+    """"Friday 18 July 2026 at 11:59 PM" -- converted to the project's
+    default timezone (Africa/Lagos, primary market is Nigeria) since no
+    per-candidate timezone is tracked anywhere today."""
+    if not dt:
+        return None
+    return timezone.localtime(dt).strftime("%A %-d %B %Y at %-I:%M %p")
 
 
 def _flatten_meeting(meeting_details, company_name=None):
@@ -245,12 +258,16 @@ def get_email_template_and_context(
 
     elif email_type == "talent_vetting_pass":
         job = kwargs.get("job")
+        duration_minutes = kwargs.get("duration_minutes")
+        deadline = kwargs.get("deadline")
         template_file = "emails/assessment_invitation.html"
         context = {
             "first_name": user.first_name,
             "company": getattr(job.company, "company_name", "") if job and job.company else "",
             "skill": getattr(job, "title", "") if job else "",
             "assessment_url": kwargs.get("assessment_link", ""),
+            "duration": f"{duration_minutes} minutes" if duration_minutes else None,
+            "deadline": _format_deadline(deadline),
         }
 
     elif email_type == "talent_vetting_fail":
@@ -319,6 +336,26 @@ def get_email_template_and_context(
                 "title": getattr(ticket, "title", ""),
                 "ticket_url": _ticket_url(ticket),
             }
+
+    elif email_type == "assessment_submitted":
+        job = kwargs.get("job")
+        template_file = "emails/assessment_submitted.html"
+        context = {
+            "first_name": user.first_name,
+            "company": getattr(job.company, "company_name", "") if job and job.company else "",
+            "skill": getattr(job, "title", "") if job else "",
+        }
+
+    elif email_type == "assessment_completed_recruiter_notice":
+        job = kwargs.get("job")
+        candidate_name = kwargs.get("candidate_name") or ""
+        template_file = "emails/assessment_completed_recruiter.html"
+        context = {
+            "first_name": user.first_name,
+            "candidate_name": candidate_name,
+            "job_title": getattr(job, "title", "") if job else "",
+            "results_url": kwargs.get("results_url", ""),
+        }
 
     return template_file, context
 
@@ -527,6 +564,33 @@ def application_received_mail(user, job):
         return None
     return _send_with_latest_flow(
         user.email, subject, template, ctx, email_type="application_received",
+    )
+
+
+def assessment_submitted_mail(user, job):
+    """Confirmation sent to the candidate once, right after the ENTIRE
+    assessment (every section) has been submitted -- never per section."""
+    subject = "We've received your assessment submission"
+    template, ctx = get_email_template_and_context(user, "assessment_submitted", job=job)
+    if not template:
+        return None
+    return _send_with_latest_flow(
+        user.email, subject, template, ctx, email_type="assessment_submitted",
+    )
+
+
+def assessment_completed_recruiter_notice_mail(user, job, candidate_name, results_url):
+    """Notifies the recruiter once a candidate finishes their full assessment,
+    with a link to the results. Sent alongside assessment_submitted_mail,
+    same one-time completion event."""
+    subject = f"{candidate_name} completed their assessment" if candidate_name else "A candidate completed their assessment"
+    template, ctx = get_email_template_and_context(
+        user, "assessment_completed_recruiter_notice", job=job, candidate_name=candidate_name, results_url=results_url,
+    )
+    if not template:
+        return None
+    return _send_with_latest_flow(
+        user.email, subject, template, ctx, email_type="assessment_completed_recruiter_notice",
     )
 
 

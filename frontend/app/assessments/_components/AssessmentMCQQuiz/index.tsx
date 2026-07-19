@@ -40,6 +40,8 @@ const AssessmentMCQQuiz = ({
   skipIntro = false,
   submitOverride,
   onComplete,
+  sharedEndDateTime,
+  onTimeExpired,
 }: {
   mcqSection: MCQSection;
   assessment: CompanySkillAssessment;
@@ -58,6 +60,13 @@ const AssessmentMCQQuiz = ({
   }) => Promise<ApiResponse<unknown>>;
   /** Overrides the default mode-based redirect on successful submit. */
   onComplete?: () => void;
+  /** Overall assessment-level countdown target, shared across every section
+   * so the timer doesn't reset when a new section mounts -- used by the
+   * no-login invite flow instead of this component's own per-section timer. */
+  sharedEndDateTime?: Date;
+  /** Called instead of onComplete when the shared timer runs out, so the
+   * flow jumps straight to done instead of advancing to the next section. */
+  onTimeExpired?: () => void;
 }) => {
   const setAlert = useAlert(state => state.setAlert);
   const [hasStarted, setHasStarted] = useState(skipIntro);
@@ -77,10 +86,13 @@ const AssessmentMCQQuiz = ({
   // Invite mode arrives here already "started" -- the invite flow shows its
   // own instructions/ready screens before this component mounts, so the
   // countdown needs to be kicked off immediately rather than waiting for the
-  // "Start Now" click (which this mode never shows).
+  // "Start Now" click (which this mode never shows). When a sharedEndDateTime
+  // is supplied (invite mode), it's used verbatim instead so the countdown
+  // reflects one overall assessment-level duration, not a fresh one per
+  // section.
   useEffect(() => {
     if (skipIntro) {
-      setEndDateTime(addMinutes(new Date(), assessmentDurationInMinutes));
+      setEndDateTime(sharedEndDateTime ?? addMinutes(new Date(), assessmentDurationInMinutes));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -90,7 +102,7 @@ const AssessmentMCQQuiz = ({
   const activeQuestion = questions[activeStepIndex];
   const isAtLastStep = activeStepIndex === maxStepIndex;
 
-  const submit = async (_answers = answers) => {
+  const submit = async (_answers = answers, isTimeUp = false) => {
     if (submitting) return;
     try {
       setSubmitting(true);
@@ -106,7 +118,9 @@ const AssessmentMCQQuiz = ({
       setStep(0);
       toast.success("Your score has been recorded");
 
-      if (onComplete) {
+      if (isTimeUp && onTimeExpired) {
+        onTimeExpired();
+      } else if (onComplete) {
         onComplete();
       } else if (mode === "job-application") {
         window.location.href = `/jobs/${jobId}/assessment/${assessment.id}/results`;
@@ -249,7 +263,7 @@ const AssessmentMCQQuiz = ({
 
   const handleTimeUp = async () => {
     setDisabled(true);
-    await submit();
+    await submit(answers, true);
   };
 
   return (

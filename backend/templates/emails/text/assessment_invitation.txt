@@ -1,6 +1,6 @@
 {% autoescape off %}ASSESSMENT INVITATION
 
-Show them what you can build.
+Show them what you know.
 
 Hi {{ first_name|default:"Amara" }}, {{ company|default:"Paystack" }} would like
 you to take a short {{ skill|default:"React" }} assessment. A strong score earns
@@ -8,7 +8,7 @@ a verified badge and moves you up in recruiter searches.
 
   Skill:       {{ skill|default:"React" }}
   Duration:    {{ duration|default:"45 minutes" }}
-  Format:      {{ format|default:"Hands-on coding" }}
+  Format:      Multiple choice assessment
   Complete by: {{ deadline|default:"Sun, Jun 22" }}
 
 Start assessment:

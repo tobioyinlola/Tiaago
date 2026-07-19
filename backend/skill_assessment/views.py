@@ -1,4 +1,5 @@
 import uuid
+from datetime import timedelta
 from django.forms import ValidationError
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -506,6 +507,25 @@ def submit_general_skill_assessment_answers(talent, skill_assessment, request_da
                 submission.started_at = timezone.now()
                 submission.save(update_fields=["started_at"])
 
+            # Server-side enforcement of the timed countdown -- the frontend
+            # auto-submits at expiry, but that's only a client-side courtesy;
+            # without this, a candidate who blocks/kills the timer JS could
+            # keep answering indefinitely. Grace period absorbs normal
+            # network latency on the auto-submit request itself.
+            if (
+                submission.started_at
+                and getattr(skill_assessment, "duration_minutes", None)
+                and not submission.is_completed
+            ):
+                deadline = submission.started_at + timedelta(
+                    minutes=skill_assessment.duration_minutes
+                ) + timedelta(seconds=90)
+                if timezone.now() > deadline:
+                    return Response(
+                        status=400,
+                        data={"error": "Time is up for this assessment -- no further answers can be submitted."},
+                    )
+
             # Map existing section submissions for THIS submission only
             existing_secs = {
                 ss.skill_assessment_section_id: ss
@@ -614,22 +634,36 @@ def submit_general_skill_assessment_answers(talent, skill_assessment, request_da
                     CandidateAssessmentCodingAnswer.objects.bulk_create(coding_answers_to_create)
 
                 
-                requires_mcq = GeneralSkillAssessmentSection.objects.filter(
-                    company_skill_assessment=skill_assessment, type=SkillAssessmentTypes.MCQ
-                ).exists()
-                requires_coding = GeneralSkillAssessmentSection.objects.filter(
-                    company_skill_assessment=skill_assessment, type=SkillAssessmentTypes.CODING_TASK
-                ).exists()
+                # Completion must be judged against EVERY section of this
+                # assessment, not just the section(s) in this one request --
+                # existing_secs above is scoped to the current request's
+                # section_ids, which would otherwise mark a multi-section
+                # assessment "done" as soon as any single MCQ/coding section
+                # was answered, even with other required sections untouched.
+                all_mcq_section_ids = set(
+                    GeneralSkillAssessmentSection.objects.filter(
+                        company_skill_assessment=skill_assessment, type=SkillAssessmentTypes.MCQ
+                    ).values_list("id", flat=True)
+                )
+                all_coding_section_ids = set(
+                    GeneralSkillAssessmentSection.objects.filter(
+                        company_skill_assessment=skill_assessment, type=SkillAssessmentTypes.CODING_TASK
+                    ).values_list("id", flat=True)
+                )
 
-                has_any_mcq = CandidateAssessmentMCQAnswer.objects.filter(
-                    section_submission__in=existing_secs.values()
-                ).exists() or bool(mcq_answers_to_create)
-                has_any_coding = CandidateAssessmentCodingAnswer.objects.filter(
-                    section_submission__in=existing_secs.values()
-                ).exists() or bool(coding_answers_to_create)
+                answered_mcq_section_ids = set(
+                    CandidateAssessmentMCQAnswer.objects.filter(
+                        section_submission__in=submission.skill_assessment_section_submissions.all()
+                    ).values_list("section_submission__skill_assessment_section_id", flat=True)
+                )
+                answered_coding_section_ids = set(
+                    CandidateAssessmentCodingAnswer.objects.filter(
+                        section_submission__in=submission.skill_assessment_section_submissions.all()
+                    ).values_list("section_submission__skill_assessment_section_id", flat=True)
+                )
 
-                done_mcq = (not requires_mcq) or has_any_mcq
-                done_coding = (not requires_coding) or has_any_coding
+                done_mcq = all_mcq_section_ids.issubset(answered_mcq_section_ids)
+                done_coding = all_coding_section_ids.issubset(answered_coding_section_ids)
                 if (done_mcq and done_coding) and not submission.is_completed:
                     submission.is_completed = True
                     submission.save(update_fields=["is_completed"])
@@ -642,7 +676,9 @@ def submit_general_skill_assessment_answers(talent, skill_assessment, request_da
                         submission.mark_status = pending
                         submission.save(update_fields=["mark_status"])
             logger.info(f"MCQ answers to create: {len(mcq_answers_to_create)}, Coding answers to create: {len(coding_answers_to_create)} for submission{submission.id}" )
-            if mcq_answers_to_create or coding_answers_to_create:
+            # Only dispatch once the ENTIRE assessment (every required
+            # section) is done -- not after every individual section submit.
+            if done_mcq and done_coding:
                 transaction.on_commit(
                     lambda: mark_skill_assessment_submission.delay(
                         skill_assessment_submission_id=submission.id
@@ -689,6 +725,13 @@ def _get_assessment_by_invite_token(token):
     return assessment
 
 
+def _expired_response():
+    return Response(
+        status=410,
+        data={"error": "This assessment invite has expired.", "expired": True},
+    )
+
+
 class AssessmentInviteDetailView(APIView):
     """GET /assessments/invite/<token>/ -- candidate name/email, job/company,
     and test format (no question content). Powers the Instructions + "enter
@@ -729,6 +772,12 @@ class AssessmentInviteConfirmView(APIView):
         serializer.is_valid(raise_exception=True)
 
         talent = assessment.job_application.applicant
+        already_started = CandidateAssessmentSubmission.objects.filter(
+            candidate=talent, skill_assessment=assessment
+        ).exists()
+        if assessment.is_invite_expired and not already_started:
+            return _expired_response()
+
         submission, _created = CandidateAssessmentSubmission.objects.get_or_create(
             candidate=talent, skill_assessment=assessment, defaults={"is_completed": False}
         )
@@ -753,11 +802,23 @@ class AssessmentInviteQuestionsView(APIView):
         if not assessment:
             return Response(status=404, data={"error": "This assessment invite link is invalid or has expired."})
 
-        assessment = _assessment_detail_base_qs().filter(id=assessment.id).first()
+        talent = assessment.job_application.applicant
+        submission = CandidateAssessmentSubmission.objects.filter(
+            candidate=talent, skill_assessment=assessment
+        ).first()
+        if assessment.is_invite_expired and not submission:
+            return _expired_response()
+
+        assessment_id = assessment.id
+        assessment = _assessment_detail_base_qs().filter(id=assessment_id).first()
         data = GeneralSkillAssessmentListSerializer(
             assessment,
             context={"include_section_questions": True, "include_correct_answers": False},
         ).data
+        # started_at anchors the overall countdown so it survives page
+        # refreshes -- the timer is always duration_minutes from this
+        # fixed point, never reset on reload.
+        data["started_at"] = submission.started_at if submission else None
         return Response(status=200, data=data)
 
 
@@ -934,6 +995,22 @@ class TakeAGeneralSkillAssessmentAPIView_V1(APIView):
                 submission.started_at = timezone.now()
                 submission.save(update_fields=["started_at"])
 
+            # Server-side enforcement of the timed countdown -- see identical
+            # check in submit_general_skill_assessment_answers.
+            if (
+                submission.started_at
+                and getattr(skill_assessment, "duration_minutes", None)
+                and not submission.is_completed
+            ):
+                deadline = submission.started_at + timedelta(
+                    minutes=skill_assessment.duration_minutes
+                ) + timedelta(seconds=90)
+                if timezone.now() > deadline:
+                    return Response(
+                        status=400,
+                        data={"error": "Time is up for this assessment -- no further answers can be submitted."},
+                    )
+
             # Map existing section submissions for this submission
             existing_secs = {
                 ss.skill_assessment_section_id: ss
@@ -1043,23 +1120,36 @@ class TakeAGeneralSkillAssessmentAPIView_V1(APIView):
                 if coding_answers_to_create:
                     CandidateAssessmentCodingAnswer.objects.bulk_create(coding_answers_to_create)
 
-                # (e) compute completion (optional; you can keep this simple)
-                requires_mcq = GeneralSkillAssessmentSection.objects.filter(
-                    company_skill_assessment=skill_assessment, type=SkillAssessmentTypes.MCQ
-                ).exists()
-                requires_coding = GeneralSkillAssessmentSection.objects.filter(
-                    company_skill_assessment=skill_assessment, type=SkillAssessmentTypes.CODING_TASK
-                ).exists()
+                # (e) compute completion -- judged against EVERY section of
+                # this assessment, not just the section(s) in this request
+                # (existing_secs is scoped to the current request's
+                # section_ids, which would otherwise mark a multi-section
+                # assessment "done" as soon as any single MCQ/coding section
+                # was answered, even with other required sections untouched).
+                all_mcq_section_ids = set(
+                    GeneralSkillAssessmentSection.objects.filter(
+                        company_skill_assessment=skill_assessment, type=SkillAssessmentTypes.MCQ
+                    ).values_list("id", flat=True)
+                )
+                all_coding_section_ids = set(
+                    GeneralSkillAssessmentSection.objects.filter(
+                        company_skill_assessment=skill_assessment, type=SkillAssessmentTypes.CODING_TASK
+                    ).values_list("id", flat=True)
+                )
 
-                has_any_mcq = CandidateAssessmentMCQAnswer.objects.filter(
-                    section_submission__in=existing_secs.values()
-                ).exists() or bool(mcq_answers_to_create)
-                has_any_coding = CandidateAssessmentCodingAnswer.objects.filter(
-                    section_submission__in=existing_secs.values()
-                ).exists() or bool(coding_answers_to_create)
+                answered_mcq_section_ids = set(
+                    CandidateAssessmentMCQAnswer.objects.filter(
+                        section_submission__in=submission.skill_assessment_section_submissions.all()
+                    ).values_list("section_submission__skill_assessment_section_id", flat=True)
+                )
+                answered_coding_section_ids = set(
+                    CandidateAssessmentCodingAnswer.objects.filter(
+                        section_submission__in=submission.skill_assessment_section_submissions.all()
+                    ).values_list("section_submission__skill_assessment_section_id", flat=True)
+                )
 
-                done_mcq = (not requires_mcq) or has_any_mcq
-                done_coding = (not requires_coding) or has_any_coding
+                done_mcq = all_mcq_section_ids.issubset(answered_mcq_section_ids)
+                done_coding = all_coding_section_ids.issubset(answered_coding_section_ids)
                 new_completed = (done_mcq and done_coding)
                 if new_completed and not submission.is_completed:
                     submission.is_completed = True
@@ -1077,8 +1167,9 @@ class TakeAGeneralSkillAssessmentAPIView_V1(APIView):
                         submission.mark_status = pending
                         submission.save(update_fields=["mark_status"])
 
-            #enqueue the SINGLE, existing task
-            if mcq_answers_to_create or coding_answers_to_create:
+            #enqueue the SINGLE, existing task -- only once the ENTIRE
+            # assessment (every required section) is done, not per section.
+            if new_completed:
                 transaction.on_commit(
                     lambda: mark_skill_assessment_submission.delay(
                         skill_assessment_submission_id=submission.id

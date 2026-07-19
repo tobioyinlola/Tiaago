@@ -1,5 +1,6 @@
 import logging
 import uuid
+from datetime import timedelta
 from django.db import transaction
 from django.contrib.auth import get_user_model
 from celery import shared_task
@@ -531,9 +532,20 @@ def send_assessment_link(job_application_id, trials=0):
             flow_status.error_message = f"Billing failed: {str(e)}"
             flow_status.save()
             logger.info(f"Billing failed")
+        # Deadline is always exactly 72h from the moment the invite email is
+        # actually sent -- set here, not at row creation, so it reflects the
+        # real send time even if billing/question-generation above took a
+        # while.
+        company_skill_assessment.invite_sent_at = now()
+        company_skill_assessment.invite_deadline = company_skill_assessment.invite_sent_at + timedelta(hours=72)
+        company_skill_assessment.save(update_fields=["invite_sent_at", "invite_deadline"])
+
         logger.info(f"Attempting to send applicant vetting mail to {talent_profile.user.email}")
         emails.applicant_vetting_mail(
-            talent_profile.user, job, "consider", assessment_link=assessment_link
+            talent_profile.user, job, "consider",
+            assessment_link=assessment_link,
+            duration_minutes=company_skill_assessment.duration_minutes,
+            deadline=company_skill_assessment.invite_deadline,
         )
         logger.info("Applicant vetting mail function executed")
         add_skill_assessment_to_talent_screening(

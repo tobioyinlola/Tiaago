@@ -24,6 +24,9 @@ const JobsPostedTable = ({ jobs = [] }: { jobs: Job[] }) => {
   const router = useRouter();
   const [isDeleting, setIsDeleting] = useState(false);
   const setAlert = useAlert(s => s.setAlert);
+  // Unfinished drafts aren't real postings yet -- keep them out of the main
+  // list (recruiters resume them from the job-creation wizard's own banner).
+  const visibleJobs = jobs.filter(job => job.job_status !== "DRAFT");
 
   const handleDeleteJob = async (publicId: string) => {
     setIsDeleting(true);
@@ -72,8 +75,8 @@ const JobsPostedTable = ({ jobs = [] }: { jobs: Job[] }) => {
           </tr>
         </thead>
         <tbody className='text-[#101828]'>
-          {jobs.length ? (
-            jobs.map((job, i) => (
+          {visibleJobs.length ? (
+            visibleJobs.map((job, i) => (
               <tr key={job.id}>
                 <td className='max-sm:hidden'>{i + 1}</td>
                 <td>

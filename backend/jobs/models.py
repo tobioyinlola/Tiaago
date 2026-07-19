@@ -52,6 +52,7 @@ class Job(models.Model):
         INTERNSHIP = "IN", _("Internship")
 
     class JobStatus(models.TextChoices):
+        DRAFT = "DRAFT", _("Draft")  # Recruiter is still filling in the job form, not yet published
         ACTIVE = "ACTIVE", _("Active")  # Job application is still being accepted
         ON_HOLD = "ON_HOLD", _(
             "On hold"
@@ -102,8 +103,9 @@ class Job(models.Model):
     # Location dropdown (Remote or Country)
     location = models.CharField(max_length=100, help_text="Remote or specific country", default="Remote")
     
-    # Minimum experience dropdown (0-10 years)
-    experience = models.PositiveIntegerField(help_text="Years of experience required (0-10)")
+    # Minimum experience dropdown (0-10 years). Nullable so a draft job (not
+    # yet published) can be saved before this field is filled in.
+    experience = models.PositiveIntegerField(help_text="Years of experience required (0-10)", null=True, blank=True)
     
     # Payment type dropdown
     salary_duration = models.CharField(
@@ -136,6 +138,11 @@ class Job(models.Model):
     )
     date_created = models.DateTimeField(auto_now_add=True)
     last_updated = models.DateTimeField(auto_now=True)
+    # Raw job-creation-wizard form state for an unpublished DRAFT job (every
+    # step's fields, including assessment_questions/interview_slots, which
+    # are write-only and don't map onto real relational rows until publish).
+    # Only ever populated while job_status=DRAFT; unused once published.
+    draft_data = models.JSONField(null=True, blank=True)
     company = models.ForeignKey(Company, related_name="jobs", on_delete=models.CASCADE)
     objects = models.Manager()
     approved = JobManager()
