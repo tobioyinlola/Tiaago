@@ -292,9 +292,33 @@ export const getWalletBalance = async () => {
     .get<{
       balance: number;
       currency: string;
+      free_credits_remaining: number;
+      low_balance_threshold: number | null;
+      low_balance_alert_enabled: boolean;
+      pricing: {
+        resume_screening_price: number;
+        assessment_price: number;
+        minimum_topup: number;
+        free_tier_limit: number;
+      };
     }>("subscriptions/get-wallet-balance/")
     .json();
   return data;
+};
+
+export const updateWalletSettings = async (payload: {
+  low_balance_alert_enabled?: boolean;
+  low_balance_threshold?: number | null;
+}) => {
+  try {
+    const data = await serverKyInstance
+      .patch("subscriptions/wallet-settings/", { json: payload })
+      .json<{ low_balance_threshold: number | null; low_balance_alert_enabled: boolean }>();
+    return { success: true as const, data };
+  } catch (error) {
+    const [errMsg] = await _handleServerApiCallError(error);
+    return { success: false as const, error: errMsg };
+  }
 };
 
 export const fundWallet = async (

@@ -15,6 +15,7 @@ import {
   IoNotificationsOutline,
   IoShieldCheckmarkOutline,
   IoPricetagsOutline,
+  IoCalculatorOutline,
   IoHelpBuoyOutline,
   IoPeopleOutline,
 } from "react-icons/io5";
@@ -136,6 +137,12 @@ export const navItems: DashboardNavItemV3[] = [
     href: `${baseHref}/revenue`,
     Icon: IoCashOutline,
     section: "revenue",
+  },
+  {
+    name: "pricing",
+    href: `${baseHref}/pricing`,
+    Icon: IoCalculatorOutline,
+    section: "pricing",
   },
   {
     name: "support",

@@ -15,7 +15,8 @@ from rest_framework.permissions import IsAuthenticated, IsAdminUser, AllowAny
 from utils.paystack_sub_handler import PayStackSubscriptionHandler
 import logging
 from django.views.decorators.csrf import csrf_exempt
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponse
+import csv
 from .permissions import IsUserVerified
 import hmac
 import hashlib
@@ -39,6 +40,8 @@ from .models import (
     StripeSubscription,
     WalletTransaction,
     Wallet,
+    WalletTopup,
+    PricingConfig,
     FreePlan,
     UserUsage,
     WalletUserUsage,
@@ -55,7 +58,8 @@ from .serializers import (
     UserUsageSerializer,
     SubscriptionTransactionSerializer,
 )
-from .helper import determine_plan_usage, determine_free_plan_usage
+from .helper import determine_plan_usage, determine_free_plan_usage, get_pricing_decimal, get_action_price, COUNTRY_CURRENCY_MAP
+from emails import emails
 from utils.stripe_sub_handler import create_stripe_product_price, create_checkout_session, stripe_api_key, fund_wallet_stripe
 import stripe
 from create_user.models import Company
@@ -69,6 +73,10 @@ stripe.api_key = stripe_api_key
 
 # Configure logger at the top of your file
 logger = logging.getLogger(__name__)
+
+
+def _wallet_url():
+    return f"{str(settings.FRONTEND_URL).rstrip('/')}/recruiter/dashboard/billing"
 
 class SubPlanListAPIView(generics.ListCreateAPIView):
     queryset = SubPlan.objects.all()
@@ -591,10 +599,39 @@ class FundWalletView(APIView):
         provider = request.data.get('provider')
         amount = request.data.get('amount')
         success_url = request.data.get('success_url')
-        
+
         if not provider or not amount or not success_url:
             return Response({'error': 'provider, amount, and success_url are required.'}, status=status.HTTP_400_BAD_REQUEST)
-        
+
+        # success_url is client-supplied and handed straight to Stripe as the
+        # post-payment redirect target -- without pinning it to our own
+        # origin, this is an open redirect (attacker gets a legitimate
+        # Stripe checkout page for the victim, then redirects them to a
+        # phishing page after a real payment succeeds).
+        allowed_origin = str(settings.FRONTEND_URL).rstrip('/')
+        if not success_url.startswith(allowed_origin + '/') and success_url != allowed_origin:
+            return Response({'error': 'Invalid success_url.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        company = get_user_company(request.user)
+        if not company:
+            return Response({'error': 'No company associated with this account.'}, status=status.HTTP_403_FORBIDDEN)
+
+        try:
+            amount_decimal = Decimal(str(amount))
+        except Exception:
+            return Response({'error': 'Invalid amount.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        min_key = "minimum_topup_usd" if provider == "stripe" else "minimum_topup_ngn"
+        minimum = get_pricing_decimal(min_key, "10.00" if provider == "stripe" else "5000.00")
+        if amount_decimal < minimum:
+            return Response(
+                {'error': f'Minimum top-up amount is {minimum}.'}, status=status.HTTP_400_BAD_REQUEST
+            )
+
+        wallet, _ = Wallet.objects.get_or_create(
+            company=company, defaults={"currency": COUNTRY_CURRENCY_MAP.get(company.country, "USD")}
+        )
+
         if provider == 'stripe':
             # create checkout session
             try:
@@ -603,8 +640,12 @@ class FundWalletView(APIView):
                     success_url=success_url,
                     customer_email=request.user.email
                 )
-                
+
                 if session:
+                    WalletTopup.objects.create(
+                        wallet=wallet, organisation=company, amount=amount_decimal, currency="USD",
+                        payment_provider=WalletTopup.Provider.STRIPE, provider_payment_id=session.id,
+                    )
                     logger.debug(f"Stripe wallet funding session created successfully for user {request.user.email}")
                     return Response({'status': 'wallet funding session created', 'data': {'session_id': session.id, 'checkout_url': session.url}}, status=status.HTTP_201_CREATED)
                 else:
@@ -622,11 +663,16 @@ class FundWalletView(APIView):
                     amount=amount,
                 )
                 if response.get("status") and response.get("data"):
+                    reference = response["data"].get("reference")
                     data = {
                         "authorization_url": response["data"].get("authorization_url"),
                         "access_code": response["data"].get("access_code"),
-                        "reference": response["data"].get("reference"),
+                        "reference": reference,
                     }
+                    WalletTopup.objects.create(
+                        wallet=wallet, organisation=company, amount=amount_decimal, currency="NGN",
+                        payment_provider=WalletTopup.Provider.PAYSTACK, provider_payment_id=reference,
+                    )
                     logger.debug(f"Paystack wallet funding session created successfully for user {request.user.email}")
                     return Response({'status': 'wallet funding session created', 'data': data}, status=status.HTTP_201_CREATED)
                 else:
@@ -656,7 +702,67 @@ class WalletTransactionViewSet(
         wallet = getattr(company, 'wallet', None)
         if not wallet:
             return WalletTransaction.objects.none()
-        return WalletTransaction.objects.filter(wallet=wallet).order_by('-created_at')
+        queryset = WalletTransaction.objects.filter(wallet=wallet).order_by('-created_at')
+
+        # ?type=credit|debit|free_credit -- "credit" excludes free-credit
+        # entries so they show under their own "Free credits" filter tab
+        # instead of double-counting as generic credits.
+        type_filter = self.request.query_params.get("type")
+        if type_filter == "credit":
+            queryset = queryset.filter(transaction_type=WalletTransaction.TransactionType.CREDIT).exclude(
+                service_type=WalletTransaction.ServiceType.FREE_CREDIT
+            )
+        elif type_filter == "debit":
+            queryset = queryset.filter(transaction_type=WalletTransaction.TransactionType.DEBIT)
+        elif type_filter == "free_credit":
+            queryset = queryset.filter(service_type=WalletTransaction.ServiceType.FREE_CREDIT)
+
+        return queryset
+
+
+def _csv_safe(value):
+    """Neutralizes CSV/formula injection: a cell starting with =, +, -, @,
+    tab, or CR is interpreted as a formula by Excel/Sheets when the file is
+    opened. Transaction descriptions embed a candidate's own full_name
+    (attacker-controlled at signup), which a recruiter then downloads and
+    typically opens in Excel -- so this is a real injection path, not just
+    theoretical. Prefixing with a single quote forces text interpretation
+    everywhere without changing what a normal description looks like."""
+    text = "" if value is None else str(value)
+    if text and text[0] in ("=", "+", "-", "@", "\t", "\r"):
+        return "'" + text
+    return text
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated, IsUserVerified])
+def export_wallet_transactions_csv(request):
+    """Streams ALL of the caller's wallet transactions (not just the
+    current page) as a CSV download."""
+    company = get_user_company(request.user)
+    if not company:
+        return Response({'error': 'No company associated'}, status=status.HTTP_403_FORBIDDEN)
+    wallet = getattr(company, 'wallet', None)
+
+    response = HttpResponse(content_type="text/csv")
+    response["Content-Disposition"] = 'attachment; filename="wallet_transactions.csv"'
+    writer = csv.writer(response)
+    writer.writerow(["Date", "Description", "Type", "Amount", "Currency", "Balance After", "Status"])
+
+    if wallet:
+        for txn in WalletTransaction.objects.filter(wallet=wallet).order_by("-created_at"):
+            label = (
+                "Free credit" if txn.service_type == WalletTransaction.ServiceType.FREE_CREDIT
+                else txn.transaction_type.capitalize()
+            )
+            writer.writerow([
+                txn.created_at.isoformat(), _csv_safe(txn.description), label,
+                txn.amount, txn.currency or "", txn.balance_after if txn.balance_after is not None else "",
+                txn.status,
+            ])
+
+    return response
+
 
 # view to get wallet balance
 @api_view(['GET'])
@@ -671,14 +777,69 @@ def get_wallet_balance(request):
         company=company,
         defaults={
             'balance': 0.00,
-            'currency': 'NGN',
+            'currency': COUNTRY_CURRENCY_MAP.get(company.country, "USD"),
         },
     )
+    currency = wallet.currency or COUNTRY_CURRENCY_MAP.get(company.country, "USD")
 
     return Response(
         {
             'balance': wallet.balance,
-            'currency': wallet.currency or 'NGN',
+            'currency': currency,
+            'free_credits_remaining': wallet.free_credits_remaining,
+            'low_balance_threshold': wallet.low_balance_threshold,
+            'low_balance_alert_enabled': wallet.low_balance_alert_enabled,
+            'pricing': {
+                'resume_screening_price': get_action_price("resume_screening", currency),
+                'assessment_price': get_action_price("assessment", currency),
+                'minimum_topup': get_pricing_decimal(
+                    f"minimum_topup_{currency.lower()}", "10.00" if currency == "USD" else "5000.00"
+                ),
+                'free_tier_limit': get_pricing_decimal("free_tier_limit", "100"),
+            },
+        },
+        status=status.HTTP_200_OK,
+    )
+
+
+@api_view(['PATCH'])
+@permission_classes([IsAuthenticated, IsUserVerified])
+def update_wallet_settings(request):
+    """Recruiter-facing low-balance alert settings: enable/disable, and the
+    balance threshold that triggers BillingService.check_and_send_low_balance_alert."""
+    company = get_user_company(request.user)
+    if not company:
+        return Response({'error': 'No company associated'}, status=status.HTTP_403_FORBIDDEN)
+
+    wallet, _ = Wallet.objects.get_or_create(
+        company=company, defaults={"currency": COUNTRY_CURRENCY_MAP.get(company.country, "USD")}
+    )
+
+    update_fields = []
+    if "low_balance_alert_enabled" in request.data:
+        wallet.low_balance_alert_enabled = bool(request.data["low_balance_alert_enabled"])
+        update_fields.append("low_balance_alert_enabled")
+    if "low_balance_threshold" in request.data:
+        raw = request.data["low_balance_threshold"]
+        if raw in (None, ""):
+            wallet.low_balance_threshold = None
+        else:
+            try:
+                threshold = Decimal(str(raw))
+            except Exception:
+                return Response({'error': 'low_balance_threshold must be a number.'}, status=status.HTTP_400_BAD_REQUEST)
+            if threshold < 0:
+                return Response({'error': 'low_balance_threshold must be positive.'}, status=status.HTTP_400_BAD_REQUEST)
+            wallet.low_balance_threshold = threshold
+        update_fields.append("low_balance_threshold")
+
+    if update_fields:
+        wallet.save(update_fields=update_fields)
+
+    return Response(
+        {
+            'low_balance_threshold': wallet.low_balance_threshold,
+            'low_balance_alert_enabled': wallet.low_balance_alert_enabled,
         },
         status=status.HTTP_200_OK,
     )
@@ -734,7 +895,10 @@ def handle_webhook_event(request):
         hashlib.sha512
     ).hexdigest()
 
-    if signature != request.headers.get('X-paystack-signature'):
+    # Constant-time comparison -- a plain != leaks how many leading bytes
+    # matched via response timing, letting an attacker forge a valid
+    # signature byte-by-byte.
+    if not hmac.compare_digest(signature, request.headers.get('X-paystack-signature', '')):
         logger.error("Invalid Paystack webhook signature")
         return JsonResponse({'error': 'Invalid signature'}, status=400)
         
@@ -1125,8 +1289,9 @@ def paystack_wallet_fund_webhook(request):
         payload,
         hashlib.sha512
     ).hexdigest()
-    
-    if signature != request.headers.get('X-paystack-signature'):
+
+    # Constant-time comparison -- see handle_webhook_event for why.
+    if not hmac.compare_digest(signature, request.headers.get('X-paystack-signature', '')):
         logger.error("Invalid Paystack webhook signature")
         return JsonResponse({'error': 'Invalid signature'}, status=400)
         
@@ -1169,17 +1334,36 @@ def paystack_wallet_fund_webhook(request):
                 wallet, _ = Wallet.objects.get_or_create(company=company)
 
                 # Idempotency: Paystack retries webhooks — never credit the
-                # same reference twice.
-                if WalletTransaction.objects.filter(
-                    wallet=wallet, transaction_type="credit", reference=reference
-                ).exists():
+                # same reference twice. Checked against both the topup
+                # record (provider_payment_id) and the transaction
+                # reference, since older topups pre-date WalletTopup.
+                topup = WalletTopup.objects.filter(provider_payment_id=reference).first()
+                already_credited = (topup and topup.status == WalletTopup.Status.COMPLETED) or (
+                    WalletTransaction.objects.filter(
+                        wallet=wallet, transaction_type="credit", reference=reference
+                    ).exists()
+                )
+                if already_credited:
                     log_entry.processed = True
                     log_entry.notes = f"Duplicate webhook ignored for reference: {reference}"
                     log_entry.save()
                     return JsonResponse({'status': 'already processed'}, status=200)
 
                 # credit wallet
-                wallet.credit(amount=amount, reference=reference, description="Wallet funding via Paystack", currency="NGN", service_type=WalletTransaction.ServiceType.WALLET_TOPUP)
+                txn = wallet.credit(amount=amount, reference=reference, description="Wallet funding via Paystack", currency="NGN", service_type=WalletTransaction.ServiceType.WALLET_TOPUP)
+
+                if topup:
+                    topup.status = WalletTopup.Status.COMPLETED
+                    topup.provider_status = event_type
+                    topup.completed_at = timezone.now()
+                    topup.save(update_fields=["status", "provider_status", "completed_at"])
+
+                try:
+                    emails.wallet_topup_confirmed_mail(
+                        company.company_rep, amount, txn.balance_after, "NGN", _wallet_url()
+                    )
+                except Exception:
+                    logger.exception("Failed to send wallet-topup-confirmed email for company %s", company.id)
 
                 from tags.tasks import evaluate_company_tags
                 evaluate_company_tags.delay(company.id)
@@ -1187,6 +1371,7 @@ def paystack_wallet_fund_webhook(request):
                 # log entry
                 log_entry.processed = True
                 log_entry.notes = "Wallet funded successfully."
+                log_entry.save()
                 return JsonResponse({'status': 'wallet funded successfully'}, status=200)
             else:
                 logger.error(f"Company not found for wallet funding with reference: {reference}")
@@ -1198,10 +1383,26 @@ def paystack_wallet_fund_webhook(request):
         try:
             reference = data['reference']
             logger.info(f"Wallet funding failed for reference: {reference}")
-            
+
+            topup = WalletTopup.objects.filter(provider_payment_id=reference).first()
+            if topup and topup.status == WalletTopup.Status.PENDING:
+                failure_reason = data.get("gateway_response") or "Payment failed"
+                topup.status = WalletTopup.Status.FAILED
+                topup.provider_status = event_type
+                topup.failed_at = timezone.now()
+                topup.failure_reason = failure_reason[:500]
+                topup.save(update_fields=["status", "provider_status", "failed_at", "failure_reason"])
+                try:
+                    emails.wallet_topup_failed_mail(
+                        topup.organisation.company_rep, topup.amount, "NGN", failure_reason, _wallet_url()
+                    )
+                except Exception:
+                    logger.exception("Failed to send wallet-topup-failed email for topup %s", topup.id)
+
             # log entry
             log_entry.processed = True
             log_entry.notes = "Wallet funding failed."
+            log_entry.save()
             return JsonResponse({'status': 'wallet funding failed'}, status=200)
         except Exception as e:
             logger.error(f"Error processing wallet funding failure webhook: {e}")
@@ -1270,16 +1471,35 @@ def stripe_wallet_fund_webhook(request):
                 wallet, _ = Wallet.objects.get_or_create(company=company)
 
                 # Idempotency: Stripe retries webhooks — never credit the
-                # same checkout session twice.
-                if WalletTransaction.objects.filter(
-                    wallet=wallet, transaction_type="credit", reference=reference
-                ).exists():
+                # same checkout session twice. Checked against both the
+                # topup record and the transaction reference, since older
+                # topups pre-date WalletTopup.
+                topup = WalletTopup.objects.filter(provider_payment_id=reference).first()
+                already_credited = (topup and topup.status == WalletTopup.Status.COMPLETED) or (
+                    WalletTransaction.objects.filter(
+                        wallet=wallet, transaction_type="credit", reference=reference
+                    ).exists()
+                )
+                if already_credited:
                     logger.info(f"Duplicate Stripe wallet funding webhook ignored: {reference}")
                     return JsonResponse({'status': 'already processed'}, status=200)
 
                 # credit wallet
-                wallet.credit(amount=amount_total, reference=reference, description="Wallet funding via Stripe", currency="USD", service_type=WalletTransaction.ServiceType.WALLET_TOPUP)
+                txn = wallet.credit(amount=amount_total, reference=reference, description="Wallet funding via Stripe", currency="USD", service_type=WalletTransaction.ServiceType.WALLET_TOPUP)
                 logger.info(f"Wallet funded successfully via Stripe for company: {company.company_email}")
+
+                if topup:
+                    topup.status = WalletTopup.Status.COMPLETED
+                    topup.provider_status = event['type']
+                    topup.completed_at = timezone.now()
+                    topup.save(update_fields=["status", "provider_status", "completed_at"])
+
+                try:
+                    emails.wallet_topup_confirmed_mail(
+                        company.company_rep, amount_total, txn.balance_after, "USD", _wallet_url()
+                    )
+                except Exception:
+                    logger.exception("Failed to send wallet-topup-confirmed email for company %s", company.id)
 
                 from tags.tasks import evaluate_company_tags
                 evaluate_company_tags.delay(company.id)
@@ -1296,11 +1516,88 @@ def stripe_wallet_fund_webhook(request):
             intent = event['data']['object']
             reference = intent.get('id')
             logger.info(f"Wallet funding failed via Stripe for reference: {reference}")
+
+            topup = WalletTopup.objects.filter(provider_payment_id=reference).first()
+            if topup and topup.status == WalletTopup.Status.PENDING:
+                failure_reason = (
+                    intent.get("last_payment_error", {}).get("message")
+                    if intent.get("last_payment_error") else "Payment failed"
+                )
+                topup.status = WalletTopup.Status.FAILED
+                topup.provider_status = event['type']
+                topup.failed_at = timezone.now()
+                topup.failure_reason = (failure_reason or "Payment failed")[:500]
+                topup.save(update_fields=["status", "provider_status", "failed_at", "failure_reason"])
+                try:
+                    emails.wallet_topup_failed_mail(
+                        topup.organisation.company_rep, topup.amount, "USD", failure_reason, _wallet_url()
+                    )
+                except Exception:
+                    logger.exception("Failed to send wallet-topup-failed email for topup %s", topup.id)
+
             return JsonResponse({'status': 'wallet funding failed'}, status=200)
         except Exception as e:
             logger.error(f"Error processing Stripe wallet funding failure webhook: {e}")
             return JsonResponse({'error': 'Error processing event'}, status=500)
     else:
         logger.info(f"Unhandled Stripe event type: {event['type']}")
-    
+
     return JsonResponse({'status': 'success'}, status=200)
+
+
+def _serialize_pricing_row(row):
+    return {
+        "key": row.key,
+        "value": row.value,
+        "description": row.description,
+        "updated_at": row.updated_at,
+        "updated_by_admin": row.updated_by_admin.get_full_name() if row.updated_by_admin else None,
+    }
+
+
+class PricingConfigListView(APIView):
+    """GET /subscriptions/pricing-config/ -- current admin-editable PAYG
+    pricing values, for the admin Pricing panel (/admin/pricing)."""
+
+    permission_classes = [requirePermission("revenue.view")]
+
+    def get(self, request):
+        rows = PricingConfig.objects.select_related("updated_by_admin").order_by("key")
+        return Response([_serialize_pricing_row(r) for r in rows])
+
+
+class PricingConfigUpdateView(APIView):
+    """PATCH /subscriptions/pricing-config/<key>/ -- updates a single
+    pricing value and logs the change to StaffActivityLog with the old and
+    new value, per the admin Pricing panel's independent-per-field save."""
+
+    permission_classes = [requirePermission("revenue.manage")]
+
+    def patch(self, request, key):
+        row = PricingConfig.objects.filter(key=key).first()
+        if not row:
+            return Response({"error": "Unknown pricing key"}, status=status.HTTP_404_NOT_FOUND)
+
+        new_value = request.data.get("value")
+        if new_value is None or str(new_value).strip() == "":
+            return Response({"error": "value is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            parsed_value = Decimal(str(new_value))
+        except Exception:
+            return Response({"error": "value must be a number"}, status=status.HTTP_400_BAD_REQUEST)
+        if parsed_value < 0:
+            return Response({"error": "value must not be negative"}, status=status.HTTP_400_BAD_REQUEST)
+
+        old_value = row.value
+        row.value = str(new_value)
+        row.updated_by_admin = request.user
+        row.save(update_fields=["value", "updated_by_admin", "updated_at"])
+
+        from staff.utils import log_staff_activity
+        log_staff_activity(
+            request.user, "pricing.update", "PricingConfig", row.key,
+            {"old_value": old_value, "new_value": row.value},
+        )
+
+        return Response(_serialize_pricing_row(row))

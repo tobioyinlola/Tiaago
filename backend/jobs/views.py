@@ -94,8 +94,6 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
 from django_filters import rest_framework as filters
 from rest_framework.exceptions import ValidationError
-from subscriptions.models import UserUsage, WalletUserUsage
-from subscriptions.helper import get_payg_price, check_subscription_wallet_fallback
 from utils.ai_service import AIService
 from roles.models import Role
 from scheduler.models import Scheduler
@@ -1057,10 +1055,6 @@ class JobApplyByIdView(APIView):
         application = serializer.save()
 
         job_owner = job.company
-        usage = UserUsage.objects.filter(company=job_owner).first()
-
-        # --- SUBSCRIPTION + WALLET CHECK HAPPENS FIRST ---
-        check_subscription_wallet_fallback(job_owner, usage, determiner="resume-analyzes")
 
         try:
             emails.application_received_mail(application.applicant.user, job)
@@ -1126,14 +1120,6 @@ class JobApplyByTokenView(APIView):
             cover_letter=cover_letter,
             is_external_application=True
         )
-        
-        # get the owner of the job
-        job_owner = job.company
-        usage = UserUsage.objects.filter(company=job_owner).first()
-        wallet = WalletUserUsage
-        
-        # --- SUBSCRIPTION + WALLET CHECK HAPPENS FIRST ---
-        check_subscription_wallet_fallback(job_owner, usage, determiner="resume-analyzes")
         
         # If job uses AI hiring, trigger resume analysis
         if job.hires_with_ai:
@@ -1314,19 +1300,12 @@ class ApplyToPendingJobView(APIView):
             was_verified_at_application=user.is_verified
         )
         
-        # get the owner of the job
-        job_owner = job.company
-        usage = UserUsage.objects.filter(company=job_owner).first()
-        
-        # --- SUBSCRIPTION + WALLET CHECK HAPPENS FIRST ---
-        check_subscription_wallet_fallback(job_owner, usage, determiner="resume-analyzes")
-        
         # If job uses AI hiring, trigger resume analysis
         if job.hires_with_ai:
             carry_out_resume_analysis.delay(application.id)
-        
+
         serializer = JobApplicationSerializer(application)
-        
+
         return Response({
             'message': 'Successfully applied to job!',
             'application': serializer.data

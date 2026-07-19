@@ -521,6 +521,23 @@ def get_revenue_summary(days=30):
     from analytics.models import AIUsageLog
     has_cost_data = AIUsageLog.objects.filter(estimated_cost_usd__isnull=False).exists()
 
+    from subscriptions.helper import get_action_price
+
+    total_wallet_balance = Wallet.objects.aggregate(total=Sum("balance"))["total"] or 0
+
+    free_credits_used_this_month = WalletTransaction.objects.filter(
+        service_type=WalletTransaction.ServiceType.FREE_CREDIT, created_at__gte=month_start
+    ).count()
+
+    orgs_exhausted_free_credits_qs = Wallet.objects.filter(free_credits_remaining=0).select_related("company")
+    orgs_exhausted_free_credits = {
+        "count": orgs_exhausted_free_credits_qs.count(),
+        "organisations": [
+            {"company_id": w.company_id, "company_name": w.company.company_name}
+            for w in orgs_exhausted_free_credits_qs[:20]
+        ],
+    }
+
     result = {
         "daily_revenue": daily_revenue,
         "by_service_type": {
@@ -531,12 +548,18 @@ def get_revenue_summary(days=30):
         "avg_deposit_amount_ngn": round(avg_deposit, 2),
         "orgs_on_free_credits": orgs_on_free_credits,
         "orgs_on_paid_wallet": len(companies_with_topup),
+        "total_wallet_balance": float(total_wallet_balance),
+        "free_credits_used_this_month": free_credits_used_this_month,
+        "orgs_exhausted_free_credits": orgs_exhausted_free_credits,
         "margin": {
             "available": has_cost_data,
             "resume_screening_margin_pct": None,
             "assessment_margin_pct": None,
         } if not has_cost_data else _compute_margin(),
-        "current_prices_ngn": {"resume_screening": 40.0, "assessment": 100.0},
+        "current_prices_ngn": {
+            "resume_screening": float(get_action_price("resume_screening", "NGN")),
+            "assessment": float(get_action_price("assessment", "NGN")),
+        },
     }
     cache.set(cache_key, result, timeout=CACHE_TIMEOUT)
     return result
@@ -544,14 +567,13 @@ def get_revenue_summary(days=30):
 
 def _compute_margin():
     from analytics.models import AIUsageLog
-    from django.conf import settings as dj_settings
-    prices = dj_settings.PAYG_PRICES
+    from subscriptions.helper import get_action_price
     margins = {}
     for service_key, log_type in [("resume_screening", "resume_analysis"), ("assessment", "mcq_generation")]:
         avg_cost = AIUsageLog.objects.filter(
             service_type=log_type, estimated_cost_usd__isnull=False
         ).aggregate(avg=Sum("estimated_cost_usd") / Count("id"))["avg"]
-        price_ngn = float(prices.get(service_key, {}).get("ngn", 0))
+        price_ngn = float(get_action_price(service_key, "NGN"))
         margins[f"{service_key}_margin_pct"] = (
             round(((price_ngn - float(avg_cost or 0)) / price_ngn) * 100, 1) if price_ngn else None
         )

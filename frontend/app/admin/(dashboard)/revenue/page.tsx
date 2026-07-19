@@ -79,6 +79,18 @@ const RevenuePage = async ({
         />
       </div>
 
+      <div className='grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 mb-8'>
+        <StatCard
+          label='Total wallet balances (all orgs)'
+          value={`₦${revenue.total_wallet_balance.toLocaleString()}`}
+        />
+        <StatCard label='Free credits used this month' value={revenue.free_credits_used_this_month} />
+        <StatCard
+          label='Orgs converted to paid (exhausted free tier)'
+          value={revenue.orgs_exhausted_free_credits.count}
+        />
+      </div>
+
       <ChartContainer>
         <section className='grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8'>
           <div className='lg:col-span-2 rounded-lg border bg-card p-6 shadow-sm'>
@@ -144,6 +156,33 @@ const RevenuePage = async ({
           ) : (
             <p className='text-sm text-muted-foreground py-8 text-center'>
               Not available yet — needs real per-call OpenAI cost data from the AI service, which isn&apos;t tracked yet.
+            </p>
+          )}
+        </div>
+      </section>
+
+      <section className='mb-8'>
+        <div className='rounded-lg border bg-card p-6 shadow-sm'>
+          <h4 className='text-gray-900 text-base font-medium mb-4'>
+            Organisations that have exhausted free credits ({revenue.orgs_exhausted_free_credits.count})
+          </h4>
+          {revenue.orgs_exhausted_free_credits.organisations.length ? (
+            <ul className='space-y-2'>
+              {revenue.orgs_exhausted_free_credits.organisations.map(org => (
+                <li key={org.company_id} className='text-sm flex items-center justify-between'>
+                  <span>{org.company_name}</span>
+                  <Link
+                    href={`/admin/organisations/${org.company_id}`}
+                    className='text-primary text-xs hover:underline'
+                  >
+                    View organisation
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className='text-sm text-muted-foreground py-8 text-center'>
+              No organisations have used up their free tier yet.
             </p>
           )}
         </div>

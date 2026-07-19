@@ -66,7 +66,10 @@ class StripeSubscriptionSerializer(serializers.ModelSerializer):
 class UsageBaseWalletTransactionSerializer(serializers.ModelSerializer):
     class Meta:
         model = WalletTransaction
-        fields = ["id", "wallet", "transaction_type", "amount", "currency", "reference", "created_at"]
+        fields = [
+            "id", "wallet", "transaction_type", "service_type", "amount", "currency",
+            "balance_after", "description", "status", "reference", "created_at",
+        ]
         read_only_fields = ["id", "created_at"]
 
 class FreePlanSerializer(serializers.ModelSerializer):

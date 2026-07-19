@@ -81,6 +81,12 @@ export type RevenueSummary = {
   avg_deposit_amount_ngn: number;
   orgs_on_free_credits: number;
   orgs_on_paid_wallet: number;
+  total_wallet_balance: number;
+  free_credits_used_this_month: number;
+  orgs_exhausted_free_credits: {
+    count: number;
+    organisations: { company_id: number; company_name: string }[];
+  };
   margin: {
     available: boolean;
     resume_screening_margin_pct: number | null;

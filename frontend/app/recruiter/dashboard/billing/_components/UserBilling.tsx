@@ -11,6 +11,9 @@ import {
   AlertCircle,
   BarChart3,
   ArrowLeftRight,
+  Gift,
+  BellRing,
+  Download,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -27,7 +30,12 @@ import {
   subscribeToFreePlan,
   subscribeToPaystackPlan,
   subscribeToStripePlan,
+  updateWalletSettings,
 } from "@/app/common/services/subscription";
+import {
+  exportWalletTransactionsCsv,
+  getWalletTransactionsClient,
+} from "@/app/common/services/subscription-client";
 import { useAlert } from "@/app/common/store/useAlert";
 import { BASE_URL } from "@/app/common/constants";
 import { useRouter } from "next/navigation";
@@ -95,6 +103,15 @@ interface UserBillingProps {
   walletBalance: {
     balance: number;
     currency: string;
+    free_credits_remaining?: number;
+    low_balance_threshold?: number | null;
+    low_balance_alert_enabled?: boolean;
+    pricing?: {
+      resume_screening_price: number;
+      assessment_price: number;
+      minimum_topup: number;
+      free_tier_limit: number;
+    };
   } | null;
   walletTransactions: WalletTransaction[];
   subscriptionTransactions: SubscriptionTransaction[];
@@ -161,6 +178,70 @@ const UserBilling = ({
   const [isNewUser, setIsNewUser] = useState(true);
   const [isSubscribing, setIsSubscribing] = useState(false);
   const [isFunding, setIsFunding] = useState(false);
+
+  // Low-balance alert settings -- distinct from the (separate) auto-recharge
+  // feature above: this just notifies, it never charges a card automatically.
+  const [lowBalanceEnabled, setLowBalanceEnabled] = useState(
+    walletBalance?.low_balance_alert_enabled ?? true
+  );
+  const [lowBalanceThreshold, setLowBalanceThreshold] = useState<string>(
+    walletBalance?.low_balance_threshold != null ? String(walletBalance.low_balance_threshold) : ""
+  );
+  const [savingLowBalance, setSavingLowBalance] = useState(false);
+
+  // Transaction history -- filter/pagination/export are client-side since
+  // the server-rendered page only loads page 1 unfiltered on first paint.
+  const [transactions, setTransactions] = useState<WalletTransaction[]>(walletTransactions);
+  const [transactionTypeFilter, setTransactionTypeFilter] = useState<
+    "" | "credit" | "debit" | "free_credit"
+  >("");
+  const [transactionsPage, setTransactionsPage] = useState(1);
+  const [transactionsHasNext, setTransactionsHasNext] = useState(false);
+  const [transactionsLoading, setTransactionsLoading] = useState(false);
+  const [exportingCsv, setExportingCsv] = useState(false);
+
+  const freeCreditsRemaining = walletBalance?.free_credits_remaining;
+  const freeTierLimit = walletBalance?.pricing?.free_tier_limit ?? 100;
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setTransactionsLoading(true);
+      const result = await getWalletTransactionsClient(
+        transactionTypeFilter || undefined,
+        transactionsPage
+      );
+      if (cancelled) return;
+      setTransactions(result?.results ?? []);
+      setTransactionsHasNext(!!result?.next);
+      setTransactionsLoading(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [transactionTypeFilter, transactionsPage]);
+
+  const handleSaveLowBalanceSettings = async () => {
+    setSavingLowBalance(true);
+    const result = await updateWalletSettings({
+      low_balance_alert_enabled: lowBalanceEnabled,
+      low_balance_threshold: lowBalanceThreshold === "" ? null : Number(lowBalanceThreshold),
+    });
+    setSavingLowBalance(false);
+    if (result.success) {
+      toast.success("Alert settings saved");
+    } else {
+      toast.error(result.error || "Failed to save alert settings");
+    }
+  };
+
+  const handleExportCsv = async () => {
+    setExportingCsv(true);
+    const ok = await exportWalletTransactionsCsv();
+    setExportingCsv(false);
+    if (!ok) toast.error("Failed to export transactions");
+  };
 
   const setAlert = useAlert(s => s.setAlert);
 
@@ -503,6 +584,18 @@ const UserBilling = ({
             )}
           </div>
 
+          {typeof freeCreditsRemaining === "number" && freeCreditsRemaining > 0 && (
+            <div className='mb-4 sm:mb-6 bg-emerald-50 border border-emerald-200 rounded-lg p-3 sm:p-4 flex items-center gap-3'>
+              <Gift size={20} className='text-emerald-600 flex-shrink-0' />
+              <p className='text-xs sm:text-sm text-emerald-800'>
+                <span className='font-semibold'>
+                  {freeCreditsRemaining} of {freeTierLimit} free screenings remaining.
+                </span>{" "}
+                Every candidate you screen or assess uses one free credit until these run out.
+              </p>
+            </div>
+          )}
+
           <div className='grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4 sm:mb-6'>
             <div className='bg-gradient-to-br from-indigo-600 to-indigo-700 rounded-xl p-4 sm:p-5 text-white'>
               <div className='flex items-center justify-between mb-3'>
@@ -823,11 +916,82 @@ const UserBilling = ({
             </div>
           </div>
 
+          <div className='bg-white rounded-xl border border-gray-200 p-5 mb-4 sm:mb-6'>
+            <div className='flex items-center gap-2 mb-1'>
+              <BellRing size={18} className='text-indigo-600' />
+              <h3 className='text-lg font-semibold text-gray-900'>Low Balance Alerts</h3>
+            </div>
+            <p className='text-sm text-gray-600 mb-4'>
+              We will send you an email and in-app notification when your balance drops below this
+              amount.
+            </p>
+            <div className='flex flex-col sm:flex-row sm:items-end gap-4'>
+              <label className='flex items-center gap-2 cursor-pointer'>
+                <input
+                  type='checkbox'
+                  checked={lowBalanceEnabled}
+                  onChange={e => setLowBalanceEnabled(e.target.checked)}
+                  className='w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500'
+                />
+                <span className='text-sm font-medium text-gray-700'>Enable low balance alerts</span>
+              </label>
+              <div className='flex-1 max-w-xs'>
+                <label className='block text-xs font-medium text-gray-600 mb-1'>
+                  Alert me when balance falls below
+                </label>
+                <div className='relative'>
+                  <span className='absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm'>
+                    {displayWalletData.currency === "NGN" ? "₦" : "$"}
+                  </span>
+                  <input
+                    type='number'
+                    min='0'
+                    step='0.01'
+                    value={lowBalanceThreshold}
+                    onChange={e => setLowBalanceThreshold(e.target.value)}
+                    placeholder='0.00'
+                    className='w-full pl-7 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500'
+                  />
+                </div>
+              </div>
+              <button
+                onClick={handleSaveLowBalanceSettings}
+                disabled={savingLowBalance}
+                className='px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 whitespace-nowrap'
+              >
+                {savingLowBalance ? "Saving..." : "Save"}
+              </button>
+            </div>
+          </div>
+
           <div className='bg-white rounded-xl border border-gray-200'>
-            <div className='px-6 py-4 border-b border-gray-200'>
+            <div className='px-6 py-4 border-b border-gray-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3'>
               <h2 className='text-lg font-semibold text-gray-900'>
                 Transaction History
               </h2>
+              <div className='flex items-center gap-2'>
+                <select
+                  value={transactionTypeFilter}
+                  onChange={e => {
+                    setTransactionsPage(1);
+                    setTransactionTypeFilter(e.target.value as typeof transactionTypeFilter);
+                  }}
+                  className='px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500'
+                >
+                  <option value=''>All</option>
+                  <option value='credit'>Credits</option>
+                  <option value='debit'>Debits</option>
+                  <option value='free_credit'>Free credits</option>
+                </select>
+                <button
+                  onClick={handleExportCsv}
+                  disabled={exportingCsv}
+                  className='flex items-center gap-1.5 px-3 py-1.5 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50'
+                >
+                  <Download size={14} />
+                  Export CSV
+                </button>
+              </div>
             </div>
             <div className='overflow-x-auto'>
               <table className='w-full'>
@@ -837,7 +1001,7 @@ const UserBilling = ({
                       Date
                     </th>
                     <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider'>
-                      Reference
+                      Description
                     </th>
                     <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider'>
                       Type
@@ -845,15 +1009,24 @@ const UserBilling = ({
                     <th className='px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider'>
                       Amount
                     </th>
+                    <th className='px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider'>
+                      Balance After
+                    </th>
                     <th className='px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider'>
                       Status
                     </th>
                   </tr>
                 </thead>
                 <tbody className='divide-y divide-gray-200'>
-                  {showEmptyState || walletTransactions.length === 0 ? (
+                  {transactionsLoading ? (
                     <tr>
-                      <td colSpan={5} className='px-6 py-12'>
+                      <td colSpan={6} className='px-6 py-12 text-center text-sm text-gray-500'>
+                        Loading...
+                      </td>
+                    </tr>
+                  ) : showEmptyState || transactions.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className='px-6 py-12'>
                         <div className='flex flex-col items-center justify-center text-center'>
                           <div className='w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4'>
                             <DollarSign size={32} className='text-gray-400' />
@@ -875,50 +1048,98 @@ const UserBilling = ({
                       </td>
                     </tr>
                   ) : (
-                    walletTransactions.map(transaction => (
-                      <tr key={transaction.id} className='hover:bg-gray-50'>
-                        <td className='px-6 py-4 whitespace-nowrap text-sm text-gray-900'>
-                          {formatDate(transaction.created_at)}
-                        </td>
-                        <td className='px-6 py-4 text-sm text-gray-900'>
-                          {transaction.reference}
-                        </td>
-                        <td className='px-6 py-4 whitespace-nowrap text-sm'>
-                          <span
-                            className={`inline-flex items-center gap-1 ${
-                              transaction.transaction_type === "credit"
-                                ? "text-green-600"
-                                : "text-red-600"
-                            }`}
+                    transactions.map(transaction => {
+                      const isFreeCredit = transaction.service_type === "free_credit";
+                      const isCredit = transaction.transaction_type === "credit";
+                      return (
+                        <tr key={transaction.id} className='hover:bg-gray-50'>
+                          <td className='px-6 py-4 whitespace-nowrap text-sm text-gray-900'>
+                            {formatDate(transaction.created_at)}
+                          </td>
+                          <td className='px-6 py-4 text-sm text-gray-900'>
+                            {transaction.description || transaction.reference || "-"}
+                          </td>
+                          <td className='px-6 py-4 whitespace-nowrap text-sm'>
+                            <span
+                              className={cn(
+                                "inline-flex items-center gap-1",
+                                isFreeCredit
+                                  ? "text-indigo-600"
+                                  : isCredit
+                                    ? "text-green-600"
+                                    : "text-red-600"
+                              )}
+                            >
+                              {isFreeCredit ? (
+                                <Gift size={16} />
+                              ) : (
+                                <TrendingUp size={16} className={!isCredit ? "rotate-180" : ""} />
+                              )}
+                              {isFreeCredit ? "Free credit" : transaction.transaction_type}
+                            </span>
+                          </td>
+                          <td
+                            className={cn(
+                              "px-6 py-4 whitespace-nowrap text-sm text-right font-medium",
+                              isCredit ? "text-green-600" : "text-red-600"
+                            )}
                           >
-                            <TrendingUp
-                              size={16}
-                              className={
-                                transaction.transaction_type === "debit"
-                                  ? "rotate-180"
-                                  : ""
-                              }
-                            />
-                            {transaction.transaction_type}
-                          </span>
-                        </td>
-                        <td className='px-6 py-4 whitespace-nowrap text-sm text-right font-medium text-gray-900'>
-                          {formatPrice({
-                            price: +transaction.amount,
-                            currencyCode: transaction.currency,
-                          })}
-                        </td>
-                        <td className='px-6 py-4 whitespace-nowrap text-center'>
-                          <span className='inline-flex px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-700'>
-                            Completed
-                          </span>
-                        </td>
-                      </tr>
-                    ))
+                            {isCredit ? "+" : "-"}
+                            {formatPrice({
+                              price: Math.abs(+transaction.amount),
+                              currencyCode: transaction.currency,
+                            })}
+                          </td>
+                          <td className='px-6 py-4 whitespace-nowrap text-sm text-right text-gray-600'>
+                            {transaction.balance_after != null
+                              ? formatPrice({
+                                  price: +transaction.balance_after,
+                                  currencyCode: transaction.currency,
+                                })
+                              : "-"}
+                          </td>
+                          <td className='px-6 py-4 whitespace-nowrap text-center'>
+                            <span
+                              className={cn(
+                                "inline-flex px-2 py-1 text-xs font-medium rounded-full",
+                                transaction.status === "failed"
+                                  ? "bg-red-100 text-red-700"
+                                  : transaction.status === "pending"
+                                    ? "bg-yellow-100 text-yellow-700"
+                                    : "bg-green-100 text-green-700"
+                              )}
+                            >
+                              {transaction.status
+                                ? transaction.status.charAt(0).toUpperCase() + transaction.status.slice(1)
+                                : "Completed"}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })
                   )}
                 </tbody>
               </table>
             </div>
+            {!showEmptyState && (transactionsPage > 1 || transactionsHasNext) && (
+              <div className='px-6 py-4 border-t border-gray-200 flex items-center justify-between'>
+                <button
+                  onClick={() => setTransactionsPage(p => Math.max(1, p - 1))}
+                  disabled={transactionsPage === 1 || transactionsLoading}
+                  className='px-3 py-1.5 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed'
+                >
+                  Previous
+                </button>
+                <span className='text-sm text-gray-600'>Page {transactionsPage}</span>
+                <button
+                  onClick={() => setTransactionsPage(p => p + 1)}
+                  disabled={!transactionsHasNext || transactionsLoading}
+                  className='px-3 py-1.5 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed'
+                >
+                  Next
+                </button>
+              </div>
+            )}
           </div>
 
           {showFundModal && (
