@@ -137,9 +137,12 @@ class JobSerializer(serializers.ModelSerializer):
         return None
 
     def validate(self, attrs):
-        # Role validation
-        role = attrs.get("role")
-        if not role and not self.instance:
+        # Role validation. JobSerializer.update() is only ever reached via
+        # the draft-publish path (JobListCreateView.create) -- regular edits
+        # to an already-published job go through JobUpdateSerializer instead
+        # -- so role is required in both the create and update case here.
+        role = attrs.get("role") or getattr(self.instance, "role", None)
+        if not role:
             raise serializers.ValidationError({"role": "Role field is required"})
 
         # Experience check
@@ -165,42 +168,73 @@ class JobSerializer(serializers.ModelSerializer):
 
         return attrs
 
+    def _create_related_objects(self, job, assessment_questions, interview_slots):
+        if assessment_questions:
+            template = JobAssessmentTemplate.objects.create(
+                job=job, status=JobAssessmentTemplate.Status.READY
+            )
+            for section_order, section_data in enumerate(assessment_questions):
+                section = JobAssessmentTemplateSection.objects.create(
+                    template=template,
+                    name=section_data.get("category") or f"Category {section_order + 1}",
+                    order=section_order,
+                )
+                for question_order, question in enumerate(section_data.get("questions", [])):
+                    JobAssessmentTemplateQuestion.objects.create(
+                        section=section,
+                        question=question["question"],
+                        options=question["options"],
+                        correct_option_index=question["correct_option_index"],
+                        is_ai_generated=question.get("is_ai_generated", True),
+                        order=question_order,
+                    )
+
+        for slot in interview_slots:
+            JobInterviewAvailabilitySlot.objects.create(
+                job=job,
+                date=slot["date"],
+                start_time=slot["start_time"],
+                end_time=slot["end_time"],
+            )
+
     def create(self, validated_data):
         assessment_questions = validated_data.pop("assessment_questions", []) or []
         interview_slots = validated_data.pop("interview_slots", []) or []
 
         with transaction.atomic():
             job = super().create(validated_data)
-
-            if assessment_questions:
-                template = JobAssessmentTemplate.objects.create(
-                    job=job, status=JobAssessmentTemplate.Status.READY
-                )
-                for section_order, section_data in enumerate(assessment_questions):
-                    section = JobAssessmentTemplateSection.objects.create(
-                        template=template,
-                        name=section_data.get("category") or f"Category {section_order + 1}",
-                        order=section_order,
-                    )
-                    for question_order, question in enumerate(section_data.get("questions", [])):
-                        JobAssessmentTemplateQuestion.objects.create(
-                            section=section,
-                            question=question["question"],
-                            options=question["options"],
-                            correct_option_index=question["correct_option_index"],
-                            is_ai_generated=question.get("is_ai_generated", True),
-                            order=question_order,
-                        )
-
-            for slot in interview_slots:
-                JobInterviewAvailabilitySlot.objects.create(
-                    job=job,
-                    date=slot["date"],
-                    start_time=slot["start_time"],
-                    end_time=slot["end_time"],
-                )
+            self._create_related_objects(job, assessment_questions, interview_slots)
 
         return job
+
+    def update(self, instance, validated_data):
+        """Used when publishing a DRAFT job (see JobListCreateView.create) --
+        the draft row already exists, so publishing updates it in place
+        rather than creating a second row. A draft never has assessment
+        questions/interview slots yet (the draft-autosave endpoint only
+        touches flat Job fields), so this is effectively their first
+        creation, same as the create() path."""
+        assessment_questions = validated_data.pop("assessment_questions", []) or []
+        interview_slots = validated_data.pop("interview_slots", []) or []
+
+        with transaction.atomic():
+            job = super().update(instance, validated_data)
+            self._create_related_objects(job, assessment_questions, interview_slots)
+
+        return job
+
+
+class JobDraftSerializer(serializers.ModelSerializer):
+    """Loosely-validated serializer for the job-creation wizard's
+    auto-save-as-you-go draft -- just stores whatever the recruiter has
+    filled in so far as opaque JSON, no field-level validation, since a
+    draft is by definition incomplete. Real validation happens at publish
+    time via JobSerializer."""
+
+    class Meta:
+        model = Job
+        fields = ("id", "draft_data", "job_status", "last_updated")
+        read_only_fields = ("id", "job_status", "last_updated")
 
 
 class JobInterviewAvailabilitySlotSerializer(serializers.ModelSerializer):

@@ -17,7 +17,6 @@ import {
 } from "../../create/CreateJobForm/form.constants";
 
 import Modal from "@/app/common/components/Modal";
-import { BASE_URL } from "@/app/common/constants";
 import { updateJob } from "@/app/common/services/jobs";
 import { useAlert } from "@/app/common/store/useAlert";
 import HiringProcess from "../../_components/HiringProcess";
@@ -642,9 +641,9 @@ const JobEditSuccessModal = ({
                 className='input input-bordered w-full input-primary bg-white'
                 type='url'
                 disabled
-                value={BASE_URL + link}
+                value={link}
               />
-              <CopyToClipboard text={BASE_URL + link} />
+              <CopyToClipboard text={link} />
             </div>
           </div>
         </div>

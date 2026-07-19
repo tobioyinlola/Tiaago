@@ -183,9 +183,24 @@ class GeneralSkillAssessment(TimeStampedModel):
         help_text="Unguessable token used in the candidate invite link -- lets a candidate "
         "open and take this specific assessment without logging in.",
     )
+    # Set once, at the moment the invite email actually goes out (see
+    # jobs/tasks.py send_assessment_link) -- not at row-creation time, since
+    # the row can exist briefly before the email send succeeds.
+    invite_sent_at = models.DateTimeField(null=True, blank=True)
+    invite_deadline = models.DateTimeField(
+        null=True, blank=True, help_text="invite_sent_at + 72 hours. Past this, the invite link is expired."
+    )
 
     def __str__(self):
         return self.title
+
+    @property
+    def is_invite_expired(self):
+        if not self.invite_deadline:
+            return False
+        from django.utils import timezone
+
+        return timezone.now() > self.invite_deadline
 
     #@@property
     #def sections(self):
@@ -463,6 +478,11 @@ class CandidateAssessmentSubmission(TimeStampedModel):
     )
     feedback_rating = models.PositiveSmallIntegerField(null=True, blank=True)
     feedback_comment = models.TextField(blank=True, default="")
+    completion_email_sent = models.BooleanField(
+        default=False,
+        help_text="Guards the candidate-confirmation + recruiter-notification completion emails "
+        "so they fire exactly once, the first time the full assessment (every section) is done.",
+    )
 
     class Meta:
         indexes = [

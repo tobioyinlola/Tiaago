@@ -12,6 +12,7 @@ import {
   Code2,
   Eye,
   ShieldCheck,
+  Clock3,
 } from "lucide-react";
 
 import DaisyButton from "@/app/common/components/DaisyButton";
@@ -21,7 +22,8 @@ import { useInviteFlow } from "../_components/InviteFlowProvider";
 
 const ReadyPage = () => {
   const router = useRouter();
-  const { token, assessment_title, sections, proctoring, setProctoringSessionId } = useInviteFlow();
+  const { token, assessment_title, duration_minutes, sections, proctoring, setProctoringSessionId } =
+    useInviteFlow();
   const [agreed, setAgreed] = useState(false);
   const [starting, setStarting] = useState(false);
 
@@ -98,11 +100,16 @@ const ReadyPage = () => {
           <h2 className='text-2xl md:text-3xl font-bold text-primary-black mb-2'>
             Take a breath, we&apos;re setting things up
           </h2>
-          <p className='text-secondary-black mb-10'>
+          <p className='text-secondary-black mb-4'>
             {proctoring
               ? "Here's what's being monitored to keep things fair for everyone."
               : "Here are a few quick reminders to help keep things fair for everyone."}
           </p>
+
+          <div className='inline-flex items-center gap-2 text-sm font-medium text-primary-black bg-[#F0F2F5] rounded-full px-4 py-1.5 mb-10'>
+            <Clock3 className='h-4 w-4' />
+            {duration_minutes} minutes total, once you begin
+          </div>
 
           <div className='space-y-5 mb-8 text-left'>
             {measures.map(({ Icon, text }, i) => (

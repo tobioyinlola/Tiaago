@@ -3,6 +3,7 @@ from loguru import logger
 from django.utils.text import slugify
 import openpyxl
 import csv
+import random
 import uuid
 from rest_framework import serializers
 from create_user.api.serializers import CompanyDetailSerializer
@@ -152,6 +153,15 @@ class GeneralSkillAssessmentMCQListSerializer(serializers.ModelSerializer):
         # company/staff (view sets this flag) get correct_option_index.
         if not self.context.get("include_correct_answers"):
             representation.pop("correct_option_index", None)
+        # Shuffle display order on every load so the correct answer isn't
+        # always in the same position -- grading is keyed off each option's
+        # own "index" value (compared against correct_option_index), not its
+        # position in this list, so reordering here is safe.
+        options = representation.get("options")
+        if isinstance(options, list):
+            options = list(options)
+            random.shuffle(options)
+            representation["options"] = options
         return representation
 
 
@@ -1414,6 +1424,16 @@ class AssessmentInviteDetailSerializer(serializers.Serializer):
     candidate_email = serializers.SerializerMethodField()
     already_submitted = serializers.SerializerMethodField()
     proctoring = serializers.SerializerMethodField()
+    deadline = serializers.DateTimeField(source="invite_deadline", allow_null=True)
+    deadline_formatted = serializers.SerializerMethodField()
+    is_expired = serializers.BooleanField(source="is_invite_expired")
+
+    def get_deadline_formatted(self, assessment):
+        if not assessment.invite_deadline:
+            return None
+        from django.utils import timezone as dj_timezone
+
+        return dj_timezone.localtime(assessment.invite_deadline).strftime("%A %-d %B %Y at %-I:%M %p")
 
     def get_proctoring(self, assessment):
         """Job's proctoring settings, for the pre-assessment briefing page to

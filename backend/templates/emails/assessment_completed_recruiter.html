@@ -1,0 +1,14 @@
+{% extends "emails/base.html" %}
+{% block title %}Candidate completed their assessment{% endblock %}
+{% block preheader %}{{ candidate_name|default:"A candidate" }} completed their assessment for {{ job_title|default:"the role" }}.{% endblock %}
+{% block content %}
+  <h1 class="h1" style="margin:0 0 14px; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:33px; line-height:1.15; letter-spacing:-0.6px; font-weight:800; color:#0F172A;">Results are ready</h1>
+
+  <p style="margin:0 0 24px; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:16px; line-height:1.65; color:#475569;">Hi {{ first_name|default:"there" }}, {{ candidate_name|default:"A candidate" }} just completed their assessment for {{ job_title|default:"your open role" }}. Their results are ready to review.</p>
+
+  <!-- CTA -->
+  <table role="presentation" class="cta-table" cellpadding="0" cellspacing="0" border="0"><tr>
+    <td align="center" bgcolor="#1C3477" style="background-color:#1C3477; border-radius:0;"><a href="{{ results_url|default:'https://app.tiaago.com/recruiter/dashboard' }}" target="_blank" class="cta-a" style="display:inline-block; padding:15px 30px; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:15px; font-weight:700; line-height:20px; color:#FFFFFF; text-decoration:none; border-radius:0;">View results&nbsp;&rarr;</a></td>
+  </tr></table>
+
+{% endblock %}

@@ -435,8 +435,7 @@ export const getAssessmentDurationInMinutes = (
   assessment: CompanySkillAssessment,
   codingTask?: boolean
 ) => {
-  // return assessment.duration_minutes;
-  return codingTask ? 30 : 15;
+  return assessment.duration_minutes ?? (codingTask ? 30 : 15);
 };
 
 export const closeDropdown = () => {

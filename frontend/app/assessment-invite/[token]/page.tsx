@@ -27,7 +27,7 @@ const INSTRUCTIONS = [
 ];
 
 const AssessmentInvitePage = () => {
-  const { token, sections, already_submitted } = useInviteFlow();
+  const { token, sections, already_submitted, is_expired, deadline_formatted } = useInviteFlow();
 
   if (already_submitted) {
     return (
@@ -38,6 +38,20 @@ const AssessmentInvitePage = () => {
         <p className='text-secondary-black text-sm'>
           We&apos;ve already received your submission for this assessment. If you believe this is a
           mistake, please reply to the invitation email you received.
+        </p>
+      </InviteShell>
+    );
+  }
+
+  if (is_expired) {
+    return (
+      <InviteShell showDuration={false}>
+        <h2 className='text-xl font-bold text-primary-black mb-2'>This assessment invite has expired</h2>
+        <p className='text-secondary-black text-sm'>
+          {deadline_formatted
+            ? `The deadline to complete this assessment was ${deadline_formatted}.`
+            : "The deadline to complete this assessment has passed."}{" "}
+          If you believe this is a mistake, please reply to the invitation email you received.
         </p>
       </InviteShell>
     );
@@ -57,6 +71,12 @@ const AssessmentInvitePage = () => {
           </li>
         ))}
       </ul>
+
+      {deadline_formatted && (
+        <p className='text-sm text-secondary-black mb-6'>
+          Please complete this assessment by <span className='font-semibold text-primary-black'>{deadline_formatted}</span>.
+        </p>
+      )}
 
       <h3 className='text-sm font-semibold text-primary-black mb-3'>Test Format</h3>
       <div className='border border-gray-200 rounded-xl overflow-hidden mb-8'>

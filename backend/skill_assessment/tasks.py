@@ -30,6 +30,7 @@ from django.core.exceptions import ValidationError
 from loguru import logger
 import math
 from django.utils.timezone import now as tz_now
+from emails import emails
 
 pass_mark = 70
 
@@ -281,6 +282,38 @@ def mark_skill_assessment_submission(self, skill_assessment_submission_id: int):
                 flow_status.status = ReportPAYGFlowStatus.Status.STARTED
                 flow_status.error_message = ""
                 flow_status.save(update_fields=["status", "error_message"])
+
+        # Completion notification -- candidate confirmation + recruiter
+        # notice. Fires exactly once (guarded by completion_email_sent, set
+        # before sending so a task retry never double-sends), and only for
+        # this flow's job-application-backed assessments -- the Tiaago
+        # self-verification assessment has no job/recruiter to notify.
+        if assessment.job_application_id and not submission.completion_email_sent:
+            submission.completion_email_sent = True
+            submission.save(update_fields=["completion_email_sent"])
+
+            job = assessment.job_application.job
+            try:
+                emails.assessment_submitted_mail(submission.candidate.user, job)
+            except Exception:
+                logger.exception("assessment_submitted_mail failed for submission %s", submission.id)
+
+            company_rep = getattr(job.company, "company_rep", None) if job and job.company_id else None
+            if company_rep and company_rep.email:
+                candidate = submission.candidate
+                candidate_name = (
+                    submission.candidate_display_name
+                    or candidate.full_name
+                    or candidate.user.get_full_name()
+                    or candidate.user.username
+                )
+                results_url = f"{str(FRONTEND_URL).rstrip('/')}/recruiter/dashboard/jobs/jobs-posted/{job.public_id}/applications"
+                try:
+                    emails.assessment_completed_recruiter_notice_mail(
+                        company_rep, job, candidate_name, results_url
+                    )
+                except Exception:
+                    logger.exception("assessment_completed_recruiter_notice_mail failed for submission %s", submission.id)
 
         if is_passed:
             if assessment.job_application_id:

@@ -36,6 +36,8 @@ const AssessmentCodingTask = ({
   onComplete,
   skipIntro = false,
   submitOverride,
+  sharedEndDateTime,
+  onTimeExpired,
 }: {
   codeSection: CodingTaskSection;
   assessment: CompanySkillAssessment;
@@ -52,6 +54,13 @@ const AssessmentCodingTask = ({
   submitOverride?: (data: {
     answers: { section_id: number | string; coding_task_answers: { coding_task_id: number | string; user_answer: string }[] }[];
   }) => Promise<ApiResponse<unknown>>;
+  /** Overall assessment-level countdown target, shared across every section
+   * so the timer doesn't reset when a new section mounts -- used by the
+   * no-login invite flow instead of this component's own per-section timer. */
+  sharedEndDateTime?: Date;
+  /** Called instead of onComplete when the shared timer runs out, so the
+   * flow jumps straight to done instead of advancing to the next section. */
+  onTimeExpired?: () => void;
 }) => {
   const router = useRouter();
   const setAlert = useAlert(state => state.setAlert);
@@ -71,12 +80,12 @@ const AssessmentCodingTask = ({
 
   useEffect(() => {
     if (skipIntro) {
-      setEndDateTime(addMinutes(new Date(), assessmentDurationInMinutes));
+      setEndDateTime(sharedEndDateTime ?? addMinutes(new Date(), assessmentDurationInMinutes));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const submit = async () => {
+  const submit = async (isTimeUp = false) => {
     if (submitting) return;
     try {
       setSubmitting(true);
@@ -106,7 +115,9 @@ const AssessmentCodingTask = ({
       toast.success("Your score has been recorded");
 
       // Handle different completion flows based on mode
-      if (onComplete) {
+      if (isTimeUp && onTimeExpired) {
+        onTimeExpired();
+      } else if (onComplete) {
         onComplete();
       } else if (mode === "job-application") {
         // Redirect to job application results
@@ -215,7 +226,7 @@ const AssessmentCodingTask = ({
 
   const handleTimeUp = async () => {
     setDisabled(true);
-    await submit();
+    await submit(true);
   };
 
   return (

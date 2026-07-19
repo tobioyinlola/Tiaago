@@ -1,0 +1,20 @@
+{% autoescape off %}CANDIDATE COMPLETED THEIR ASSESSMENT
+
+Results are ready.
+
+Hi {{ first_name|default:"there" }}, {{ candidate_name|default:"A candidate" }} just completed
+their assessment for {{ job_title|default:"your open role" }}. Their results are
+ready to review.
+
+View results:
+{{ results_url|default:"https://app.tiaago.com/recruiter/dashboard" }}
+
+--
+Tiaago - AI-powered end-to-end hiring platform for modern teams.
+X: https://x.com/TiaagoHq
+Instagram: https://www.instagram.com/tiaago_hq
+LinkedIn: https://www.linkedin.com/company/tiaagohq/
+Questions? support@tiaago.com
+1942 Broadway St, Suite 314C, Boulder, CO, US
+(c) Tiaago. All rights reserved.
+{% endautoescape %}
