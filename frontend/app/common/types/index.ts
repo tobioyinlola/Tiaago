@@ -807,6 +807,34 @@ export type AiFeedbackItem = {
   proctoring_has_violation: boolean;
 };
 
+export type SubmissionAnswerMCQQuestion = {
+  id: ID;
+  question: string;
+  options: { index: number; value: string }[];
+  correct_option_index: number;
+  selected_option_index: number | null;
+  is_correct: boolean;
+};
+
+export type SubmissionAnswerCodingTask = {
+  id: ID;
+  title: string;
+  description: string;
+  candidate_answer: string;
+};
+
+export type SubmissionAnswersSection = {
+  id: ID;
+  name: string;
+  type: "MCQ" | "CODING_TASK";
+  questions?: SubmissionAnswerMCQQuestion[];
+  coding_tasks?: SubmissionAnswerCodingTask[];
+};
+
+export type SubmissionAnswers = {
+  sections: SubmissionAnswersSection[];
+};
+
 export type QuizAttempt = {
   id: ID;
   talent: string;
@@ -1009,7 +1037,11 @@ export type WalletTransaction = {
   id: ID;
   wallet: string;
   amount: number | string;
-  transaction_type: "credit" | "debit";
+  transaction_type: "credit" | "debit" | "refund" | "adjustment";
+  service_type?: "resume_screening" | "assessment" | "wallet_topup" | "free_credit" | "other" | null;
+  balance_after?: number | string | null;
+  description?: string | null;
+  status?: "pending" | "completed" | "failed" | "reversed";
   currency: string;
   reference: string;
   created_at: string;

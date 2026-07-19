@@ -42,7 +42,8 @@ from django.utils.timezone import now
 from payments.models import UsageEvent,ReportPAYGFlowStatus
 from django.db.models import Count
 from subscriptions.models import UserUsage, WalletUserUsage
-from subscriptions.helper import get_payg_price, check_subscription_wallet_fallback
+from subscriptions.helper import has_active_subscription_capacity
+from subscriptions.billing_service import BillingService
 from analytics.models import AIUsageLog
 import json
 
@@ -314,11 +315,8 @@ def send_assessment_link(job_application_id, trials=0):
     if not job_application:
         logger.error("Job application %s not found", job_application_id)
         return "Job application not found"
-    
-    company = job_application.job.company
-    usage = UserUsage.objects.filter(company=company).first()
-    check_subscription_wallet_fallback(company, usage, determiner="assessment")
 
+    company = job_application.job.company
     flow_status, _ = ReportPAYGFlowStatus.objects.get_or_create(job_application=job_application)
     flow_status.status = ReportPAYGFlowStatus.Status.STARTED
     flow_status.error_message = ""
@@ -521,17 +519,27 @@ def send_assessment_link(job_application_id, trials=0):
             logger.exception("Failed to create skill assessment: %s", e)
             return try_again(f"Failed to create skill assessment: {e}")
 
-        #bill them here for assessment
-        try:
-            if is_technical:
-                bill_service(job_application, "technical_assessment")
-            else:
-                bill_service(job_application, "non_technical_assessment")
-        except Exception as e:
-            flow_status.status = ReportPAYGFlowStatus.Status.FAILED
-            flow_status.error_message = f"Billing failed: {str(e)}"
-            flow_status.save()
-            logger.info(f"Billing failed")
+        # Billing happens here, right before the invite actually goes out --
+        # an active subscription seat is used first (has_active_subscription_capacity),
+        # falling back to the wallet (free credit, then a real charge) only
+        # if the company has no subscription capacity left. Insufficient
+        # wallet funds blocks the send entirely -- the candidate never gets
+        # an assessment the company hasn't paid for.
+        usage = UserUsage.objects.filter(company=company).first()
+        if not has_active_subscription_capacity(company, usage, determiner="assessment"):
+            billing_result = BillingService.process_assessment_charge(job_application)
+            if not billing_result["success"]:
+                flow_status.status = ReportPAYGFlowStatus.Status.FAILED
+                flow_status.error_message = (
+                    "Insufficient wallet balance -- assessment invite not sent. "
+                    "The recruiter must top up their wallet to continue."
+                )
+                flow_status.save()
+                logger.warning(
+                    "Assessment not sent for job_application %s: insufficient wallet balance",
+                    job_application_id,
+                )
+                return "Insufficient wallet balance"
         # Deadline is always exactly 72h from the moment the invite email is
         # actually sent -- set here, not at row creation, so it reflects the
         # real send time even if billing/question-generation above took a
@@ -651,14 +659,29 @@ def carry_out_resume_analysis(job_application_id):
             )
             # if resume analysis was successful
             if resume_analysis_obj:
-                #billed them after the analysos of the applicant resume
-                try:
-                    bill_service(job_application, "resume_screening")
-                except Exception as e:
-                    flow_status.status = ReportPAYGFlowStatus.Status.FAILED
-                    flow_status.error_message = f"Billing error: {str(e)}"
-                    flow_status.save()
-                    logger.error("cant bill for analysis")
+                # Billed after the analysis completes -- an active
+                # subscription seat is used first, falling back to the
+                # wallet (free credit, then a real charge). Insufficient
+                # wallet funds stops the candidate here: no assessment/
+                # rejection email goes out, and flow_status.FAILED is what
+                # the recruiter's applications list reads to keep this
+                # candidate out of the visible pipeline until they top up.
+                company = job.company
+                usage = UserUsage.objects.filter(company=company).first()
+                if not has_active_subscription_capacity(company, usage, determiner="resume-analyzes"):
+                    billing_result = BillingService.process_resume_candidate_screening(job_application)
+                    if not billing_result["success"]:
+                        flow_status.status = ReportPAYGFlowStatus.Status.FAILED
+                        flow_status.error_message = (
+                            "Insufficient wallet balance -- resume screening result withheld. "
+                            "The recruiter must top up their wallet to continue."
+                        )
+                        flow_status.save()
+                        logger.warning(
+                            "Resume screening withheld for job_application %s: insufficient wallet balance",
+                            job_application_id,
+                        )
+                        return "Insufficient wallet balance"
                 #create_talent_screening(job_application, resume_analysis_obj)
                 if talent_profile.user:
                     logger.warning(f"Recommendation: {recommendation}")
@@ -731,14 +754,15 @@ def carry_out_pending_resume_analyses():
                 )
             )
             if resume_analysis_obj:
-                #bill them here for resume analysis
-                try:
-                    bill_service(job_application, "resume_screening")
-                except Exception as e:
-                    flow_status.status = ReportPAYGFlowStatus.Status.FAILED
-                    flow_status.error_message = f"Billing error during retry: {str(e)}"
-                    flow_status.save()
-                    logger.error("cant bill for pending analysis")
+                # Bill for the resume screening, same rule as the primary
+                # path in carry_out_resume_analysis: subscription seat
+                # first, wallet (free credit then real charge) fallback.
+                company = job.company
+                usage = UserUsage.objects.filter(company=company).first()
+                billing_blocked = False
+                if not has_active_subscription_capacity(company, usage, determiner="resume-analyzes"):
+                    billing_result = BillingService.process_resume_candidate_screening(job_application)
+                    billing_blocked = not billing_result["success"]
 
                 # At this point the (billable) AI analysis has already succeeded and
                 # been saved. A failure in the downstream steps below must NOT leave the
@@ -746,25 +770,31 @@ def carry_out_pending_resume_analyses():
                 # on every beat tick and burns OpenAI credits indefinitely. So we always
                 # delete the pending record and surface downstream errors via flow_status.
                 downstream_error = None
-                try:
-                    create_talent_screening(job_application, resume_analysis_obj)
-                    if talent_profile.user:
-                        if resume_analysis_obj.total_score >= job.get_screening_threshold():
-                            send_assessment_link.apply_async(
-                                args=[job_application.id],
-                                countdown=ACCEPTANCE_MAIL_DELAY_SECONDS,
-                            )
-                        else:
-                            send_rejection_mail.apply_async(
-                                args=[job.id, talent_profile.id, areas_for_improvement],
-                                countdown=REJECTION_MAIL_DELAY_SECONDS,
-                            )
-                except Exception as e:
-                    downstream_error = str(e)
-                    logger.error(
-                        "Post-analysis step failed for pending resume analysis "
-                        f"(job_application_id={job_application.id}): {e}"
+                if billing_blocked:
+                    downstream_error = (
+                        "Insufficient wallet balance -- resume screening result withheld. "
+                        "The recruiter must top up their wallet to continue."
                     )
+                else:
+                    try:
+                        create_talent_screening(job_application, resume_analysis_obj)
+                        if talent_profile.user:
+                            if resume_analysis_obj.total_score >= job.get_screening_threshold():
+                                send_assessment_link.apply_async(
+                                    args=[job_application.id],
+                                    countdown=ACCEPTANCE_MAIL_DELAY_SECONDS,
+                                )
+                            else:
+                                send_rejection_mail.apply_async(
+                                    args=[job.id, talent_profile.id, areas_for_improvement],
+                                    countdown=REJECTION_MAIL_DELAY_SECONDS,
+                                )
+                    except Exception as e:
+                        downstream_error = str(e)
+                        logger.error(
+                            "Post-analysis step failed for pending resume analysis "
+                            f"(job_application_id={job_application.id}): {e}"
+                        )
 
                 pending_resume_analysis.delete()
 

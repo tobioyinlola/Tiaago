@@ -38,12 +38,20 @@ EmailType = Literal[
     "ticket_resolved",
     "assessment_submitted",
     "assessment_completed_recruiter_notice",
+    "low_balance_alert",
+    "free_tier_exhausted",
+    "wallet_topup_confirmed",
+    "wallet_topup_failed",
 ]
 
 EMAIL_TYPE_TO_ENUM = {
     "talent_assessment_pass_mail": EmailTypes.TALENT_ASSESSMENT_PASS_MAIL,
     "assessment_submitted": EmailTypes.ASSESSMENT_SUBMITTED,
     "assessment_completed_recruiter_notice": EmailTypes.ASSESSMENT_COMPLETED_RECRUITER_NOTICE,
+    "low_balance_alert": EmailTypes.LOW_BALANCE_ALERT,
+    "free_tier_exhausted": EmailTypes.FREE_TIER_EXHAUSTED,
+    "wallet_topup_confirmed": EmailTypes.WALLET_TOPUP_CONFIRMED,
+    "wallet_topup_failed": EmailTypes.WALLET_TOPUP_FAILED,
 }
 
 
@@ -84,6 +92,15 @@ def _format_deadline(dt):
     if not dt:
         return None
     return timezone.localtime(dt).strftime("%A %-d %B %Y at %-I:%M %p")
+
+
+def _format_money(amount, currency):
+    """"$0.03" / "₦40.00" -- 2 decimal places, matching the frontend's
+    formatPrice() convention (app/common/utils/index.ts)."""
+    if amount is None:
+        return None
+    symbol = "₦" if (currency or "").upper() == "NGN" else "$"
+    return f"{symbol}{amount:,.2f}"
 
 
 def _flatten_meeting(meeting_details, company_name=None):
@@ -357,6 +374,42 @@ def get_email_template_and_context(
             "results_url": kwargs.get("results_url", ""),
         }
 
+    elif email_type == "low_balance_alert":
+        template_file = "emails/low_balance_alert.html"
+        context = {
+            "first_name": user.first_name,
+            "balance": _format_money(kwargs.get("balance"), kwargs.get("currency")),
+            "threshold": _format_money(kwargs.get("threshold"), kwargs.get("currency")),
+            "wallet_url": kwargs.get("wallet_url", ""),
+        }
+
+    elif email_type == "free_tier_exhausted":
+        template_file = "emails/free_tier_exhausted.html"
+        context = {
+            "first_name": user.first_name,
+            "resume_screening_price": kwargs.get("resume_screening_price", ""),
+            "assessment_price": kwargs.get("assessment_price", ""),
+            "wallet_url": kwargs.get("wallet_url", ""),
+        }
+
+    elif email_type == "wallet_topup_confirmed":
+        template_file = "emails/wallet_topup_confirmed.html"
+        context = {
+            "first_name": user.first_name,
+            "amount": _format_money(kwargs.get("amount"), kwargs.get("currency")),
+            "new_balance": _format_money(kwargs.get("new_balance"), kwargs.get("currency")),
+            "wallet_url": kwargs.get("wallet_url", ""),
+        }
+
+    elif email_type == "wallet_topup_failed":
+        template_file = "emails/wallet_topup_failed.html"
+        context = {
+            "first_name": user.first_name,
+            "amount": _format_money(kwargs.get("amount"), kwargs.get("currency")),
+            "failure_reason": kwargs.get("failure_reason", ""),
+            "wallet_url": kwargs.get("wallet_url", ""),
+        }
+
     return template_file, context
 
 
@@ -591,6 +644,60 @@ def assessment_completed_recruiter_notice_mail(user, job, candidate_name, result
         return None
     return _send_with_latest_flow(
         user.email, subject, template, ctx, email_type="assessment_completed_recruiter_notice",
+    )
+
+
+def low_balance_alert_mail(user, balance, threshold, currency, wallet_url):
+    """Sent when a wallet's balance drops below the org's configured
+    low-balance threshold -- rate-limited to once per 24h by the caller
+    (BillingService.check_and_send_low_balance_alert)."""
+    subject = "Your Tiaago wallet balance is running low"
+    template, ctx = get_email_template_and_context(
+        user, "low_balance_alert", balance=balance, threshold=threshold, currency=currency, wallet_url=wallet_url,
+    )
+    if not template:
+        return None
+    return _send_with_latest_flow(
+        user.email, subject, template, ctx, email_type="low_balance_alert",
+    )
+
+
+def free_tier_exhausted_mail(user, resume_screening_price, assessment_price, wallet_url):
+    """Sent once, the moment an organisation's last free credit is used --
+    tells them their wallet will now be charged for every candidate."""
+    subject = "You've used all 100 of your free candidate processings"
+    template, ctx = get_email_template_and_context(
+        user, "free_tier_exhausted", resume_screening_price=resume_screening_price,
+        assessment_price=assessment_price, wallet_url=wallet_url,
+    )
+    if not template:
+        return None
+    return _send_with_latest_flow(
+        user.email, subject, template, ctx, email_type="free_tier_exhausted",
+    )
+
+
+def wallet_topup_confirmed_mail(user, amount, new_balance, currency, wallet_url):
+    subject = "Your wallet top-up was successful"
+    template, ctx = get_email_template_and_context(
+        user, "wallet_topup_confirmed", amount=amount, new_balance=new_balance, currency=currency, wallet_url=wallet_url,
+    )
+    if not template:
+        return None
+    return _send_with_latest_flow(
+        user.email, subject, template, ctx, email_type="wallet_topup_confirmed",
+    )
+
+
+def wallet_topup_failed_mail(user, amount, currency, failure_reason, wallet_url):
+    subject = "Your wallet top-up could not be completed"
+    template, ctx = get_email_template_and_context(
+        user, "wallet_topup_failed", amount=amount, currency=currency, failure_reason=failure_reason, wallet_url=wallet_url,
+    )
+    if not template:
+        return None
+    return _send_with_latest_flow(
+        user.email, subject, template, ctx, email_type="wallet_topup_failed",
     )
 
 

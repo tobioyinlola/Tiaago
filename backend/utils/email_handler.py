@@ -37,6 +37,10 @@ class EmailTypes:
     INTERVIEW_SLOT_SELECTION_MAIL = "Interview Slot Selection Mail"
     ASSESSMENT_SUBMITTED = "Assessment Submitted"
     ASSESSMENT_COMPLETED_RECRUITER_NOTICE = "Assessment Completed Recruiter Notice"
+    LOW_BALANCE_ALERT = "Low Balance Alert"
+    FREE_TIER_EXHAUSTED = "Free Tier Exhausted"
+    WALLET_TOPUP_CONFIRMED = "Wallet Topup Confirmed"
+    WALLET_TOPUP_FAILED = "Wallet Topup Failed"
 
 MAILGUN_DOMAIN = os.getenv("MAILGUN_DOMAIN")  # e.g. "mg.yourdomain.com"
 MAILGUN_API_KEY = os.getenv("MAILGUN_API_KEY")

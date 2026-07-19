@@ -26,6 +26,7 @@ import NavDropdown from "../../NavDropdown";
 const SECTION_PERMISSIONS: Record<string, string[]> = {
   organisations: ["organisations.view"],
   revenue: ["revenue.view"],
+  pricing: ["revenue.view"],
   support: ["support.view"],
   campaigns: ["campaigns.view"],
   tags: ["tags.view"],

@@ -1,0 +1,21 @@
+{% autoescape off %}PAYMENT FAILED
+
+Payment could not be completed.
+
+Hi {{ first_name|default:"there" }}, your wallet top-up of {{ amount|default:"$0.00" }} could
+not be completed.
+{% if failure_reason %}
+Reason: {{ failure_reason }}
+{% endif %}
+Try again:
+{{ wallet_url|default:"https://app.tiaago.com/recruiter/dashboard/billing" }}
+
+--
+Tiaago - AI-powered end-to-end hiring platform for modern teams.
+X: https://x.com/TiaagoHq
+Instagram: https://www.instagram.com/tiaago_hq
+LinkedIn: https://www.linkedin.com/company/tiaagohq/
+Questions? support@tiaago.com
+1942 Broadway St, Suite 314C, Boulder, CO, US
+(c) Tiaago. All rights reserved.
+{% endautoescape %}
