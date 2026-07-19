@@ -408,18 +408,6 @@ class GuestJobApplicationSerializer(serializers.Serializer):
                 f"This job is currently {status_display.lower()} and not accepting applications"
             )
 
-        # Guest apply must never touch a pre-existing account: it has no way to prove the
-        # submitter actually controls this email, so it would otherwise let anyone silently
-        # overwrite a real talent's profile (name/LinkedIn/resume) and see their PII in the
-        # response just by knowing their email address. Existing accounts must log in and use
-        # the authenticated apply flow instead.
-        existing_user = CustomUser.objects.filter(email__iexact=attrs["email"]).first()
-        if existing_user:
-            raise serializers.ValidationError(
-                {"email": "An account already exists for this email. Please log in and apply "
-                          "from your account instead."}
-            )
-
         return attrs
 
     def _split_name(self, full_name):
@@ -433,32 +421,36 @@ class GuestJobApplicationSerializer(serializers.Serializer):
         first_name, last_name = self._split_name(validated_data["full_name"])
 
         with transaction.atomic():
-            # Re-check for a race: an account may have been created for this email between
-            # validate() and here. Never fall through to editing an existing profile - always
-            # either reject or create fresh, never reuse/overwrite.
-            if CustomUser.objects.filter(email__iexact=validated_data["email"]).exists():
-                raise serializers.ValidationError(
-                    {"email": "An account already exists for this email. Please log in and apply "
-                              "from your account instead."}
+            # Every email is accepted, no exceptions -- zero login friction.
+            # If this email already has an account (e.g. they applied before,
+            # or signed up separately), reuse it instead of erroring, so the
+            # application still goes through under that same account. Never
+            # block the candidate here.
+            user = CustomUser.objects.filter(email__iexact=validated_data["email"]).first()
+            if not user:
+                user = CustomUser.objects.create_user(
+                    username=validated_data["email"],
+                    email=validated_data["email"],
+                    first_name=first_name,
+                    last_name=last_name,
+                    phone_number=validated_data["phone_number"],
+                    user_type=CustomUser.USER_TYPE.TALENT,
+                    is_verified=False,
+                    password=None,
                 )
 
-            user = CustomUser.objects.create_user(
-                username=validated_data["email"],
-                email=validated_data["email"],
-                first_name=first_name,
-                last_name=last_name,
-                phone_number=validated_data["phone_number"],
-                user_type=CustomUser.USER_TYPE.TALENT,
-                is_verified=False,
-                password=None,
-            )
-
-            talent_profile = TalentProfile.objects.create(
-                user=user,
-                full_name=validated_data["full_name"].strip(),
-                linkedin_url=validated_data["linkedin_url"],
-                resume=validated_data["resume"],
-            )
+            # Never overwrite an existing account's profile from this
+            # unauthenticated form -- anyone could submit someone else's
+            # email with different details. Only a brand-new profile gets
+            # populated from what was submitted here.
+            talent_profile = TalentProfile.objects.filter(user=user).first()
+            if not talent_profile:
+                talent_profile = TalentProfile.objects.create(
+                    user=user,
+                    full_name=validated_data["full_name"].strip(),
+                    linkedin_url=validated_data["linkedin_url"],
+                    resume=validated_data["resume"],
+                )
 
             application = JobApplication.objects.create(
                 applicant=talent_profile,
@@ -470,6 +462,18 @@ class GuestJobApplicationSerializer(serializers.Serializer):
         return application
 
 
+class GuestJobApplicationResponseSerializer(serializers.ModelSerializer):
+    """Confirmation-only response for the no-login apply endpoint -- never
+    the full JobApplicationSerializer, since that includes the applicant's
+    full profile (name, resume, verified skillsets, etc.). Since guest apply
+    resolves an existing account by email with no proof of ownership, that
+    would hand a stranger's real profile data back to whoever submitted
+    the form."""
+
+    class Meta:
+        model = JobApplication
+        fields = ("id", "job", "status", "applied_date", "created")
+        read_only_fields = fields
 
 
 class JobApplicationUpdateStatusSerializer(serializers.ModelSerializer):
