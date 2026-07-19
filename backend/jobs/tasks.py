@@ -564,11 +564,21 @@ def on_analyze_resume(
 ):
     """Helper function to analyze resume"""
     logger.info("Analyzing resume....")
-    response = AIService.analyze_resume(
-        resume_name=resume_name,
-        resume_path=resume_path,
-        job_description=job_description,
-    )
+    try:
+        response = AIService.analyze_resume(
+            resume_name=resume_name,
+            resume_path=resume_path,
+            job_description=job_description,
+        )
+    except Exception:
+        # AI service unreachable/erroring must never crash the whole task --
+        # fall through to the same "no response" path below so the caller's
+        # existing PendingResumeAnalysis retry mechanism picks it up instead
+        # of silently losing this application's screening forever.
+        logger.exception(
+            "Resume analysis call failed for job_application %s", job_application.id
+        )
+        response = None
     _log_ai_usage(
         "resume_analysis", job_application, getattr(job_application.job, "company", None),
         succeeded=bool(response),

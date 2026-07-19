@@ -73,6 +73,7 @@ from .serializers import (
     JobApplicationVerificationSerializer,
     JobTokenValidationSerializer,
     GuestJobApplicationSerializer,
+    GuestJobApplicationResponseSerializer,
     PortfolioSerializer,
     ToolSerializer,
     ExperienceSerializer,
@@ -1076,7 +1077,7 @@ class JobApplyByIdView(APIView):
             except Exception:
                 logger.exception("Failed to dispatch resume analysis for application %s", application.id)
 
-        response_serializer = JobApplicationSerializer(application)
+        response_serializer = GuestJobApplicationResponseSerializer(application)
         return Response(response_serializer.data, status=HTTP_201_CREATED)
 
 
