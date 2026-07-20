@@ -10,6 +10,8 @@ import os
 import uuid
 import re
 import logging
+import math
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -1357,6 +1359,19 @@ Count your questions and verify:
 4. Every question tests a different snippet/subtopic
 5. All four options are plausible; none are "obviously wrong\""""
         else:
+            is_technical_role = (role_type or "").strip().lower() == "technical"
+            practical_guidance = (
+                """
+        6b. LEAN PRACTICAL, NOT THEORETICAL: This is a technical role -- prefer questions grounded in a
+            concrete artifact (a short code/config/query snippet, a log line, an error message, a schema,
+            an API request/response) that the candidate has to reason about, over abstract definitional
+            questions ("What is X?"). Where a snippet genuinely helps, embed a short one (wrapped in a
+            markdown code fence) directly in the question text. Not every question needs a snippet, but
+            most should test applied judgment on something concrete rather than recalling a definition.
+"""
+                if is_technical_role
+                else ""
+            )
             system_prompt = f"""You are generating MCQ assessment questions for a specific job, for the question category "{category}".
 
         ========================================
@@ -1377,7 +1392,7 @@ Count your questions and verify:
         5. NO REPETITION: Every question must be distinct, covering different subtopics within the category.
 
         6. QUESTION QUALITY: Test conceptual understanding, critical thinking, and problem-solving using practical scenarios, not rote definitions.
-
+{practical_guidance}
         7. OPTIONS AND ANSWERS: All 4 options must be plausible. Avoid "odd one out" answers. Only one option is correct.
 
         ========================================
@@ -1415,24 +1430,53 @@ Count your questions and verify:
             {"role": "human", "content": human_prompt},
         ]
 
-        content, usage = _invoke_chat_and_get_content(chat, messages)
-        batch_dict = extract_and_parse_json(content)
+        # LLMs frequently drift a question or two off the requested count,
+        # especially on the token-heavy Coding category -- that used to be
+        # a hard failure that took the entire (3-4 category) assessment down
+        # with it. One bounded retry on outright failure, then accept
+        # whatever reasonable count comes back instead of demanding an exact
+        # match, so a single category's variance doesn't kill the batch.
+        min_acceptable = max(1, math.ceil(num_questions * 0.6))
+        last_error: Optional[Exception] = None
+        for attempt in range(2):
+            try:
+                content, usage = _invoke_chat_and_get_content(chat, messages)
+                batch_dict = extract_and_parse_json(content)
 
-        if not isinstance(batch_dict, dict) or "questions" not in batch_dict:
-            raise ValueError(f"Invalid response structure for category '{category}'")
+                if not isinstance(batch_dict, dict) or "questions" not in batch_dict:
+                    raise ValueError(f"Invalid response structure for category '{category}'")
 
-        questions = batch_dict.get("questions", [])
-        if not isinstance(questions, list) or len(questions) != num_questions:
-            raise ValueError(
-                f"Category '{category}': AI returned {len(questions) if isinstance(questions, list) else 'invalid'} "
-                f"questions instead of required {num_questions}."
-            )
+                questions = batch_dict.get("questions", [])
+                if not isinstance(questions, list) or len(questions) < min_acceptable:
+                    raise ValueError(
+                        f"Category '{category}': AI returned "
+                        f"{len(questions) if isinstance(questions, list) else 'invalid'} "
+                        f"questions, fewer than the minimum acceptable {min_acceptable} "
+                        f"(requested {num_questions})."
+                    )
 
-        if usage:
-            batch_dict["token_usage"] = usage
+                if len(questions) != num_questions:
+                    logger.warning(
+                        "Category '%s' returned %d questions instead of the requested %d -- "
+                        "accepting anyway (trimmed to requested count if over).",
+                        category, len(questions), num_questions,
+                    )
+                    batch_dict["questions"] = questions[:num_questions]
 
-        return batch_dict
+                if usage:
+                    batch_dict["token_usage"] = usage
 
+                return batch_dict
+            except Exception as e:
+                last_error = e
+                logger.warning(
+                    "Category '%s' generation attempt %d/2 failed: %s", category, attempt + 1, e
+                )
+
+        logger.error(f"Error generating category '{category}': {last_error}")
+        raise ValueError(f"Failed to generate category '{category}': {str(last_error)}")
+    except ValueError:
+        raise
     except Exception as e:
         logger.error(f"Error generating category '{category}': {e}")
         raise ValueError(f"Failed to generate category '{category}': {str(e)}")
@@ -1453,18 +1497,43 @@ def create_categorized_mcq_assessment(
     """
     from app.models.assessment import CategorizedAssessmentResult, CategorizedSection
 
-    sections: List[CategorizedSection] = []
     token_usage: Dict[str, int] = {}
     difficulty = "intermediate"
     skills_assessed: List[str] = []
 
-    for category in categories:
-        batch_result = generate_categorized_mcq_batch(
-            job_description=job_description,
-            category=category,
-            num_questions=questions_per_category,
-            role_type=role_type,
-        )
+    # Each category is an independent, blocking ~60s OpenAI call -- running
+    # them sequentially meant technical roles (up to 4 categories, including
+    # the heaviest "Coding" one) could take up to 4x as long and eat almost
+    # all of the caller's timeout budget. Running them concurrently keeps
+    # total wall time close to the single slowest category instead of the
+    # sum of all of them, and leaves real headroom before that timeout.
+    results_by_index: Dict[int, dict] = {}
+    errors_by_index: Dict[int, Exception] = {}
+    with ThreadPoolExecutor(max_workers=len(categories)) as executor:
+        future_to_index = {
+            executor.submit(
+                generate_categorized_mcq_batch,
+                job_description=job_description,
+                category=category,
+                num_questions=questions_per_category,
+                role_type=role_type,
+            ): index
+            for index, category in enumerate(categories)
+        }
+        for future in as_completed(future_to_index):
+            index = future_to_index[future]
+            try:
+                results_by_index[index] = future.result()
+            except Exception as e:
+                errors_by_index[index] = e
+
+    if errors_by_index:
+        failed_categories = ", ".join(categories[i] for i in sorted(errors_by_index))
+        raise ValueError(f"Failed to generate questions for categories: {failed_categories}")
+
+    sections: List[CategorizedSection] = []
+    for index, category in enumerate(categories):
+        batch_result = results_by_index[index]
         sections.append(CategorizedSection(category=category, questions=batch_result.get("questions", [])))
         token_usage = _merge_token_usage(token_usage, batch_result.get("token_usage"))
         difficulty = batch_result.get("ai_determined_difficulty", difficulty)

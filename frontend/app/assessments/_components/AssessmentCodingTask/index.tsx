@@ -1,7 +1,7 @@
 "use client";
 
 import { toast } from "sonner";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { LuX } from "react-icons/lu";
 import { addMinutes } from "date-fns";
 import { useRouter } from "next/navigation";
@@ -38,6 +38,7 @@ const AssessmentCodingTask = ({
   submitOverride,
   sharedEndDateTime,
   onTimeExpired,
+  forceSubmitSignal,
 }: {
   codeSection: CodingTaskSection;
   assessment: CompanySkillAssessment;
@@ -61,6 +62,10 @@ const AssessmentCodingTask = ({
   /** Called instead of onComplete when the shared timer runs out, so the
    * flow jumps straight to done instead of advancing to the next section. */
   onTimeExpired?: () => void;
+  /** Bumped by the parent when proctoring forces an early end (critical
+   * violation / max tab switches) -- submits whatever code is on screen via
+   * the same partial-submission path as a time-expiry, instead of losing it. */
+  forceSubmitSignal?: number;
 }) => {
   const router = useRouter();
   const setAlert = useAlert(state => state.setAlert);
@@ -132,6 +137,18 @@ const AssessmentCodingTask = ({
       setSubmitting(false);
     }
   };
+
+  // Fires only on a genuine change after mount -- proctoring forcing an
+  // early end submits whatever code is currently on screen instead of
+  // discarding it.
+  const forceSubmitSignalRef = useRef(forceSubmitSignal);
+  useEffect(() => {
+    if (forceSubmitSignal !== undefined && forceSubmitSignal !== forceSubmitSignalRef.current) {
+      forceSubmitSignalRef.current = forceSubmitSignal;
+      submit(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [forceSubmitSignal]);
 
   const exit = () => {
     if (hasStarted) {

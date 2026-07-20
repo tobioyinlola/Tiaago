@@ -555,6 +555,7 @@ def send_assessment_link(job_application_id, trials=0):
                 assessment_link=assessment_link,
                 duration_minutes=company_skill_assessment.duration_minutes,
                 deadline=company_skill_assessment.invite_deadline,
+                has_coding_task=bool(coding_questions),
             )
         except Exception as e:
             # Billing and the assessment row above are already committed --

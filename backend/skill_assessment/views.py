@@ -693,6 +693,66 @@ def submit_general_skill_assessment_answers(talent, skill_assessment, request_da
         return Response(status=500, data={"error": "An unexpected error occurred while processing your request."})
 
 
+def force_complete_submission(submission: CandidateAssessmentSubmission):
+    """Force a submission to completion after a proctoring-triggered forced
+    end (critical violation / max tab switches) -- called from
+    proctoring.views.CompleteProctoringSessionView, never from a normal
+    candidate-initiated submit.
+
+    Normal submission already backfills a blank (selected_answer_index=None)
+    CandidateAssessmentMCQAnswer for every question in any section the
+    candidate actually reached, so a partially-answered *current* section is
+    already handled correctly by the time this runs (the frontend submits
+    whatever's on screen before signalling the forced end). What's missing
+    is any section the candidate never reached at all: mark_mcq already
+    scores a completely untouched MCQ section as 0, but mark_coding_task
+    treats a missing section submission as a hard error that aborts scoring
+    for the *whole* assessment -- so every never-reached section needs at
+    least a blank CandidateAssessmentSectionSubmission row created here,
+    which is enough for both marking functions to grade it as wrong/empty
+    rather than failing outright.
+    """
+    if submission.is_completed:
+        return
+
+    assessment = submission.skill_assessment
+    if not assessment:
+        return
+
+    touched_section_ids = set(
+        submission.skill_assessment_section_submissions.values_list(
+            "skill_assessment_section_id", flat=True
+        )
+    )
+
+    with transaction.atomic():
+        for section in assessment.sections.all():
+            if section.id in touched_section_ids:
+                continue
+
+            section_submission = CandidateAssessmentSectionSubmission.objects.create(
+                skill_assessment_section=section
+            )
+            submission.skill_assessment_section_submissions.add(section_submission)
+
+            if section.type == SkillAssessmentTypes.MCQ:
+                # Blank answers so grading (and any recruiter-facing "what did
+                # they answer" view) sees every question as explicitly
+                # unanswered, not just absent.
+                CandidateAssessmentMCQAnswer.objects.bulk_create([
+                    CandidateAssessmentMCQAnswer(section_submission=section_submission, question=q)
+                    for q in section.mcq_questions.all()
+                ])
+            # CODING_TASK sections need no CandidateAssessmentCodingAnswer rows --
+            # mark_coding_task already treats a missing answer for a task as an
+            # empty-string submission once the section submission row exists.
+
+        submission.is_completed = True
+        submission.save(update_fields=["is_completed"])
+
+    mark_skill_assessment_submission.delay(skill_assessment_submission_id=submission.id)
+
+
 class TakeAGeneralSkillAssessmentAPIView(APIView):
     """Endpoint for a logged-in talent to take a skill assessment"""
     permission_classes = [IsTalentUser]

@@ -8,7 +8,7 @@ a verified badge and moves you up in recruiter searches.
 
   Skill:       {{ skill|default:"React" }}
   Duration:    {{ duration|default:"45 minutes" }}
-  Format:      Multiple choice assessment
+  Format:      {{ assessment_format|default:"Multiple choice assessment" }}
   Complete by: {{ deadline|default:"Sun, Jun 22" }}
 
 Start assessment:

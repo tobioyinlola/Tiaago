@@ -39,12 +39,18 @@ const TakeAssessmentFlow = ({ assessment }: { assessment: CompanySkillAssessment
     token,
     sessionId: proctoringSessionId,
     settings: proctoring,
-    onForceSubmit: () => router.push(`/assessment-invite/${token}/terminated`),
+    // Submit whatever's currently answered (same partial-submission path as
+    // a time-expiry) instead of discarding it and dead-ending on a page
+    // that never recorded any data -- the proctoring session itself was
+    // already marked terminated by useProctoring's forceSubmit before this
+    // fires.
+    onForceSubmit: () => setForceSubmitSignal(s => s + 1),
   });
 
   const sections = assessment.sections;
   const [sectionIndex, setSectionIndex] = useState(0);
   const [showSectionComplete, setShowSectionComplete] = useState(false);
+  const [forceSubmitSignal, setForceSubmitSignal] = useState(0);
 
   const currentSection = sections[sectionIndex];
   const isLastSection = sectionIndex === sections.length - 1;
@@ -159,6 +165,7 @@ const TakeAssessmentFlow = ({ assessment }: { assessment: CompanySkillAssessment
           onComplete={handleSectionComplete}
           sharedEndDateTime={endDateTime}
           onTimeExpired={handleTimeExpired}
+          forceSubmitSignal={forceSubmitSignal}
         />
       </>
     );
@@ -177,6 +184,7 @@ const TakeAssessmentFlow = ({ assessment }: { assessment: CompanySkillAssessment
         onComplete={handleSectionComplete}
         sharedEndDateTime={endDateTime}
         onTimeExpired={handleTimeExpired}
+        forceSubmitSignal={forceSubmitSignal}
       />
     </>
   );

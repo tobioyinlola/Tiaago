@@ -19,9 +19,10 @@ type PermissionState = "checking" | "allowed" | "denied";
 
 const EnvironmentPage = () => {
   const router = useRouter();
-  const { token, cameraStream, setCameraStream, setEnvironmentReady } = useInviteFlow();
+  const { token, cameraStream, setCameraStream, setEnvironmentReady, proctoring } = useInviteFlow();
   const videoRef = useRef<HTMLVideoElement>(null);
   const [permission, setPermission] = useState<PermissionState>("checking");
+  const webcamRequired = !!proctoring?.require_webcam;
 
   useEffect(() => {
     let cancelled = false;
@@ -68,8 +69,9 @@ const EnvironmentPage = () => {
     <InviteShell step={4}>
       <h2 className='text-lg font-bold text-primary-black mb-1'>Environment setup</h2>
       <p className='text-secondary-black text-sm mb-6'>
-        We use your camera for periodic snapshots for the recruiter to review. We don&apos;t record
-        you continuously.
+        {webcamRequired
+          ? "This assessment requires camera access. We use it for periodic snapshots for the recruiter to review -- we don't record you continuously."
+          : "We use your camera for periodic snapshots for the recruiter to review. We don't record you continuously."}
       </p>
 
       <div className='grid md:grid-cols-2 gap-6 mb-8'>
@@ -122,9 +124,9 @@ const EnvironmentPage = () => {
 
       {permission === "denied" && (
         <p className='text-xs text-warning bg-warning/10 border border-warning/20 rounded-lg px-3 py-2 mb-6'>
-          Camera access was denied. You can still take the assessment -- the recruiter just won&apos;t
-          receive periodic snapshots. You can enable camera access in your browser settings and
-          refresh if this was a mistake.
+          {webcamRequired
+            ? "Camera access is required for this assessment. Please enable camera access in your browser settings and refresh this page to continue."
+            : "Camera access was denied. You can still take the assessment -- the recruiter just won't receive periodic snapshots. You can enable camera access in your browser settings and refresh if this was a mistake."}
         </p>
       )}
 
@@ -141,7 +143,7 @@ const EnvironmentPage = () => {
           type='button'
           color='primary'
           className='text-white gap-2'
-          disabled={permission === "checking"}
+          disabled={permission === "checking" || (webcamRequired && permission === "denied")}
           onClick={handleContinue}
         >
           Continue <ArrowRight className='h-4 w-4' />

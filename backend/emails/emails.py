@@ -285,6 +285,9 @@ def get_email_template_and_context(
             "assessment_url": kwargs.get("assessment_link", ""),
             "duration": f"{duration_minutes} minutes" if duration_minutes else None,
             "deadline": _format_deadline(deadline),
+            "assessment_format": (
+                "MCQ with live coding" if kwargs.get("has_coding_task") else "Multiple choice assessment"
+            ),
         }
 
     elif email_type == "talent_vetting_fail":
@@ -575,6 +578,7 @@ def applicant_vetting_mail(
     assessment_link=None,
     duration_minutes=None,
     deadline=None,
+    has_coding_task=False,
 ):
     """Send vetting result email after resume screening.
 
@@ -588,7 +592,7 @@ def applicant_vetting_mail(
             raise ValueError("Assessment link is required for 'consider' or 'strongly consider' status")
         template, ctx = get_email_template_and_context(
             user, "talent_vetting_pass", job=job, assessment_link=assessment_link,
-            duration_minutes=duration_minutes, deadline=deadline,
+            duration_minutes=duration_minutes, deadline=deadline, has_coding_task=has_coding_task,
         )
         etype = "talent_vetting_pass"
     elif status == "unconsider":

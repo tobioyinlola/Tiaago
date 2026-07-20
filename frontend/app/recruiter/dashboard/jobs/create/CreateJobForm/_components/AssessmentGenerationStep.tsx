@@ -315,7 +315,7 @@ const AssessmentGenerationStep = ({
                 key={section.category}
                 className='collapse collapse-arrow rounded-lg border border-[#EAECF0]'
               >
-                <input type='checkbox' defaultChecked />
+                <input type='checkbox' />
                 <div className='collapse-title flex items-center gap-2 min-h-0 py-4 px-4'>
                   <span className='inline-flex items-center rounded-full bg-primary/10 text-primary text-xs font-semibold px-3 py-1'>
                     {section.category}

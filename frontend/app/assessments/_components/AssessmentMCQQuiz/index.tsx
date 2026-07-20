@@ -1,7 +1,7 @@
 "use client";
 
 import { toast } from "sonner";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { LuX } from "react-icons/lu";
 import { addMinutes } from "date-fns";
 import { BsDot } from "react-icons/bs";
@@ -42,6 +42,7 @@ const AssessmentMCQQuiz = ({
   onComplete,
   sharedEndDateTime,
   onTimeExpired,
+  forceSubmitSignal,
 }: {
   mcqSection: MCQSection;
   assessment: CompanySkillAssessment;
@@ -67,6 +68,10 @@ const AssessmentMCQQuiz = ({
   /** Called instead of onComplete when the shared timer runs out, so the
    * flow jumps straight to done instead of advancing to the next section. */
   onTimeExpired?: () => void;
+  /** Bumped by the parent when proctoring forces an early end (critical
+   * violation / max tab switches) -- submits whatever's answered so far via
+   * the same partial-submission path as a time-expiry, instead of losing it. */
+  forceSubmitSignal?: number;
 }) => {
   const setAlert = useAlert(state => state.setAlert);
   const [hasStarted, setHasStarted] = useState(skipIntro);
@@ -133,6 +138,19 @@ const AssessmentMCQQuiz = ({
       setSubmitting(false);
     }
   };
+
+  // Fires only on a genuine change after mount (not on initial render, where
+  // forceSubmitSignal is undefined/0 like any other prop) -- proctoring
+  // forcing an early end submits whatever's currently answered instead of
+  // discarding it.
+  const forceSubmitSignalRef = useRef(forceSubmitSignal);
+  useEffect(() => {
+    if (forceSubmitSignal !== undefined && forceSubmitSignal !== forceSubmitSignalRef.current) {
+      forceSubmitSignalRef.current = forceSubmitSignal;
+      submit(answers, true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [forceSubmitSignal]);
 
   const handleSubmit = async (
     mcq_id: ID,
