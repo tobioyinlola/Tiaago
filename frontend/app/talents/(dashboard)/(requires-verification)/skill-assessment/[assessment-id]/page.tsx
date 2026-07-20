@@ -1,4 +1,4 @@
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 
 import {
   initializeQuizAttempt,
@@ -10,7 +10,6 @@ import { getCurrentUser } from "@/app/common/services/profile";
 import { useTalentStore } from "@/app/talents/(dashboard)/store";
 import TakeQuizContainer from "../_components/TakeQuizContainer";
 import QuitAssessmentButton from "../_components/QuitAssessmentButton";
-import { getSubscriptionPlan } from "@/app/common/services/subscription";
 
 type Props = {
   params: Promise<{
@@ -34,13 +33,6 @@ const TakeSkillAssessmentPage = async ({ params }: Props) => {
     currentUser = (await getCurrentUser("talent")).currentUser;
     useTalentStore.setState({ profile: currentUser });
   }
-  if (!currentUser?.subscribed_plan)
-    return redirect("/talents/settings?tab=subscription");
-  const subscriptionPlan = await getSubscriptionPlan(
-    currentUser.subscribed_plan.plan_id
-  );
-  if (subscriptionPlan?.sub_type !== "PR")
-    return redirect("/talents/settings?tab=subscription");
   const quiz = await talentGetAssessment(quizSlug);
   if (!quiz) return notFound();
   let quizInitializeData: QuizAttemptInitialize;

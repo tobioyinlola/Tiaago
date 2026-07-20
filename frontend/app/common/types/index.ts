@@ -458,6 +458,15 @@ export type InterviewSlotInput = {
   end_time: string;
 };
 
+/** Recruiter-facing day-of-week availability picker state (wizard form only)
+ * -- expanded client-side into concrete InterviewSlotInput rows (the shape
+ * the backend actually accepts) right before job submission. 0=Sun..6=Sat. */
+export type InterviewAvailabilityInput = {
+  days_of_week: number[];
+  start_time: string;
+  end_time: string;
+};
+
 export type InterviewSlot = InterviewSlotInput & {
   id: ID;
   job: ID;

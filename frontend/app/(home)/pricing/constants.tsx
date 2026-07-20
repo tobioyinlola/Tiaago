@@ -7,18 +7,6 @@ export interface PricingTier {
   description: string;
 }
 
-export interface SubscriptionPlan {
-  name: string;
-  price: { monthly: number; annually: number };
-  description: string;
-  features: string[];
-  popular: boolean;
-  color: string;
-  ctaText: string;
-  limits: string;
-  discount?: string;
-}
-
 export type Currency = "USD" | "EUR" | "GBP" | "NGN";
 
 export const pricingTiers: PricingTier[] = [
@@ -46,62 +34,6 @@ export const pricingTiers: PricingTier[] = [
   //   icon: <Calculator className='w-5 h-5' />,
   //   description: "AI-driven interview with Jane",
   // },
-];
-
-export const subscriptionPlans: SubscriptionPlan[] = [
-  {
-    name: "Free",
-    price: { monthly: 0, annually: 0 },
-    description: "Perfect for testing the platform",
-    features: [
-      "Unlimited job postings",
-      "Unlimited candidate scheduling",
-      "20 resume screenings",
-      "10 assessments",
-      "Basic support",
-      "Pre-screening interviews (Coming Soon)",
-    ],
-    popular: false,
-    color: "border-gray-200",
-    ctaText: "Start for free",
-    limits: "20 screenings • 10 assessments",
-  },
-  {
-    name: "Starter",
-    price: { monthly: 49, annually: 490 },
-    description: "For independent recruiters and HRs",
-    features: [
-      "Everything in Free",
-      "1,000 resume screenings",
-      "200 assessments",
-      "Priority support",
-      "Basic analytics",
-      "Pre-screening interviews (Coming Soon)",
-    ],
-    popular: false,
-    color: "border-gray-200",
-    ctaText: "Get Started",
-    limits: "1,000 screenings • 200 assessments",
-    discount: "25% off first month",
-  },
-  {
-    name: "Pro",
-    price: { monthly: 99, annually: 990 },
-    description: "Recommended for agencies",
-    features: [
-      "Everything in Free",
-      "2,000 resume screenings",
-      "400 assessments",
-      "Priority support",
-      "Advanced analytics",
-      "Pre-screening interviews (Coming Soon)",
-    ],
-    popular: true,
-    color: "border-primary",
-    ctaText: "Get Started",
-    limits: "2,000 screenings • 400 assessments",
-    discount: "25% off first month",
-  },
 ];
 
 export const currencyRates = {

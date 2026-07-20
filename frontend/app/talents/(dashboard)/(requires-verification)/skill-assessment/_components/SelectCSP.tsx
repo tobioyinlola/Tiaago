@@ -12,7 +12,6 @@ import {
   cn,
   handleFormSubmissionError,
   htmlToPlainText,
-  showUpgradePlanModal,
 } from "@/app/common/utils";
 import {
   attemptCaseStudyProject,
@@ -28,12 +27,10 @@ import { CaseStudyAttempt, CaseStudyProject, ID } from "@/app/common/types";
 
 const SelectCSP = ({
   projects,
-  isPremiumUser,
   attempts,
   defaultProject,
 }: {
   projects: CaseStudyProject[];
-  isPremiumUser: boolean;
   attempts: CaseStudyAttempt[];
   defaultProject?: ID;
 }) => {
@@ -54,10 +51,6 @@ const SelectCSP = ({
 
   const handleSelect = async (submission?: string) => {
     if (isLoading) return;
-    if (!isPremiumUser) {
-      showUpgradePlanModal();
-      return;
-    }
     toast.dismiss();
     try {
       // if previous attempt exists, check if 72 hours has passed since it's creation

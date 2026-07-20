@@ -89,16 +89,15 @@ class ScheduleMeetingView(ListCreateAPIView):
         company = get_user_company(user)
         if not company:
             return Response({"detail": "No company associated."}, status=HTTP_401_UNAUTHORIZED)
-        if not user.is_subscribed() and company:
-            meeting_count = Scheduler.objects.filter(
-                company=company,
-                meeting_date__month=timezone.now().date().month
-            ).count()
-            if meeting_count >= 2:
-                return Response(
-                    {"detail": "Maximum number of meeting created for the month"},
-                    status=HTTP_400_BAD_REQUEST
-                )
+        meeting_count = Scheduler.objects.filter(
+            company=company,
+            meeting_date__month=timezone.now().date().month
+        ).count()
+        if meeting_count >= 2:
+            return Response(
+                {"detail": "Maximum number of meeting created for the month"},
+                status=HTTP_400_BAD_REQUEST
+            )
         queryset =self.get_queryset()
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)

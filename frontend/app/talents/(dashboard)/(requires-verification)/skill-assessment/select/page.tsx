@@ -1,10 +1,8 @@
-import { isPremiumPlan } from "@/app/common/utils";
 import { getCurrentUser } from "@/app/common/services/profile";
 import { useTalentStore } from "@/app/talents/(dashboard)/store";
 import EmptyState from "@/app/common/components/dashboard/EmptyState";
 import QuitAssessmentButton from "../_components/QuitAssessmentButton";
 import StartAssessmentButton from "../_components/StartAssessmentButton";
-import { getSubscriptionPlan } from "@/app/common/services/subscription";
 import { getAvailableAssessments } from "@/app/common/services/assessment";
 
 export const metadata = {
@@ -17,9 +15,6 @@ const SelectAssessmentPage = async () => {
     currentUser = (await getCurrentUser("talent")).currentUser;
     useTalentStore.setState({ profile: currentUser });
   }
-  const subscribedPlan = currentUser?.subscribed_plan
-    ? await getSubscriptionPlan(currentUser.subscribed_plan.plan_id)
-    : undefined;
   const assessments = await getAvailableAssessments();
   return (
     <div className='p-8 max-md:px-1 flex flex-col gap-6 sm:gap-8'>
@@ -47,7 +42,6 @@ const SelectAssessmentPage = async () => {
             </div>
             <StartAssessmentButton
               href={`/talents/skill-assessment/${assessment.slug}/`}
-              isPremiumUser={isPremiumPlan(subscribedPlan)}
               text='Start Assessment'
             />
           </div>

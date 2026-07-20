@@ -16,11 +16,6 @@ const steps = [
     description:
       "This will give you an opportunity to demonstrate your skills in a real-world context.",
   },
-  {
-    title: "Subscription plan",
-    description:
-      "Choose the subscription that best suits your needs and start connecting with your perfect match today!",
-  },
 ];
 
 const VerifyAccountModal = ({

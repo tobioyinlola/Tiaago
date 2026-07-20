@@ -10,26 +10,15 @@ import {
   Trash2,
   AlertCircle,
   BarChart3,
-  ArrowLeftRight,
   Gift,
   BellRing,
   Download,
 } from "lucide-react";
 import { toast } from "sonner";
-import {
-  Recruiter,
-  SubscriptionPlanV3,
-  SubscriptionTransaction,
-  SubscriptionUsage,
-  WalletTransaction,
-  WalletUsage,
-} from "@/app/common/types";
+import { Recruiter, WalletTransaction, WalletUsage } from "@/app/common/types";
 import { cn, formatPrice, handleFormSubmissionError } from "@/app/common/utils";
 import {
   fundWallet,
-  subscribeToFreePlan,
-  subscribeToPaystackPlan,
-  subscribeToStripePlan,
   updateWalletSettings,
 } from "@/app/common/services/subscription";
 import {
@@ -37,12 +26,8 @@ import {
   getWalletTransactionsClient,
 } from "@/app/common/services/subscription-client";
 import { useAlert } from "@/app/common/store/useAlert";
-import { BASE_URL } from "@/app/common/constants";
-import { useRouter } from "next/navigation";
 
-type TabType = "usage" | "subscription";
 type Currency = "USD" | "EUR" | "NGN";
-type BillingModel = "usage" | "subscription";
 
 interface AutoRecharge {
   id: string;
@@ -65,27 +50,6 @@ const NGN_FUNDING_AMOUNTS = [10_000, 25_000, 50_000, 100_000, 250_000, 500_000];
 const EUR_FUNDING_AMOUNTS = FUNDING_AMOUNTS;
 const USD_FUNDING_AMOUNTS = FUNDING_AMOUNTS;
 
-const PLANS = {
-  free: {
-    name: "Free",
-    price: 0,
-    resumeScreenings: 20,
-    assessments: 10,
-  },
-  basic: {
-    name: "Starter",
-    price: 49,
-    resumeScreenings: 1000,
-    assessments: 200,
-  },
-  pro: {
-    name: "Pro",
-    price: 149,
-    resumeScreenings: 2000,
-    assessments: 400,
-  },
-};
-
 const MOCK_MONTHLY_USAGE: MonthlyUsage[] = [
   { month: "January", amount: 245, resume_screenings: 145, assessments: 38 },
   { month: "February", amount: 312, resume_screenings: 178, assessments: 45 },
@@ -96,9 +60,6 @@ const MOCK_MONTHLY_USAGE: MonthlyUsage[] = [
 ];
 
 interface UserBillingProps {
-  triggerBillingSetup?: boolean;
-  onBillingSetupComplete?: () => void;
-  subscriptionPlans: SubscriptionPlanV3[];
   currentUser: Recruiter;
   walletBalance: {
     balance: number;
@@ -114,27 +75,16 @@ interface UserBillingProps {
     };
   } | null;
   walletTransactions: WalletTransaction[];
-  subscriptionTransactions: SubscriptionTransaction[];
-  subscriptionUsage: SubscriptionUsage | null;
   walletUsage: WalletUsage | null;
 }
 
 const UserBilling = ({
-  triggerBillingSetup,
-  onBillingSetupComplete,
-  subscriptionPlans,
   currentUser,
   walletBalance,
   walletTransactions,
-  subscriptionTransactions,
-  subscriptionUsage,
   walletUsage,
 }: UserBillingProps) => {
-  const router = useRouter();
   const isNigerian = currentUser.country.toLowerCase() === "nigeria";
-  const [activeTab, setActiveTab] = useState<TabType>(
-    currentUser.billing_type === "subscription" ? "subscription" : "usage"
-  );
   const currency: Currency = isNigerian ? "NGN" : "USD";
   const walletData = {
     balance: walletBalance?.balance || 0,
@@ -158,15 +108,6 @@ const UserBilling = ({
   const [editAmount, setEditAmount] = useState(50);
   const [editThreshold, setEditThreshold] = useState(10);
   const [selectedMonth, setSelectedMonth] = useState(5);
-  const [currentBillingModel, setCurrentBillingModel] = useState<BillingModel>(
-    currentUser.billing_type === "subscription" ? "subscription" : "usage"
-  );
-  const [billingCycle, setBillingCycle] = useState<"monthly" | "annually">(
-    "monthly"
-  );
-  const [showSwitchModal, setShowSwitchModal] = useState(false);
-  const [switchTarget, setSwitchTarget] =
-    useState<BillingModel>("subscription");
   const [cardNumber, setCardNumber] = useState("");
   const [cardName, setCardName] = useState("");
   const [expiryDate, setExpiryDate] = useState("");
@@ -174,9 +115,6 @@ const UserBilling = ({
   const [newAutoRechargeAmount, setNewAutoRechargeAmount] = useState(50);
   const [newAutoRechargeThreshold, setNewAutoRechargeThreshold] = useState(10);
   const [showAutoRechargeSetup, setShowAutoRechargeSetup] = useState(false);
-  const [showBillingModelPrompt, setShowBillingModelPrompt] = useState(false);
-  const [isNewUser, setIsNewUser] = useState(true);
-  const [isSubscribing, setIsSubscribing] = useState(false);
   const [isFunding, setIsFunding] = useState(false);
 
   // Low-balance alert settings -- distinct from the (separate) auto-recharge
@@ -245,29 +183,6 @@ const UserBilling = ({
 
   const setAlert = useAlert(s => s.setAlert);
 
-  useEffect(() => {
-    const hasSelectedBillingModel = localStorage.getItem(
-      "billingModelSelected"
-    );
-    if (!hasSelectedBillingModel) {
-      setTimeout(() => setShowBillingModelPrompt(true), 0);
-    }
-
-    const storedActiveTab = localStorage.getItem("billingModel");
-    if (storedActiveTab === "usage" || storedActiveTab === "subscription") {
-      setTimeout(() => {
-        setActiveTab(storedActiveTab);
-        setCurrentBillingModel(storedActiveTab);
-      }, 0);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (triggerBillingSetup) {
-      setTimeout(() => setShowBillingModelPrompt(true), 0);
-    }
-  }, [triggerBillingSetup]);
-
   const handleFundWallet = (amount: number) => {
     setSelectedAmount(amount);
   };
@@ -297,12 +212,6 @@ const UserBilling = ({
     setIsFunding(false);
   };
 
-  const handlePlanChange = (newPlan: string) => {
-    toast.info(
-      `Plan change to ${newPlan} would trigger subscription update logic`
-    );
-  };
-
   const handleDeleteAutoRecharge = () => {
     setAutoRecharge(null);
     setShowDeleteModal(false);
@@ -319,35 +228,6 @@ const UserBilling = ({
     }
     setShowEditAutoRecharge(false);
     toast.success("Auto-recharge settings updated");
-  };
-
-  const handleSwitchBillingModel = (target: BillingModel) => {
-    setSwitchTarget(target);
-    setShowSwitchModal(true);
-  };
-
-  const confirmSwitchBillingModel = () => {
-    setCurrentBillingModel(switchTarget);
-    setActiveTab(switchTarget);
-    setShowSwitchModal(false);
-    localStorage.setItem("billingModel", switchTarget);
-    // toast.success(
-    //   `Successfully switched to ${
-    //     switchTarget === "usage" ? "Usage-Based" : "Subscription"
-    //   } billing`
-    // );
-  };
-
-  const handleSelectBillingModel = (model: BillingModel) => {
-    setCurrentBillingModel(model);
-    setActiveTab(model);
-    setIsNewUser(false);
-    setShowBillingModelPrompt(false);
-    localStorage.setItem("billingModelSelected", "true");
-    localStorage.setItem("billingModel", model);
-    if (onBillingSetupComplete) {
-      onBillingSetupComplete();
-    }
   };
 
   const handleSetupAutoRecharge = () => {
@@ -384,51 +264,6 @@ const UserBilling = ({
     setExpiryDate("");
     setCvv("");
     toast.success("Auto-recharge enabled successfully");
-  };
-
-  const handleSubscribeToPlan = async (plan_code: string) => {
-    if (isSubscribing) return;
-    setIsSubscribing(true);
-    if (isNigerian) {
-      toast.loading("Processing...");
-      const res = await subscribeToPaystackPlan(plan_code);
-      if (res.success && res.data) {
-        window.open(res.data.data.authorization_url, "_blank");
-      } else {
-        handleFormSubmissionError(res.error, undefined, setAlert);
-      }
-      setIsSubscribing(false);
-      toast.dismiss();
-    } else {
-      toast.loading("Processing...");
-      const res = await subscribeToStripePlan(
-        plan_code,
-        `${BASE_URL}/recruiter/dashboard/billing`
-      );
-      if (res.success && res.data?.data?.checkout_url) {
-        window.location.assign(res.data.data.checkout_url);
-      } else {
-        handleFormSubmissionError(res.error, undefined, setAlert);
-      }
-      setIsSubscribing(false);
-      toast.dismiss();
-    }
-  };
-
-  const handleSubscribeTofreePlan = async () => {
-    if (isSubscribing) return;
-    setIsSubscribing(true);
-    toast.loading("Processing...");
-    const res = await subscribeToFreePlan();
-    if (res.success) {
-      toast.dismiss();
-      toast.success("You have successfully downgraded to our free plan");
-      router.refresh();
-    } else {
-      handleFormSubmissionError(res.error, undefined, setAlert);
-    }
-    setIsSubscribing(false);
-    toast.dismiss();
   };
 
   const formatCardNumber = (value: string) => {
@@ -480,13 +315,6 @@ const UserBilling = ({
     currency,
   };
 
-  const latestSubscriptionTransaction =
-    subscriptionTransactions
-      ?.filter(txn => txn.status === "succeeded" || txn.status === "success")
-      .sort(
-        (a, b) => new Date(b.paid_at).getTime() - new Date(a.paid_at).getTime()
-      )[0] || null;
-
   return (
     <div>
       {/* <button
@@ -495,94 +323,35 @@ const UserBilling = ({
       >
         {showEmptyState ? "Load Data" : "Show Empty State"}
       </button> */}
-      <div className='flex gap-4 sm:gap-8 border-b border-gray-200 mb-4 sm:mb-6 overflow-x-auto'>
-        {currentBillingModel === "usage" && (
-          <button
-            onClick={() => setActiveTab("usage")}
-            className={`pb-3 sm:pb-4 px-2 text-xs sm:text-sm font-medium transition-colors relative whitespace-nowrap ${
-              activeTab === "usage"
-                ? "text-indigo-600"
-                : "text-gray-600 hover:text-gray-900"
-            }`}
-          >
-            Usage Based
-            {activeTab === "usage" && (
-              <div className='absolute bottom-0 left-0 right-0 h-0.5 bg-indigo-600'></div>
-            )}
-          </button>
-        )}
-        {currentBillingModel === "subscription" && (
-          <button
-            onClick={() => setActiveTab("subscription")}
-            className={`pb-3 sm:pb-4 px-2 text-xs sm:text-sm font-medium transition-colors relative whitespace-nowrap ${
-              activeTab === "subscription"
-                ? "text-indigo-600"
-                : "text-gray-600 hover:text-gray-900"
-            }`}
-          >
-            Subscription
-            {activeTab === "subscription" && (
-              <div className='absolute bottom-0 left-0 right-0 h-0.5 bg-indigo-600' />
-            )}
-          </button>
-        )}
-      </div>
-
-      {activeTab === "usage" ? (
-        <div>
-          <div className='mb-4 sm:mb-6'>
-            <div className='flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4'>
-              <div>
-                <h1 className='text-xl sm:text-2xl font-bold text-gray-900 mb-1 sm:mb-2'>
-                  Wallet Balance
-                </h1>
-                <p className='text-sm sm:text-base text-gray-600'>
-                  Fund your wallet and pay as you go for services.
-                </p>
-              </div>
-              {/* <div className='flex items-center gap-2 sm:gap-3'>
-                <div className='flex items-center gap-2'>
-                  <span className='text-xs sm:text-sm text-gray-600'>
-                    Currency:
-                  </span>
-                  <select
-                    value={currency}
-                    onChange={e => setCurrency(e.target.value as Currency)}
-                    className='px-2 sm:px-3 py-1.5 sm:py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500'
-                  >
-                    <option value='USD'>USD ($)</option>
-                    <option value='EUR'>EUR (€)</option>
-                    <option value='NGN'>NGN (₦)</option>
-                  </select>
-                </div>
-              </div> */}
+      <div>
+        <div className='mb-4 sm:mb-6'>
+          <div className='flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4'>
+            <div>
+              <h1 className='text-xl sm:text-2xl font-bold text-gray-900 mb-1 sm:mb-2'>
+                Wallet Balance
+              </h1>
+              <p className='text-sm sm:text-base text-gray-600'>
+                Fund your wallet and pay as you go for services.
+              </p>
             </div>
-            {currentBillingModel === "usage" && (
-              <div className='bg-blue-50 border border-blue-200 rounded-lg p-3 sm:p-4 flex flex-col sm:flex-row items-start gap-3 sm:justify-between'>
-                <div className='flex items-start gap-3'>
-                  <Info
-                    size={18}
-                    className='text-blue-600 mt-0.5 flex-shrink-0 sm:w-5 sm:h-5'
-                  />
-                  <div>
-                    <h3 className='text-xs sm:text-sm font-semibold text-gray-900 mb-1'>
-                      Currently on Usage-Based Billing
-                    </h3>
-                    <p className='text-xs sm:text-sm text-gray-600'>
-                      Pay only for what you use. Want predictable monthly costs?
-                    </p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => handleSwitchBillingModel("subscription")}
-                  className='flex items-center gap-2 px-3 sm:px-4 py-2 bg-indigo-600 text-white text-xs sm:text-sm font-medium rounded-lg hover:bg-indigo-700 transition-colors whitespace-nowrap w-full sm:w-auto justify-center'
+            {/* <div className='flex items-center gap-2 sm:gap-3'>
+              <div className='flex items-center gap-2'>
+                <span className='text-xs sm:text-sm text-gray-600'>
+                  Currency:
+                </span>
+                <select
+                  value={currency}
+                  onChange={e => setCurrency(e.target.value as Currency)}
+                  className='px-2 sm:px-3 py-1.5 sm:py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500'
                 >
-                  <ArrowLeftRight size={16} />
-                  Switch to Subscription
-                </button>
+                  <option value='USD'>USD ($)</option>
+                  <option value='EUR'>EUR (€)</option>
+                  <option value='NGN'>NGN (₦)</option>
+                </select>
               </div>
-            )}
+            </div> */}
           </div>
+        </div>
 
           {typeof freeCreditsRemaining === "number" && freeCreditsRemaining > 0 && (
             <div className='mb-4 sm:mb-6 bg-emerald-50 border border-emerald-200 rounded-lg p-3 sm:p-4 flex items-center gap-3'>
@@ -1369,330 +1138,6 @@ const UserBilling = ({
             </div>
           )}
         </div>
-      ) : (
-        <div>
-          <div className='mb-6'>
-            <h1 className='text-2xl font-bold text-gray-900 mb-2'>
-              Subscription Plans
-            </h1>
-            <p className='text-gray-600'>
-              Choose a plan that fits your hiring needs.
-            </p>
-          </div>
-
-          {!!currentUser.subscription && (
-            <div className='bg-blue-50 border border-blue-200 rounded-xl p-6 mb-6'>
-              <div className='flex items-start justify-between mb-4'>
-                <div>
-                  <h3 className='text-lg font-semibold text-gray-900 mb-1'>
-                    Current Plan: {currentUser.subscription.plan}
-                  </h3>
-                  {!!latestSubscriptionTransaction?.next_payment_date && (
-                    <p className='text-sm text-gray-600'>
-                      Your plan renews on{" "}
-                      {formatDate(
-                        latestSubscriptionTransaction?.next_payment_date
-                      )}
-                    </p>
-                  )}
-                </div>
-                {currentUser.subscription.plan.toLowerCase() !== "free" && (
-                  <div className='text-right'>
-                    <div className='text-2xl font-bold text-gray-900'>
-                      {formatPrice({
-                        price:
-                          subscriptionPlans.find(
-                            plan =>
-                              plan.name.toLowerCase() ===
-                                currentUser.subscription.plan.toLowerCase() &&
-                              plan.interval === "monthly"
-                          )?.amount || 0,
-                        divisor: 100,
-                        currencyCode: currency,
-                        // currentUser.subscription.provider === "paystack"
-                        //   ? "NGN"
-                        //   : "USD",
-                      })}
-                    </div>
-                    <div className='text-sm text-gray-600'>per month</div>
-                  </div>
-                )}
-              </div>
-
-              <div className='grid grid-cols-1 sm:grid-cols-2 gap-4 mt-6'>
-                <div className='bg-white rounded-lg p-4'>
-                  <div className='text-sm text-gray-600 mb-1'>
-                    Resume Screenings
-                  </div>
-                  <div className='flex items-baseline gap-2'>
-                    <span className='text-2xl font-bold text-gray-900'>
-                      {currentUser.subscription.resume_limit -
-                        (subscriptionUsage?.resumes_used || 0)}
-                    </span>
-                    <span className='text-sm text-gray-500'>
-                      / {currentUser.subscription.resume_limit} left
-                    </span>
-                  </div>
-                  <div className='mt-2 bg-gray-200 rounded-full h-2'>
-                    <div
-                      className='bg-indigo-600 h-2 rounded-full transition-all'
-                      style={{
-                        width: `${
-                          ((currentUser.subscription.resume_limit -
-                            (subscriptionUsage?.resumes_used || 0)) /
-                            currentUser.subscription.resume_limit) *
-                          100
-                        }%`,
-                      }}
-                    ></div>
-                  </div>
-                </div>
-
-                <div className='bg-white rounded-lg p-4'>
-                  <div className='text-sm text-gray-600 mb-1'>Assessments</div>
-                  <div className='flex items-baseline gap-2'>
-                    <span className='text-2xl font-bold text-gray-900'>
-                      {currentUser.subscription.assessment_limit -
-                        (subscriptionUsage?.assessments_used || 0)}
-                    </span>
-                    <span className='text-sm text-gray-500'>
-                      / {currentUser.subscription.assessment_limit} left
-                    </span>
-                  </div>
-                  <div className='mt-2 bg-gray-200 rounded-full h-2'>
-                    <div
-                      className='bg-indigo-600 h-2 rounded-full transition-all'
-                      style={{
-                        width: `${
-                          ((currentUser.subscription.assessment_limit -
-                            (subscriptionUsage?.assessments_used || 0)) /
-                            currentUser.subscription.assessment_limit) *
-                          100
-                        }%`,
-                      }}
-                    ></div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {currentBillingModel === "subscription" && (
-            <div className='bg-green-50 border border-green-200 rounded-lg p-4 flex items-start justify-between mb-6'>
-              <div className='flex items-start gap-3'>
-                <Info
-                  size={20}
-                  className='text-green-600 mt-0.5 flex-shrink-0'
-                />
-                <div>
-                  <h3 className='text-sm font-semibold text-gray-900 mb-1'>
-                    Currently on Subscription Billing
-                  </h3>
-                  <p className='text-sm text-gray-600'>
-                    Enjoy predictable monthly costs. Need more flexibility?
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => handleSwitchBillingModel("usage")}
-                className='flex items-center gap-2 px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-800 transition-colors whitespace-nowrap'
-              >
-                <ArrowLeftRight size={16} />
-                Switch to Usage-Based
-              </button>
-            </div>
-          )}
-
-          {/* Billing Cycle Toggle */}
-          <div className='flex justify-center'>
-            <div className='inline-flex items-center bg-white rounded-full p-1 shadow-lg border border-gray-200 mb-8'>
-              <button
-                onClick={() => setBillingCycle("monthly")}
-                className={`flex items-center px-6 py-3 rounded-full font-medium transition-all ${
-                  billingCycle === "monthly"
-                    ? "bg-primary text-white shadow-md"
-                    : "text-gray-600 hover:text-gray-900"
-                }`}
-              >
-                Monthly
-              </button>
-              <button
-                onClick={() => setBillingCycle("annually")}
-                className={`flex items-center px-6 py-3 rounded-full font-medium transition-all ${
-                  billingCycle === "annually"
-                    ? "bg-primary text-white shadow-md"
-                    : "text-gray-600 hover:text-gray-900"
-                }`}
-              >
-                Yearly
-                <span className='ml-2 bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full'>
-                  2 months free
-                </span>
-              </button>
-            </div>
-          </div>
-
-          <div className='grid grid-cols-1 sm:grid-cols-3 gap-6 mb-6'>
-            {Object.entries(PLANS).map(([key, plan]) => {
-              const isFree = key === "free";
-              const isPro = key === "pro";
-              const relatedServerPlan = subscriptionPlans.find(
-                p =>
-                  p.name.toLowerCase() === plan.name.toLowerCase() &&
-                  (billingCycle === p.interval.toLowerCase() ||
-                    (billingCycle === "annually" &&
-                      p.interval.toLowerCase() === "yearly"))
-              );
-              if (!relatedServerPlan && !isFree) return null;
-              const isCurrentPlan =
-                currentUser.subscription?.plan.toLowerCase() ===
-                (relatedServerPlan?.name.toLowerCase() || "free");
-
-              return (
-                <div
-                  key={key}
-                  className={`bg-white rounded-xl border-2 p-6 transition-all ${
-                    isCurrentPlan
-                      ? "border-indigo-600 shadow-lg"
-                      : "border-gray-200 hover:border-gray-300"
-                  }`}
-                >
-                  {isCurrentPlan && (
-                    <div className='bg-indigo-600 text-white text-xs font-medium px-3 py-1 rounded-full inline-block mb-4'>
-                      Current Plan
-                    </div>
-                  )}
-                  <h3 className='text-xl font-bold text-gray-900 mb-2'>
-                    {plan.name}
-                  </h3>
-                  <div className='mb-6'>
-                    <span className='text-4xl font-bold text-gray-900'>
-                      {formatPrice({
-                        price: relatedServerPlan?.amount || 0,
-                        // divisor: 100,
-                        noOfDigits: 0,
-                        currencyCode: relatedServerPlan?.currency || currency,
-                      })}
-                    </span>
-                    {!isFree && (
-                      <span className='text-gray-600 ml-2'>
-                        / {billingCycle === "annually" ? "year" : "month"}
-                      </span>
-                    )}
-                  </div>
-
-                  <div className='space-y-3 mb-6'>
-                    <div className='flex items-center gap-2 text-sm text-gray-700'>
-                      <div className='w-5 h-5 bg-green-100 rounded-full flex items-center justify-center'>
-                        <span className='text-green-600 text-xs'>✓</span>
-                      </div>
-                      {plan.resumeScreenings.toLocaleString()} Resume Screenings
-                    </div>
-                    <div className='flex items-center gap-2 text-sm text-gray-700'>
-                      <div className='w-5 h-5 bg-green-100 rounded-full flex items-center justify-center'>
-                        <span className='text-green-600 text-xs'>✓</span>
-                      </div>
-                      {plan.assessments} Assessments
-                    </div>
-                  </div>
-
-                  <button
-                    // onClick={() => !isCurrentPlan && handlePlanChange(key)}
-                    onClick={() =>
-                      relatedServerPlan && !isFree
-                        ? handleSubscribeToPlan(relatedServerPlan.plan_code)
-                        : handleSubscribeTofreePlan()
-                    }
-                    disabled={isCurrentPlan || isSubscribing}
-                    className={cn(
-                      "w-full py-3 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
-                      isCurrentPlan
-                        ? "bg-gray-100 text-gray-500 cursor-not-allowed"
-                        : isFree
-                          ? "bg-gray-900 text-white hover:bg-gray-800"
-                          : "bg-indigo-600 text-white hover:bg-indigo-700"
-                    )}
-                  >
-                    {isCurrentPlan
-                      ? "Current Plan"
-                      : isFree
-                        ? currentUser.subscription
-                          ? "Downgrade to Free"
-                          : "Subscribe for free"
-                        : isPro
-                          ? "Upgrade to Pro"
-                          : "Select Plan"}
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-
-          <div className='bg-white rounded-xl border border-gray-200'>
-            <div className='px-6 py-4 border-b border-gray-200'>
-              <h2 className='text-lg font-semibold text-gray-900'>
-                Billing History
-              </h2>
-            </div>
-            <div className='overflow-x-auto'>
-              <table className='w-full'>
-                <thead className='bg-gray-50 border-b border-gray-200'>
-                  <tr>
-                    <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider'>
-                      Date
-                    </th>
-                    <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider'>
-                      Plan
-                    </th>
-                    <th className='px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider'>
-                      Amount
-                    </th>
-                    <th className='px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider'>
-                      Status
-                    </th>
-                    <th className='px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider'>
-                      Reference
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className='divide-y divide-gray-200'>
-                  {subscriptionTransactions.map(bill => (
-                    <tr key={bill.id} className='hover:bg-gray-50'>
-                      <td className='px-6 py-4 whitespace-nowrap text-sm text-gray-900'>
-                        {formatDate(bill.paid_at)}
-                      </td>
-                      <td className='px-6 py-4 whitespace-nowrap text-sm text-gray-900 capitalize'>
-                        {bill.plan_name || "N/A"}
-                      </td>
-                      <td className='px-6 py-4 whitespace-nowrap text-sm text-right font-medium text-gray-900'>
-                        {formatPrice({
-                          price: bill.amount,
-                          divisor: 100,
-                          currencyCode:
-                            bill.provider === "stripe" ? "USD" : "NGN",
-                        })}
-                      </td>
-                      <td className='px-6 py-4 whitespace-nowrap text-center'>
-                        <span className='inline-flex px-2 py-1 text-xs capitalize font-medium rounded-full bg-green-100 text-green-700'>
-                          {bill.status === "succeeded"
-                            ? "Success"
-                            : bill.status}
-                        </span>
-                      </td>
-                      <td className='px-6 py-4 whitespace-nowrap text-center'>
-                        {/* <button className='text-indigo-600 hover:text-indigo-800 text-sm font-medium'>
-                          Download
-                        </button> */}
-                        {bill.reference}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      )}
 
       {showAutoRechargeSetup && (
         <div className='fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4'>
@@ -1846,144 +1291,6 @@ const UserBilling = ({
         </div>
       )}
 
-      {showBillingModelPrompt && (
-        <div className='fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4'>
-          <div className='bg-white rounded-2xl p-8 max-w-2xl w-full'>
-            <h2 className='text-3xl font-bold text-gray-900 mb-2 text-center'>
-              Choose Your Billing Model
-            </h2>
-            <p className='text-gray-600 text-center mb-8'>
-              Select how you&apos;d like to pay for your hiring needs
-            </p>
-
-            <div className='grid md:grid-cols-2 gap-6'>
-              <button
-                onClick={() => handleSelectBillingModel("usage")}
-                className='bg-gradient-to-br from-indigo-50 to-indigo-100 border-2 border-indigo-200 hover:border-indigo-400 rounded-xl p-6 text-left transition-all hover:shadow-lg group'
-              >
-                <div className='w-14 h-14 bg-indigo-600 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform'>
-                  <DollarSign size={28} className='text-white' />
-                </div>
-                <h3 className='text-xl font-bold text-gray-900 mb-2'>
-                  Usage-Based
-                </h3>
-                <p className='text-sm text-gray-600 mb-4'>
-                  Pay only for what you use. Perfect for flexible hiring needs
-                  with no monthly commitment.
-                </p>
-                <ul className='space-y-2 text-sm text-gray-700'>
-                  <li className='flex items-center gap-2'>
-                    <div className='w-1.5 h-1.5 bg-indigo-600 rounded-full'></div>
-                    Pay per screening & assessment
-                  </li>
-                  <li className='flex items-center gap-2'>
-                    <div className='w-1.5 h-1.5 bg-indigo-600 rounded-full'></div>
-                    No monthly fees
-                  </li>
-                  <li className='flex items-center gap-2'>
-                    <div className='w-1.5 h-1.5 bg-indigo-600 rounded-full'></div>
-                    Scale as needed
-                  </li>
-                </ul>
-              </button>
-
-              <button
-                onClick={() => handleSelectBillingModel("subscription")}
-                className='bg-gradient-to-br from-green-50 to-emerald-100 border-2 border-green-200 hover:border-green-400 rounded-xl p-6 text-left transition-all hover:shadow-lg group'
-              >
-                <div className='w-14 h-14 bg-green-600 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform'>
-                  <TrendingUp size={28} className='text-white' />
-                </div>
-                <h3 className='text-xl font-bold text-gray-900 mb-2'>
-                  Subscription
-                </h3>
-                <p className='text-sm text-gray-600 mb-4'>
-                  Predictable monthly costs with set limits. Ideal for
-                  consistent hiring volume.
-                </p>
-                <ul className='space-y-2 text-sm text-gray-700'>
-                  <li className='flex items-center gap-2'>
-                    <div className='w-1.5 h-1.5 bg-green-600 rounded-full'></div>
-                    Fixed monthly price
-                  </li>
-                  <li className='flex items-center gap-2'>
-                    <div className='w-1.5 h-1.5 bg-green-600 rounded-full'></div>
-                    Included screenings & assessments
-                  </li>
-                  <li className='flex items-center gap-2'>
-                    <div className='w-1.5 h-1.5 bg-green-600 rounded-full'></div>
-                    Better value for volume
-                  </li>
-                </ul>
-              </button>
-            </div>
-
-            <p className='text-center text-sm text-gray-500 mt-6'>
-              You can switch between models anytime
-            </p>
-          </div>
-        </div>
-      )}
-
-      {showSwitchModal && (
-        <div className='fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50'>
-          <div className='bg-white rounded-2xl p-8 max-w-md w-full mx-4'>
-            <div className='flex items-center gap-3 mb-4'>
-              <div className='w-12 h-12 bg-indigo-100 rounded-full flex items-center justify-center'>
-                <ArrowLeftRight size={24} className='text-indigo-600' />
-              </div>
-              <h2 className='text-xl font-bold text-gray-900'>
-                Switch Billing Model?
-              </h2>
-            </div>
-
-            <p className='text-gray-600 mb-6'>
-              {switchTarget === "subscription" ? (
-                <>
-                  You&apos;re about to switch from{" "}
-                  <span className='font-semibold'>Usage-Based</span> to{" "}
-                  <span className='font-semibold'>Subscription</span> billing.
-                  You&apos;ll enjoy predictable monthly costs with set limits
-                  for resume screenings and assessments.
-                </>
-              ) : (
-                <>
-                  You&apos;re about to switch from{" "}
-                  <span className='font-semibold'>Subscription</span> to{" "}
-                  <span className='font-semibold'>Usage-Based</span> billing.
-                  You&apos;ll pay only for what you use with no monthly
-                  commitment.
-                </>
-              )}
-            </p>
-
-            {/* <div className='mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg'>
-              <p className='text-sm text-yellow-800'>
-                <span className='font-semibold'>Note:</span> Changes will take
-                effect immediately.
-                {switchTarget === "subscription"
-                  ? " Any remaining wallet balance will be preserved."
-                  : " Your current subscription will be cancelled at the end of the billing period."}
-              </p>
-            </div> */}
-
-            <div className='flex gap-3'>
-              <button
-                onClick={() => setShowSwitchModal(false)}
-                className='flex-1 px-4 py-3 border border-gray-200 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-colors'
-              >
-                Cancel
-              </button>
-              <button
-                onClick={confirmSwitchBillingModel}
-                className='flex-1 px-4 py-3 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 transition-colors'
-              >
-                Confirm Switch
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

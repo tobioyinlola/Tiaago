@@ -46,6 +46,7 @@ from .models import (
     FreePlan,
     UserUsage,
     WalletUserUsage,
+    CandidateBillingRecord,
 )
 from .serializers import (
     SubPlanSerializer,
@@ -896,18 +897,26 @@ def get_wallet_usage(request):
     wallet = Wallet.objects.filter(company=company).first()
     if wallet is None:
         return Response({'error': 'Wallet not found'}, status=status.HTTP_404_NOT_FOUND)
-    
-    # Try to get wallet usage object
-    usage = WalletUserUsage.objects.filter(wallet=wallet).first()
 
-    # Defaults if usage doesn't exist
-    resumes_used = usage.resumes_used if usage else 0
-    assessments_used = usage.assessments_used if usage else 0
-    
-    # total amount spent
-    total_spent = wallet.transactions.filter(transaction_type="debit").aggregate(
-        total=Sum("amount")
-    )["total"] or 0
+    # Computed straight from CandidateBillingRecord (the actual billing
+    # source of truth BillingService writes to) instead of WalletUserUsage --
+    # nothing ever incremented WalletUserUsage's counters, so this endpoint
+    # always reported 0 regardless of real usage. A candidate counts here
+    # whether they were covered by a free credit or a real wallet charge --
+    # this month's *volume*, not spend (total_amount_spent below is spend).
+    month_start = timezone.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    records_this_month = CandidateBillingRecord.objects.filter(organisation=company)
+    resumes_used = records_this_month.filter(
+        resume_screening_charged=True, resume_screening_charged_at__gte=month_start
+    ).count()
+    assessments_used = records_this_month.filter(
+        assessment_charged=True, assessment_charged_at__gte=month_start
+    ).count()
+
+    # total amount spent this month
+    total_spent = wallet.transactions.filter(
+        transaction_type="debit", created_at__gte=month_start
+    ).aggregate(total=Sum("amount"))["total"] or 0
 
     return Response({
         "user": user.email,

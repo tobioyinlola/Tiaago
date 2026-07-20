@@ -58,7 +58,6 @@ const SkillAssessmentPage = async () => {
       </article>
       <StartAssessmentButton
         href='/talents/skill-assessment/select'
-        isPremiumUser
         text='Get Started'
       />
       <PreviousAssessments

@@ -31,6 +31,7 @@ import StepIndicator from "./_components/StepIndicator";
 import RoleTitleField from "./_components/RoleTitleField";
 import CriteriaAvailabilityStep from "./_components/CriteriaAvailabilityStep";
 import AssessmentGenerationStep from "./_components/AssessmentGenerationStep";
+import { expandAvailabilityToSlots } from "./_components/availability";
 
 const totalSteps = wizardSteps.length;
 
@@ -221,7 +222,7 @@ const CreateJobForm = ({
             screening_threshold,
             passing_grade,
             assessment_time_limit,
-            interview_slots,
+            interview_availability,
             assessment_questions,
             hiring_type,
             snapshot_interval_seconds,
@@ -250,7 +251,7 @@ const CreateJobForm = ({
             snapshot_interval_seconds: Number(snapshot_interval_seconds),
             max_tab_switches_before_warning: Number(max_tab_switches_before_warning),
             max_tab_switches_before_termination: Number(max_tab_switches_before_termination),
-            interview_slots,
+            interview_slots: expandAvailabilityToSlots(interview_availability),
             assessment_questions,
           })
             .then(res => {
@@ -473,6 +474,7 @@ const CreateJobForm = ({
                             touched={touched[name]}
                             richtextProps={{
                               maxChars: 1000,
+                              minHeight: 180,
                             }}
                           />
                         );
