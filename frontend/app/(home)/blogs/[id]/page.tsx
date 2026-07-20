@@ -2,7 +2,7 @@ import { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Clock } from "lucide-react";
+import { ChevronRight, Clock } from "lucide-react";
 
 import { BASE_URL } from "@/app/common/constants";
 import Footer from "@/app/common/components/Layout/Footer";
@@ -12,6 +12,10 @@ import JsonLd from "../_components/JsonLd";
 import ShareBar from "../_components/ShareBar";
 import PostContent from "../_components/PostContent";
 import BlogPostCard from "../_components/BlogPostCard";
+import TableOfContents from "../_components/TableOfContents";
+import BlogCtaCard from "../_components/BlogCtaCard";
+import KeyTakeaways from "../_components/KeyTakeaways";
+import { extractHeadingsAndSlugify } from "../_components/headings";
 import { formatBlogDate, getInitials } from "../utils";
 
 // NOTE: this route segment is named `[id]` (not `[slug]`) because Next.js
@@ -65,6 +69,8 @@ const BlogPostPage = async ({ params }: Props) => {
     : null;
   const relatedPosts = (relatedRes?.results || []).filter(p => p.slug !== post.slug).slice(0, 3);
 
+  const { html: contentHtml, headings } = extractHeadingsAndSlugify(post.content);
+
   const postUrl = `${BASE_URL}/blogs/${post.slug}`;
   const jsonLd = {
     "@context": "https://schema.org",
@@ -104,21 +110,22 @@ const BlogPostPage = async ({ params }: Props) => {
           <div className='absolute inset-0 -z-10 bg-gradient-to-b from-[#5465FF]/[0.07] via-[#5465FF]/[0.02] to-transparent' />
 
           <div className='max-w-3xl mx-auto px-4'>
-            <Link
-              href='/blogs'
-              className='inline-flex items-center gap-2 text-sm text-gray-500 hover:text-[#5465FF] transition-colors duration-200 mb-8'
-            >
-              <ArrowLeft className='h-4 w-4' /> Back to blog
-            </Link>
-
-            {post.category && (
-              <Link
-                href={`/blogs?category=${post.category.slug}`}
-                className='inline-block bg-white text-[#5465FF] text-xs font-semibold px-3 py-1 rounded-full mb-5 border border-[#5465FF]/20 shadow-sm'
-              >
-                {post.category.name}
+            <nav aria-label='Breadcrumb' className='flex items-center gap-1.5 text-sm text-gray-500 mb-8'>
+              <Link href='/blogs' className='hover:text-[#5465FF] transition-colors duration-200'>
+                Blog
               </Link>
-            )}
+              {post.category && (
+                <>
+                  <ChevronRight className='h-3.5 w-3.5 text-gray-300' />
+                  <Link
+                    href={`/blogs?category=${post.category.slug}`}
+                    className='text-[#5465FF] font-medium hover:underline'
+                  >
+                    {post.category.name}
+                  </Link>
+                </>
+              )}
+            </nav>
 
             <h1 className='text-3xl md:text-5xl font-bold text-gray-900 mb-5 leading-tight tracking-tight'>
               {post.title}
@@ -167,6 +174,8 @@ const BlogPostPage = async ({ params }: Props) => {
           </div>
         </div>
 
+        <KeyTakeaways items={post.key_takeaways} />
+
         {post.featured_image && (
           <div className='max-w-5xl mx-auto px-4 mb-14'>
             <div className='relative w-full aspect-[16/9] md:aspect-[21/9] rounded-3xl overflow-hidden bg-gray-100 shadow-xl shadow-gray-900/5 ring-1 ring-gray-900/5'>
@@ -182,15 +191,17 @@ const BlogPostPage = async ({ params }: Props) => {
           </div>
         )}
 
-        <div className='max-w-3xl mx-auto px-4 lg:max-w-none lg:w-fit lg:mx-auto lg:grid lg:grid-cols-[64px_minmax(0,48rem)] lg:gap-10'>
+        <div className='max-w-3xl mx-auto px-4 lg:max-w-none lg:w-fit lg:mx-auto lg:grid lg:grid-cols-[280px_minmax(0,48rem)] lg:gap-10'>
           <aside className='hidden lg:block'>
-            <div className='sticky top-32'>
+            <div className='sticky top-32 flex flex-col gap-8'>
               <ShareBar url={postUrl} title={post.title} vertical />
+              <TableOfContents headings={headings} />
+              <BlogCtaCard />
             </div>
           </aside>
 
           <article>
-            <PostContent html={post.content} />
+            <PostContent html={contentHtml} />
           </article>
         </div>
 

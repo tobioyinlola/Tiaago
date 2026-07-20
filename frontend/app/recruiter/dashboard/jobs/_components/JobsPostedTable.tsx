@@ -6,7 +6,7 @@ import { useState } from "react";
 import Button from "@/app/common/components/DaisyButton";
 import { useRouter } from "next/navigation";
 import { LuExternalLink } from "react-icons/lu";
-import { HiOutlineUsers } from "react-icons/hi2";
+import { HiOutlineUsers, HiOutlineEye } from "react-icons/hi2";
 
 import {
   handleFormSubmissionError,
@@ -70,6 +70,7 @@ const JobsPostedTable = ({ jobs = [] }: { jobs: Job[] }) => {
             <th className='max-sm:hidden'>S/N</th>
             <th>Job Posted</th>
             <th>Applications</th>
+            <th className='max-sm:hidden'>Views</th>
             <th>Status</th>
             <th>Actions</th>
           </tr>
@@ -93,6 +94,12 @@ const JobsPostedTable = ({ jobs = [] }: { jobs: Job[] }) => {
                       Application{job.no_of_applications !== 1 ? "s" : ""}
                     </span>
                   </p>
+                </td>
+                <td className='max-sm:hidden'>
+                  <div className='flex items-center' title='Public page views'>
+                    <HiOutlineEye className='text-lg mr-1' />
+                    <p>{job.view_count}</p>
+                  </div>
                 </td>
                 <td>
                   <StatusBadge status={job.job_status.toLowerCase() as any} />

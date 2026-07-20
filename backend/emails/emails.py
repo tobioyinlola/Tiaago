@@ -573,6 +573,8 @@ def applicant_vetting_mail(
     status: Literal["consider", "strongly consider", "unconsider"],
     areas_for_improvement=None,
     assessment_link=None,
+    duration_minutes=None,
+    deadline=None,
 ):
     """Send vetting result email after resume screening.
 
@@ -586,6 +588,7 @@ def applicant_vetting_mail(
             raise ValueError("Assessment link is required for 'consider' or 'strongly consider' status")
         template, ctx = get_email_template_and_context(
             user, "talent_vetting_pass", job=job, assessment_link=assessment_link,
+            duration_minutes=duration_minutes, deadline=deadline,
         )
         etype = "talent_vetting_pass"
     elif status == "unconsider":

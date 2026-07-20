@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Metadata } from "next";
 import { notFound } from "next/navigation";
 
-import { getPublicJob } from "@/app/common/services/jobs";
+import { getPublicJob, trackJobView } from "@/app/common/services/jobs";
 import JobDetails from "@/app/common/components/dashboard/JobDetails";
 
 type Props = { params: Promise<{ job_id: string }> };
@@ -28,6 +28,12 @@ const JobDetailsPage = async ({ params }: { params: Promise<{ job_id: string }> 
   const resolvedParams = await params;
   const job = await getPublicJob(resolvedParams.job_id).catch(() => null);
   if (!job) return notFound();
+  // Awaited (though it can never throw) rather than left unawaited -- on
+  // serverless/edge runtimes a fire-and-forget promise can get cut off once
+  // the response is sent, which would silently drop the count. Only counted
+  // here, not on the apply/complete pages, so one candidate's full journey
+  // doesn't inflate the view count.
+  await trackJobView(resolvedParams.job_id);
   return (
     <main className='p-5 pt-20'>
       <div className='px-4 md:px-6 py-[18px] rounded-t-xl bg-[#EBECEE] md:mx-16'>

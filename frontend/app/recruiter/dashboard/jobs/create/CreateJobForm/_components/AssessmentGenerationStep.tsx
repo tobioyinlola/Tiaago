@@ -311,8 +311,12 @@ const AssessmentGenerationStep = ({
         {status === "idle" && hasQuestions && (
           <div className='flex flex-col gap-6'>
             {values.assessment_questions.map((section, sectionIndex) => (
-              <div key={section.category} className='rounded-lg border border-[#EAECF0] p-4'>
-                <div className='flex items-center gap-2 mb-4'>
+              <div
+                key={section.category}
+                className='collapse collapse-arrow rounded-lg border border-[#EAECF0]'
+              >
+                <input type='checkbox' defaultChecked />
+                <div className='collapse-title flex items-center gap-2 min-h-0 py-4 px-4'>
                   <span className='inline-flex items-center rounded-full bg-primary/10 text-primary text-xs font-semibold px-3 py-1'>
                     {section.category}
                   </span>
@@ -320,7 +324,7 @@ const AssessmentGenerationStep = ({
                     {section.questions.length} questions
                   </span>
                 </div>
-                <div className='flex flex-col gap-5'>
+                <div className='collapse-content flex flex-col gap-5 px-4'>
                   {section.questions.map((question, questionIndex) => (
                     <div
                       key={questionIndex}

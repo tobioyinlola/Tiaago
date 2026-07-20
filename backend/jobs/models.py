@@ -148,6 +148,9 @@ class Job(models.Model):
     approved = JobManager()
 
     no_of_applications = models.PositiveIntegerField(default=0, help_text="Number of applications for this job")
+    view_count = models.PositiveIntegerField(
+        default=0, help_text="Number of times the public job page (apply_token URL) has been viewed."
+    )
 
     apply_token = models.UUIDField(default=uuid4, editable=False, unique=True)
     external_apply_token_expires = models.DateTimeField(null=True, blank=True)

@@ -108,33 +108,35 @@ const CriteriaAvailabilityStep = ({
             slots.map((slot, index) => (
               <div
                 key={index}
-                className='flex flex-wrap items-center gap-3 px-4 py-3 border-b border-[#EAECF0] last:border-b-0'
+                className='flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3 px-4 py-3 border-b border-[#EAECF0] last:border-b-0'
               >
                 <input
                   type='date'
-                  className='input input-bordered h-11 w-[150px]'
+                  className='input input-bordered h-11 w-full sm:w-[150px]'
                   value={slot.date}
                   onChange={e => updateSlot(index, "date", e.target.value)}
                 />
-                <input
-                  type='time'
-                  className='input input-bordered h-11 w-[120px]'
-                  value={slot.start_time}
-                  onChange={e => updateSlot(index, "start_time", e.target.value)}
-                />
-                <span className='text-secondary-black'>-</span>
-                <input
-                  type='time'
-                  className='input input-bordered h-11 w-[120px]'
-                  value={slot.end_time}
-                  onChange={e => updateSlot(index, "end_time", e.target.value)}
-                />
+                <div className='flex items-center gap-3'>
+                  <input
+                    type='time'
+                    className='input input-bordered h-11 w-full sm:w-[120px]'
+                    value={slot.start_time}
+                    onChange={e => updateSlot(index, "start_time", e.target.value)}
+                  />
+                  <span className='text-secondary-black'>-</span>
+                  <input
+                    type='time'
+                    className='input input-bordered h-11 w-full sm:w-[120px]'
+                    value={slot.end_time}
+                    onChange={e => updateSlot(index, "end_time", e.target.value)}
+                  />
+                </div>
 
-                <div className='ml-auto flex items-center gap-2'>
+                <div className='sm:ml-auto flex items-center gap-2'>
                   <button
                     type='button'
                     onClick={() => duplicateSlot(index)}
-                    className='h-9 w-9 flex items-center justify-center rounded-lg border border-[#EAECF0] text-secondary-black hover:border-primary hover:text-primary transition-colors'
+                    className='h-11 w-11 flex items-center justify-center rounded-lg border border-[#EAECF0] text-secondary-black hover:border-primary hover:text-primary transition-colors'
                     aria-label='Duplicate slot'
                   >
                     <Copy className='h-4 w-4' />
@@ -142,7 +144,7 @@ const CriteriaAvailabilityStep = ({
                   <button
                     type='button'
                     onClick={() => removeSlot(index)}
-                    className='h-9 w-9 flex items-center justify-center rounded-lg border border-[#EAECF0] text-error hover:border-error hover:bg-error/10 transition-colors'
+                    className='h-11 w-11 flex items-center justify-center rounded-lg border border-[#EAECF0] text-error hover:border-error hover:bg-error/10 transition-colors'
                     aria-label='Remove slot'
                   >
                     <Trash2 className='h-4 w-4' />

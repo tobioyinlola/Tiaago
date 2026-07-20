@@ -86,6 +86,7 @@ class JobSerializer(serializers.ModelSerializer):
             "company",
             "job_status",
             "no_of_applications",
+            "view_count",
             "completed_assessments_count",
             "screening_threshold",
             "assessment_time_limit",
@@ -104,7 +105,7 @@ class JobSerializer(serializers.ModelSerializer):
             "devtools_detection_enabled",
             "force_submit_on_critical_violation",
         )
-        read_only_fields = ("id", "public_id", "apply_token", "company", "title", "no_of_applications","completed_assessments_count")
+        read_only_fields = ("id", "public_id", "apply_token", "company", "title", "no_of_applications", "view_count", "completed_assessments_count")
       
 
     def get_role_title(self, obj):

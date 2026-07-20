@@ -88,7 +88,7 @@ const TalentPortfolioPage = async () => {
           </div>
 
           <div className='mt-[47px]'>
-            <div className='flex items-start justify-between'>
+            <div className='flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4'>
               <div>
                 <h2 className='text-2xl font-bold mb-1 text-primary-black'>
                   {currentUser?.first_name} {currentUser?.last_name}
@@ -103,8 +103,8 @@ const TalentPortfolioPage = async () => {
                 />
               </div>
 
-              <div className='flex items-center'>
-                <button className='btn btn-ghost bg-white border-[#D0D5DD] border text-base text-[#344054] font-medium'>
+              <div className='flex items-center w-full sm:w-auto'>
+                <button className='btn btn-ghost bg-white border-[#D0D5DD] border text-base text-[#344054] font-medium flex-1 sm:flex-none'>
                   <HiOutlineChatBubbleOvalLeftEllipsis className='text-xl text-[#141B34]' />
                   Message
                 </button>

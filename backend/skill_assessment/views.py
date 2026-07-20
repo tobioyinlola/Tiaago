@@ -73,6 +73,7 @@ from .serializers import (
     QuestionBankSerializer,
     PreScreeningInterviewResultSerializer,
     SubmissionSerializer,
+    RecruiterSubmissionAnswersSerializer,
     AddMCQAssessmentSerializer,
     PreScreeningInterviewSessionSerializer,
     AddCodingAssessmentSerializer,
@@ -920,6 +921,41 @@ class CandidateSubmissionSnapshotListView(APIView):
 
         snapshots = submission.snapshots.order_by("created_at")
         data = AssessmentSubmissionSnapshotSerializer(snapshots, many=True, context={"request": request}).data
+        return Response(status=200, data=data)
+
+
+class RecruiterSubmissionAnswersView(APIView):
+    """GET /submissions/<submission_id>/answers/ -- full question/option text
+    plus the candidate's chosen answer per question, for the recruiter's
+    application detail view. Distinct from SkillAssessmentResultAPIView,
+    which is talent-scoped and only returns aggregate stats, not question
+    content."""
+
+    permission_classes = [IsCompanyRepOrStaffUser]
+
+    def get(self, request, submission_id):
+        submission = (
+            CandidateAssessmentSubmission.objects
+            .select_related("skill_assessment", "skill_assessment__job_application", "skill_assessment__job_application__job")
+            .filter(id=submission_id)
+            .first()
+        )
+        if not submission:
+            return Response(status=404, data={"error": "Submission not found"})
+
+        if not request.user.is_staff:
+            job = getattr(submission.skill_assessment.job_application, "job", None) if submission.skill_assessment else None
+            # This returns the answer key alongside each answer, so it's held
+            # to the same Admin/Recruiter-only bar as AIOperationsFeedback
+            # (the summary view that surfaces this submission_id in the
+            # first place) -- not just "any team member of the company",
+            # which would let a lower-trust Viewer role pull it directly.
+            if not job or not user_is_company_role(
+                request.user, job.company, [CompanyTeamMember.ROLE.ADMIN, CompanyTeamMember.ROLE.RECRUITER]
+            ):
+                return Response(status=403, data={"error": "You do not have access to this submission"})
+
+        data = RecruiterSubmissionAnswersSerializer(submission).data
         return Response(status=200, data=data)
 
 

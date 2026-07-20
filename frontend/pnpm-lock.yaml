@@ -11,6 +11,9 @@ importers:
       '@codemirror/lang-javascript':
         specifier: ^6.2.3
         version: 6.2.3
+      '@codemirror/view':
+        specifier: ^6.36.6
+        version: 6.36.6
       '@daily-co/daily-js':
         specifier: ^0.56.0
         version: 0.56.0

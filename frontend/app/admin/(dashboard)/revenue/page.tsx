@@ -99,13 +99,13 @@ const RevenuePage = async ({
               <div className='flex gap-1 text-xs'>
                 <Link
                   href={{ query: { ...resolvedSearchParams, days: 30 } }}
-                  className={cn("btn btn-xs", days === 30 ? "btn-primary text-white" : "btn-ghost")}
+                  className={cn("btn btn-sm", days === 30 ? "btn-primary text-white" : "btn-ghost")}
                 >
                   30d
                 </Link>
                 <Link
                   href={{ query: { ...resolvedSearchParams, days: 90 } }}
-                  className={cn("btn btn-xs", days === 90 ? "btn-primary text-white" : "btn-ghost")}
+                  className={cn("btn btn-sm", days === 90 ? "btn-primary text-white" : "btn-ghost")}
                 >
                   90d
                 </Link>

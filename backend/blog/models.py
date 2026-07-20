@@ -60,6 +60,11 @@ class BlogPost(TimeStampedModel):
         default="",
         help_text="e.g. CEO, Product Lead -- shown next to the author's name.",
     )
+    key_takeaways = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Bullet points shown in a 'Key Takeaways' callout near the top of the post.",
+    )
     is_featured = models.BooleanField(default=False, help_text="Shown in the spotlight slot on the public blog page.")
     is_pinned = models.BooleanField(default=False, help_text="Pinned to the top of admin and public listings.")
     status = models.CharField(max_length=10, choices=Status.choices, default=Status.DRAFT, db_index=True)

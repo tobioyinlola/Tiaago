@@ -49,7 +49,7 @@ const PricingField = ({
     <div className="flex flex-col sm:flex-row sm:items-end gap-3 py-4 border-b border-gray-100 last:border-b-0">
       <div className="flex-1">
         <label className="block text-sm font-medium text-gray-700 mb-1">{field.label}</label>
-        <div className="relative max-w-[220px]">
+        <div className="relative max-w-full sm:max-w-[220px]">
           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">
             {currencySymbol}
           </span>
@@ -62,12 +62,10 @@ const PricingField = ({
             disabled={!canManage}
             className="w-full pl-7 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-gray-50 disabled:text-gray-500"
           />
-          {field.suffix && (
-            <span className="ml-2 text-xs text-gray-500 absolute -bottom-5 left-0">{field.suffix}</span>
-          )}
         </div>
+        {field.suffix && <span className="block text-xs text-gray-500 mt-1">{field.suffix}</span>}
         {field.row && (
-          <p className="text-xs text-gray-400 mt-6">
+          <p className="text-xs text-gray-400 mt-1">
             Last updated {formatExact(field.row.updated_at)}
             {field.row.updated_by_admin ? ` by ${field.row.updated_by_admin}` : ""}
           </p>

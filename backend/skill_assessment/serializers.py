@@ -707,6 +707,71 @@ class SubmissionSerializer(serializers.ModelSerializer):
                 "percent": coding_percent,
             },
         }
+
+
+class RecruiterSubmissionAnswersSerializer(serializers.Serializer):
+    """Full question-and-answer breakdown for a candidate's completed
+    submission, for the recruiter-facing application detail view -- unlike
+    SubmissionSerializer's aggregate stats, this includes the actual
+    question/option text and the candidate's chosen answer per question."""
+
+    sections = serializers.SerializerMethodField()
+
+    def get_sections(self, submission):
+        section_submissions = (
+            submission.skill_assessment_section_submissions
+            .select_related("skill_assessment_section")
+            .order_by("skill_assessment_section_id")
+        )
+
+        sections = []
+        for ss in section_submissions:
+            section = ss.skill_assessment_section
+            if not section:
+                continue
+
+            entry = {"id": section.id, "name": section.name, "type": section.type}
+
+            if section.type == SkillAssessmentTypes.MCQ:
+                answers_by_question = {
+                    a.question_id: a.selected_answer_index
+                    for a in CandidateAssessmentMCQAnswer.objects.filter(
+                        section_submission=ss
+                    ).select_related("question")
+                }
+                questions = []
+                for q in section.mcq_questions_new.all():
+                    selected = answers_by_question.get(q.id)
+                    questions.append({
+                        "id": q.id,
+                        "question": q.question,
+                        "options": q.options,
+                        "correct_option_index": q.correct_option_index,
+                        "selected_option_index": selected,
+                        "is_correct": selected is not None and selected == q.correct_option_index,
+                    })
+                entry["questions"] = questions
+
+            elif section.type == SkillAssessmentTypes.CODING_TASK:
+                answers_by_task = {
+                    a.coding_task_id: a.user_answer
+                    for a in ss.coding_task_answers.all()
+                }
+                tasks = []
+                for task in section.coding_tasks.all():
+                    tasks.append({
+                        "id": task.id,
+                        "title": task.title,
+                        "description": task.description,
+                        "candidate_answer": answers_by_task.get(task.id, ""),
+                    })
+                entry["coding_tasks"] = tasks
+
+            sections.append(entry)
+
+        return sections
+
+
 # serializer for adding mcq questions for talent verification
 class AddMCQAssessmentSerializer(serializers.Serializer):
     file = serializers.FileField()

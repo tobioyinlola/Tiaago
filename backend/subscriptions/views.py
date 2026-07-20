@@ -1,4 +1,5 @@
 import requests
+from urllib.parse import urlparse
 from django.contrib.auth import get_user_model
 from django.conf import settings
 from django.utils import timezone
@@ -77,6 +78,35 @@ logger = logging.getLogger(__name__)
 
 def _wallet_url():
     return f"{str(settings.FRONTEND_URL).rstrip('/')}/recruiter/dashboard/billing"
+
+
+def _is_allowed_redirect_url(url: str) -> bool:
+    """Anti-open-redirect check for client-supplied Stripe success_url values.
+
+    A strict string-prefix match against FRONTEND_URL is fragile: the
+    frontend's own BASE_URL constant falls back to the apex domain
+    (https://tiaago.com) while FRONTEND_URL falls back to the www
+    subdomain (https://www.tiaago.com/), so a same-site redirect could get
+    rejected as "invalid" purely over a www/non-www or trailing-slash
+    difference. Compare parsed scheme+host (treating a leading "www." as
+    equivalent on both sides) instead of raw string prefixes -- still
+    rejects any other host, just not brittle same-site variations.
+    """
+    try:
+        target = urlparse(url)
+        allowed = urlparse(str(settings.FRONTEND_URL))
+    except ValueError:
+        return False
+
+    if target.scheme not in ("http", "https") or not target.netloc:
+        return False
+
+    target_host = target.hostname or ""
+    allowed_host = allowed.hostname or ""
+    return (
+        target.scheme == allowed.scheme
+        and target_host.removeprefix("www.") == allowed_host.removeprefix("www.")
+    )
 
 class SubPlanListAPIView(generics.ListCreateAPIView):
     queryset = SubPlan.objects.all()
@@ -556,7 +586,14 @@ def create_stripe_checkout_session(request):
     
     if not price_id or not success_url:
         return Response({'error': 'price_id and success_url are required.'}, status=status.HTTP_400_BAD_REQUEST)
-    
+
+    if not _is_allowed_redirect_url(success_url):
+        logger.warning(
+            "Rejected success_url %r for subscription checkout -- does not match FRONTEND_URL %r",
+            success_url, settings.FRONTEND_URL,
+        )
+        return Response({'error': 'Invalid success_url.'}, status=status.HTTP_400_BAD_REQUEST)
+
     # create checkout session
     try:
         session = create_checkout_session(
@@ -608,8 +645,11 @@ class FundWalletView(APIView):
         # origin, this is an open redirect (attacker gets a legitimate
         # Stripe checkout page for the victim, then redirects them to a
         # phishing page after a real payment succeeds).
-        allowed_origin = str(settings.FRONTEND_URL).rstrip('/')
-        if not success_url.startswith(allowed_origin + '/') and success_url != allowed_origin:
+        if not _is_allowed_redirect_url(success_url):
+            logger.warning(
+                "Rejected success_url %r for wallet funding -- does not match FRONTEND_URL %r",
+                success_url, settings.FRONTEND_URL,
+            )
             return Response({'error': 'Invalid success_url.'}, status=status.HTTP_400_BAD_REQUEST)
 
         company = get_user_company(request.user)

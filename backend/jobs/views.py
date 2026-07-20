@@ -35,7 +35,7 @@ from rest_framework.status import (
     HTTP_402_PAYMENT_REQUIRED,
     HTTP_500_INTERNAL_SERVER_ERROR,
 )
-from django.db.models import Count, Q
+from django.db.models import Count, Q, F
 from rest_framework.pagination import PageNumberPagination
 from base.utils import extract_query_from_request
 from create_user.models import CustomUser, OneTimePassword, Company, CompanyTeamMember
@@ -1031,6 +1031,23 @@ class JobByTokenAPIView(RetrieveAPIView):
             return Response(serializer.data)
         except Job.DoesNotExist:
             return Response({'error': 'Job not found'}, status=HTTP_404_NOT_FOUND)
+
+
+class JobTrackViewAPIView(APIView):
+    """Records a view of the public job page (the apply_token URL a
+    recruiter shares externally) -- called once from that page only, not
+    from the apply/application-complete pages, so a candidate's full
+    application journey doesn't inflate the count multiple times.
+
+    Mirrors campaigns/tracking_views.py's TrackOpenView: public, atomic
+    F()-based update (no race on concurrent views), and never surfaces an
+    error -- a missing/invalid token just silently no-ops.
+    """
+    permission_classes = [AllowAny]
+
+    def post(self, request, apply_token):
+        Job.objects.filter(apply_token=apply_token).update(view_count=F("view_count") + 1)
+        return Response(status=204)
 
 
 class JobApplyByIdView(APIView):

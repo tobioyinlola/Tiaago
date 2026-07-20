@@ -273,7 +273,7 @@ const AssessmentMCQQuiz = ({
       onKeyDown={handleKeyDown}
       onContextMenu={handleContextMenu}
     >
-      <div className='flex items-center px-5 gap-8'>
+      <div className='flex items-center px-3 sm:px-5 gap-3 sm:gap-8'>
         <button onClick={exit}>
           <LuX className='text-sm text-primary-black' />
         </button>
@@ -299,7 +299,7 @@ const AssessmentMCQQuiz = ({
         </div>
         <div
           className={cn(
-            "bg-[#C0DFF4] rounded-lg px-4 py-2 flex items-center justify-center gap-2 text-xl font-medium text-[#292D32]",
+            "bg-[#C0DFF4] rounded-lg px-2.5 sm:px-4 py-2 flex items-center justify-center gap-2 text-base sm:text-xl font-medium text-[#292D32]",
             timeAlmostUp && "bg-[#FFE9B0]"
           )}
         >

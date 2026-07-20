@@ -420,6 +420,7 @@ export type Job = {
   was_approved: boolean;
   hiring_type: "Manually" | "With AI";
   no_of_applications: number;
+  view_count: number;
   requires_assessment?: boolean;
   assessment_id?: ID;
   get_apply_url?: string;
@@ -510,6 +511,7 @@ export type BlogPostSummary = {
 
 export type BlogPost = BlogPostSummary & {
   content: string;
+  key_takeaways: string[];
 };
 
 export type BlogPostManage = {
@@ -518,6 +520,7 @@ export type BlogPostManage = {
   slug: string;
   excerpt: string;
   content: string;
+  key_takeaways: string[];
   featured_image: string | null;
   category: ID | null;
   category_detail: BlogCategory | null;
@@ -544,6 +547,7 @@ export type BlogPostWritePayload = {
   category: ID | null;
   excerpt: string;
   content: string;
+  key_takeaways: string[];
   status: "DRAFT" | "PUBLISHED";
   author: ID | null;
   custom_author_name: string;

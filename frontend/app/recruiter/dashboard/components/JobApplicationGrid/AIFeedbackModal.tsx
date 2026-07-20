@@ -31,6 +31,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/app/common/components/ui/tabs";
 import { IntegrityScoreBadge } from "@/app/common/components/dashboard/ProctoringBadges";
 import ProctoringReportTab from "./ProctoringReportTab";
+import AssessmentQuestionsTab from "./AssessmentQuestionsTab";
 
 interface AIFeedbackModalProps {
   isOpen: boolean;
@@ -162,18 +163,18 @@ const AIFeedbackModal: React.FC<AIFeedbackModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className='fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center z-50 p-4'>
-      <div className='bg-white rounded-2xl shadow-2xl max-w-6xl w-full max-h-[90vh] overflow-hidden'>
+    <div className='fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center z-50 p-0 sm:p-4'>
+      <div className='bg-white sm:rounded-2xl shadow-2xl max-w-6xl w-full h-full sm:h-auto sm:max-h-[90vh] overflow-hidden'>
         {/* Header */}
-        <div className='bg-primary text-white p-6'>
-          <div className='flex items-center justify-between'>
-            <div className='flex items-center space-x-4'>
-              <div className='w-12 h-12 bg-white bg-opacity-20 rounded-full flex items-center justify-center'>
-                <Brain className='w-6 h-6' />
+        <div className='bg-primary text-white p-4 sm:p-6'>
+          <div className='flex items-center justify-between gap-2'>
+            <div className='flex items-center space-x-3 sm:space-x-4 min-w-0'>
+              <div className='w-10 h-10 sm:w-12 sm:h-12 bg-white bg-opacity-20 rounded-full flex items-center justify-center flex-shrink-0'>
+                <Brain className='w-5 h-5 sm:w-6 sm:h-6' />
               </div>
-              <div>
-                <h2 className='text-2xl font-bold'>AI Feedback Report</h2>
-                <p className='text-blue-100'>
+              <div className='min-w-0'>
+                <h2 className='text-lg sm:text-2xl font-bold truncate'>AI Feedback Report</h2>
+                <p className='text-blue-100 text-xs sm:text-base truncate'>
                   Comprehensive candidate analysis
                 </p>
               </div>
@@ -188,9 +189,10 @@ const AIFeedbackModal: React.FC<AIFeedbackModalProps> = ({
         </div>
 
         {/* Content */}
-        <Tabs defaultValue='feedback' className='overflow-y-auto max-h-[calc(90vh-120px)]'>
-          <TabsList className='mx-6 mt-4'>
+        <Tabs defaultValue='feedback' className='overflow-y-auto max-h-[calc(100svh-88px)] sm:max-h-[calc(90vh-120px)]'>
+          <TabsList className='mx-4 sm:mx-6 mt-4'>
             <TabsTrigger value='feedback'>Feedback</TabsTrigger>
+            <TabsTrigger value='questions'>Questions</TabsTrigger>
             <TabsTrigger value='proctoring' className='gap-2'>
               Proctoring
               {aiFeedback.submission_id != null && (
@@ -652,7 +654,7 @@ const AIFeedbackModal: React.FC<AIFeedbackModalProps> = ({
                     Assessment Details
                   </h4>
 
-                  <div className='grid grid-cols-2 gap-4'>
+                  <div className='grid grid-cols-1 sm:grid-cols-2 gap-4'>
                     <div className='bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-white/50'>
                       <div className='flex items-center mb-3'>
                         <div className='w-10 h-10 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-xl flex items-center justify-center mr-3'>
@@ -745,6 +747,16 @@ const AIFeedbackModal: React.FC<AIFeedbackModalProps> = ({
               </div>
             </div>
           </div>
+          </TabsContent>
+
+          <TabsContent value='questions' className='mt-0'>
+            {aiFeedback.submission_id != null ? (
+              <AssessmentQuestionsTab submissionId={aiFeedback.submission_id} />
+            ) : (
+              <p className='text-sm text-secondary-black text-center py-16'>
+                No assessment attempt found for this applicant yet.
+              </p>
+            )}
           </TabsContent>
 
           <TabsContent value='proctoring' className='mt-0'>

@@ -1009,10 +1009,10 @@ const UserBilling = ({
                     <th className='px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider'>
                       Amount
                     </th>
-                    <th className='px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider'>
+                    <th className='px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider max-sm:hidden'>
                       Balance After
                     </th>
-                    <th className='px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider'>
+                    <th className='px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider max-sm:hidden'>
                       Status
                     </th>
                   </tr>
@@ -1090,7 +1090,7 @@ const UserBilling = ({
                               currencyCode: transaction.currency,
                             })}
                           </td>
-                          <td className='px-6 py-4 whitespace-nowrap text-sm text-right text-gray-600'>
+                          <td className='px-6 py-4 whitespace-nowrap text-sm text-right text-gray-600 max-sm:hidden'>
                             {transaction.balance_after != null
                               ? formatPrice({
                                   price: +transaction.balance_after,
@@ -1098,7 +1098,7 @@ const UserBilling = ({
                                 })
                               : "-"}
                           </td>
-                          <td className='px-6 py-4 whitespace-nowrap text-center'>
+                          <td className='px-6 py-4 whitespace-nowrap text-center max-sm:hidden'>
                             <span
                               className={cn(
                                 "inline-flex px-2 py-1 text-xs font-medium rounded-full",
@@ -1183,7 +1183,7 @@ const UserBilling = ({
                   <label className='block text-sm font-medium text-gray-700 mb-3'>
                     Select Amount
                   </label>
-                  <div className='grid grid-cols-3 gap-3'>
+                  <div className='grid grid-cols-2 sm:grid-cols-3 gap-3'>
                     {(fundCurrency === "NGN"
                       ? NGN_FUNDING_AMOUNTS
                       : fundCurrency === "EUR"
@@ -1419,7 +1419,7 @@ const UserBilling = ({
                 )}
               </div>
 
-              <div className='grid grid-cols-2 gap-4 mt-6'>
+              <div className='grid grid-cols-1 sm:grid-cols-2 gap-4 mt-6'>
                 <div className='bg-white rounded-lg p-4'>
                   <div className='text-sm text-gray-600 mb-1'>
                     Resume Screenings
@@ -1532,7 +1532,7 @@ const UserBilling = ({
             </div>
           </div>
 
-          <div className='grid grid-cols-3 gap-6 mb-6'>
+          <div className='grid grid-cols-1 sm:grid-cols-3 gap-6 mb-6'>
             {Object.entries(PLANS).map(([key, plan]) => {
               const isFree = key === "free";
               const isPro = key === "pro";
