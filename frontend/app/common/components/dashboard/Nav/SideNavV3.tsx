@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { BiSolidChat } from "react-icons/bi";
 import { RxDashboard } from "react-icons/rx";
 import { MdKeyboardDoubleArrowRight } from "react-icons/md";
 
@@ -10,7 +9,6 @@ import NavLink from "../../NavLink";
 import { cn, getRoleUrlSegment } from "@/app/common/utils";
 import ScrollArea from "../../ScrollArea";
 import { BasePageProps } from "@/app/common/types";
-import { SUPPORT_EMAIL } from "@/app/common/constants";
 import { talentNavItems } from "@/app/talents/(dashboard)/constants/nav";
 import { recruiterNavItems } from "@/app/recruiter/dashboard/constants/nav";
 import { navItems as adminNavItems } from "@/app/admin/(dashboard)/constants/nav";
@@ -222,25 +220,6 @@ const SideNavV3 = ({
       <div className='mx-1.5 mt-3 mb-auto border-t border-sidebar-border' />
 
       <div className='px-1.5 py-4'>
-        <Link
-          href={`mailto:${SUPPORT_EMAIL}`}
-          target='_blank'
-          className='flex items-center gap-3 text-sidebar-foreground hover:bg-sidebar-accent rounded-md px-2.5 py-2 transition-colors'
-          title={!isExpanded ? "Support Center" : undefined}
-        >
-          <div className='w-6 h-6 flex items-center justify-center rounded-full bg-primary shrink-0'>
-            <BiSolidChat className='text-base text-white' />
-          </div>
-          <h2
-            className={cn(
-              "text-sm font-medium whitespace-nowrap",
-              !isExpanded && "lg:hidden"
-            )}
-          >
-            Support Center
-          </h2>
-        </Link>
-
         <Logout
           className='px-2.5'
           as={as}

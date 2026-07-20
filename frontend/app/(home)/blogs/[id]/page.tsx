@@ -223,7 +223,7 @@ const BlogPostPage = async ({ params }: Props) => {
           </section>
         )}
       </main>
-      <Footer />
+      <Footer noBorder />
     </>
   );
 };
