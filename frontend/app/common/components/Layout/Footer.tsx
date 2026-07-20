@@ -31,9 +31,9 @@ const footerLists = [
   },
 ];
 
-const Footer = () => {
+const Footer = ({ noBorder = false }: { noBorder?: boolean }) => {
   return (
-    <footer className='pt-12 sm:pt-16 pb-8 sm:pb-12 border-t border-[#0A0A0A1A]'>
+    <footer className={`pt-12 sm:pt-16 pb-8 sm:pb-12 ${noBorder ? "" : "border-t border-[#0A0A0A1A]"}`}>
       <div className='md:container mx-auto px-4 sm:px-6 lg:px-8'>
         <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6 sm:gap-8'>
           {/* Company Info */}

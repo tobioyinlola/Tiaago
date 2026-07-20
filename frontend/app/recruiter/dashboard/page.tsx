@@ -19,6 +19,7 @@ import DisplayErrorMessages, {
 import { Job } from "@/app/common/types";
 import SortIcon from "@/app/common/icons/SortIcon";
 import { getJobs } from "@/app/common/services/jobs";
+import { getPipeline } from "@/app/common/services/sourcing";
 import ScrollArea from "@/app/common/components/ScrollArea";
 import { getCurrentUser } from "@/app/common/services/profile";
 import { getTeamRole } from "@/app/common/services/team";
@@ -33,8 +34,8 @@ export const metadata = {
 const RecruiterDashboard = async () => {
   const errors: DisplayErrorMessagesProps["errors"] = [];
 
-  // Fetch user, jobs, and role in parallel -- they are independent
-  const [userRes, jobsRes, teamRoleData] = await Promise.all([
+  // Fetch user, jobs, pipeline, and role in parallel -- they are independent
+  const [userRes, jobsRes, teamRoleData, pipeline] = await Promise.all([
     getCurrentUser("recruiter"),
     getJobs(1, 5).catch(async e => {
       const error = await handleServerApiCallError(e);
@@ -46,11 +47,15 @@ const RecruiterDashboard = async () => {
       return null;
     }),
     getTeamRole().catch(() => null),
+    getPipeline().catch(() => null),
   ]);
   const currentUser = userRes.currentUser;
   const teamRole = teamRoleData?.role ?? "admin";
   const canTakeActions = teamRole !== "viewer";
-  const jobsPosted = jobsRes?.results || [];
+  // Unfinished drafts aren't real postings yet -- keep them out of the
+  // dashboard's recent-jobs preview, same as the full Jobs Posted list.
+  const jobsPosted = (jobsRes?.results || []).filter(job => job.job_status !== "DRAFT");
+  const pipelineCount = pipeline?.total_in_pipeline ?? 0;
 
   const activeJobsThisMonth = jobsPosted.filter(job => {
     const jobDate = new Date(job.date_created);
@@ -198,7 +203,12 @@ const RecruiterDashboard = async () => {
                   <h3 className='font-semibold text-foreground'>
                     Talent Pipeline
                   </h3>
-                  <div className='badge badge-success'>{0} candidates</div>
+                  <Link
+                    href='/recruiter/dashboard/pipeline'
+                    className='badge badge-success hover:opacity-80 transition-opacity'
+                  >
+                    {pipelineCount} candidate{pipelineCount !== 1 ? "s" : ""}
+                  </Link>
                 </div>
                 <p className='mt-1 text-sm text-muted-foreground'>
                   Manage your sourced candidates and track their progress.
