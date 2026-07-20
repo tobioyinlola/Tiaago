@@ -43,7 +43,7 @@ const PricingPage = async () => {
   const byKey = Object.fromEntries(pricing.map(row => [row.key, row]));
 
   return (
-    <div className="p-6 max-w-3xl">
+    <div className="p-4 sm:p-6 max-w-3xl">
       <DisplayErrorMessages errors={errors} />
 
       <h1 className="text-2xl font-bold text-gray-900 mb-2">Pricing</h1>

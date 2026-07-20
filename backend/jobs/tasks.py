@@ -549,12 +549,23 @@ def send_assessment_link(job_application_id, trials=0):
         company_skill_assessment.save(update_fields=["invite_sent_at", "invite_deadline"])
 
         logger.info(f"Attempting to send applicant vetting mail to {talent_profile.user.email}")
-        emails.applicant_vetting_mail(
-            talent_profile.user, job, "consider",
-            assessment_link=assessment_link,
-            duration_minutes=company_skill_assessment.duration_minutes,
-            deadline=company_skill_assessment.invite_deadline,
-        )
+        try:
+            emails.applicant_vetting_mail(
+                talent_profile.user, job, "consider",
+                assessment_link=assessment_link,
+                duration_minutes=company_skill_assessment.duration_minutes,
+                deadline=company_skill_assessment.invite_deadline,
+            )
+        except Exception as e:
+            # Billing and the assessment row above are already committed --
+            # retrying via try_again() (which re-runs this task from the top)
+            # would re-charge the company and create a duplicate assessment,
+            # so a failure here is logged and surfaced instead of retried.
+            logger.exception("Failed to send applicant vetting mail: %s", e)
+            flow_status.status = ReportPAYGFlowStatus.Status.FAILED
+            flow_status.error_message = f"Failed to send assessment invite email: {e}"
+            flow_status.save()
+            return f"Failed to send assessment invite email: {e}"
         logger.info("Applicant vetting mail function executed")
         add_skill_assessment_to_talent_screening(
             skill_assessment=company_skill_assessment, mcq=bool(mcq_sections), coding_task=bool(coding_questions)

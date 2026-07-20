@@ -9,6 +9,7 @@ import CategoryFilter from "./_components/CategoryFilter";
 import FeaturedPost from "./_components/FeaturedPost";
 import BlogPostCard from "./_components/BlogPostCard";
 import BlogPagination from "./_components/Pagination";
+import BlogSearchBar from "./_components/BlogSearchBar";
 
 const PAGE_SIZE = 9;
 
@@ -36,15 +37,15 @@ export const metadata: Metadata = {
 };
 
 type Props = {
-  searchParams: Promise<{ page?: string; category?: string }>;
+  searchParams: Promise<{ page?: string; category?: string; search?: string }>;
 };
 
 const BlogsPage = async ({ searchParams }: Props) => {
-  const { page: pageParam, category } = await searchParams;
+  const { page: pageParam, category, search } = await searchParams;
   const page = Number(pageParam) || 1;
 
   const [postsRes, categories] = await Promise.all([
-    getBlogPosts(page, category).catch(() => null),
+    getBlogPosts(page, category, search).catch(() => null),
     getBlogCategories(),
   ]);
 
@@ -52,7 +53,8 @@ const BlogsPage = async ({ searchParams }: Props) => {
   const totalCount = postsRes?.count || 0;
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 
-  const featuredPost = page === 1 && !category ? posts.find(p => p.is_featured) || posts[0] : undefined;
+  const featuredPost =
+    page === 1 && !category && !search ? posts.find(p => p.is_featured) || posts[0] : undefined;
   const gridPosts = featuredPost ? posts.filter(p => p.id !== featuredPost.id) : posts;
 
   const jsonLd = {
@@ -94,34 +96,49 @@ const BlogsPage = async ({ searchParams }: Props) => {
             Practical advice on recruiting, AI-assisted hiring, and building
             world-class remote teams -- straight from the team at Tiaago.
           </p>
-        </section>
-
-        <section className='max-w-6xl mx-auto px-4 mb-12'>
           <Suspense fallback={null}>
-            <CategoryFilter categories={categories} />
+            <BlogSearchBar />
           </Suspense>
         </section>
 
         {!posts.length ? (
           <section className='max-w-2xl mx-auto text-center px-4 py-20'>
             <h2 className='text-2xl font-bold text-gray-900 mb-2'>
-              No posts yet
+              {search ? "No matching posts" : "No posts yet"}
             </h2>
             <p className='text-gray-600'>
-              We&apos;re working on our first stories. Check back soon.
+              {search
+                ? "Try a different search term."
+                : "We're working on our first stories. Check back soon."}
             </p>
           </section>
         ) : (
           <div className='max-w-6xl mx-auto px-4 flex flex-col gap-12'>
-            {featuredPost && <FeaturedPost post={featuredPost} />}
-
-            {!!gridPosts.length && (
-              <div className='grid gap-6 sm:grid-cols-2 lg:grid-cols-3'>
-                {gridPosts.map(post => (
-                  <BlogPostCard key={post.id} post={post} />
-                ))}
-              </div>
+            {featuredPost && (
+              <section>
+                <span className='block text-[11px] font-jetbrains-mono uppercase tracking-widest text-[#5465FF] font-semibold mb-4'>
+                  Featured Article
+                </span>
+                <FeaturedPost post={featuredPost} />
+              </section>
             )}
+
+            <section>
+              <span className='block text-[11px] font-jetbrains-mono uppercase tracking-widest text-[#5465FF] font-semibold mb-4'>
+                All Articles
+              </span>
+              <Suspense fallback={null}>
+                <CategoryFilter categories={categories} />
+              </Suspense>
+
+              {!!gridPosts.length && (
+                <div className='grid gap-6 sm:grid-cols-2 lg:grid-cols-3 mt-8'>
+                  {gridPosts.map(post => (
+                    <BlogPostCard key={post.id} post={post} />
+                  ))}
+                </div>
+              )}
+            </section>
 
             <BlogPagination current={page} totalPages={totalPages} category={category} />
           </div>

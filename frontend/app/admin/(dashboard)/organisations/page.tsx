@@ -80,7 +80,7 @@ const OrganisationsPage = async ({
     {
       key: "tags",
       header: "Tags",
-      className: "text-left",
+      className: "text-left max-md:hidden",
       render: row => (
         <div className='flex flex-wrap gap-1 max-w-xs'>
           {row.tags.slice(0, 4).map(tag => (
@@ -100,7 +100,7 @@ const OrganisationsPage = async ({
         </div>
       ),
     },
-    { key: "date_joined", header: "Date joined", render: row => formatExact(row.date_joined) },
+    { key: "date_joined", header: "Date joined", className: "max-md:hidden", render: row => formatExact(row.date_joined) },
     { key: "status", header: "Status", render: row => <OrgStatusBadge status={row.status} /> },
     {
       key: "wallet_balance_ngn",
@@ -111,19 +111,31 @@ const OrganisationsPage = async ({
         </span>
       ),
     },
-    { key: "total_resumes_screened", header: "Resumes screened", render: row => row.total_resumes_screened },
-    { key: "total_assessments_taken", header: "Assessments taken", render: row => row.total_assessments_taken },
-    { key: "active_jobs_count", header: "Active jobs", render: row => row.active_jobs_count },
-    { key: "team_members_count", header: "Team members", render: row => row.team_members_count },
+    {
+      key: "total_resumes_screened",
+      header: "Resumes screened",
+      className: "max-md:hidden",
+      render: row => row.total_resumes_screened,
+    },
+    {
+      key: "total_assessments_taken",
+      header: "Assessments taken",
+      className: "max-md:hidden",
+      render: row => row.total_assessments_taken,
+    },
+    { key: "active_jobs_count", header: "Active jobs", className: "max-md:hidden", render: row => row.active_jobs_count },
+    { key: "team_members_count", header: "Team members", className: "max-md:hidden", render: row => row.team_members_count },
     {
       key: "last_active",
       header: "Last active",
+      className: "max-md:hidden",
       render: row => (row.last_active ? formatRelative(row.last_active) : <span className='text-muted-foreground'>—</span>),
     },
     { key: "total_spend_ngn", header: "Total spend", render: row => `₦${row.total_spend_ngn.toLocaleString()}` },
     {
       key: "monthly_avg_spend_ngn",
       header: "Monthly avg spend",
+      className: "max-md:hidden",
       render: row => `₦${row.monthly_avg_spend_ngn.toLocaleString()}`,
     },
   ];

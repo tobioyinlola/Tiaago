@@ -38,6 +38,7 @@ from .views import (
     AssessmentInviteSnapshotUploadView,
     AssessmentInviteFeedbackView,
     CandidateSubmissionSnapshotListView,
+    RecruiterSubmissionAnswersView,
 )
 
 urlpatterns = [
@@ -197,5 +198,10 @@ urlpatterns = [
         "submissions/<int:submission_id>/snapshots/",
         CandidateSubmissionSnapshotListView.as_view(),
         name="submission-snapshots",
+    ),
+    path(
+        "submissions/<int:submission_id>/answers/",
+        RecruiterSubmissionAnswersView.as_view(),
+        name="submission-answers",
     ),
 ]

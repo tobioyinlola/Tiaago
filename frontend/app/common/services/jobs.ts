@@ -84,6 +84,18 @@ export const getPublicJob = async (applyToken: string): Promise<Job | undefined>
   }
 };
 
+/** Fire-and-forget view counter for the public job page -- call once from
+ * that page only (not the apply/application-complete pages, which would
+ * otherwise inflate the count across a single candidate's journey). Never
+ * throws: a tracking failure must never break the page it's called from. */
+export const trackJobView = async (applyToken: string): Promise<void> => {
+  try {
+    await serverKyInstance.post(`jobs/apply/${applyToken}/track-view/`);
+  } catch (error) {
+    console.log("trackJobView Error: ", error);
+  }
+};
+
 /** Basic public/approved-only job data (title, company) keyed on public_id --
  * for pages (like a talent's own interview-slots page) that only have a
  * job's public_id and aren't its owning recruiter, so getJob()'s owner-only

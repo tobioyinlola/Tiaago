@@ -171,12 +171,12 @@ export const JobApplicationsTable = ({
           <thead>
             <tr>
               <th>Talents</th>
-              <th>Role</th>
-              <th>Resume Analysis Score</th>
+              <th className='max-sm:hidden'>Role</th>
+              <th className='max-sm:hidden'>Resume Analysis Score</th>
               <th>Assessment Score</th>
               {/* <th>Pre-screening Score</th> */}
               <th>Overall Score</th>
-              <th>Proctoring</th>
+              <th className='max-sm:hidden'>Proctoring</th>
               <th />
               {/* <th>Stage</th> */}
             </tr>
@@ -203,8 +203,8 @@ export const JobApplicationsTable = ({
                   <td className='max-sm:hidden text-[#2E2E2E] capitalize'>
                     {feedback.role}
                   </td>
-                  <td>
-                    <div className='relative h-4 w-56'>
+                  <td className='max-sm:hidden'>
+                    <div className='relative h-4 w-32 sm:w-56'>
                       <progress
                         className='progress [&::-moz-progress-bar]:bg-[#4AB4FF] [&::-webkit-progress-value]:bg-[#4AB4FF] h-4 bg-transparent z-[2] rounded-[4px] [&::-webkit-progress-value]:rounded-[4px] [&::-moz-progress-bar]:rounded-[4px]'
                         value={(feedback.resume_analysis_score / 100) * 100}
@@ -232,7 +232,7 @@ export const JobApplicationsTable = ({
                     </div>
                   </td>
                   <td>
-                    <div className='relative h-4 w-56'>
+                    <div className='relative h-4 w-32 sm:w-56'>
                       <progress
                         className='progress [&::-moz-progress-bar]:bg-primary [&::-webkit-progress-value]:bg-primary h-4 bg-transparent z-[2] rounded-[4px] [&::-webkit-progress-value]:rounded-[4px] [&::-moz-progress-bar]:rounded-[4px]'
                         value={(feedback.assessment_score / 100) * 100}
@@ -301,7 +301,7 @@ export const JobApplicationsTable = ({
                       </p>
                     </div>
                   </td>
-                  <td>
+                  <td className='max-sm:hidden'>
                     <div className='flex items-center justify-center gap-1.5'>
                       <IntegrityScoreBadge
                         score={feedback.proctoring_integrity_score}

@@ -18,30 +18,33 @@ const DashboardBarChart = ({
   horizontal = false,
 }: DashboardBarChartProps) => {
   return (
-    <Bar
-      data={{
-        labels,
-        datasets: [
-          {
-            label,
-            data,
-            backgroundColor: fill,
-            borderRadius: 4,
+    <div className='relative w-full h-64 sm:h-72'>
+      <Bar
+        data={{
+          labels,
+          datasets: [
+            {
+              label,
+              data,
+              backgroundColor: fill,
+              borderRadius: 4,
+            },
+          ],
+        }}
+        options={{
+          indexAxis: horizontal ? "y" : "x",
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: !!label },
           },
-        ],
-      }}
-      options={{
-        indexAxis: horizontal ? "y" : "x",
-        responsive: true,
-        plugins: {
-          legend: { display: !!label },
-        },
-        scales: {
-          x: { grid: { display: false } },
-          y: { grid: { display: false } },
-        },
-      }}
-    />
+          scales: {
+            x: { grid: { display: false } },
+            y: { grid: { display: false } },
+          },
+        }}
+      />
+    </div>
   );
 };
 

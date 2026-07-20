@@ -65,7 +65,7 @@ class BlogPostListSerializer(serializers.ModelSerializer):
 
 class BlogPostDetailSerializer(BlogPostListSerializer):
     class Meta(BlogPostListSerializer.Meta):
-        fields = BlogPostListSerializer.Meta.fields + ("content",)
+        fields = BlogPostListSerializer.Meta.fields + ("content", "key_takeaways")
 
 
 class BlogStaffAuthorSerializer(serializers.Serializer):
@@ -112,6 +112,7 @@ class BlogPostManageSerializer(serializers.ModelSerializer):
             "slug",
             "excerpt",
             "content",
+            "key_takeaways",
             "featured_image",
             "featured_image_path",
             "category",

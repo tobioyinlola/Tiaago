@@ -15,6 +15,7 @@ from .views import (
     JobDetailView,
     JobDetailByPublicIdView,
     JobByTokenAPIView,
+    JobTrackViewAPIView,
     JobApplyByIdView,
     JobApplyByTokenView,
     ExternalJobApplyRedirectView,
@@ -77,6 +78,7 @@ urlpatterns = [
     path("portfolio/educations/<int:pk>/", PortfolioEducationDetailView.as_view(), name="portfolio-education-detail"),
 
     path("apply/<uuid:apply_token>/", JobByTokenAPIView.as_view(), name="job-by-token"),
+    path("apply/<uuid:apply_token>/track-view/", JobTrackViewAPIView.as_view(), name="job-track-view"),
     path('apply/<uuid:apply_token>/guest/', JobApplyByIdView.as_view(), name='job-apply-by-id'),
     path('apply/<uuid:apply_token>/apply/', JobApplyByTokenView.as_view(), name='job-apply-by-token'),
     path('external-apply/<uuid:apply_token>/', ExternalJobApplyRedirectView.as_view(), name='external-job-apply-redirect'),

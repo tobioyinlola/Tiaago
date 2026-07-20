@@ -7,7 +7,7 @@ import { Formik, FormikProps } from "formik";
 import * as Yup from "yup";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { ImageIcon, PanelRightClose, PanelRightOpen } from "lucide-react";
+import { ImageIcon, PanelRightClose, PanelRightOpen, Plus, Trash2 } from "lucide-react";
 
 import { cn } from "@/app/common/utils";
 import { BlogCategory, BlogPostManage, BlogPostWritePayload, BlogStaffAuthor } from "@/app/common/types";
@@ -39,6 +39,7 @@ type FormValues = {
   category: string;
   excerpt: string;
   content: string;
+  key_takeaways: string[];
   status: string;
   author: string;
   custom_author_name: string;
@@ -104,6 +105,7 @@ const BlogPostForm = ({
     category: post?.category ? String(post.category) : "",
     excerpt: post?.excerpt || "",
     content: post?.content || "",
+    key_takeaways: post?.key_takeaways?.length ? post.key_takeaways : [],
     status: post?.status || "DRAFT",
     author: post?.author ? String(post.author) : "",
     custom_author_name: post?.custom_author_name || "",
@@ -179,6 +181,7 @@ const BlogPostForm = ({
           category: values.category ? Number(values.category) : null,
           excerpt: values.excerpt,
           content: values.content,
+          key_takeaways: values.key_takeaways.map(k => k.trim()).filter(Boolean),
           status: values.status as "DRAFT" | "PUBLISHED",
           author: authorMode === "system" && values.author ? Number(values.author) : null,
           custom_author_name: authorMode === "custom" ? values.custom_author_name.trim() : "",
@@ -272,6 +275,52 @@ const BlogPostForm = ({
                   placeholder='A short subtitle shown in previews (max 300 characters).'
                   className='mb-4'
                 />
+
+                <div className='mb-4'>
+                  <label className='label-text text-black font-medium font-onest mb-1 block'>
+                    Key Takeaways (optional)
+                  </label>
+                  <p className='text-gray-500 text-xs mb-3'>
+                    Shown as a bulleted callout near the top of the post. Leave empty to skip it.
+                  </p>
+                  <div className='flex flex-col gap-2'>
+                    {values.key_takeaways.map((takeaway, index) => (
+                      <div key={index} className='flex items-center gap-2'>
+                        <input
+                          type='text'
+                          value={takeaway}
+                          onChange={e => {
+                            const next = [...values.key_takeaways];
+                            next[index] = e.target.value;
+                            setFieldValue("key_takeaways", next);
+                          }}
+                          placeholder={`Key takeaway ${index + 1}`}
+                          className='input input-bordered input-sm flex-1'
+                        />
+                        <button
+                          type='button'
+                          onClick={() =>
+                            setFieldValue(
+                              "key_takeaways",
+                              values.key_takeaways.filter((_, i) => i !== index)
+                            )
+                          }
+                          className='h-8 w-8 flex items-center justify-center rounded-lg border border-gray-200 text-error hover:border-error hover:bg-error/10 transition-colors shrink-0'
+                          aria-label='Remove key takeaway'
+                        >
+                          <Trash2 className='h-3.5 w-3.5' />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                  <button
+                    type='button'
+                    onClick={() => setFieldValue("key_takeaways", [...values.key_takeaways, ""])}
+                    className='btn btn-outline btn-sm gap-2 mt-3'
+                  >
+                    <Plus className='h-4 w-4' /> Add key takeaway
+                  </button>
+                </div>
 
                 <FormikField
                   name='content'

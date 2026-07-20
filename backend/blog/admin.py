@@ -34,7 +34,7 @@ class BlogPostAdmin(admin.ModelAdmin):
     fieldsets = (
         (None, {"fields": ("title", "slug", "category", "status", "published_at", "is_featured", "is_pinned")}),
         ("Author", {"fields": ("author", "custom_author_name", "author_title")}),
-        ("Content", {"fields": ("excerpt", "featured_image", "content")}),
+        ("Content", {"fields": ("excerpt", "featured_image", "content", "key_takeaways")}),
         ("Timestamps", {"fields": ("created_at", "updated_at")}),
     )
 

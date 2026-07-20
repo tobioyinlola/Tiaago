@@ -263,7 +263,7 @@ const WalletBalanceCard = ({
   currentUser?: Talent;
 }) => {
   return (
-    <div className='w-full h-[202px] flex flex-col gap-1 justify-between font-poppins rounded-xl text-[#FEFEFF] p-6 bg-[conic-gradient(from_258.98deg_at_50%_50%,_#5465FF_0deg,_#323D99_246.04deg,_#5465FF_360deg)]'>
+    <div className='w-full min-h-[202px] flex flex-col gap-1 justify-between font-poppins rounded-xl text-[#FEFEFF] p-6 bg-[conic-gradient(from_258.98deg_at_50%_50%,_#5465FF_0deg,_#323D99_246.04deg,_#5465FF_360deg)]'>
       <div className='flex items-center justify-between'>
         <h6 className='text-sm text-[15px] font-semibold'>Wallet Balance</h6>
         <InfoCircleIcon />
@@ -305,7 +305,7 @@ const PaymentPage = ({ currentUser }: { currentUser: Talent }) => (
 
     <div className='grid sm:items-center sm:grid-cols-2 xl:grid-cols-3 max-w-[1012px] gap-8 mt-9 mb-[60px]'>
       <WalletBalanceCard />
-      <div className='w-full h-[174px] flex flex-col justify-between gap-4 font-poppins rounded-xl text-[#FEFEFF] py-3 px-6 bg-[#16405C]'>
+      <div className='w-full min-h-[174px] flex flex-col justify-between gap-4 font-poppins rounded-xl text-[#FEFEFF] py-3 px-6 bg-[#16405C]'>
         <div className='flex items-center justify-between'>
           <h6 className='text-sm text-[15px] font-semibold'>Linked Account</h6>
           <InfoCircleIcon />
@@ -340,7 +340,7 @@ const PaymentPage = ({ currentUser }: { currentUser: Talent }) => (
           )}
         </div>
       </div>
-      <div className='w-full h-[174px] flex flex-col gap-4 font-poppins rounded-xl text-[#FEFEFF] px-6 py-3.5 bg-[#ACB1B5]'>
+      <div className='w-full min-h-[174px] flex flex-col gap-4 font-poppins rounded-xl text-[#FEFEFF] px-6 py-3.5 bg-[#ACB1B5]'>
         <div className='flex items-center justify-between'>
           <h6 className='text-sm text-[15px] font-semibold'>Pending Payment</h6>
           <InfoCircleIcon />
@@ -425,7 +425,7 @@ const ReferralContent = ({
         isReferralRewards
         currentUser={currentUser}
       />
-      <div className='w-full h-[174px] flex flex-col gap-3 font-poppins rounded-xl text-white pl-6 pt-7 bg-[#ACB1B5]'>
+      <div className='w-full min-h-[174px] flex flex-col gap-3 font-poppins rounded-xl text-white pl-6 pt-7 bg-[#ACB1B5]'>
         <h6 className='text-xl font-semibold text-[#FEFEFF]'>
           Candidates Referred
         </h6>
@@ -480,7 +480,7 @@ const ReferralContent = ({
       <p className='text-sm text-secondary-black mt-0.5 pb-4 mb-6 border-b border-[#EAECF0]'>
         Choose referral method
       </p>
-      <div className='flex items-center flex-wrap md:grid grid-cols-4 gap-3 pb-8 mb-8 border-b border-[#EAECF0]'>
+      <div className='flex flex-col md:grid grid-cols-4 gap-3 pb-8 mb-8 border-b border-[#EAECF0]'>
         <h3 className='text-[#344054] font-medium text-base max-md:w-full'>
           Invite Link
         </h3>
@@ -491,10 +491,10 @@ const ReferralContent = ({
           </h6>
         </div>
         <CopyToClipboard
-          className='btn btn-sm btn-primary h-11 rounded-lg px-6 text-white ml-auto text-sm'
+          className='btn btn-sm btn-primary h-11 rounded-lg px-6 text-white md:ml-auto text-sm'
           text={referralLink}
         >
-          <span className='text-xs max-md:hidden'>Copy Link</span>
+          <span className='text-xs'>Copy Link</span>
         </CopyToClipboard>
       </div>
       <SendReferralInvite />
@@ -510,9 +510,9 @@ const ReferralContent = ({
           return (
             <div
               key={index}
-              className='flex items-center justify-between p-2.5 text-[#344054] text-sm border-b border-[#EAECF0]'
+              className='flex flex-wrap items-center justify-between gap-y-2 p-2.5 text-[#344054] text-sm border-b border-[#EAECF0]'
             >
-              <div className='flex items-center gap-3 w-1/3 lg:w-2/5'>
+              <div className='flex items-center gap-3 w-full sm:w-1/3 lg:w-2/5'>
                 <UserAvatar
                   firstName={firstName}
                   lastName={lastName}
@@ -523,8 +523,8 @@ const ReferralContent = ({
                   {referral.invitee_name}
                 </h2>
               </div>
-              <p className='w-1/5 text-left'>{referral.invitee_email}</p>
-              <p className='w-1/5 text-center'>
+              <p className='w-1/2 sm:w-1/5 text-left max-sm:hidden truncate'>{referral.invitee_email}</p>
+              <p className='w-1/2 sm:w-1/5 text-left sm:text-center'>
                 {formatPrice({
                   price: +referral.reward,
                   noOfDigits: 0,
