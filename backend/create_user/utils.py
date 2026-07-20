@@ -123,29 +123,31 @@ def send_invite_email(invite: CompanyTeamInvite):
 def get_company_billing_type(company):
     """
     Determine the billing type for a company based on its active subscriptions.
+
+    A company's auto-created FreePlan (every company gets one at signup,
+    see FreePlan.objects.get_or_create in this module and in api/serializers.py)
+    does NOT count as being on "subscription" billing -- it's a legacy
+    seat-based free tier that has no bearing on actual billing anymore
+    (subscriptions.helper.has_active_subscription_capacity ignores it too,
+    for the same reason). Only a real, paid, active Stripe/Paystack
+    subscription puts a company on "subscription" billing; everyone else is
+    on "wallet" (usage-based, free-credits-then-charge) billing, which
+    matches what the frontend type already declares
+    (BillingType = "subscription" | "wallet") and defaults the billing page
+    to the correct tab.
     """
-    
     stripe_active = StripeSubscription.objects.filter(
         company=company, status="active"
     ).first()
-    
+
     paystack_active = PaystackSubscription.objects.filter(
         company=company, status="active"
     ).first()
-    
-    free_plan = FreePlan.objects.filter(company=company, status="active").first()
-    
-    wallet = Wallet.objects.filter(
-        company=company, balance__gte=0
-    )
-    
-    if (stripe_active or paystack_active):
+
+    if stripe_active or paystack_active:
         return "subscription"
-    elif free_plan:
-        return "subscription"
-    elif wallet.exists():
-        return "wallet"
-    
+    return "wallet"
+
 
 def get_active_subscription(company):
     """

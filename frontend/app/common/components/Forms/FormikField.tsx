@@ -15,6 +15,7 @@ import FormikYearPickerField from "./FormikYearPickerField";
 
 type RichtextProps = {
   maxChars?: number;
+  minHeight?: number;
 };
 
 export type FormikFieldProps = FormField & {
@@ -100,6 +101,7 @@ const FormikField = (props: FormikFieldProps) => {
         <RichTextInputField
           {...{ name, placeholder }}
           maxChars={richtextProps?.maxChars}
+          minHeight={richtextProps?.minHeight}
         />
       ) : props.type === "select" ? (
         <ValinnaFormikSelect

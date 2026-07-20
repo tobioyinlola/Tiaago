@@ -369,6 +369,7 @@ const EditJobForm = ({
                         })}
                         richtextProps={{
                           maxChars: 1000,
+                          minHeight: 180,
                         }}
                       />
                     );

@@ -17,8 +17,10 @@ export const metadata = {
 
 const FindTalentsPage = async () => {
   const errors: DisplayErrorMessagesProps["errors"] = [];
-  const currentUser = (await getCurrentUser("recruiter")).currentUser;
-  const [roles, talents] = await Promise.all([
+  // currentUser, roles, and talents are independent requests -- fetch in
+  // parallel instead of waiting on currentUser first.
+  const [userRes, roles, talents] = await Promise.all([
+    getCurrentUser("recruiter"),
     getTalentRoles().catch(async (e: any) => {
       const error = await handleServerApiCallError(e);
       console.log("Get talent roles error (find talents): ", error);
@@ -38,6 +40,7 @@ const FindTalentsPage = async () => {
       return null;
     }),
   ]);
+  const currentUser = userRes.currentUser;
   const isApproved = currentUser.verified;
 
   const schedule = isApproved

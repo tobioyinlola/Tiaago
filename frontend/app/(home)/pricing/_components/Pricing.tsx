@@ -1,62 +1,21 @@
 "use client";
 
 import Image from "next/image";
-import { toast } from "sonner";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { RiCashFill } from "react-icons/ri";
-import {
-  HelpCircle,
-  CheckCircle,
-  Gift,
-  Crown,
-  ArrowRight,
-  Check,
-} from "lucide-react";
+import { Gift, ArrowRight } from "lucide-react";
 
 import {
   pricingTiers,
-  subscriptionPlans,
   currencyRates,
-  currencySymbols,
   type Currency,
 } from "../constants";
 
-import {
-  cn,
-  formatPrice as formatPriceUtil,
-  handleFormSubmissionError,
-} from "@/app/common/utils";
+import { formatPrice as formatPriceUtil } from "@/app/common/utils";
 
-import {
-  subscribeToFreePlan,
-  subscribeToPaystackPlan,
-  subscribeToStripePlan,
-} from "@/app/common/services/subscription";
-import { BASE_URL } from "@/app/common/constants";
-import { useAlert } from "@/app/common/store/useAlert";
 import Testimonials from "../../_components/Testimonials";
-import { SubscriptionPlanV3, User } from "@/app/common/types";
-import CustomButton from "@/app/common/components/CustomButton";
 import { CustomAuthButton } from "@/app/common/components/AuthButton";
 
-const Pricing = ({
-  currentUser,
-  subscriptionPlans: subPlans,
-}: {
-  currentUser: User | null;
-  subscriptionPlans: SubscriptionPlanV3[];
-}) => {
-  const isNigerian = currentUser?.country.toLowerCase() === "nigeria";
-  const router = useRouter();
-  const setAlert = useAlert(s => s.setAlert);
-  const [isSubscribing, setIsSubscribing] = useState(false);
-  const [pricingModel, setPricingModel] = useState<"usage" | "subscription">(
-    "usage"
-  );
-  const [billingCycle, setBillingCycle] = useState<"monthly" | "annually">(
-    "monthly"
-  );
+const Pricing = () => {
   const [usage, setUsage] = useState<{ [key: string]: number }>({
     "Resume Screening": 100,
     "Non-Technical Assessment": 30,
@@ -65,8 +24,6 @@ const Pricing = ({
   });
 
   const [selectedCurrency, setSelectedCurrency] = useState<Currency>("USD");
-
-  const isUsageBased = pricingModel === "usage";
 
   const convertPrice = (priceUSD: number) => {
     const convertedPrice = priceUSD * currencyRates[selectedCurrency];
@@ -125,82 +82,8 @@ const Pricing = ({
     }));
   };
 
-  const handleSubscribeToPlan = async (plan_code: string) => {
-    if (!currentUser || currentUser.user_type !== "CR") {
-      setAlert({
-        icon: "info",
-        title: "This feature requires a recruiter account",
-        buttonText: "Sign in as a recruiter",
-        buttonLink: `/recruiter/signin?next=${encodeURIComponent(
-          window.location.pathname
-        )}`,
-        secondaryButton: {
-          text: "Close",
-        },
-      });
-      return;
-    }
-    if (isSubscribing) return;
-    setIsSubscribing(true);
-    toast.loading("Processing...");
-    const isNigerian = currentUser.country.toLowerCase() === "nigeria";
-    if (isNigerian) {
-      const res = await subscribeToPaystackPlan(plan_code);
-      if (res.success && res.data) {
-        window.open(res.data.data.authorization_url, "_blank");
-      } else {
-        handleFormSubmissionError(res.error, undefined, setAlert);
-      }
-      setIsSubscribing(false);
-      toast.dismiss();
-    } else {
-      const res = await subscribeToStripePlan(
-        plan_code,
-        `${BASE_URL}/recruiter/dashboard/billing`
-      );
-      if (res.success && res.data?.data?.checkout_url) {
-        window.location.assign(res.data.data.checkout_url);
-      } else {
-        handleFormSubmissionError(res.error, undefined, setAlert);
-      }
-      setIsSubscribing(false);
-      toast.dismiss();
-    }
-  };
-
-  const handleSubscribeTofreePlan = async () => {
-    if (!currentUser || currentUser.user_type !== "CR") {
-      setAlert({
-        icon: "info",
-        title: "This feature requires a recruiter account",
-        buttonText: "Sign in as a recruiter",
-        buttonLink: `/recruiter/signin?next=${encodeURIComponent(
-          window.location.pathname
-        )}`,
-        secondaryButton: {
-          text: "Close",
-        },
-      });
-      return;
-    }
-    if (isSubscribing) return;
-    setIsSubscribing(true);
-    toast.loading("Processing...");
-    const res = await subscribeToFreePlan();
-    if (res.success && res.data) {
-      toast.dismiss();
-      toast.success("You have successfully downgraded to our free plan");
-      router.refresh();
-    } else {
-      handleFormSubmissionError(res.error, undefined, setAlert);
-      toast.dismiss();
-    }
-    setIsSubscribing(false);
-  };
-
   return (
     <main className='pb-[112px] md:mb-[84px]'>
-      {/* Pricing Model Toggle */}
       <section className='pt-16 md:pt-[85px] relative pb-14 md:pb-20 bg-[radial-gradient(100%_100%_at_50%_0%,#FFFFFF_70%,#EEEFFF_100%)]'>
         <div className='relative pt-16 md:pt-[102px]'>
           <Image
@@ -219,40 +102,6 @@ const Pricing = ({
                 you’re a recruiter agency or a recuiter, find the right plan to
                 unlock all the features you need.
               </p>
-
-              {/* Toggle Switch */}
-              <div className='inline-flex items-center bg-white rounded-full p-1 shadow-lg border border-gray-200'>
-                <button
-                  onClick={() => setPricingModel("usage")}
-                  className={`flex items-center px-6 py-3 rounded-full text-sm font-onest font-medium transition-all ${
-                    pricingModel === "usage"
-                      ? "bg-primary text-white shadow-md"
-                      : "text-black"
-                  }`}
-                >
-                  <RiCashFill className='w-5 h-5 mr-2 max-sm:hidden' />
-                  Usage-Based
-                </button>
-                <button
-                  onClick={() => setPricingModel("subscription")}
-                  className={`flex items-center px-6 py-3 rounded-full font-medium text-sm font-onest transition-all ${
-                    pricingModel === "subscription"
-                      ? "bg-primary text-white shadow-md"
-                      : "text-black"
-                  }`}
-                >
-                  <Crown className='w-5 h-5 mr-2 max-sm:hidden' />
-                  Subscription Based
-                </button>
-              </div>
-
-              {/* <div className='mt-6 text-center'>
-              <p className='text-gray-600'>
-                {pricingModel === "usage"
-                  ? "Pay only for what you use - perfect for variable hiring needs"
-                  : "Predictable monthly costs with included candidate limits"}
-              </p>
-            </div> */}
             </div>
           </div>
         </div>
@@ -263,20 +112,14 @@ const Pricing = ({
           PRICING PLANS
         </p>
         <h1 className='text-2xl md:text-[40px] font-semibold text-[#1D1D1D] font-onest my-2 leading-[52x]'>
-          {isUsageBased
-            ? "Usage-Based Pricing"
-            : "Simple pricing, powerful features"}
+          Usage-Based Pricing
         </h1>
         <p className='text-sm md:text-base text-[#0A0A0AB2]'>
-          {isUsageBased
-            ? "Pay only for what you use. Our AI-powered platform scales with your needs."
-            : "Start for free"}
+          Pay only for what you use. Our AI-powered platform scales with your needs.
         </p>
       </div>
 
-      {/* Usage-Based Pricing */}
-      {pricingModel === "usage" && (
-        <section className='mt-9'>
+      <section className='mt-9'>
           <div className='md:container mx-auto px-4 lg:px-6 xl:px-8'>
             <div className='bg-[#0A0A0A05] rounded-xl border border-[#DEE1E3] p-4 max-md:py-6 md:p-12 max-w-6xl mx-auto'>
               <div className='grid gap-16 sm:gap-8 lg:grid-cols-2 items-center'>
@@ -416,133 +259,6 @@ const Pricing = ({
             </div>
           </div>
         </section>
-      )}
-
-      {/* Subscription Pricing */}
-      {pricingModel === "subscription" && (
-        <section className='mt-9'>
-          <div className='md:container mx-auto px-4 lg:px-6 xl:px-8'>
-            <div className='text-center max-w-3xl mx-auto mb-12'>
-              {/* Billing Cycle Toggle */}
-              <div className='inline-flex items-center bg-[#F7F7F7] rounded-full p-1 mb-8'>
-                <button
-                  onClick={() => setBillingCycle("monthly")}
-                  className={`flex items-center px-6 py-3 rounded-full transition-all border border-transparent text-sm font-medium font-onest text-[#1D1D1D] ${
-                    billingCycle === "monthly"
-                      ? "bg-white integrations-shadow"
-                      : "border-transparent"
-                  }`}
-                >
-                  Monthly
-                </button>
-                <button
-                  onClick={() => setBillingCycle("annually")}
-                  className={`flex items-center px-6 py-3 rounded-full transition-all border text-sm font-medium font-onest text-[#1D1D1D] ${
-                    billingCycle === "annually"
-                      ? "bg-white integrations-shadow"
-                      : "border-transparent"
-                  }`}
-                >
-                  Yearly
-                  <span className='ml-2 uppercase bg-clip-text text-transparent bg-[linear-gradient(90deg,#5465FF_0%,#EF7B16_100%)] font-inter'>
-                    (2 months free)
-                  </span>
-                </button>
-              </div>
-            </div>
-
-            <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-10'>
-              {subscriptionPlans.map((plan, index) => {
-                const isFree = plan.name.toLowerCase() === "free";
-                const relatedServerPlan = subPlans.find(
-                  p =>
-                    p.name.toLowerCase() === plan.name.toLowerCase() &&
-                    (billingCycle === p.interval.toLowerCase() ||
-                      (billingCycle === "annually" &&
-                        p.interval.toLowerCase() === "yearly"))
-                );
-                if (!relatedServerPlan && !isFree) return null;
-                return (
-                  <div
-                    key={index}
-                    className={cn(
-                      "relative bg-white rounded-xl border integrations-shadow p-8",
-                      plan.popular &&
-                        "bg-[radial-gradient(100%_100%_at_50%_0%,#FFFFFF_70%,#F4F5FF_100%)]"
-                    )}
-                  >
-                    <div className='mb-10 md:mb-[60px]'>
-                      <div className='flex items-center justify-between mb-10 md:mb-[60px]'>
-                        <h3
-                          className={cn(
-                            "text-2xl md:text-[26px] font-semibold text-[#1D1D1D] font-onest",
-                            plan.popular && "text-primary"
-                          )}
-                        >
-                          {plan.name}
-                        </h3>
-
-                        {plan.popular && (
-                          <div className='rounded-full bg-[#F4F5FF] integrations-shadow border border-primary px-2 py-1 text-xs font-medium text-primary'>
-                            Most Popular
-                          </div>
-                        )}
-                      </div>
-                      <h2 className='text-2xl md:text-[28px] font-bold text-[#1D1D1D]'>
-                        {formatPriceUtil({
-                          price: relatedServerPlan?.amount || 0,
-                          // divisor: 100,
-                          noOfDigits: 0,
-                          currencyCode: isNigerian ? "NGN" : "USD",
-                        })}
-                        <span className='text-[#0A0A0AB2] font-medium text-xs ml-2'>
-                          per
-                          {billingCycle === "annually" ? " year" : " month"}
-                        </span>
-                      </h2>
-                      <p className='text-[#0A0A0A73] mt-2.5 font-onest text-sm'>
-                        {plan.description}
-                      </p>
-                    </div>
-
-                    <ul className='mb-20 md:mb-[100px]'>
-                      {plan.features.map((feature, featureIndex) => (
-                        <li
-                          key={featureIndex}
-                          className='flex items-center py-3 border-b border-[#0A0A0A1A]'
-                        >
-                          <Check className='w-5 h-5 text-green-500 mr-2 flex-shrink-0' />
-                          <span className='text-[#0A0A0AB2] font-onest text-sm'>
-                            {feature}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-
-                    <CustomButton
-                      fullWidth
-                      size='lg'
-                      className={cn(
-                        "integrations-shadow text-sm font-medium",
-                        plan.popular ? "bg-primary hover:bg-primary-dark" : ""
-                      )}
-                      variant={plan.popular ? "primary" : "outline"}
-                      onClick={() =>
-                        relatedServerPlan && !isFree
-                          ? handleSubscribeToPlan(relatedServerPlan.plan_code)
-                          : handleSubscribeTofreePlan()
-                      }
-                      // isLoading={isSubscribing}
-                    >
-                      {plan.ctaText} <ArrowRight className='w-5 ml-2.5' />
-                    </CustomButton>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </section>
-      )}
 
       <Testimonials />
     </main>

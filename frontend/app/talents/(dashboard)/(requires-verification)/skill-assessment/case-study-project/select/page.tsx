@@ -2,11 +2,9 @@ import {
   getAvailableCaseStudyProjects,
   getCaseStudyAttempts,
 } from "@/app/common/services/case-study";
-import { isPremiumPlan } from "@/app/common/utils";
 import SelectCSP from "../../_components/SelectCSP";
 import { getCurrentUser } from "@/app/common/services/profile";
 import { useTalentStore } from "@/app/talents/(dashboard)/store";
-import { getSubscriptionPlan } from "@/app/common/services/subscription";
 
 export const metadata = {
   title: "Select Case study project",
@@ -25,9 +23,6 @@ const SelectCaseStudyProjectPage = async ({ searchParams }: Props) => {
     currentUser = (await getCurrentUser("talent")).currentUser;
     useTalentStore.setState({ profile: currentUser });
   }
-  const subscribedPlan = currentUser?.subscribed_plan
-    ? await getSubscriptionPlan(currentUser.subscribed_plan.plan_id)
-    : undefined;
   const projects = await getAvailableCaseStudyProjects();
   const attempts = await getCaseStudyAttempts();
   const projectId = resolvedSearchParams?.id;
@@ -44,7 +39,6 @@ const SelectCaseStudyProjectPage = async ({ searchParams }: Props) => {
       <SelectCSP
         projects={projects}
         attempts={attempts}
-        isPremiumUser={isPremiumPlan(subscribedPlan)}
         defaultProject={projectId}
       />
     </div>

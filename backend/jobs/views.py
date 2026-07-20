@@ -41,7 +41,6 @@ from base.utils import extract_query_from_request
 from create_user.models import CustomUser, OneTimePassword, Company, CompanyTeamMember
 from create_user.permissions import user_is_company_role, get_company_membership, get_user_company
 from create_user.utils import send_otp_to_user
-from subscriptions.models import SubPlan
 from base.permissions import IsTalentUser
 
 from .models import (
@@ -705,40 +704,6 @@ class JobApplyView(CreateAPIView):
                 {"detail": "User already applied for the job"},
                 status=HTTP_400_BAD_REQUEST,
             )
-
-        subscribed_plan = user.get_subscribed_plan()
-        # if subscribed_plan is None:
-        # Not subscribed to any plan
-        # no_of_jobs_applied = JobApplication.objects.filter(
-        #     applicant=user.profile, created__date__month=timezone.now().month
-        # ).count()
-        # if no_of_jobs_applied >= 3:
-        #     return Response(
-        #         {"detail": "Maximum number of application completed"},
-        #         status=HTTP_400_BAD_REQUEST,
-        #     )
-        # if (
-        #     job.job_type != Job.JobType.INTERNSHIP
-        #     or job.job_level != Job.JobLevel.ENTRY
-        # ):
-        #     return Response(
-        #         {
-        #             "detail": "User only has access to entry level and internship roles"
-        #         },
-        #         status=HTTP_400_BAD_REQUEST,
-        #     )
-        # elif subscribed_plan and subscribed_plan.sub_type == SubPlan.SUB_TYPE.BASIC:
-        #     # For a basic user
-        #     if (
-        #         job.job_type != Job.JobType.INTERNSHIP
-        #         or job.job_level != Job.JobLevel.ENTRY
-        #     ):
-        #         return Response(
-        #             {
-        #                 "detail": "User only have access to entry level and internship roles"
-        #             },
-        #             status=HTTP_400_BAD_REQUEST,
-        #         )
 
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)

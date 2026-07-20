@@ -1,17 +1,15 @@
-import { DollarSign, Users } from "lucide-react";
+import { DollarSign } from "lucide-react";
 
 interface ConfirmationModalProps {
   userName: string;
   onClose: () => void;
   onUsageBased: () => void;
-  onSubscription: () => void;
 }
 
 export default function ConfirmationModal({
   userName,
   onClose,
   onUsageBased,
-  onSubscription,
 }: ConfirmationModalProps) {
   return (
     <div className="flex flex-col items-center text-center py-4 sm:py-8">
@@ -44,24 +42,16 @@ export default function ConfirmationModal({
         You&apos;re All Set, {userName}!
       </h2>
       <p className="text-sm sm:text-base text-muted-foreground mb-8 max-w-sm">
-        Choose how you want to pay and start hiring today.
+        Pay only for what you use, no subscriptions needed. Let&apos;s get you started.
       </p>
 
-      {/* Pricing CTAs */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-sm">
+      <div className="w-full max-w-sm">
         <button
           onClick={onUsageBased}
-          className="flex items-center justify-center gap-2 px-5 py-3 bg-primary text-primary-foreground rounded-md font-medium hover:bg-primary/90 transition-all min-h-[44px] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          className="flex items-center justify-center gap-2 px-5 py-3 bg-primary text-primary-foreground rounded-md font-medium hover:bg-primary/90 transition-all min-h-[44px] w-full focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         >
           <DollarSign size={18} />
-          Usage-Based
-        </button>
-        <button
-          onClick={onSubscription}
-          className="flex items-center justify-center gap-2 px-5 py-3 bg-secondary text-secondary-foreground rounded-md font-medium hover:bg-secondary/80 transition-colors min-h-[44px] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-        >
-          <Users size={18} />
-          Subscription
+          Go to Billing
         </button>
       </div>
 

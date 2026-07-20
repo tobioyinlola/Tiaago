@@ -34,68 +34,84 @@ const MessagesPage = async ({
   const { chat: activeChatID, user: talentID } = await searchParams;
   const errors: DisplayErrorMessagesProps["errors"] = [];
   const { access } = await getAuthCookiesAsync();
-  const currentUser = (await getCurrentUser("recruiter")).currentUser;
-  const talents = (
-    await getAllTalents().catch(async e => {
-      const error = await handleServerApiCallError(e);
-      console.log("Get talents error (recruiters chat page): ", error);
-      errors.push({
-        message: error,
-        title: "Error getting talents",
-      });
-      return {
-        results: [],
-      };
-    })
-  ).results;
-  const conversations = await getChatList().catch(async e => {
-    const error = await handleServerApiCallError(e);
-    console.log("Get chat list error (recruiters chat page): ", error);
-    errors.push({
-      message: error,
-      title: "Error getting chat list",
-    });
-    return [];
-  });
+  // currentUser, talents, conversations, roles, and chat health are all
+  // independent requests -- fetch them together instead of one after another.
+  const [userRes, talentsRes, conversations, roles, chatHealth] =
+    await Promise.all([
+      getCurrentUser("recruiter"),
+      getAllTalents().catch(async e => {
+        const error = await handleServerApiCallError(e);
+        console.log("Get talents error (recruiters chat page): ", error);
+        errors.push({
+          message: error,
+          title: "Error getting talents",
+        });
+        return {
+          results: [],
+        };
+      }),
+      getChatList().catch(async e => {
+        const error = await handleServerApiCallError(e);
+        console.log("Get chat list error (recruiters chat page): ", error);
+        errors.push({
+          message: error,
+          title: "Error getting chat list",
+        });
+        return [];
+      }),
+      getTalentRoles().catch(async e => {
+        const error = await handleServerApiCallError(e);
+        console.log("Get talent roles error (recruiters chat page): ", error);
+        errors.push({
+          message: error,
+          title: "Error getting talent roles",
+        });
+        return [];
+      }),
+      getChatHealth().catch(async e => {
+        const error = await handleServerApiCallError(e);
+        console.log("Get chat health error (recruiters chat page): ", error);
+        errors.push({
+          message: error,
+          title: "Error getting chat health",
+        });
+        return { websocket_url: "", websocket_url_secure: "" };
+      }),
+    ]);
+  const currentUser = userRes.currentUser;
+  const talents = talentsRes.results;
   const talent = talents.find(talent => talent.id == talentID);
   const activeConversation = conversations.find(
     conversation => conversation.id == activeChatID
   );
-  const activeChat = activeConversation
-    ? await getChat(activeConversation.id).catch(async e => {
-        const error = await handleServerApiCallError(e);
-        console.log("Get chat error (recruiters chat page): ", error);
-        errors.push({
-          message: error,
-          title: "Error getting chat",
-        });
-        return undefined;
-      })
-    : undefined;
-  // console.log(conversations);
-  // console.log(activeChat);
-  const roles = await getTalentRoles().catch(async e => {
-    const error = await handleServerApiCallError(e);
-    console.log("Get talent roles error (recruiters chat page): ", error);
-    errors.push({
-      message: error,
-      title: "Error getting talent roles",
-    });
-    return [];
-  });
   const isApproved = currentUser.verified;
 
-  const schedule = isApproved
-    ? await getSchedule().catch(async e => {
-        const error = await handleServerApiCallError(e);
-        console.log("Get schedule error (recruiters chat page): ", error);
-        errors.push({
-          message: error,
-          title: "Error getting schedule",
-        });
-        return [];
-      })
-    : [];
+  // activeChat depends on activeConversation, schedule depends on
+  // currentUser -- both independent of each other, so fetch in parallel.
+  const [activeChat, schedule] = await Promise.all([
+    activeConversation
+      ? getChat(activeConversation.id).catch(async e => {
+          const error = await handleServerApiCallError(e);
+          console.log("Get chat error (recruiters chat page): ", error);
+          errors.push({
+            message: error,
+            title: "Error getting chat",
+          });
+          return undefined;
+        })
+      : Promise.resolve(undefined),
+    isApproved
+      ? getSchedule().catch(async e => {
+          const error = await handleServerApiCallError(e);
+          console.log("Get schedule error (recruiters chat page): ", error);
+          errors.push({
+            message: error,
+            title: "Error getting schedule",
+          });
+          return [];
+        })
+      : Promise.resolve([]),
+  ]);
   const noOfSchedulesThisMonth = schedule.filter(meeting =>
     // meeting.accepted !== false &&
     isSameMonth(new Date(meeting.created_on), new Date())
@@ -103,17 +119,7 @@ const MessagesPage = async ({
   const canScheduleMeeting = currentUser.subscribed_plan
     ? true
     : noOfSchedulesThisMonth < FREE_RECRUITER_MAX_MEETINGS_PER_MONTH;
-  const { websocket_url, websocket_url_secure } = await getChatHealth().catch(
-    async e => {
-      const error = await handleServerApiCallError(e);
-      console.log("Get chat health error (recruiters chat page): ", error);
-      errors.push({
-        message: error,
-        title: "Error getting chat health",
-      });
-      return { websocket_url: "", websocket_url_secure: "" };
-    }
-  );
+  const { websocket_url, websocket_url_secure } = chatHealth;
   return (
     <>
       <DisplayErrorMessages errors={errors} />

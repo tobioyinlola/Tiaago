@@ -1,13 +1,11 @@
 "use client";
 
-import { Plus, Copy, Trash2, CalendarClock } from "lucide-react";
 import { FormikErrors, FormikTouched } from "formik";
 
-import { InterviewSlotInput } from "@/app/common/types";
+import { cn } from "@/app/common/utils";
 import FormikField from "@/app/common/components/Forms/FormikField";
 import { CriteriaAvailabilityFormValues } from "../wizard.constants";
-
-const emptySlot: InterviewSlotInput = { date: "", start_time: "", end_time: "" };
+import { DAY_LABELS, TIME_OPTIONS } from "./availability";
 
 const CriteriaAvailabilityStep = ({
   values,
@@ -20,30 +18,22 @@ const CriteriaAvailabilityStep = ({
   touched: FormikTouched<CriteriaAvailabilityFormValues>;
   setFieldValue: (field: string, value: any) => void;
 }) => {
-  const slots = values.interview_slots || [];
+  const availability = values.interview_availability;
+  const selectedDays = availability.days_of_week || [];
 
-  const updateSlot = (index: number, field: keyof InterviewSlotInput, value: string) => {
-    const next = slots.map((slot, i) => (i === index ? { ...slot, [field]: value } : slot));
-    setFieldValue("interview_slots", next);
+  const toggleDay = (day: number) => {
+    const next = selectedDays.includes(day)
+      ? selectedDays.filter(d => d !== day)
+      : [...selectedDays, day].sort();
+    setFieldValue("interview_availability.days_of_week", next);
   };
 
-  const addSlot = () => setFieldValue("interview_slots", [...slots, { ...emptySlot }]);
-
-  const duplicateSlot = (index: number) =>
-    setFieldValue("interview_slots", [
-      ...slots.slice(0, index + 1),
-      { ...slots[index] },
-      ...slots.slice(index + 1),
-    ]);
-
-  const removeSlot = (index: number) =>
-    setFieldValue(
-      "interview_slots",
-      slots.filter((_, i) => i !== index)
-    );
-
-  const slotsError =
-    typeof errors.interview_slots === "string" ? errors.interview_slots : undefined;
+  const availabilityErrors = errors.interview_availability as
+    | FormikErrors<CriteriaAvailabilityFormValues["interview_availability"]>
+    | undefined;
+  const availabilityTouched = touched.interview_availability;
+  const daysError =
+    typeof availabilityErrors?.days_of_week === "string" ? availabilityErrors.days_of_week : undefined;
 
   return (
     <div className='space-y-10'>
@@ -94,78 +84,61 @@ const CriteriaAvailabilityStep = ({
           Your availability for post-assessment interviews
         </h3>
         <p className='text-sm text-secondary-black mb-4'>
-          Add the time slots you&apos;re available to interview candidates. These only
-          become visible to candidates once they pass the assessment stage.
+          Pick the days and hours you&apos;re generally available to interview candidates.
+          These only become visible to candidates once they pass the assessment stage.
         </p>
 
-        <div className='rounded-lg border border-[#EAECF0] overflow-hidden'>
-          {slots.length === 0 ? (
-            <div className='flex flex-col items-center justify-center gap-2 py-10 text-center'>
-              <CalendarClock className='h-6 w-6 text-secondary-black' />
-              <p className='text-sm text-secondary-black'>No time slots added yet.</p>
-            </div>
-          ) : (
-            slots.map((slot, index) => (
-              <div
-                key={index}
-                className='flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3 px-4 py-3 border-b border-[#EAECF0] last:border-b-0'
+        <div className='rounded-lg border border-[#EAECF0] p-4'>
+          <p className='text-sm font-medium text-primary-black mb-2'>Available days</p>
+          <div className='flex flex-wrap gap-2 mb-5'>
+            {DAY_LABELS.map((label, day) => (
+              <button
+                key={label}
+                type='button'
+                onClick={() => toggleDay(day)}
+                className={cn(
+                  "h-11 w-14 rounded-lg border text-sm font-medium transition-colors",
+                  selectedDays.includes(day)
+                    ? "bg-primary border-primary text-white"
+                    : "border-[#EAECF0] text-secondary-black hover:border-primary hover:text-primary"
+                )}
               >
-                <input
-                  type='date'
-                  className='input input-bordered h-11 w-full sm:w-[150px]'
-                  value={slot.date}
-                  onChange={e => updateSlot(index, "date", e.target.value)}
-                />
-                <div className='flex items-center gap-3'>
-                  <input
-                    type='time'
-                    className='input input-bordered h-11 w-full sm:w-[120px]'
-                    value={slot.start_time}
-                    onChange={e => updateSlot(index, "start_time", e.target.value)}
-                  />
-                  <span className='text-secondary-black'>-</span>
-                  <input
-                    type='time'
-                    className='input input-bordered h-11 w-full sm:w-[120px]'
-                    value={slot.end_time}
-                    onChange={e => updateSlot(index, "end_time", e.target.value)}
-                  />
-                </div>
+                {label}
+              </button>
+            ))}
+          </div>
 
-                <div className='sm:ml-auto flex items-center gap-2'>
-                  <button
-                    type='button'
-                    onClick={() => duplicateSlot(index)}
-                    className='h-11 w-11 flex items-center justify-center rounded-lg border border-[#EAECF0] text-secondary-black hover:border-primary hover:text-primary transition-colors'
-                    aria-label='Duplicate slot'
-                  >
-                    <Copy className='h-4 w-4' />
-                  </button>
-                  <button
-                    type='button'
-                    onClick={() => removeSlot(index)}
-                    className='h-11 w-11 flex items-center justify-center rounded-lg border border-[#EAECF0] text-error hover:border-error hover:bg-error/10 transition-colors'
-                    aria-label='Remove slot'
-                  >
-                    <Trash2 className='h-4 w-4' />
-                  </button>
-                </div>
-              </div>
-            ))
-          )}
+          <p className='text-sm font-medium text-primary-black mb-2'>Available hours</p>
+          <div className='flex items-center gap-3'>
+            <select
+              className='select select-bordered h-11 w-full sm:w-[150px]'
+              value={availability.start_time}
+              onChange={e => setFieldValue("interview_availability.start_time", e.target.value)}
+            >
+              {TIME_OPTIONS.map(opt => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+            <span className='text-secondary-black'>-</span>
+            <select
+              className='select select-bordered h-11 w-full sm:w-[150px]'
+              value={availability.end_time}
+              onChange={e => setFieldValue("interview_availability.end_time", e.target.value)}
+            >
+              {TIME_OPTIONS.map(opt => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
-        {slotsError && touched.interview_slots && (
-          <p className='text-xs text-error mt-2'>{slotsError}</p>
+        {daysError && availabilityTouched?.days_of_week && (
+          <p className='text-xs text-error mt-2'>{daysError}</p>
         )}
-
-        <button
-          type='button'
-          onClick={addSlot}
-          className='btn btn-outline btn-sm gap-2 mt-3'
-        >
-          <Plus className='h-4 w-4' /> Add time slot
-        </button>
       </div>
     </div>
   );

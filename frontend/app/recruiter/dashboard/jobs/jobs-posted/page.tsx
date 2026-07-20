@@ -25,25 +25,33 @@ const JobsPostedPage = async ({
   searchParams: Promise<ISearchParams>;
 }) => {
   const errors: DisplayErrorMessagesProps["errors"] = [];
-  const currentUser = (await getCurrentUser("recruiter")).currentUser;
   const resolvedSearchParams = await searchParams;
   const _page = resolvedSearchParams.page
     ? parseInt(resolvedSearchParams.page as string)
     : 1;
   const page = isNaN(_page) ? 1 : _page;
-  const jobsRes = await getJobs(page).catch(async e => {
-    const error = await handleServerApiCallError(e);
-    console.log("Get jobs error (jobs posted): ", error);
-    errors.push({
-      message: error,
-      title: "Error getting jobs",
-    });
-    return null;
-  });
+  // currentUser and jobs are independent requests -- fetch in parallel
+  // instead of round-tripping to the backend one after the other.
+  const [userRes, jobsRes] = await Promise.all([
+    getCurrentUser("recruiter"),
+    getJobs(page).catch(async e => {
+      const error = await handleServerApiCallError(e);
+      console.log("Get jobs error (jobs posted): ", error);
+      errors.push({
+        message: error,
+        title: "Error getting jobs",
+      });
+      return null;
+    }),
+  ]);
+  const currentUser = userRes.currentUser;
   const jobs = jobsRes?.results || [];
   // const filteredJobs = jobs.filter(job => job.company.id === currentUser!.id);
 
-  const publicUrl = `${BASE_URL}/companies/${currentUser.company_name}`;
+  // Company names routinely contain spaces/slashes/ampersands -- an
+  // un-encoded name here produces a broken link (a "/" splits the route
+  // into extra segments the [id] dynamic route can't match, for example).
+  const publicUrl = `${BASE_URL}/companies/${encodeURIComponent(currentUser.company_name)}`;
   return (
     <>
       <div className='border-b w-full border-gray-200 pb-1 mb-2'>

@@ -2,7 +2,10 @@ from django.conf import settings
 from decimal import Decimal, InvalidOperation
 from rest_framework.response import Response
 from rest_framework.status import HTTP_402_PAYMENT_REQUIRED
-from subscriptions.models import WalletUserUsage, UserUsage, WalletTransaction, PricingConfig
+from subscriptions.models import (
+    WalletUserUsage, UserUsage, WalletTransaction, PricingConfig,
+    StripeSubscription, PaystackSubscription,
+)
 from django.db import transaction
 import uuid
 
@@ -96,10 +99,31 @@ def has_active_subscription_capacity(company, usage, determiner="resume-analyzes
     """Seat-quota check only -- no wallet fallback (that's BillingService's
     job now, called separately by the caller when this returns False).
     Increments the relevant UserUsage counter and returns True if the
-    company's active subscription/free-plan still has room; False if there's
-    no active subscription or its quota is exhausted."""
+    company has a *real, paid* active subscription (Stripe or Paystack)
+    with room left; False otherwise, which routes the caller to
+    BillingService's wallet-based free-credit-then-charge system.
+
+    Deliberately does NOT count `Company.active_subscription`'s FreePlan
+    fallback here -- every company gets an auto-created FreePlan at signup
+    (create_user/api/serializers.py, create_user/views.py), so treating it
+    as "active subscription capacity" meant every company silently absorbed
+    its first 20 resume screenings / 10 assessments through the old
+    seat-based FreePlan counters before the wallet's 100-free-credits system
+    (the one actually surfaced on the billing UI) ever engaged -- the wallet
+    balance/free-credit count never moved, which is exactly the "billing
+    isn't working" symptom this fixes. The wallet free-tier limit
+    (PricingConfig `free_tier_limit`) is now the only free tier that
+    actually governs candidate-processing billing.
+    """
     if usage is None:
         usage = UserUsage.objects.create(company=company)
+
+    has_real_subscription = (
+        StripeSubscription.objects.filter(company=company, status="active").exists()
+        or PaystackSubscription.objects.filter(company=company, status="active").exists()
+    )
+    if not has_real_subscription:
+        return False
 
     if determiner == "resume-analyzes":
         if usage.can_screen_resume():

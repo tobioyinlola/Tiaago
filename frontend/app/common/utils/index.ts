@@ -10,7 +10,6 @@ import {
   BasePageProps,
   CompanySkillAssessment,
   Job,
-  SubscriptionPlan,
   User,
 } from "../types";
 
@@ -111,9 +110,6 @@ export const isBasicUser = (user: User) =>
 
 export const isProUser = (user: User) =>
   user.subscribed_plan?.plan.toLowerCase().includes("premium");
-
-export const isPremiumPlan = (subscribedPlan?: SubscriptionPlan) =>
-  subscribedPlan?.sub_type === "PR";
 
 export const formatPrice = ({
   price,

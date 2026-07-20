@@ -1,6 +1,6 @@
 import * as Yup from "yup";
 
-import { AssessmentQuestionSection, InterviewSlotInput } from "@/app/common/types";
+import { AssessmentQuestionSection, InterviewAvailabilityInput } from "@/app/common/types";
 import {
   jobBasicDetailsValidationSchema,
   companyDescriptionValidationSchema,
@@ -26,16 +26,23 @@ export const criteriaAvailabilityValidationSchema = Yup.object().shape({
     .min(0, "Must be at least 0%")
     .max(100, "Must be at most 100%")
     .label("Assessment passing grade"),
-  interview_slots: Yup.array()
-    .of(
-      Yup.object().shape({
-        date: Yup.string().required(),
-        start_time: Yup.string().required(),
-        end_time: Yup.string().required(),
-      })
-    )
-    .min(1, "Add at least one interview time slot")
-    .label("Interview availability"),
+  interview_availability: Yup.object().shape({
+    days_of_week: Yup.array()
+      .of(Yup.number())
+      .min(1, "Select at least one day you're available")
+      .label("Interview availability days"),
+    start_time: Yup.string().required("Please set a start time"),
+    end_time: Yup.string()
+      .required("Please set an end time")
+      .test(
+        "is-after-start",
+        "End time must be after start time",
+        function (end_time) {
+          const { start_time } = this.parent;
+          return !start_time || !end_time || end_time > start_time;
+        }
+      ),
+  }),
 });
 
 export const assessmentGenerationValidationSchema = Yup.object().shape({
@@ -72,7 +79,7 @@ export const assessmentGenerationValidationSchema = Yup.object().shape({
 export type CriteriaAvailabilityFormValues = {
   screening_threshold: number | "";
   passing_grade: number | "";
-  interview_slots: InterviewSlotInput[];
+  interview_availability: InterviewAvailabilityInput;
 };
 
 export type AssessmentGenerationFormValues = {
@@ -95,7 +102,9 @@ export const criteriaAvailabilityInitialValues: CriteriaAvailabilityFormValues =
   // Intentionally blank -- no default values, recruiter must set these explicitly.
   screening_threshold: "",
   passing_grade: "",
-  interview_slots: [],
+  // Days intentionally blank (recruiter must pick), but the time range
+  // defaults to a normal 9-5 workday since that's the common case.
+  interview_availability: { days_of_week: [], start_time: "09:00", end_time: "17:00" },
 };
 
 export const assessmentGenerationInitialValues: AssessmentGenerationFormValues = {

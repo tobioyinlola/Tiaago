@@ -6,7 +6,6 @@ import { useRecruiterStore } from "../../../store";
 import SecurityTab from "@/app/common/components/SecurityTab";
 import { TalentRole as RecruiterRole } from "@/app/common/types";
 import type { RecruiterRepFormProps } from "./ProfileTab/RecruiterRepForm";
-// import SubscriptionTab from "@/app/common/components/dashboard/subscription/SubscriptionTab";
 
 export type TabKey = (typeof settingsTabs)[number]["name"];
 
@@ -27,13 +26,6 @@ const Tab = ({ tab, groupedCountries, recruiterRoles }: TabProps) => {
       />
     ),
     security: <SecurityTab />,
-    // subscription: (
-    //   <SubscriptionTab
-    //     subscribedPlan={profile.subscribed_plan}
-    //     userType={profile.user_type}
-    //     email={profile.email}
-    //   />
-    // ),
     email: <EmailIntegrationTab />,
     team: <TeamMembersTab />,
   };

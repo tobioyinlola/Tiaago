@@ -11,7 +11,6 @@ import ConfirmationModal from "./ConfirmationModal";
 import { useRecruiterStore } from "../../store";
 import { useMultiStep } from "@/app/common/store/useMultiStep";
 import Modal from "@/app/common/components/Modal";
-import SubscriptionPlansModal from "./SubscriptionPlansModal";
 
 const TOTAL_STEPS = 5;
 const scrollAreaId = "recruiter-onboarding-scroll-area";
@@ -33,7 +32,6 @@ function RecruiterOnboardingCards({ isTeamMember = false }: { isTeamMember?: boo
   const { step: currentStep, nextStep, prevStep, setStep } = useMultiStep();
   const confirmationModalRef = useRef<HTMLDialogElement>(null);
   const onboardingModalRef = useRef<HTMLDialogElement>(null);
-  const subscriptionModalRef = useRef<HTMLDialogElement>(null);
   const userName = profile?.first_name || "there";
   const router = useRouter();
 
@@ -81,22 +79,6 @@ function RecruiterOnboardingCards({ isTeamMember = false }: { isTeamMember?: boo
     handleCloseModal();
     setStep(0);
     onboardingModalRef.current?.close();
-    router.push("/recruiter/dashboard/billing");
-  };
-
-  const handleSubscription = () => {
-    confirmationModalRef.current?.close();
-    subscriptionModalRef.current?.showModal();
-  };
-
-  const handleCloseSubscriptionModal = () => {
-    subscriptionModalRef.current?.close();
-    handleCloseModal();
-    onboardingModalRef.current?.close();
-  };
-
-  const handleSelectPlan = (planName: string) => {
-    handleCloseSubscriptionModal();
     router.push("/recruiter/dashboard/billing");
   };
 
@@ -188,22 +170,7 @@ function RecruiterOnboardingCards({ isTeamMember = false }: { isTeamMember?: boo
         <ConfirmationModal
           userName={userName}
           onClose={handleCloseModal}
-          onSubscription={handleSubscription}
           onUsageBased={handleUsageBased}
-        />
-      </Modal>
-      {/* Subscription Plans Modal */}
-      <Modal
-        id='subscription-modal'
-        modalRef={subscriptionModalRef}
-        disableBackdropClick
-        disableClose
-        className='md:max-w-4xl w-[90svw]'
-        scrollAreaClassName="max-w-4xl"
-      >
-        <SubscriptionPlansModal
-          onClose={handleCloseSubscriptionModal}
-          onSelectPlan={handleSelectPlan}
         />
       </Modal>
     </>
