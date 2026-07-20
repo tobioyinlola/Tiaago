@@ -10,7 +10,7 @@ from base.permissions import IsCompanyRepOrStaffUser
 from create_user.models import CustomUser
 from create_user.permissions import get_user_company
 from skill_assessment.models import CandidateAssessmentSubmission
-from skill_assessment.views import _get_assessment_by_invite_token
+from skill_assessment.views import _get_assessment_by_invite_token, force_complete_submission
 from staff.permissions import get_staff_permissions, is_super_admin, requirePermission
 
 from .models import ProctoringSession, ProctoringEvent
@@ -148,6 +148,13 @@ class CompleteProctoringSessionView(APIView):
         if terminated_reason:
             session.terminated_reason = terminated_reason
         session.save(update_fields=["status", "ended_at", "integrity_score", "risk_level", "terminated_reason", "updated_at"])
+
+        if terminated_reason:
+            # A forced end (critical violation / max tab switches) must still
+            # produce a real, scored, emailed result -- not a submission that
+            # silently never completes because the candidate never reached
+            # every section. See force_complete_submission's docstring.
+            force_complete_submission(submission)
 
         return Response(status=200, data={"status": session.status, "integrity_score": score, "risk_level": risk_level})
 

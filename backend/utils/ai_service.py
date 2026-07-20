@@ -1,5 +1,6 @@
 import logging
 import os
+import re
 import requests
 from tempfile import NamedTemporaryFile
 from typing import Literal, List, Optional, TypedDict
@@ -138,12 +139,20 @@ class AIServiceHandler:
         return self.requests.post(_(url), data=payload, **kwargs)
 
     def clean_option(self, option):
-        """Function to clean options in MCQ Questions obtained from the AI service"""
+        """Strip a leading option-letter prefix (e.g. "A) ", "B. ", "c:") the AI
+        sometimes embeds directly in the option/answer text.
 
-        dirt = ["A. ", "B. ", "C. ", "D. "]
-        cleaned_option = option
-        for item in dirt:
-            cleaned_option = cleaned_option.replace(item, "")
+        This must catch every prefix style the prompts actually produce (both
+        "A. " and "A) " show up across different prompts) -- if a prefix
+        survives, it stays baked into the option's stored text, and once
+        GeneralSkillAssessmentMCQListSerializer shuffles display order per
+        read, a leftover "C)" can end up rendered under position "A", which
+        is exactly the mismatch this cleans up before options are ever
+        stored.
+        """
+        if not option:
+            return option
+        cleaned_option = re.sub(r"^\s*[A-Da-d]\s*[\.\):]\s*", "", option)
         return cleaned_option.strip()
 
     def get_mcq_questions(

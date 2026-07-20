@@ -105,8 +105,8 @@ export const assessmentGenerationInitialValues: AssessmentGenerationFormValues =
   // who never opens the proctoring section still gets these applied.
   proctoring_enabled: true,
   require_fullscreen: true,
-  require_webcam: false,
-  webcam_snapshots_enabled: false,
+  require_webcam: true,
+  webcam_snapshots_enabled: true,
   snapshot_interval_seconds: 60,
   max_tab_switches_before_warning: 2,
   max_tab_switches_before_termination: 5,

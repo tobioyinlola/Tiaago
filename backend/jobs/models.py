@@ -193,13 +193,15 @@ class Job(models.Model):
     # Proctoring settings -- captured once at job-creation time (assessment
     # config as a whole is create-time-only today, see assessment_time_limit
     # above), applied to every ProctoringSession created for this job's
-    # assessment. snapshot_interval_seconds/webcam_snapshots_enabled are
-    # inert until the webcam/face-detection phase ships, but are captured
-    # now so that phase doesn't need a second edit path.
+    # assessment. Webcam is required and snapshots are captured by default
+    # (candidates are blocked from starting the assessment if they deny
+    # camera access when require_webcam is set) so recruiters reliably get
+    # this data; face-detection/liveness analysis on top of the captured
+    # snapshots hasn't shipped yet.
     proctoring_enabled = models.BooleanField(default=True)
     require_fullscreen = models.BooleanField(default=True)
-    require_webcam = models.BooleanField(default=False)
-    webcam_snapshots_enabled = models.BooleanField(default=False)
+    require_webcam = models.BooleanField(default=True)
+    webcam_snapshots_enabled = models.BooleanField(default=True)
     snapshot_interval_seconds = models.PositiveIntegerField(default=60)
     max_tab_switches_before_warning = models.PositiveIntegerField(default=2)
     max_tab_switches_before_termination = models.PositiveIntegerField(default=5)

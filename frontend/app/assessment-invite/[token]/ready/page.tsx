@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -22,10 +22,20 @@ import { useInviteFlow } from "../_components/InviteFlowProvider";
 
 const ReadyPage = () => {
   const router = useRouter();
-  const { token, assessment_title, duration_minutes, sections, proctoring, setProctoringSessionId } =
+  const { token, assessment_title, duration_minutes, sections, proctoring, setProctoringSessionId, cameraStream } =
     useInviteFlow();
   const [agreed, setAgreed] = useState(false);
   const [starting, setStarting] = useState(false);
+
+  // Webcam is a hard requirement when the job sets it -- a candidate
+  // navigating straight here (skipping /environment) must not be able to
+  // begin without ever granting camera access.
+  useEffect(() => {
+    if (proctoring?.require_webcam && !cameraStream) {
+      router.replace(`/assessment-invite/${token}/environment`);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [proctoring?.require_webcam, cameraStream]);
 
   const measures: { Icon: typeof Maximize; text: string }[] = [
     { Icon: ShieldCheck, text: "Work independently. External help is not permitted." },
