@@ -50,6 +50,15 @@ class GradingResult(BaseModel):
     feedback: str
     score: Optional[float] = None  # Numerical score (0-100)
     score_rationale: Optional[Dict[str, str]] = None # Rationale for the score
+
+class PlagiarismCheckResult(BaseModel):
+    question: str
+    user_answer: str
+    plagiarism_score: float  # 0 (clearly original) - 100 (near-certain AI-generated/copied)
+    verdict: str  # "original" | "suspicious" | "likely_plagiarized"
+    indicators: List[str]  # short bullet reasons behind the score
+    summary: str  # one/two sentence human-readable explanation
+    token_usage: Optional[Dict[str, int]] = None
     token_usage: Optional[Dict[str, int]] = None
 
 class StageResult(BaseModel):

@@ -39,6 +39,13 @@ class ProctoringSession(models.Model):
     # recruiter's report stays accurate even if job settings change later.
     settings_snapshot = models.JSONField(default=dict)
 
+    # IP + best-effort geolocation, captured once at session creation
+    # (see proctoring.views.CreateProctoringSessionView). Geo lookup is a
+    # separate best-effort step -- ip_address can be set with location
+    # still empty if the lookup failed or was skipped.
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    location = models.JSONField(default=dict, blank=True)
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

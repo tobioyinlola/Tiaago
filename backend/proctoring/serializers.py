@@ -1,6 +1,27 @@
 from rest_framework import serializers
 
+from skill_assessment.models import AssessmentSubmissionSnapshot, CandidateAssessmentCodingAnswer
 from .models import ProctoringSession, ProctoringEvent
+
+
+class ProctoringSnapshotSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AssessmentSubmissionSnapshot
+        fields = ("id", "image", "created_at")
+        read_only_fields = fields
+
+
+class CodingAnswerPlagiarismSerializer(serializers.Serializer):
+    """One coding-task answer's AI plagiarism/AI-generation check result."""
+
+    question = serializers.SerializerMethodField()
+    plagiarism_score = serializers.FloatField()
+    verdict = serializers.CharField(source="plagiarism_verdict")
+    indicators = serializers.JSONField(source="plagiarism_indicators")
+    summary = serializers.CharField(source="plagiarism_summary")
+
+    def get_question(self, obj):
+        return obj.coding_task.title or obj.coding_task.description[:80]
 
 
 class ProctoringEventInputSerializer(serializers.Serializer):
@@ -50,6 +71,8 @@ class ProctoringReportSerializer(serializers.ModelSerializer):
     candidate_name = serializers.SerializerMethodField()
     job_title = serializers.SerializerMethodField()
     company_name = serializers.SerializerMethodField()
+    snapshots = serializers.SerializerMethodField()
+    plagiarism_flags = serializers.SerializerMethodField()
 
     class Meta:
         model = ProctoringSession
@@ -57,6 +80,7 @@ class ProctoringReportSerializer(serializers.ModelSerializer):
             "id", "status", "integrity_score", "risk_level", "terminated_reason",
             "started_at", "ended_at", "settings_snapshot", "events", "event_counts",
             "candidate_name", "job_title", "company_name",
+            "ip_address", "location", "snapshots", "plagiarism_flags",
         )
 
     def get_event_counts(self, obj):
@@ -73,6 +97,19 @@ class ProctoringReportSerializer(serializers.ModelSerializer):
 
     def get_company_name(self, obj):
         return obj.job.company.company_name if obj.job.company_id else None
+
+    def get_snapshots(self, obj):
+        snapshots = obj.assessment_attempt.snapshots.order_by("created_at")
+        return ProctoringSnapshotSerializer(snapshots, many=True, context=self.context).data
+
+    def get_plagiarism_flags(self, obj):
+        section_submissions = obj.assessment_attempt.skill_assessment_section_submissions.all()
+        coding_answers = (
+            CandidateAssessmentCodingAnswer.objects
+            .filter(section_submission__in=section_submissions, plagiarism_score__isnull=False)
+            .select_related("coding_task")
+        )
+        return CodingAnswerPlagiarismSerializer(coding_answers, many=True).data
 
 
 class AdminHighRiskSessionSerializer(serializers.ModelSerializer):

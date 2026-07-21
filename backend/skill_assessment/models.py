@@ -426,6 +426,12 @@ class CandidateAssessmentMCQAnswer(TimeStampedModel):
 
 class CandidateAssessmentCodingAnswer(TimeStampedModel):
     """Candidate Assessment Coding Answer"""
+
+    class PlagiarismVerdict(models.TextChoices):
+        ORIGINAL = "original", "Original"
+        SUSPICIOUS = "suspicious", "Suspicious"
+        LIKELY_PLAGIARIZED = "likely_plagiarized", "Likely plagiarized"
+
     section_submission = models.ForeignKey(
         CandidateAssessmentSectionSubmission, on_delete=models.CASCADE,
         related_name="coding_task_answers"
@@ -434,7 +440,17 @@ class CandidateAssessmentCodingAnswer(TimeStampedModel):
         CodingTask, on_delete=models.CASCADE,
         related_name="submitted_answers"
     )
-    user_answer = models.TextField() 
+    user_answer = models.TextField()
+
+    # AI plagiarism/AI-generation check -- best-effort signal computed
+    # alongside grading (see skill_assessment.tasks.mark_coding_task),
+    # never blocks grading if the check itself fails.
+    plagiarism_score = models.FloatField(null=True, blank=True)
+    plagiarism_verdict = models.CharField(
+        max_length=20, choices=PlagiarismVerdict.choices, null=True, blank=True
+    )
+    plagiarism_indicators = models.JSONField(default=list, blank=True)
+    plagiarism_summary = models.TextField(blank=True, default="")
 
     def __str__(self):
         return f"Answer to {self.coding_task.title}"

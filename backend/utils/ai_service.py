@@ -509,6 +509,46 @@ class AIServiceHandler:
 
         return data
 
+    def check_plagiarism(self, *, question: dict, user_answer: dict) -> dict:
+        """
+        Call the plagiarism-check endpoint for a single coding-task answer.
+
+        Payload/response shape mirrors grade_single_coding_question:
+        {
+            "question": { "question": str },
+            "user_answer": { "user_answer": str }
+        }
+        Returns the JSON (plagiarism_score 0..100, verdict, indicators,
+        summary) or raises ValueError with server details. Best-effort by
+        design at the call site -- callers should catch and log rather than
+        let a plagiarism-check failure block grading/scoring.
+        """
+        endpoint = "/check-plagiarism"
+
+        q_text = (question or {}).get("question") or ""
+        question_payload = {"question": q_text}
+        user_payload = {"question": q_text, "user_answer": (user_answer or {}).get("user_answer", "")}
+        payload = {"question": question_payload, "user_answer": user_payload}
+
+        resp = self.post(endpoint, json=payload, timeout=30)
+        if not (200 <= resp.status_code < 300):
+            try:
+                err = resp.json()
+            except Exception:
+                err = resp.text
+            raise ValueError(f"Plagiarism API {resp.status_code} at {endpoint}: {err}")
+
+        try:
+            data = resp.json()
+        except Exception as e:
+            raise ValueError(f"Non-JSON response from plagiarism API at {endpoint}: {e}") from e
+
+        if not isinstance(data, dict):
+            raise ValueError(f"Unexpected plagiarism response type: {type(data).__name__}")
+
+        data["plagiarism_score"] = self._coerce_score(data.get("plagiarism_score", 0))
+        return data
+
 
     def grade_coding_assessment(
         self,

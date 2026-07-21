@@ -150,6 +150,25 @@ def mark_coding_task(
         user_code = answer_obj.user_answer if answer_obj else ""
         user_answers.append({"question": task.description, "user_answer": user_code})
 
+        # Best-effort AI plagiarism/AI-generation check -- a failure here
+        # must never block grading, which is why it's isolated in its own
+        # try/except rather than folded into the grading call above.
+        if answer_obj and user_code.strip():
+            try:
+                plagiarism = AIService.check_plagiarism(
+                    question={"question": task.description},
+                    user_answer={"user_answer": user_code},
+                )
+                answer_obj.plagiarism_score = plagiarism.get("plagiarism_score")
+                answer_obj.plagiarism_verdict = plagiarism.get("verdict") or None
+                answer_obj.plagiarism_indicators = plagiarism.get("indicators") or []
+                answer_obj.plagiarism_summary = plagiarism.get("summary") or ""
+                answer_obj.save(update_fields=[
+                    "plagiarism_score", "plagiarism_verdict", "plagiarism_indicators", "plagiarism_summary",
+                ])
+            except Exception:
+                logger.exception("Plagiarism check failed for coding answer %s", answer_obj.id)
+
     result = AIService.grade_coding_assessment(
         assessment_result=assessment_result,
         user_answers=user_answers

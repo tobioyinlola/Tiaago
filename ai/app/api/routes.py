@@ -1,13 +1,13 @@
 from fastapi import APIRouter, HTTPException, Query, File, UploadFile
 from fastapi.responses import JSONResponse
 from typing import List, Optional
-from app.services.assessment_service import assess_candidate, grade_coding_assessment, grade_single_coding_question, generate_culture_fit_questions, create_technical_multi_stage_assessment, create_non_technical_assessment, evaluate_stage_progression, get_assessment_by_id, get_current_stage_data, complete_assessment_stage, generate_overall_feedback, create_categorized_mcq_assessment
+from app.services.assessment_service import assess_candidate, grade_coding_assessment, grade_single_coding_question, generate_culture_fit_questions, create_technical_multi_stage_assessment, create_non_technical_assessment, evaluate_stage_progression, get_assessment_by_id, get_current_stage_data, complete_assessment_stage, generate_overall_feedback, create_categorized_mcq_assessment, check_code_plagiarism
 from app.services.resume_analyzer import analyze_resume
 from app.models.assessment import (
     AssessmentResult, Question, CodingAnswer, MCQAnswer, GradingResult,
     CultureFitQuestion, CultureFitAssessment, AssessmentSubmission,
     MultiStageAssessment, StageResult, CultureFitResults, SkillsAssessmentResults,
-    CategorizedAssessmentResult
+    CategorizedAssessmentResult, PlagiarismCheckResult
 )
 from app.models.resume import ResumeAnalysis
 import io
@@ -475,6 +475,28 @@ async def grade_single_coding_question_endpoint(question: Question, user_answer:
         return grading_result
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error grading question: {str(e)}")
+
+@router.post("/check-plagiarism", response_model=PlagiarismCheckResult, tags=["Assessment"])
+async def check_plagiarism_endpoint(question: Question, user_answer: CodingAnswer):
+    """
+    Assess a single coding-task answer for signs of AI generation or
+    plagiarism (as opposed to grading correctness/quality).
+
+    Parameters:
+    - question: The Question object (problem statement)
+    - user_answer: The CodingAnswer object containing the candidate's code
+
+    Returns:
+    A PlagiarismCheckResult object containing:
+    - plagiarism_score: 0 (clearly original) - 100 (near-certain AI/copied)
+    - verdict: "original" | "suspicious" | "likely_plagiarized"
+    - indicators: short bullet reasons behind the score
+    - summary: one/two sentence explanation for the recruiter
+    """
+    try:
+        return check_code_plagiarism(question, user_answer)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error checking plagiarism: {str(e)}")
 
 @router.post("/grade-mcq-assessment", response_model=List[GradingResult], tags=["Assessment"])
 async def grade_mcq_assessment(assessment_result: AssessmentResult, user_answers: List[MCQAnswer]):

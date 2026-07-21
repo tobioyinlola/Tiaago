@@ -75,3 +75,30 @@ export const ProctoringSeverityBadge = ({ severity }: { severity: "INFO" | "WARN
     {severity}
   </span>
 );
+
+const plagiarismVerdictClassMap = {
+  original: "bg-badge-green-bg text-badge-green-text",
+  suspicious: "bg-[hsl(var(--warning)/0.12)] text-[hsl(var(--warning))]",
+  likely_plagiarized: "bg-destructive/10 text-destructive",
+} as const;
+
+const plagiarismVerdictLabelMap = {
+  original: "Original",
+  suspicious: "Suspicious",
+  likely_plagiarized: "Likely plagiarized",
+} as const;
+
+export const PlagiarismVerdictBadge = ({
+  verdict,
+}: {
+  verdict: "original" | "suspicious" | "likely_plagiarized";
+}) => (
+  <span
+    className={cn(
+      "inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold whitespace-nowrap",
+      plagiarismVerdictClassMap[verdict]
+    )}
+  >
+    {plagiarismVerdictLabelMap[verdict]}
+  </span>
+);
