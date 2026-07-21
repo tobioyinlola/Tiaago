@@ -669,13 +669,13 @@ def low_balance_alert_mail(user, balance, threshold, currency, wallet_url):
     )
 
 
-def free_tier_exhausted_mail(user, resume_screening_price, assessment_price, wallet_url):
+def free_tier_exhausted_mail(user, resume_screening_price, assessment_price, wallet_url, free_tier_limit=20):
     """Sent once, the moment an organisation's last free credit is used --
     tells them their wallet will now be charged for every candidate."""
-    subject = "You've used all 100 of your free candidate processings"
+    subject = f"You've used all {free_tier_limit} of your free candidate processings"
     template, ctx = get_email_template_and_context(
         user, "free_tier_exhausted", resume_screening_price=resume_screening_price,
-        assessment_price=assessment_price, wallet_url=wallet_url,
+        assessment_price=assessment_price, wallet_url=wallet_url, free_tier_limit=free_tier_limit,
     )
     if not template:
         return None
