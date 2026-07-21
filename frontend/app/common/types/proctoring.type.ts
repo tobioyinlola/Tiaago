@@ -22,6 +22,28 @@ export type ProctoringSettingsSnapshot = {
   force_submit_on_critical_violation: boolean;
 };
 
+export type ProctoringSnapshotItem = {
+  id: number;
+  image: string;
+  created_at: string;
+};
+
+export type ProctoringLocation = {
+  country?: string;
+  region?: string;
+  city?: string;
+  lat?: number;
+  lon?: number;
+};
+
+export type PlagiarismFlag = {
+  question: string;
+  plagiarism_score: number;
+  verdict: "original" | "suspicious" | "likely_plagiarized";
+  indicators: string[];
+  summary: string;
+};
+
 export type ProctoringReport = {
   id: string;
   status: "ACTIVE" | "COMPLETED" | "TERMINATED";
@@ -36,6 +58,10 @@ export type ProctoringReport = {
   candidate_name: string;
   job_title: string;
   company_name: string | null;
+  ip_address: string | null;
+  location: ProctoringLocation;
+  snapshots: ProctoringSnapshotItem[];
+  plagiarism_flags: PlagiarismFlag[];
 };
 
 export type AdminProctoringOverview = {

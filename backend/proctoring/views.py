@@ -7,6 +7,7 @@ from rest_framework.permissions import AllowAny
 
 from base.mixins.pagination import TiaagoPagination
 from base.permissions import IsCompanyRepOrStaffUser
+from base.utils import get_client_ip
 from create_user.models import CustomUser
 from create_user.permissions import get_user_company
 from skill_assessment.models import CandidateAssessmentSubmission
@@ -15,6 +16,7 @@ from staff.permissions import get_staff_permissions, is_super_admin, requirePerm
 
 from .models import ProctoringSession, ProctoringEvent
 from .scoring import calculate_integrity_score
+from .tasks import resolve_proctoring_session_geo
 from .serializers import (
     ProctoringEventBatchInputSerializer,
     CompleteProctoringSessionInputSerializer,
@@ -66,15 +68,21 @@ class CreateProctoringSessionView(APIView):
             return Response(status=404, data={"error": "This assessment invite link is invalid or has expired."})
 
         job = assessment.job_application.job
-        session, _created = ProctoringSession.objects.get_or_create(
+        session, created = ProctoringSession.objects.get_or_create(
             assessment_attempt=submission,
             defaults={
                 "candidate": submission.candidate,
                 "job": job,
                 "started_at": timezone.now(),
                 "settings_snapshot": _settings_snapshot(job),
+                "ip_address": get_client_ip(request),
             },
         )
+        if created and session.ip_address:
+            # Geo lookup hits an external API -- run it out-of-band so this
+            # request (the candidate is waiting on "Begin assessment") never
+            # blocks on it.
+            resolve_proctoring_session_geo.delay(str(session.id))
         return Response(status=201, data={"session_id": session.id})
 
 
@@ -185,7 +193,7 @@ class ProctoringReportView(APIView):
             if not company or session.job.company_id != company.id:
                 return Response(status=404, data={"error": "No proctoring session found for this submission."})
 
-        return Response(status=200, data=ProctoringReportSerializer(session).data)
+        return Response(status=200, data=ProctoringReportSerializer(session, context={"request": request}).data)
 
 
 class AdminProctoringOverviewView(APIView):
