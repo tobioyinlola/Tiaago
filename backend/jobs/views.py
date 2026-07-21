@@ -685,16 +685,6 @@ class JobApplyView(CreateAPIView):
         if job.job_status != Job.JobStatus.ACTIVE:
             return Response({"detail": "Job not active"}, status=HTTP_400_BAD_REQUEST)
 
-        # job.role is now free text (not a Role FK) -- compare case-insensitively
-        # against the talent's own Role.title, matching how role titles are
-        # already treated as equivalent regardless of case elsewhere (e.g.
-        # Role.objects.filter(title__iexact=...) in the assessment-generation view).
-        talent_role_title = user.profile.role.title if user.profile.role else ""
-        if (job.role or "").strip().lower() != talent_role_title.strip().lower():
-            return Response(
-                {"detail": "You cannot apply to the job specified"},
-                status=HTTP_400_BAD_REQUEST,
-            )
         # check if the user has already applied
         exists = JobApplication.objects.filter(
             applicant=self.request.user.profile, job=job
