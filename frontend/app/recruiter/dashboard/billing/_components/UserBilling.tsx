@@ -139,7 +139,7 @@ const UserBilling = ({
   const [exportingCsv, setExportingCsv] = useState(false);
 
   const freeCreditsRemaining = walletBalance?.free_credits_remaining;
-  const freeTierLimit = walletBalance?.pricing?.free_tier_limit ?? 100;
+  const freeTierLimit = walletBalance?.pricing?.free_tier_limit ?? 20;
 
   useEffect(() => {
     let cancelled = false;
@@ -358,7 +358,7 @@ const UserBilling = ({
               <Gift size={20} className='text-emerald-600 flex-shrink-0' />
               <p className='text-xs sm:text-sm text-emerald-800'>
                 <span className='font-semibold'>
-                  {freeCreditsRemaining} of {freeTierLimit} free screenings remaining.
+                  {freeCreditsRemaining} of {freeTierLimit} free credits remaining.
                 </span>{" "}
                 Every candidate you screen or assess uses one free credit until these run out.
               </p>

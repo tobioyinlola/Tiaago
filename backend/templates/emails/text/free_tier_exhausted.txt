@@ -1,8 +1,8 @@
 {% autoescape off %}FREE TIER EXHAUSTED
 
-You've used all 100 free candidate processings.
+You've used all {{ free_tier_limit|default:20 }} free candidate processings.
 
-Hi {{ first_name|default:"there" }}, you've used all 100 of your free candidate
+Hi {{ first_name|default:"there" }}, you've used all {{ free_tier_limit|default:20 }} of your free candidate
 processings. Your wallet will now be charged for each candidate.
 
   Resume screening:  {{ resume_screening_price|default:"$0.03" }}

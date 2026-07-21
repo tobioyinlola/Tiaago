@@ -836,7 +836,7 @@ def get_wallet_balance(request):
                 'minimum_topup': get_pricing_decimal(
                     f"minimum_topup_{currency.lower()}", "10.00" if currency == "USD" else "5000.00"
                 ),
-                'free_tier_limit': get_pricing_decimal("free_tier_limit", "100"),
+                'free_tier_limit': get_pricing_decimal("free_tier_limit", "20"),
             },
         },
         status=status.HTTP_200_OK,

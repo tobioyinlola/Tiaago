@@ -49,7 +49,7 @@ def get_or_create_wallet(company: Company) -> Wallet:
         company=company,
         defaults={
             "currency": currency,
-            "free_credits_remaining": get_pricing_int("free_tier_limit", 100),
+            "free_credits_remaining": get_pricing_int("free_tier_limit", 20),
         },
     )
     return wallet
@@ -79,9 +79,10 @@ def _notify_billing_alert(company, title, message):
 
 
 def _notify_free_tier_exhausted(organisation):
+    limit = get_pricing_int("free_tier_limit", 20)
     recipient = _notify_billing_alert(
-        organisation, "You've used all 100 free candidate processings",
-        "You have used all 100 of your free candidate processings. Your wallet will now be "
+        organisation, f"You've used all {limit} free candidate processings",
+        f"You have used all {limit} of your free candidate processings. Your wallet will now be "
         "charged for each candidate you process.",
     )
     if not recipient:
@@ -90,7 +91,7 @@ def _notify_free_tier_exhausted(organisation):
     resume_price = _format_money(get_action_price("resume_screening", wallet.currency), wallet.currency)
     assessment_price = _format_money(get_action_price("assessment", wallet.currency), wallet.currency)
     try:
-        emails.free_tier_exhausted_mail(recipient, resume_price, assessment_price, _wallet_url())
+        emails.free_tier_exhausted_mail(recipient, resume_price, assessment_price, _wallet_url(), limit)
     except Exception:
         logger.exception("Failed to send free-tier-exhausted email for company %s", organisation.id)
 
@@ -212,16 +213,20 @@ class BillingService:
 
     @staticmethod
     def process_assessment_charge(job_application):
-        """Same idempotency/free-credit rules as process_resume_candidate_screening,
-        except: if the candidate's resume screening was covered by a free
-        credit, the assessment is free too -- one candidate processing
-        (regardless of stage reached) consumes exactly one free credit."""
+        """Same idempotency/free-credit rules as process_resume_candidate_screening --
+        an assessment is its own billable/creditable event, independent of
+        whether the same candidate's resume screening was free. It checks
+        and decrements the free-credit balance itself, and records a
+        transaction either way, so both a resume screening and an
+        assessment for the same candidate can consume a free credit (or a
+        real charge) each."""
         job = job_application.job
         organisation = job.company
         candidate = job_application.applicant
 
         CandidateBillingRecord.objects.get_or_create(organisation=organisation, job=job, candidate=candidate)
 
+        just_exhausted = False
         with transaction.atomic():
             record = CandidateBillingRecord.objects.select_for_update().get(
                 organisation=organisation, job=job, candidate=candidate
@@ -229,35 +234,55 @@ class BillingService:
             if record.assessment_charged:
                 return {"success": True, "reason": "already_charged", "amount_charged": None}
 
-            if record.was_free_credit:
+            wallet = get_or_create_wallet(organisation)
+            wallet = Wallet.objects.select_for_update().get(pk=wallet.pk)
+
+            if wallet.free_credits_remaining > 0:
+                wallet.free_credits_remaining -= 1
+                just_exhausted = wallet.free_credits_remaining == 0
+                wallet.save(update_fields=["free_credits_remaining"])
+                WalletTransaction.objects.create(
+                    wallet=wallet,
+                    transaction_type=WalletTransaction.TransactionType.CREDIT,
+                    service_type=WalletTransaction.ServiceType.FREE_CREDIT,
+                    amount=Decimal("0.00"),
+                    currency=wallet.currency,
+                    balance_after=wallet.balance,
+                    description=_candidate_description(candidate, job, "Free tier credit used — assessment"),
+                    status=WalletTransaction.Status.COMPLETED,
+                    job=job,
+                    candidate=candidate,
+                )
+                record.was_free_credit = True
                 record.assessment_charged = True
                 record.assessment_amount = Decimal("0.00")
                 record.assessment_charged_at = timezone.now()
                 record.save()
-                return {"success": True, "reason": "free_credit", "amount_charged": Decimal("0.00")}
-
-            wallet = get_or_create_wallet(organisation)
-            wallet = Wallet.objects.select_for_update().get(pk=wallet.pk)
-
-            price = get_action_price("assessment", wallet.currency)
-            if wallet.balance < price:
-                result = {"success": False, "reason": "insufficient_funds", "amount_charged": None}
+                result = {"success": True, "reason": "free_credit", "amount_charged": Decimal("0.00")}
             else:
-                wallet.debit(
-                    amount=price,
-                    description=_candidate_description(candidate, job, "Assessment"),
-                    currency=wallet.currency,
-                    service_type=WalletTransaction.ServiceType.ASSESSMENT,
-                    job=job,
-                    candidate=candidate,
-                )
-                record.assessment_charged = True
-                record.assessment_amount = price
-                record.assessment_charged_at = timezone.now()
-                record.total_charged = (record.total_charged or Decimal("0.00")) + price
-                record.save()
-                result = {"success": True, "reason": "charged", "amount_charged": price}
+                price = get_action_price("assessment", wallet.currency)
+                if wallet.balance < price:
+                    result = {"success": False, "reason": "insufficient_funds", "amount_charged": None}
+                else:
+                    wallet.debit(
+                        amount=price,
+                        description=_candidate_description(candidate, job, "Assessment"),
+                        currency=wallet.currency,
+                        service_type=WalletTransaction.ServiceType.ASSESSMENT,
+                        job=job,
+                        candidate=candidate,
+                    )
+                    record.assessment_charged = True
+                    record.assessment_amount = price
+                    record.assessment_charged_at = timezone.now()
+                    record.total_charged = (record.total_charged or Decimal("0.00")) + price
+                    record.save()
+                    result = {"success": True, "reason": "charged", "amount_charged": price}
 
         wallet = get_or_create_wallet(organisation)
-        BillingService.check_and_send_low_balance_alert(wallet)
+        if result["reason"] in ("charged", "insufficient_funds"):
+            BillingService.check_and_send_low_balance_alert(wallet)
+        elif result["reason"] == "free_credit" and just_exhausted:
+            _notify_free_tier_exhausted(organisation)
+
         return result
