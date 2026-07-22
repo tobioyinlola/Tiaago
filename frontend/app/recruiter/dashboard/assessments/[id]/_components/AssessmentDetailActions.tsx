@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Send, Rocket } from "lucide-react";
 
 import { ID } from "@/app/common/types";
 import Button from "@/app/common/components/DaisyButton";
@@ -40,20 +41,22 @@ const AssessmentDetailActions = ({
         <Button
           type="button"
           color="primary"
-          className="text-white"
+          className="text-white gap-2"
           onClick={() => inviteModalRef.current?.showModal()}
         >
+          <Send className="w-4 h-4" />
           Invite Candidates
         </Button>
       ) : (
         <Button
           type="button"
           color="primary"
-          className="text-white"
+          className="text-white gap-2"
           loading={publishing}
           disabled={!hasSections}
           onClick={handlePublish}
         >
+          <Rocket className="w-4 h-4" />
           Publish Assessment
         </Button>
       )}
