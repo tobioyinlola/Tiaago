@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { LuPencilLine } from "react-icons/lu";
 import { HiOutlineTrash } from "react-icons/hi";
@@ -12,6 +13,7 @@ import { getCompanyAssessment } from "@/app/common/services/assessment";
 import DisplayErrorMessages, {
   DisplayErrorMessagesProps,
 } from "@/app/common/components/DisplayErrorMessages";
+import AssessmentDetailActions from "./_components/AssessmentDetailActions";
 
 type Props = {
   params: Promise<{ id: string }>;
@@ -67,9 +69,21 @@ const AssessmentDetailsPage = async ({ params }: Props) => {
           Assessment Details
         </h1>
 
-        <button className='btn btn-primary btn-sm h-10 px-4 font-medium font-inter'>
-          Pubish Assessment
-        </button>
+        <div className='flex items-center gap-4'>
+          {assessment.published && (
+            <Link
+              href={`/recruiter/dashboard/assessments/${assessment.id}/submissions`}
+              className='text-sm text-primary font-medium'
+            >
+              View Submissions
+            </Link>
+          )}
+          <AssessmentDetailActions
+            assessmentId={assessment.id}
+            published={!!assessment.published}
+            hasSections={assessment.sections.length > 0}
+          />
+        </div>
       </div>
 
       <div className='bg-white rounded-xl p-6'>
@@ -88,6 +102,15 @@ const AssessmentDetailsPage = async ({ params }: Props) => {
                   : assessment.assessment_type
                       .replaceAll("_", " ")
                       .toLowerCase()}
+              </span>
+              <span
+                className={`px-2 py-[2px] rounded-full text-xs font-medium italic ${
+                  assessment.published
+                    ? "bg-[#EAFAF1] text-[#2ABA67]"
+                    : "bg-[#FFEDED] text-[#FF4A4A]"
+                }`}
+              >
+                {assessment.published ? "Published" : "Draft"}
               </span>
             </div>
           </div>
@@ -120,60 +143,41 @@ const AssessmentDetailsPage = async ({ params }: Props) => {
 
       <div className='mt-10'>
         <div className='flex justify-between items-center mb-4'>
-          <div className='px-1 py-1 bg-white rounded-lg text-sm text-[#2E3031]'>
-            <button className='btn btn-primary btn-outline btn-xs rounded !text-primaryBlack border-primary hover:!text-white px-2 text-sm font-medium h-7'>
-              Multiple choice Questions
-            </button>
-          </div>
-          <button className='text-xs text-[#6C757D] hover:text-gray-800'>
-            + Add Section
-          </button>
+          <h3 className='text-base font-semibold text-primaryBlack'>Sections</h3>
         </div>
 
-        <div className='bg-white rounded-2xl px-8 pb-10 pt-2 border border-[#EAECF0] flex flex-col items-center'>
-          <NoQuestionsIcon />
-          <p className='mt-2 mb-1 text-base font-bold text-center text-primaryBlack'>
-            No questions added yet
-          </p>
-          <p className='text-[#6C757D] text-sm text-center'>
-            Choose how you want to add one or more questions below
-          </p>
-          <div className='flex gap-4 mt-6'>
-            <button className='btn btn-sm h-11 px-7 btn-primary btn-outline !text-primaryBlack border-primary hover:!text-white text-base font-medium rounded-lg'>
-              Question Bank
-            </button>
-            <button className='btn btn-sm px-7 h-11 bg-[#FFF0F0] border border-[#FEE5E5] hover:border-[#FEE5E5] text-[#B53535] hover:bg-[#FEE5E5] gap-1 text-base font-medium rounded-lg'>
-              <svg
-                width='14'
-                height='14'
-                viewBox='0 0 14 14'
-                fill='none'
-                xmlns='http://www.w3.org/2000/svg'
+        {assessment.sections.length === 0 ? (
+          <div className='bg-white rounded-2xl px-8 pb-10 pt-2 border border-[#EAECF0] flex flex-col items-center'>
+            <NoQuestionsIcon />
+            <p className='mt-2 mb-1 text-base font-bold text-center text-primaryBlack'>
+              No questions added yet
+            </p>
+            <p className='text-[#6C757D] text-sm text-center'>
+              This draft was never finished in the wizard -- start a new assessment to add
+              sections.
+            </p>
+          </div>
+        ) : (
+          <div className='bg-white rounded-2xl p-6 border border-[#EAECF0] space-y-3'>
+            {assessment.sections.map(section => (
+              <div
+                key={section.id}
+                className='flex items-center justify-between border border-[#EAECF0] rounded-lg px-4 py-3'
               >
-                <path
-                  d='M1.75 7C4.375 7 7 4.375 7 1.75C7 4.375 9.625 7 12.25 7C9.625 7 7 9.625 7 12.25C7 9.625 4.375 7 1.75 7Z'
-                  stroke='#B53535'
-                  strokeWidth='0.875'
-                  strokeLinejoin='round'
-                />
-                <path
-                  d='M1.16699 11.3753C1.6531 11.3753 2.62533 10.4031 2.62533 9.91699C2.62533 10.4031 3.59755 11.3753 4.08366 11.3753C3.59755 11.3753 2.62533 12.3476 2.62533 12.8337C2.62533 12.3476 1.6531 11.3753 1.16699 11.3753Z'
-                  stroke='#B53535'
-                  strokeWidth='0.875'
-                  strokeLinejoin='round'
-                />
-                <path
-                  d='M9.33301 2.91699C9.91634 2.91699 11.083 1.75033 11.083 1.16699C11.083 1.75033 12.2497 2.91699 12.833 2.91699C12.2497 2.91699 11.083 4.08366 11.083 4.66699C11.083 4.08366 9.91634 2.91699 9.33301 2.91699Z'
-                  stroke='#B53535'
-                  strokeWidth='0.875'
-                  strokeLinejoin='round'
-                />
-              </svg>
-
-              <span>Generate using AI</span>
-            </button>
+                <p className='text-sm font-medium text-primaryBlack'>{section.name}</p>
+                <p className='text-xs text-[#9DA3A8]'>
+                  {section.type.replaceAll("_", " ")} --{" "}
+                  {section.type === "MCQ"
+                    ? section.mcq_questions?.length ?? 0
+                    : section.type === "CODING_TASK"
+                    ? section.coding_tasks?.length ?? 0
+                    : section.open_ended_questions?.length ?? 0}{" "}
+                  question(s)
+                </p>
+              </div>
+            ))}
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

@@ -25,6 +25,14 @@ def handle_assessment_result(
     ):
         return
 
+    # This flow (pass/fail templated email, AssessmentCooldown enforcement,
+    # retake links) assumes a real TalentProfile throughout. Standalone
+    # (account-less, invited-by-email) submissions have candidate=None by
+    # design -- their completion notification is sent separately, from the
+    # invite/grading pipeline that already knows to use invited_email/name.
+    if instance.candidate_id is None:
+        return
+
     def _trigger():
         if instance.total_score is None:
             return

@@ -10,6 +10,7 @@ from create_user.models import TalentProfile
 from roles.models import Role
 from .models import (
     CandidateAssessmentMCQAnswer,
+    CandidateAssessmentOpenEndedAnswer,
     GeneralSkillAssessment,
     GeneralSkillAssessmentSection,
     CandidateAssessmentSubmission,
@@ -18,7 +19,7 @@ from .models import (
     CodingTask,
     MCQToCodingLink,
     TechStack,
-    TestCase 
+    TestCase
 )
 from django.db import IntegrityError, OperationalError, transaction
 from skill_assessment.models import GeneralSkillAssessment
@@ -190,6 +191,192 @@ def mark_coding_task(
     return _coerce_score(percent), None
 
 
+def suggest_open_ended_grades(submission: CandidateAssessmentSubmission):
+    """Best-effort AI pre-fill of score/feedback for every open-ended answer
+    on this submission -- never blocks/aborts marking (mirrors the coding
+    plagiarism check's own isolated try/except above). The recruiter always
+    reviews/edits these via the grade-open-ended endpoint before anything is
+    finalized; nothing here writes to CandidateAssessmentOpenEndedAnswer.score."""
+    answers = CandidateAssessmentOpenEndedAnswer.objects.select_related("open_ended_question").filter(
+        section_submission__in=submission.skill_assessment_section_submissions.all()
+    )
+    for answer in answers:
+        if not answer.answer_text.strip():
+            continue
+        try:
+            suggestion = AIService.suggest_open_ended_grade(
+                question=answer.open_ended_question.question,
+                answer=answer.answer_text,
+                rubric=answer.open_ended_question.grading_guidance,
+                max_score=answer.open_ended_question.max_score,
+            )
+            if suggestion:
+                answer.ai_suggested_score = suggestion.get("suggested_score")
+                answer.ai_suggested_feedback = suggestion.get("suggested_feedback") or ""
+                answer.save(update_fields=["ai_suggested_score", "ai_suggested_feedback"])
+        except Exception:
+            logger.exception("AI open-ended grade suggestion failed for answer %s", answer.id)
+
+
+def _finalize_submission_score(submission, assessment, total_score, is_passed, pass_mark):
+    """Persists the final score/pass status and fires every completion
+    side-effect (tags, billing, notifications, interview invite). Called
+    either directly from mark_skill_assessment_submission (assessments with
+    no open-ended sections -- score is final the moment MCQ/coding grading
+    finishes) or from the grade-open-ended endpoint's finalize step (after a
+    recruiter has scored every open-ended answer on an AWAITING_MANUAL_REVIEW
+    submission -- see skill_assessment/views.py's GradeOpenEndedAPIView)."""
+    with transaction.atomic():
+        submission.total_score = total_score
+        submission.is_passed = is_passed
+        submission.mark_status = CandidateAssessmentSubmission.MarkStatusChoices.MARKED
+
+        if not submission.is_completed:
+            submission.is_completed = True
+            submission.completed_at = tz_now()
+
+        submission.save(update_fields=[
+            "total_score", "is_passed", "mark_status", "is_completed", "completed_at"
+        ])
+
+        if assessment.company_id:
+            from tags.tasks import evaluate_company_tags
+            evaluate_company_tags.delay(assessment.company_id)
+
+        if assessment.job_application_id:
+            flow_status, _ = ReportPAYGFlowStatus.objects.select_for_update().get_or_create(
+                job_application=assessment.job_application
+            )
+            flow_status.status = ReportPAYGFlowStatus.Status.STARTED
+            flow_status.error_message = ""
+            flow_status.save(update_fields=["status", "error_message"])
+
+    # Completion notification -- candidate confirmation + recruiter notice.
+    # Fires exactly once (guarded by completion_email_sent, set before
+    # sending so a task retry never double-sends).
+    if not submission.completion_email_sent:
+        if assessment.job_application_id:
+            # Job-application-backed flow: candidate always has a real
+            # TalentProfile+CustomUser (see decision #1 in the standalone-
+            # assessments plan), so candidate.user.email is always valid here.
+            submission.completion_email_sent = True
+            submission.save(update_fields=["completion_email_sent"])
+
+            job = assessment.job_application.job
+            try:
+                emails.assessment_submitted_mail(submission.candidate.user, job)
+            except Exception:
+                logger.exception("assessment_submitted_mail failed for submission %s", submission.id)
+
+            company_rep = getattr(job.company, "company_rep", None) if job and job.company_id else None
+            if company_rep and company_rep.email:
+                candidate = submission.candidate
+                candidate_name = (
+                    submission.candidate_display_name
+                    or candidate.full_name
+                    or candidate.user.get_full_name()
+                    or candidate.user.username
+                )
+                results_url = f"{str(FRONTEND_URL).rstrip('/')}/recruiter/dashboard/jobs/jobs-posted/{job.public_id}/applications"
+                try:
+                    emails.assessment_completed_recruiter_notice_mail(
+                        company_rep, job, candidate_name, results_url
+                    )
+                except Exception:
+                    logger.exception("assessment_completed_recruiter_notice_mail failed for submission %s", submission.id)
+
+        elif assessment.company_id and assessment.invited_email:
+            # Standalone (account-less) invite: no CustomUser to notify, so
+            # this goes straight to the recruiter-set invited_email/name
+            # instead of going through get_email_template_and_context.
+            submission.completion_email_sent = True
+            submission.save(update_fields=["completion_email_sent"])
+
+            company_rep = getattr(assessment.company, "company_rep", None)
+            try:
+                emails.standalone_assessment_completed_candidate_mail(
+                    assessment.invited_email, assessment.invited_name, assessment,
+                )
+            except Exception:
+                logger.exception("standalone_assessment_completed_candidate_mail failed for submission %s", submission.id)
+
+            if company_rep and company_rep.email:
+                results_url = f"{str(FRONTEND_URL).rstrip('/')}/recruiter/dashboard/assessments/{assessment.id}"
+                try:
+                    emails.assessment_completed_recruiter_notice_mail(
+                        company_rep, None, assessment.invited_name, results_url
+                    )
+                except Exception:
+                    logger.exception("assessment_completed_recruiter_notice_mail failed for submission %s", submission.id)
+
+    if is_passed:
+        if assessment.job_application_id:
+            try:
+                bill_service(assessment.job_application, "interview")
+            except Exception as e:
+                try:
+                    flow_status = ReportPAYGFlowStatus.objects.get(job_application=assessment.job_application)
+                    flow_status.status = ReportPAYGFlowStatus.Status.FAILED
+                    flow_status.error_message = f"Billing failed: {str(e)}"
+                    flow_status.save(update_fields=["status", "error_message"])
+                except Exception:
+                    logger.exception("Failed to update flow_status after billing error (submission %s)", submission.id)
+                logger.exception("Billing failed for job_application=%s", assessment.job_application_id)
+
+        if getattr(assessment, "is_tiaago_skill_assessment", False):
+            TalentProfile.objects.filter(
+                pk=submission.candidate_id, has_passed_tiaago_assessment=False
+            ).update(has_passed_tiaago_assessment=True)
+
+        if assessment.job_application_id and assessment.company_id:
+            job = assessment.job_application.job
+            has_published_slots = job.interview_availability_slots.filter(is_claimed=False).exists()
+            try:
+                if has_published_slots:
+                    send_interview_slot_selection_invite(submission, job)
+                else:
+                    send_interview_invite(submission)
+            except Exception:
+                logger.exception("Interview invite email failed for submission %s", submission.id)
+
+    return {
+        "status": "marked",
+        "id": submission.id,
+        "score": total_score,
+        "passed": is_passed,
+        "pass_mark": pass_mark,
+    }
+
+
+@shared_task(
+    bind=True,
+    name="finalize_graded_submission",
+    autoretry_for=(OperationalError,),
+    retry_backoff=5,
+    retry_jitter=True,
+    max_retries=3,
+)
+def finalize_graded_submission(self, submission_id, total_score, is_passed, pass_mark):
+    """Runs _finalize_submission_score out-of-band from the grade-open-ended
+    HTTP request (see skill_assessment.views.GradeOpenEndedAPIView) -- that
+    function's email sends go through EmailHandler's synchronous provider
+    fallback + retry logic, which can take tens of seconds; the recruiter's
+    "save grade" click shouldn't have to wait on it, so the endpoint just
+    schedules this and responds immediately once the score itself is saved."""
+    submission = (
+        CandidateAssessmentSubmission.objects
+        .select_related(
+            "candidate", "skill_assessment", "skill_assessment__job_application",
+            "skill_assessment__job_application__job", "skill_assessment__company",
+        )
+        .filter(id=submission_id)
+        .first()
+    )
+    if not submission:
+        return {"status": "not_found", "id": submission_id}
+    return _finalize_submission_score(submission, submission.skill_assessment, total_score, is_passed, pass_mark)
+
+
 DEFAULT_PASSING_GRADE = getattr(settings, "SKILL_ASSESSMENT_PASSING_GRADE_DEFAULT", 70.0)
 @shared_task(
     bind=True,
@@ -277,100 +464,31 @@ def mark_skill_assessment_submission(self, skill_assessment_submission_id: int):
         total_score = _to_score(total_score)
         is_passed = total_score >= pass_mark
 
-        with transaction.atomic():
-            submission.total_score = total_score
-            submission.is_passed = is_passed
-            submission.mark_status = CandidateAssessmentSubmission.MarkStatusChoices.MARKED
+        # Assessments with open-ended (free-text) sections can't be finalized
+        # automatically -- MCQ/coding are scored above as usual (and stashed
+        # here so finalizing later never re-grades/re-bills them), but
+        # total_score/is_passed/completion notifications wait until a
+        # recruiter has graded every open-ended answer via the
+        # grade-open-ended endpoint, which calls _finalize_submission_score
+        # below to pick up where this leaves off.
+        has_open_ended = assessment.sections.filter(type=SkillAssessmentTypes.OPEN_ENDED).exists()
+        if has_open_ended:
+            with transaction.atomic():
+                submission.mark_status = CandidateAssessmentSubmission.MarkStatusChoices.AWAITING_MANUAL_REVIEW
+                submission.pending_score_breakdown = {
+                    "mcq_avg": mcq_avg, "code_avg": code_avg,
+                    "has_mcq": bool(mcq_section_scores), "has_coding": has_coding,
+                }
+                if not submission.is_completed:
+                    submission.is_completed = True
+                    submission.completed_at = tz_now()
+                submission.save(update_fields=[
+                    "mark_status", "pending_score_breakdown", "is_completed", "completed_at",
+                ])
+            suggest_open_ended_grades(submission)
+            return {"status": "awaiting_manual_review", "id": submission.id}
 
-            if not submission.is_completed:
-                submission.is_completed = True
-                submission.completed_at = tz_now()
-
-            submission.save(update_fields=[
-                "total_score", "is_passed", "mark_status", "is_completed", "completed_at"
-            ])
-
-            if assessment.company_id:
-                from tags.tasks import evaluate_company_tags
-                evaluate_company_tags.delay(assessment.company_id)
-
-            if assessment.job_application_id:
-                flow_status, _ = ReportPAYGFlowStatus.objects.select_for_update().get_or_create(
-                    job_application=assessment.job_application
-                )
-                flow_status.status = ReportPAYGFlowStatus.Status.STARTED
-                flow_status.error_message = ""
-                flow_status.save(update_fields=["status", "error_message"])
-
-        # Completion notification -- candidate confirmation + recruiter
-        # notice. Fires exactly once (guarded by completion_email_sent, set
-        # before sending so a task retry never double-sends), and only for
-        # this flow's job-application-backed assessments -- the Tiaago
-        # self-verification assessment has no job/recruiter to notify.
-        if assessment.job_application_id and not submission.completion_email_sent:
-            submission.completion_email_sent = True
-            submission.save(update_fields=["completion_email_sent"])
-
-            job = assessment.job_application.job
-            try:
-                emails.assessment_submitted_mail(submission.candidate.user, job)
-            except Exception:
-                logger.exception("assessment_submitted_mail failed for submission %s", submission.id)
-
-            company_rep = getattr(job.company, "company_rep", None) if job and job.company_id else None
-            if company_rep and company_rep.email:
-                candidate = submission.candidate
-                candidate_name = (
-                    submission.candidate_display_name
-                    or candidate.full_name
-                    or candidate.user.get_full_name()
-                    or candidate.user.username
-                )
-                results_url = f"{str(FRONTEND_URL).rstrip('/')}/recruiter/dashboard/jobs/jobs-posted/{job.public_id}/applications"
-                try:
-                    emails.assessment_completed_recruiter_notice_mail(
-                        company_rep, job, candidate_name, results_url
-                    )
-                except Exception:
-                    logger.exception("assessment_completed_recruiter_notice_mail failed for submission %s", submission.id)
-
-        if is_passed:
-            if assessment.job_application_id:
-                try:
-                    bill_service(assessment.job_application, "interview")
-                except Exception as e:
-                    try:
-                        flow_status = ReportPAYGFlowStatus.objects.get(job_application=assessment.job_application)
-                        flow_status.status = ReportPAYGFlowStatus.Status.FAILED
-                        flow_status.error_message = f"Billing failed: {str(e)}"
-                        flow_status.save(update_fields=["status", "error_message"])
-                    except Exception:
-                        logger.exception("Failed to update flow_status after billing error (submission %s)", submission.id)
-                    logger.exception("Billing failed for job_application=%s", assessment.job_application_id)
-
-            if getattr(assessment, "is_tiaago_skill_assessment", False):
-                TalentProfile.objects.filter(
-                    pk=submission.candidate_id, has_passed_tiaago_assessment=False
-                ).update(has_passed_tiaago_assessment=True)
-
-            if assessment.job_application_id and assessment.company_id:
-                job = assessment.job_application.job
-                has_published_slots = job.interview_availability_slots.filter(is_claimed=False).exists()
-                try:
-                    if has_published_slots:
-                        send_interview_slot_selection_invite(submission, job)
-                    else:
-                        send_interview_invite(submission)
-                except Exception:
-                    logger.exception("Interview invite email failed for submission %s", submission.id)
-
-        return {
-            "status": "marked",
-            "id": submission.id,
-            "score": total_score,
-            "passed": is_passed,
-            "pass_mark": pass_mark,
-        }
+        return _finalize_submission_score(submission, assessment, total_score, is_passed, pass_mark)
 
     except Exception as e:
         try:

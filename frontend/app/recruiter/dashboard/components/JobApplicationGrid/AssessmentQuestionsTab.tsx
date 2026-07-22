@@ -1,16 +1,132 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, CheckCircle2 } from "lucide-react";
 
 import clientKyInstance from "@/app/common/utils/client-ky.instance";
 import { cn } from "@/app/common/utils";
-import { SubmissionAnswers } from "@/app/common/types";
+import { SubmissionAnswers, SubmissionAnswerOpenEndedQuestion } from "@/app/common/types";
+import Button from "@/app/common/components/DaisyButton";
+import { useAlert } from "@/app/common/store/useAlert";
+import { gradeOpenEndedAnswers } from "@/app/common/services/assessment";
+
+const OpenEndedQuestionGrader = ({
+  submissionId,
+  question,
+  qIdx,
+  onGraded,
+}: {
+  submissionId: string | number;
+  question: SubmissionAnswerOpenEndedQuestion;
+  qIdx: number;
+  onGraded: () => void;
+}) => {
+  const setAlert = useAlert(s => s.setAlert);
+  const [score, setScore] = useState(
+    question.score ?? question.ai_suggested_score ?? 0
+  );
+  const [feedback, setFeedback] = useState(
+    question.feedback || question.ai_suggested_feedback || ""
+  );
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    if (!question.answer_id) return;
+    setSaving(true);
+    const res = await gradeOpenEndedAnswers(submissionId, [
+      { answer_id: question.answer_id, score: Number(score), feedback },
+    ]);
+    setSaving(false);
+    if (!res.success) {
+      setAlert({ title: "Error", message: res.error, icon: "error" });
+      return;
+    }
+    setAlert({
+      title: "Saved",
+      message: res.data.finalized
+        ? "Grade saved -- every open-ended answer is graded, so the submission has been finalized."
+        : "Grade saved.",
+      icon: "success",
+    });
+    onGraded();
+  };
+
+  return (
+    <div className="pb-5 border-b border-[#EAECF0] last:border-b-0 last:pb-0">
+      <div className="flex items-start justify-between gap-2 mb-1">
+        <p className="text-sm font-medium text-primary-black">
+          {qIdx + 1}. {question.question}
+        </p>
+        {question.is_graded && (
+          <span className="inline-flex items-center gap-1 text-xs font-semibold text-success shrink-0">
+            <CheckCircle2 className="h-3.5 w-3.5" /> Graded
+          </span>
+        )}
+      </div>
+      {question.grading_guidance && (
+        <p className="text-xs text-secondary-black italic mb-3">
+          Guidance: {question.grading_guidance}
+        </p>
+      )}
+
+      <div className="rounded-lg border border-[#EAECF0] bg-[#F8FAFC] p-3 mb-3">
+        <p className="text-xs font-semibold text-secondary-black uppercase tracking-wide mb-2">
+          Candidate&apos;s answer
+        </p>
+        <p className="text-sm whitespace-pre-wrap text-primary-black">
+          {question.answer_text || "No answer submitted"}
+        </p>
+      </div>
+
+      {question.ai_suggested_score !== null && (
+        <p className="text-xs text-secondary-black mb-3">
+          AI suggestion: {question.ai_suggested_score}/{question.max_score} --{" "}
+          {question.ai_suggested_feedback}
+        </p>
+      )}
+
+      <div className="flex items-end gap-3">
+        <div className="w-28">
+          <label className="text-xs text-secondary-black block mb-1">
+            Score (/{question.max_score})
+          </label>
+          <input
+            type="number"
+            min={0}
+            max={question.max_score}
+            className="input input-bordered input-sm w-full"
+            value={score}
+            onChange={e => setScore(Number(e.target.value))}
+          />
+        </div>
+        <div className="flex-1">
+          <label className="text-xs text-secondary-black block mb-1">Feedback</label>
+          <textarea
+            className="textarea textarea-bordered textarea-sm w-full"
+            value={feedback}
+            onChange={e => setFeedback(e.target.value)}
+          />
+        </div>
+        <Button
+          type="button"
+          color="primary"
+          size="sm"
+          className="text-white shrink-0"
+          loading={saving}
+          onClick={handleSave}
+        >
+          Save grade
+        </Button>
+      </div>
+    </div>
+  );
+};
 
 const AssessmentQuestionsTab = ({ submissionId }: { submissionId: string | number }) => {
   const [data, setData] = useState<SubmissionAnswers | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -30,7 +146,7 @@ const AssessmentQuestionsTab = ({ submissionId }: { submissionId: string | numbe
     return () => {
       cancelled = true;
     };
-  }, [submissionId]);
+  }, [submissionId, refreshKey]);
 
   if (loading) {
     return (
@@ -66,7 +182,9 @@ const AssessmentQuestionsTab = ({ submissionId }: { submissionId: string | numbe
             <span className='text-xs text-secondary-black'>
               {section.type === "MCQ"
                 ? `${section.questions?.length ?? 0} questions`
-                : `${section.coding_tasks?.length ?? 0} tasks`}
+                : section.type === "CODING_TASK"
+                ? `${section.coding_tasks?.length ?? 0} tasks`
+                : `${section.open_ended_questions?.length ?? 0} questions`}
             </span>
           </div>
 
@@ -140,6 +258,17 @@ const AssessmentQuestionsTab = ({ submissionId }: { submissionId: string | numbe
                     </pre>
                   </div>
                 </div>
+              ))}
+
+            {section.type === "OPEN_ENDED" &&
+              section.open_ended_questions?.map((question, qIdx) => (
+                <OpenEndedQuestionGrader
+                  key={question.id}
+                  submissionId={submissionId}
+                  question={question}
+                  qIdx={qIdx}
+                  onGraded={() => setRefreshKey(k => k + 1)}
+                />
               ))}
           </div>
         </div>

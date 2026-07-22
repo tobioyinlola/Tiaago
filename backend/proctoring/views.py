@@ -11,6 +11,7 @@ from base.utils import get_client_ip
 from create_user.models import CustomUser
 from create_user.permissions import get_user_company
 from skill_assessment.models import CandidateAssessmentSubmission
+from skill_assessment.utils import resolve_invite_talent, STANDALONE_PROCTORING_DEFAULTS
 from skill_assessment.views import _get_assessment_by_invite_token, force_complete_submission
 from staff.permissions import get_staff_permissions, is_super_admin, requirePermission
 
@@ -26,6 +27,8 @@ from .serializers import (
 
 
 def _settings_snapshot(job):
+    if job is None:
+        return dict(STANDALONE_PROCTORING_DEFAULTS)
     return {
         "proctoring_enabled": job.proctoring_enabled,
         "require_fullscreen": job.require_fullscreen,
@@ -48,7 +51,7 @@ def _get_submission_for_token(token):
     assessment = _get_assessment_by_invite_token(token)
     if not assessment:
         return None, None
-    talent = assessment.job_application.applicant
+    talent = resolve_invite_talent(assessment)
     submission = CandidateAssessmentSubmission.objects.filter(
         candidate=talent, skill_assessment=assessment
     ).first()
@@ -67,7 +70,7 @@ class CreateProctoringSessionView(APIView):
         if not assessment or not submission:
             return Response(status=404, data={"error": "This assessment invite link is invalid or has expired."})
 
-        job = assessment.job_application.job
+        job = assessment.job_application.job if assessment.job_application_id else None
         session, created = ProctoringSession.objects.get_or_create(
             assessment_attempt=submission,
             defaults={

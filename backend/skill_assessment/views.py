@@ -32,11 +32,13 @@ from create_user.models import CompanyTeamMember
 from skill_assessment.constants import SkillAssessmentTypes
 from create_user.models import TalentProfile
 
-from skill_assessment.tasks import mark_skill_assessment_submission
+from skill_assessment.tasks import mark_skill_assessment_submission, finalize_graded_submission, _to_score, DEFAULT_PASSING_GRADE
+from skill_assessment.utils import resolve_invite_talent
 from .filters import GeneralSkillAssessmentFilter
 from .models import (
     CandidateAssessmentMCQAnswer,
     CandidateAssessmentCodingAnswer,
+    CandidateAssessmentOpenEndedAnswer,
     CandidateAssessmentSectionSubmission,
     CandidateAssessmentSubmission,
     Certificate,
@@ -56,6 +58,8 @@ from .models import (
     TalentQuestionBank,
     AssessmentCooldown,
     AssessmentSubmissionSnapshot,
+    OpenEndedQuestion,
+    AssessmentBundle,
 )
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from django.db import transaction, IntegrityError
@@ -89,7 +93,14 @@ from .serializers import (
     AssessmentInviteConfirmSerializer,
     AssessmentInviteFeedbackSerializer,
     AssessmentSubmissionSnapshotSerializer,
+    AssessmentBundleSerializer,
+    BulkInviteCandidatesSerializer,
+    AddBundleSectionSerializer,
+    GradeOpenEndedSerializer,
+    TalentQuestionBankManageSerializer,
+    AssessmentBundleManageSerializer,
 )
+from rest_framework.generics import RetrieveUpdateDestroyAPIView
 from subscriptions.permissions import (
     IsTalentOrStaffUser,
     IsCompanyRepUser,
@@ -100,6 +111,7 @@ from utils.ai_service import AIService
 from utils.elevenlabs_handler import elevenlabs_handler
 from .services import queue_or_start_session, complete_session, activate_next_queued_session
 from jobs.models import JobApplication, Portfolio, Job
+from emails import emails
 from payments.utils import initiate_stripe_payment,initiate_paystack_payment
 from loguru import logger
 from payments.models import Coupon,CouponUsage
@@ -277,10 +289,356 @@ class AddSectionsToSkillAssessmentAPIView(APIView):
                                 TestCase.objects.create(**test_case, coding_task=coding_task_obj)
                             assessment_section.coding_tasks.add(coding_task_obj)
 
+                    # if the section is a manually-graded, free-text section
+                    elif section_type == SkillAssessmentTypes.OPEN_ENDED:
+                        open_ended_questions = section.get("open_ended_questions", []) or []
+                        for oeq in open_ended_questions:
+                            open_ended_obj = OpenEndedQuestion.objects.create(**oeq)
+                            assessment_section.open_ended_questions.add(open_ended_obj)
+
             return Response(status=200, data={"message": "Skill assessment successfully updated"})
         except Exception as e:
             logger.exception("Failed to add sections to skill assessment: %s", e)
             return Response(status=500, data={"error": "Failed to update skill assessment"})
+
+
+def _get_owned_company_assessment(request, skill_assessment_id, require_draft=False, require_published=False):
+    """Shared ownership + role check for the wizard endpoints below, all of
+    which act on a company-owned standalone assessment (never a
+    job-application-backed one -- those are AI-authored per-candidate and
+    not recruiter-editable through this surface)."""
+    assessment = GeneralSkillAssessment.objects.filter(
+        id=skill_assessment_id, company=request.user.company, job_application__isnull=True,
+    ).first()
+    if not assessment:
+        return None, Response(status=404, data={"error": "Skill assessment does not exist or has been deleted"})
+
+    if request.user.is_company():
+        company = getattr(request.user, "company", None)
+        if not user_is_company_role(request.user, company, [CompanyTeamMember.ROLE.ADMIN, CompanyTeamMember.ROLE.RECRUITER]):
+            return None, Response(status=403, data={"error": "You do not have permission to edit this assessment."})
+
+    if require_draft and assessment.published:
+        return None, Response(status=400, data={"error": "This assessment is already published and can no longer be edited."})
+    if require_published and not assessment.published:
+        return None, Response(status=400, data={"error": "This assessment must be published before candidates can be invited."})
+    return assessment, None
+
+
+class AddBundleSectionAPIView(APIView):
+    """POST /company-assessments/<id>/sections/from-bundle/ -- clones a
+    curated AssessmentBundle's question-bank entries into new section(s) on
+    a draft assessment (the wizard's "Test Library" -> "Add"). Clone, not
+    reference: later edits to the bundle (or the TalentQuestionBank rows
+    behind it) never retroactively change an assessment already built from
+    it, same as hand-authored sections."""
+
+    permission_classes = [IsCompanyRepUser]
+
+    def post(self, request, skill_assessment_id):
+        assessment, error = _get_owned_company_assessment(request, skill_assessment_id, require_draft=True)
+        if error:
+            return error
+
+        serializer = AddBundleSectionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        bundle = serializer.validated_data["bundle_id"]
+
+        bank_questions = list(
+            bundle.bank_questions.select_related("mcq_question", "coding_task", "open_ended_question")
+            .prefetch_related("coding_task__test_cases")
+        )
+        mcq_entries = [bq for bq in bank_questions if bq.mcq_question_id]
+        coding_entries = [bq for bq in bank_questions if bq.coding_task_id]
+        open_ended_entries = [bq for bq in bank_questions if bq.open_ended_question_id]
+
+        if not (mcq_entries or coding_entries or open_ended_entries):
+            return Response(status=400, data={"error": "This bundle has no questions."})
+
+        multi_type = sum(bool(x) for x in (mcq_entries, coding_entries, open_ended_entries)) > 1
+        created_sections = []
+
+        try:
+            with transaction.atomic():
+                if mcq_entries:
+                    section = GeneralSkillAssessmentSection.objects.create(
+                        name=f"{bundle.name} - Multiple Choice" if multi_type else bundle.name,
+                        company_skill_assessment=assessment,
+                        type=SkillAssessmentTypes.MCQ,
+                    )
+                    for bq in mcq_entries:
+                        q = bq.mcq_question
+                        new_q = GeneralSkillAssessmentMCQQuestion.objects.create(
+                            question=q.question, options=q.options,
+                            correct_option_index=q.correct_option_index,
+                            is_ai_generated=q.is_ai_generated,
+                        )
+                        section.mcq_questions_new.add(new_q)
+                    created_sections.append(section)
+
+                if coding_entries:
+                    section = GeneralSkillAssessmentSection.objects.create(
+                        name=f"{bundle.name} - Coding" if multi_type else bundle.name,
+                        company_skill_assessment=assessment,
+                        type=SkillAssessmentTypes.CODING_TASK,
+                    )
+                    for bq in coding_entries:
+                        t = bq.coding_task
+                        new_task = CodingTask.objects.create(
+                            is_ai_generated=t.is_ai_generated, title=t.title, description=t.description,
+                            input_format=t.input_format, output_format=t.output_format,
+                            constraints=t.constraints, sample_input=t.sample_input, sample_output=t.sample_output,
+                            difficulty_level=t.difficulty_level, skills_assessed=t.skills_assessed,
+                            max_score=t.max_score, time_limit=t.time_limit, stack=t.stack,
+                        )
+                        section.coding_tasks.add(new_task)
+                        TestCase.objects.bulk_create([
+                            TestCase(
+                                coding_task=new_task, input_data=tc.input_data,
+                                expected_output=tc.expected_output, is_sample=tc.is_sample,
+                            )
+                            for tc in t.test_cases.all()
+                        ])
+                    created_sections.append(section)
+
+                if open_ended_entries:
+                    section = GeneralSkillAssessmentSection.objects.create(
+                        name=f"{bundle.name} - Open-Ended" if multi_type else bundle.name,
+                        company_skill_assessment=assessment,
+                        type=SkillAssessmentTypes.OPEN_ENDED,
+                    )
+                    for bq in open_ended_entries:
+                        q = bq.open_ended_question
+                        new_q = OpenEndedQuestion.objects.create(
+                            is_ai_generated=q.is_ai_generated, question=q.question,
+                            grading_guidance=q.grading_guidance, max_score=q.max_score,
+                            skills_assessed=q.skills_assessed,
+                        )
+                        section.open_ended_questions.add(new_q)
+                    created_sections.append(section)
+        except Exception as e:
+            logger.exception("Failed to add bundle section: %s", e)
+            return Response(status=500, data={"error": "Failed to add bundle to assessment"})
+
+        return Response(status=200, data={
+            "message": f"Added {len(created_sections)} section(s) from '{bundle.name}'",
+            "section_ids": [s.id for s in created_sections],
+        })
+
+
+class BundleListAPIView(APIView, PaginationHandlerMixin):
+    """GET /question-bank/bundles/ -- recommended/browsable bundles for the
+    wizard's Step 2 and the /question-bank page. Optional ?role=<id> and
+    ?search= filters."""
+
+    permission_classes = [IsCompanyRepUser]
+
+    def get(self, request):
+        queryset = AssessmentBundle.objects.filter(active=True).select_related("role")
+        role_id = request.GET.get("role")
+        if role_id:
+            queryset = queryset.filter(role_id=role_id)
+        search = request.GET.get("search")
+        if search:
+            queryset = queryset.filter(name__icontains=search)
+
+        paginated_queryset = self.paginate_queryset(queryset)
+        data = AssessmentBundleSerializer(paginated_queryset, many=True).data
+        return Response(data=self.get_paginated_response(data), status=200)
+
+
+class TalentQuestionBankManageListCreateView(ListCreateAPIView):
+    """Staff-only: list/create question-bank entries -- backs the
+    /admin/assessment/question-bank pages."""
+
+    serializer_class = TalentQuestionBankManageSerializer
+    permission_classes = [IsStaffUser]
+    pagination_class = TiaagoPagination
+
+    def get_queryset(self):
+        queryset = TalentQuestionBank.objects.select_related(
+            "mcq_question", "coding_task", "open_ended_question", "role", "stack"
+        ).order_by("-id")
+        role_id = self.request.GET.get("role")
+        if role_id:
+            queryset = queryset.filter(role_id=role_id)
+        question_type = self.request.GET.get("question_type")
+        if question_type == SkillAssessmentTypes.MCQ:
+            queryset = queryset.filter(mcq_question__isnull=False)
+        elif question_type == SkillAssessmentTypes.CODING_TASK:
+            queryset = queryset.filter(coding_task__isnull=False)
+        elif question_type == SkillAssessmentTypes.OPEN_ENDED:
+            queryset = queryset.filter(open_ended_question__isnull=False)
+        return queryset
+
+
+class TalentQuestionBankManageDetailView(RetrieveUpdateDestroyAPIView):
+    """Staff-only: retrieve/update/delete a single question-bank entry."""
+
+    serializer_class = TalentQuestionBankManageSerializer
+    permission_classes = [IsStaffUser]
+    queryset = TalentQuestionBank.objects.select_related(
+        "mcq_question", "coding_task", "open_ended_question", "role", "stack"
+    )
+
+
+class AssessmentBundleManageListCreateView(ListCreateAPIView):
+    """Staff-only: list/create bundles -- backs the /admin/assessment/bundles
+    pages."""
+
+    serializer_class = AssessmentBundleManageSerializer
+    permission_classes = [IsStaffUser]
+    pagination_class = TiaagoPagination
+
+    def get_queryset(self):
+        queryset = AssessmentBundle.objects.all().select_related("role").prefetch_related(
+            "bank_questions__mcq_question", "bank_questions__coding_task", "bank_questions__open_ended_question",
+        ).order_by("-id")
+        role_id = self.request.GET.get("role")
+        if role_id:
+            queryset = queryset.filter(role_id=role_id)
+        return queryset
+
+
+class AssessmentBundleManageDetailView(RetrieveUpdateDestroyAPIView):
+    """Staff-only: retrieve/update/delete a single bundle."""
+
+    serializer_class = AssessmentBundleManageSerializer
+    permission_classes = [IsStaffUser]
+    queryset = AssessmentBundle.objects.all().select_related("role").prefetch_related(
+        "bank_questions__mcq_question", "bank_questions__coding_task", "bank_questions__open_ended_question",
+    )
+
+
+class PublishAssessmentAPIView(APIView):
+    """POST /company-assessments/<id>/publish/ -- finalizes a draft as the
+    invitable template. Sections/questions are effectively locked once
+    published (see _get_owned_company_assessment's require_draft checks on
+    the editing endpoints above) -- further changes require building a new
+    assessment, so an already-invited candidate is never graded against a
+    moving target."""
+
+    permission_classes = [IsCompanyRepUser]
+
+    def post(self, request, skill_assessment_id):
+        assessment, error = _get_owned_company_assessment(request, skill_assessment_id, require_draft=True)
+        if error:
+            return error
+
+        if not assessment.sections.exists():
+            return Response(status=400, data={"error": "Add at least one section before publishing."})
+
+        assessment.published = True
+        assessment.save(update_fields=["published"])
+        return Response(status=200, data=GeneralSkillAssessmentListSerializer(assessment).data)
+
+
+def _clone_standalone_assessment_for_candidate(template, email, name):
+    """Deep-clone a published, recruiter-built standalone assessment into a
+    fresh per-candidate row -- mirrors the clone-not-reference pattern
+    jobs/tasks.py's send_assessment_link already uses for job invites. Every
+    invited candidate gets their own independent copy of every
+    section/question row (own invite_token too), so later edits to the
+    template never retroactively change an invite that's already gone out."""
+    clone = GeneralSkillAssessment.objects.create(
+        company=template.company,
+        title=template.title,
+        published=True,
+        difficulty_level=template.difficulty_level,
+        description=template.description,
+        duration_minutes=template.duration_minutes,
+        passing_grade=template.passing_grade,
+        display_review_and_approve_responses=template.display_review_and_approve_responses,
+        display_feedback=template.display_feedback,
+        shuffle_questions=template.shuffle_questions,
+        show_results_to_candidate=template.show_results_to_candidate,
+        reference=str(uuid.uuid4().hex)[:15],
+        assessment_type=template.assessment_type,
+        assessment_stack=template.assessment_stack,
+        invited_email=email,
+        invited_name=name,
+        source_template=template,
+    )
+    clone.skillsets.set(template.skillsets.all())
+
+    for section in template.sections.all().prefetch_related(
+        "mcq_questions_new", "coding_tasks__test_cases", "open_ended_questions"
+    ):
+        new_section = GeneralSkillAssessmentSection.objects.create(
+            name=section.name, company_skill_assessment=clone, type=section.type,
+        )
+        for q in section.mcq_questions_new.all():
+            new_q = GeneralSkillAssessmentMCQQuestion.objects.create(
+                question=q.question, options=q.options,
+                correct_option_index=q.correct_option_index, is_ai_generated=q.is_ai_generated,
+            )
+            new_section.mcq_questions_new.add(new_q)
+        for t in section.coding_tasks.all():
+            new_task = CodingTask.objects.create(
+                is_ai_generated=t.is_ai_generated, title=t.title, description=t.description,
+                input_format=t.input_format, output_format=t.output_format,
+                constraints=t.constraints, sample_input=t.sample_input, sample_output=t.sample_output,
+                difficulty_level=t.difficulty_level, skills_assessed=t.skills_assessed,
+                max_score=t.max_score, time_limit=t.time_limit, stack=t.stack,
+            )
+            new_section.coding_tasks.add(new_task)
+            TestCase.objects.bulk_create([
+                TestCase(
+                    coding_task=new_task, input_data=tc.input_data,
+                    expected_output=tc.expected_output, is_sample=tc.is_sample,
+                )
+                for tc in t.test_cases.all()
+            ])
+        for q in section.open_ended_questions.all():
+            new_q = OpenEndedQuestion.objects.create(
+                is_ai_generated=q.is_ai_generated, question=q.question,
+                grading_guidance=q.grading_guidance, max_score=q.max_score,
+                skills_assessed=q.skills_assessed,
+            )
+            new_section.open_ended_questions.add(new_q)
+
+    return clone
+
+
+class InviteCandidatesToAssessmentAPIView(APIView):
+    """POST /company-assessments/<id>/invite/ -- clones the published
+    template into one fresh GeneralSkillAssessment per invited candidate and
+    emails each an invite link. Never creates a CustomUser/TalentProfile --
+    candidates are identified purely by invited_email/invited_name (see
+    GeneralSkillAssessment.invited_email and skill_assessment.utils)."""
+
+    permission_classes = [IsCompanyRepUser]
+
+    def post(self, request, skill_assessment_id):
+        template, error = _get_owned_company_assessment(request, skill_assessment_id, require_published=True)
+        if error:
+            return error
+
+        serializer = BulkInviteCandidatesSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        invites = serializer.validated_data["invites"]
+
+        has_coding_task = template.sections.filter(type=SkillAssessmentTypes.CODING_TASK).exists()
+        sent, failed = [], []
+
+        for invite in invites:
+            email = invite["email"]
+            name = invite["name"]
+            try:
+                with transaction.atomic():
+                    clone = _clone_standalone_assessment_for_candidate(template, email, name)
+                    clone.invite_sent_at = timezone.now()
+                    clone.invite_deadline = clone.invite_sent_at + timedelta(hours=72)
+                    clone.save(update_fields=["invite_sent_at", "invite_deadline"])
+                emails.standalone_assessment_invite_mail(
+                    email, name, clone, deadline=clone.invite_deadline, has_coding_task=has_coding_task,
+                )
+                sent.append(email)
+            except Exception as e:
+                logger.exception("Failed to invite %s to assessment %s: %s", email, template.id, e)
+                failed.append(email)
+
+        return Response(status=200, data={"sent": sent, "failed": failed})
 
 
 class QuestionBankQuestionsAPIView(APIView, PaginationHandlerMixin):
@@ -468,6 +826,7 @@ def submit_general_skill_assessment_answers(talent, skill_assessment, request_da
 
             submitted_mcq = any((s.get("mcq_answers") or []) for s in answers)
             submitted_coding = any((s.get("coding_task_answers") or []) for s in answers)
+            submitted_open_ended = any((s.get("open_ended_answers") or []) for s in answers)
 
             # 4) Prefetch target sections (new MCQ wiring + coding tasks) -------
             section_ids = [s["section_id"] for s in answers]
@@ -491,6 +850,7 @@ def submit_general_skill_assessment_answers(talent, skill_assessment, request_da
                             ),
                     ),
                     Prefetch("coding_tasks", queryset=coding_qs),
+                    "open_ended_questions",
                 )
             )
             sections = {s.id: s for s in section_qs}
@@ -539,6 +899,7 @@ def submit_general_skill_assessment_answers(talent, skill_assessment, request_da
             new_sec_submissions = []
             mcq_answers_to_create = []
             coding_answers_to_create = []
+            open_ended_answers_to_create = []
 
             # Create section submissions
             for s in answers:
@@ -629,12 +990,44 @@ def submit_general_skill_assessment_answers(talent, skill_assessment, request_da
                                 )
                             )
 
+                # (d) prevent duplicates (for THIS submission) and build open-ended answers
+                if submitted_open_ended:
+                    already_open_ended_sec_ids = set(
+                        CandidateAssessmentOpenEndedAnswer.objects.filter(
+                            section_submission__in=existing_secs.values()
+                        ).values_list("section_submission__skill_assessment_section_id", flat=True)
+                    )
+                    for s in answers:
+                        sec_id = s["section_id"]
+                        oe_ans = s.get("open_ended_answers", []) or []
+                        if not oe_ans:
+                            continue
+                        if sec_id in already_open_ended_sec_ids:
+                            pass
+                        sec_sub = existing_secs[sec_id]
+                        allowed = {q.id: q for q in sections[sec_id].open_ended_questions.all()}
+
+                        for ans in oe_ans:
+                            q_id = ans.get("open_ended_question_id")
+                            question = allowed.get(q_id)
+                            if not question:
+                                return Response(status=400, data={"error": f"Question {q_id} not in section {sec_id}"})
+                            open_ended_answers_to_create.append(
+                                CandidateAssessmentOpenEndedAnswer(
+                                    section_submission=sec_sub,
+                                    open_ended_question=question,
+                                    answer_text=(ans.get("answer_text") or "").strip(),
+                                )
+                            )
+
                 if mcq_answers_to_create:
                     CandidateAssessmentMCQAnswer.objects.bulk_create(mcq_answers_to_create)
                 if coding_answers_to_create:
                     CandidateAssessmentCodingAnswer.objects.bulk_create(coding_answers_to_create)
+                if open_ended_answers_to_create:
+                    CandidateAssessmentOpenEndedAnswer.objects.bulk_create(open_ended_answers_to_create)
 
-                
+
                 # Completion must be judged against EVERY section of this
                 # assessment, not just the section(s) in this one request --
                 # existing_secs above is scoped to the current request's
@@ -651,6 +1044,11 @@ def submit_general_skill_assessment_answers(talent, skill_assessment, request_da
                         company_skill_assessment=skill_assessment, type=SkillAssessmentTypes.CODING_TASK
                     ).values_list("id", flat=True)
                 )
+                all_open_ended_section_ids = set(
+                    GeneralSkillAssessmentSection.objects.filter(
+                        company_skill_assessment=skill_assessment, type=SkillAssessmentTypes.OPEN_ENDED
+                    ).values_list("id", flat=True)
+                )
 
                 answered_mcq_section_ids = set(
                     CandidateAssessmentMCQAnswer.objects.filter(
@@ -662,24 +1060,30 @@ def submit_general_skill_assessment_answers(talent, skill_assessment, request_da
                         section_submission__in=submission.skill_assessment_section_submissions.all()
                     ).values_list("section_submission__skill_assessment_section_id", flat=True)
                 )
+                answered_open_ended_section_ids = set(
+                    CandidateAssessmentOpenEndedAnswer.objects.filter(
+                        section_submission__in=submission.skill_assessment_section_submissions.all()
+                    ).values_list("section_submission__skill_assessment_section_id", flat=True)
+                )
 
                 done_mcq = all_mcq_section_ids.issubset(answered_mcq_section_ids)
                 done_coding = all_coding_section_ids.issubset(answered_coding_section_ids)
-                if (done_mcq and done_coding) and not submission.is_completed:
+                done_open_ended = all_open_ended_section_ids.issubset(answered_open_ended_section_ids)
+                if (done_mcq and done_coding and done_open_ended) and not submission.is_completed:
                     submission.is_completed = True
                     submission.save(update_fields=["is_completed"])
 
                 # (f) if new answers were added but submission was already MARKED, reset to PENDING
-                if (mcq_answers_to_create or coding_answers_to_create) and \
+                if (mcq_answers_to_create or coding_answers_to_create or open_ended_answers_to_create) and \
                    submission.mark_status == CandidateAssessmentSubmission.MarkStatusChoices.MARKED:
                     pending = getattr(CandidateAssessmentSubmission.MarkStatusChoices, "PENDING", None)
                     if pending is not None:
                         submission.mark_status = pending
                         submission.save(update_fields=["mark_status"])
-            logger.info(f"MCQ answers to create: {len(mcq_answers_to_create)}, Coding answers to create: {len(coding_answers_to_create)} for submission{submission.id}" )
+            logger.info(f"MCQ answers to create: {len(mcq_answers_to_create)}, Coding answers to create: {len(coding_answers_to_create)}, Open-ended answers to create: {len(open_ended_answers_to_create)} for submission{submission.id}" )
             # Only dispatch once the ENTIRE assessment (every required
             # section) is done -- not after every individual section submit.
-            if done_mcq and done_coding:
+            if done_mcq and done_coding and done_open_ended:
                 transaction.on_commit(
                     lambda: mark_skill_assessment_submission.delay(
                         skill_assessment_submission_id=submission.id
@@ -746,6 +1150,11 @@ def force_complete_submission(submission: CandidateAssessmentSubmission):
             # CODING_TASK sections need no CandidateAssessmentCodingAnswer rows --
             # mark_coding_task already treats a missing answer for a task as an
             # empty-string submission once the section submission row exists.
+            elif section.type == SkillAssessmentTypes.OPEN_ENDED:
+                CandidateAssessmentOpenEndedAnswer.objects.bulk_create([
+                    CandidateAssessmentOpenEndedAnswer(section_submission=section_submission, open_ended_question=q)
+                    for q in section.open_ended_questions.all()
+                ])
 
         submission.is_completed = True
         submission.save(update_fields=["is_completed"])
@@ -772,15 +1181,21 @@ class TakeAGeneralSkillAssessmentAPIView(APIView):
 
 def _get_assessment_by_invite_token(token):
     """Resolve a GeneralSkillAssessment for the no-login candidate invite
-    flow. Only assessments tied to a job application resolve -- there is no
-    TalentProfile to act as without a job_application.applicant, so
-    company-created or Tiaago self-verification assessments (no
-    job_application) are never reachable via a token."""
+    flow. Resolves two distinct cases:
+    - job-application-backed: identity is job_application.applicant (a real
+      TalentProfile), matched via resolve_invite_talent().
+    - standalone (recruiter invited a candidate by email directly, no job):
+      invited_email/invited_name are set instead, and there is deliberately
+      no TalentProfile at all -- resolve_invite_talent() returns None for
+      this case, which every call site below is written to handle.
+    Bare company-only *template* assessments (not yet invited to anyone --
+    no job_application AND no invited_email) and Tiaago self-verification
+    assessments stay unreachable via token, same as before."""
     assessment = (
         GeneralSkillAssessment.objects
         .select_related("job_application", "job_application__applicant", "job_application__applicant__user", "job_application__job", "job_application__job__company")
         .filter(invite_token=token)
-        .exclude(job_application__isnull=True)
+        .exclude(job_application__isnull=True, invited_email__isnull=True)
         .first()
     )
     return assessment
@@ -805,7 +1220,7 @@ class AssessmentInviteDetailView(APIView):
         if not assessment:
             return Response(status=404, data={"error": "This assessment invite link is invalid or has expired."})
 
-        talent = assessment.job_application.applicant
+        talent = resolve_invite_talent(assessment)
         existing_submission = CandidateAssessmentSubmission.objects.filter(
             candidate=talent, skill_assessment=assessment
         ).first()
@@ -832,7 +1247,7 @@ class AssessmentInviteConfirmView(APIView):
         serializer = AssessmentInviteConfirmSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        talent = assessment.job_application.applicant
+        talent = resolve_invite_talent(assessment)
         already_started = CandidateAssessmentSubmission.objects.filter(
             candidate=talent, skill_assessment=assessment
         ).exists()
@@ -842,7 +1257,13 @@ class AssessmentInviteConfirmView(APIView):
         submission, _created = CandidateAssessmentSubmission.objects.get_or_create(
             candidate=talent, skill_assessment=assessment, defaults={"is_completed": False}
         )
-        submission.candidate_display_name = serializer.validated_data["full_name"]
+        # Standalone invites: the recruiter set this candidate's name at
+        # invite time and it is NOT editable by the candidate -- ignore
+        # whatever the client submitted and use invited_name regardless, so
+        # a direct API call can't override it either.
+        submission.candidate_display_name = (
+            assessment.invited_name if talent is None else serializer.validated_data["full_name"]
+        )
         update_fields = ["candidate_display_name"]
         if _created:
             submission.started_at = timezone.now()
@@ -863,7 +1284,7 @@ class AssessmentInviteQuestionsView(APIView):
         if not assessment:
             return Response(status=404, data={"error": "This assessment invite link is invalid or has expired."})
 
-        talent = assessment.job_application.applicant
+        talent = resolve_invite_talent(assessment)
         submission = CandidateAssessmentSubmission.objects.filter(
             candidate=talent, skill_assessment=assessment
         ).first()
@@ -894,7 +1315,7 @@ class AssessmentInviteSubmitView(APIView):
         if not assessment:
             return Response(status=404, data={"error": "This assessment invite link is invalid or has expired."})
 
-        talent = assessment.job_application.applicant
+        talent = resolve_invite_talent(assessment)
         return submit_general_skill_assessment_answers(talent, assessment, request.data)
 
 
@@ -912,7 +1333,7 @@ class AssessmentInviteSnapshotUploadView(APIView):
         if not assessment:
             return Response(status=404, data={"error": "This assessment invite link is invalid or has expired."})
 
-        talent = assessment.job_application.applicant
+        talent = resolve_invite_talent(assessment)
         submission = CandidateAssessmentSubmission.objects.filter(
             candidate=talent, skill_assessment=assessment
         ).first()
@@ -938,7 +1359,7 @@ class AssessmentInviteFeedbackView(APIView):
         if not assessment:
             return Response(status=404, data={"error": "This assessment invite link is invalid or has expired."})
 
-        talent = assessment.job_application.applicant
+        talent = resolve_invite_talent(assessment)
         submission = CandidateAssessmentSubmission.objects.filter(
             candidate=talent, skill_assessment=assessment
         ).first()
@@ -996,7 +1417,10 @@ class RecruiterSubmissionAnswersView(APIView):
     def get(self, request, submission_id):
         submission = (
             CandidateAssessmentSubmission.objects
-            .select_related("skill_assessment", "skill_assessment__job_application", "skill_assessment__job_application__job")
+            .select_related(
+                "skill_assessment", "skill_assessment__job_application",
+                "skill_assessment__job_application__job", "skill_assessment__company",
+            )
             .filter(id=submission_id)
             .first()
         )
@@ -1005,18 +1429,125 @@ class RecruiterSubmissionAnswersView(APIView):
 
         if not request.user.is_staff:
             job = getattr(submission.skill_assessment.job_application, "job", None) if submission.skill_assessment else None
+            # A standalone assessment has no job_application, so ownership is
+            # checked against skill_assessment.company directly instead.
+            company = job.company if job else getattr(submission.skill_assessment, "company", None)
             # This returns the answer key alongside each answer, so it's held
             # to the same Admin/Recruiter-only bar as AIOperationsFeedback
             # (the summary view that surfaces this submission_id in the
             # first place) -- not just "any team member of the company",
             # which would let a lower-trust Viewer role pull it directly.
-            if not job or not user_is_company_role(
-                request.user, job.company, [CompanyTeamMember.ROLE.ADMIN, CompanyTeamMember.ROLE.RECRUITER]
+            if not company or not user_is_company_role(
+                request.user, company, [CompanyTeamMember.ROLE.ADMIN, CompanyTeamMember.ROLE.RECRUITER]
             ):
                 return Response(status=403, data={"error": "You do not have access to this submission"})
 
         data = RecruiterSubmissionAnswersSerializer(submission).data
         return Response(status=200, data=data)
+
+
+class GradeOpenEndedAPIView(APIView):
+    """POST /submissions/<submission_id>/grade-open-ended/ -- recruiter
+    scores one or more open-ended answers on a submission (each pre-filled
+    with an AI suggestion, editable/overridable here -- see
+    suggest_open_ended_grades in tasks.py). Once every open-ended answer on
+    the submission has a score, automatically finalizes it: recomputes
+    total_score from the MCQ/coding averages already stashed in
+    pending_score_breakdown at auto-mark time plus the open-ended average,
+    never re-running (or re-billing) MCQ/coding grading."""
+
+    permission_classes = [IsCompanyRepOrStaffUser]
+
+    def post(self, request, submission_id):
+        submission = (
+            CandidateAssessmentSubmission.objects
+            .select_related("skill_assessment", "skill_assessment__company")
+            .filter(id=submission_id)
+            .first()
+        )
+        if not submission:
+            return Response(status=404, data={"error": "Submission not found"})
+
+        if not request.user.is_staff:
+            company = getattr(request.user, "company", None)
+            owning_company = getattr(submission.skill_assessment, "company", None)
+            if not company or not owning_company or owning_company.id != company.id or not user_is_company_role(
+                request.user, company, [CompanyTeamMember.ROLE.ADMIN, CompanyTeamMember.ROLE.RECRUITER]
+            ):
+                return Response(status=403, data={"error": "You do not have access to this submission"})
+
+        serializer = GradeOpenEndedSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        graded_inputs = serializer.validated_data["answers"]
+
+        answer_ids = [a["answer_id"] for a in graded_inputs]
+        answers = {
+            a.id: a for a in CandidateAssessmentOpenEndedAnswer.objects.filter(
+                id__in=answer_ids,
+                section_submission__in=submission.skill_assessment_section_submissions.all(),
+            ).select_related("open_ended_question")
+        }
+        missing = set(answer_ids) - set(answers.keys())
+        if missing:
+            return Response(status=400, data={"error": f"Answers not found on this submission: {sorted(missing)}"})
+
+        for item in graded_inputs:
+            answer = answers[item["answer_id"]]
+            max_score = answer.open_ended_question.max_score
+            if max_score and item["score"] > max_score:
+                return Response(status=400, data={
+                    "error": f"Score {item['score']} exceeds max_score {max_score} for answer {answer.id}"
+                })
+
+        with transaction.atomic():
+            for item in graded_inputs:
+                answer = answers[item["answer_id"]]
+                answer.score = item["score"]
+                answer.feedback = item.get("feedback", "")
+                answer.graded_by = request.user
+                answer.graded_at = timezone.now()
+                answer.save(update_fields=["score", "feedback", "graded_by", "graded_at"])
+
+        all_open_ended = CandidateAssessmentOpenEndedAnswer.objects.filter(
+            section_submission__in=submission.skill_assessment_section_submissions.all()
+        )
+        if all_open_ended.filter(score__isnull=True).exists():
+            return Response(status=200, data={"message": "Saved. Awaiting more grading.", "finalized": False})
+
+        # Every open-ended answer on this submission now has a score --
+        # finalize it.
+        scored_percents = [
+            (a.score / a.open_ended_question.max_score) * 100.0
+            for a in all_open_ended.select_related("open_ended_question")
+            if a.open_ended_question.max_score
+        ]
+        open_ended_avg = sum(scored_percents) / len(scored_percents) if scored_percents else 0.0
+
+        breakdown = submission.pending_score_breakdown or {}
+        components = [open_ended_avg]
+        if breakdown.get("has_mcq"):
+            components.append(breakdown.get("mcq_avg", 0.0))
+        if breakdown.get("has_coding"):
+            components.append(breakdown.get("code_avg", 0.0))
+        total_score = _to_score(round(sum(components) / len(components), 2))
+
+        assessment = submission.skill_assessment
+        pass_mark = float(getattr(assessment, "passing_grade", None) or DEFAULT_PASSING_GRADE)
+        is_passed = total_score >= pass_mark
+
+        # Finalizing sends completion emails through EmailHandler's
+        # synchronous provider-fallback/retry logic, which can take tens of
+        # seconds -- run it out-of-band so this request (the recruiter is
+        # waiting on "Save grade") returns as soon as the score itself is set.
+        transaction.on_commit(
+            lambda: finalize_graded_submission.delay(
+                submission_id=submission.id, total_score=total_score, is_passed=is_passed, pass_mark=pass_mark,
+            )
+        )
+        return Response(status=200, data={
+            "message": "Submission finalized.", "finalized": True,
+            "score": total_score, "passed": is_passed,
+        })
 
 
 class TakeAGeneralSkillAssessmentAPIView_V1(APIView):
@@ -1404,26 +1935,42 @@ class SkillAssessmentResultAPIView(APIView):
         except CandidateAssessmentSubmission.DoesNotExist:
             raise NotFound("Assessment submission not found.")
 
-        data = SubmissionSerializer(submission, context={"request": request, "prefetched": True}).data
+        data = SubmissionSerializer(
+            submission, context={"request": request, "prefetched": True, "gate_for_candidate": True}
+        ).data
         return Response(data)
 
 
 class GetSubmissionsForASkillAssessment(APIView, PaginationHandlerMixin):
-    """Endpoint to retreive the submission for a Skill Assessment"""
+    """Endpoint to retrieve the submissions for a Skill Assessment.
 
-    permission_classes = [IsTalentOrStaffUser]
+    `skill_assessment_id` is the *published template* id for the new
+    standalone-invite flow (each invited candidate has their own cloned row
+    -- see GeneralSkillAssessment.source_template) as well as the older
+    shared/public-link flow (candidates submit directly against the same
+    row). Both are matched below."""
+
+    permission_classes = [IsTalentOrStaffUser | IsCompanyRepOrStaffUser]
 
     def get(self, request, skill_assessment_id):
-        queryset = []
+        submission_filter = Q(skill_assessment_id=skill_assessment_id) | Q(
+            skill_assessment__source_template_id=skill_assessment_id
+        )
         if request.user.is_talent():
             queryset = CandidateAssessmentSubmission.objects.filter(
-                candidate=request.user.profile, skill_assessment__id=skill_assessment_id
+                submission_filter, candidate=request.user.profile
+            ).order_by("-created_at")
+        elif request.user.is_staff:
+            queryset = CandidateAssessmentSubmission.objects.filter(submission_filter).order_by("-created_at")
+        elif request.user.is_company():
+            company = get_user_company(request.user)
+            if not company:
+                return Response(status=403, data={"error": "No company associated."})
+            queryset = CandidateAssessmentSubmission.objects.filter(
+                submission_filter, skill_assessment__company=company
             ).order_by("-created_at")
         else:
-            queryset = CandidateAssessmentSubmission.objects.filter(
-            
-                skill_assessment__id=skill_assessment_id,
-            ).order_by("-created_at")
+            return Response(status=403, data={"error": "You do not have access to these submissions."})
         paginated_queryset = self.paginate_queryset(queryset)
         data = SubmissionSerializer(paginated_queryset, many=True).data
         paginated_data = self.get_paginated_response(data)

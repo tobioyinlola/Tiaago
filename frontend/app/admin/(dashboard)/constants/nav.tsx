@@ -46,6 +46,14 @@ export const navItems: DashboardNavItemV3[] = [
         name: "Approval",
         href: `${baseHref}/assessment/approval`,
       },
+      {
+        name: "Question Bank",
+        href: `${baseHref}/assessment/question-bank`,
+      },
+      {
+        name: "Bundles",
+        href: `${baseHref}/assessment/bundles`,
+      },
     ],
   },
   {

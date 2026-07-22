@@ -9,6 +9,12 @@ from rest_framework import serializers
 from create_user.api.serializers import CompanyDetailSerializer
 from create_user.models import TalentProfile
 from roles.serializers import RoleSerializer
+from .utils import (
+    resolve_invite_talent,
+    STANDALONE_PROCTORING_DEFAULTS,
+    get_submission_candidate_name,
+    get_submission_candidate_email,
+)
 from .models import (
     CandidateAssessmentCodingAnswer,
     CandidateAssessmentSectionSubmission,
@@ -31,6 +37,9 @@ from .models import (
     TalentQuestionBank,
     AssessmentCooldown,
     AssessmentSubmissionSnapshot,
+    OpenEndedQuestion,
+    AssessmentBundle,
+    CandidateAssessmentOpenEndedAnswer,
 )
 from .tasks import create_talent_coding_assessment_task_v2
 from roles.models import Role
@@ -197,24 +206,36 @@ class GeneralSkillAssessmentCodingTaskSerializer(serializers.ModelSerializer):
         ]
 
 
+class OpenEndedQuestionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = OpenEndedQuestion
+        fields = ["id", "is_ai_generated", "question", "grading_guidance", "max_score", "skills_assessed"]
+
+
 class GeneralSkillAssessmentSectionCreateSerializer(serializers.ModelSerializer):
     mcq_questions = GeneralSkillAssessmentMCQSerializer(many=True, required=False)
     coding_tasks = GeneralSkillAssessmentCodingTaskSerializer(many=True, required=False)
+    open_ended_questions = OpenEndedQuestionSerializer(many=True, required=False)
 
     class Meta:
         model = GeneralSkillAssessmentSection
-        fields = ["name", "type", "mcq_questions", "id", "coding_tasks"]
+        fields = ["name", "type", "mcq_questions", "id", "coding_tasks", "open_ended_questions"]
 
     def validate(self, attrs):
         type = attrs.get("type")
         mcq_questions = attrs.get("mcq_questions", [])
         coding_tasks = attrs.get("coding_tasks", [])
+        open_ended_questions = attrs.get("open_ended_questions", [])
         if type == SkillAssessmentTypes.MCQ and not len(mcq_questions):
             raise serializers.ValidationError(
                 "Please include at least one question for MCQ"
             )
         if type == SkillAssessmentTypes.CODING_TASK and not len(coding_tasks):
             raise serializers.ValidationError("Please input a coding task")
+        if type == SkillAssessmentTypes.OPEN_ENDED and not len(open_ended_questions):
+            raise serializers.ValidationError(
+                "Please include at least one question for the open-ended section"
+            )
         return attrs
 
 
@@ -230,6 +251,8 @@ class GeneralSkillAssessmentSectionPreviewSerializer(serializers.ModelSerializer
             return section.mcq_questions.all().count()
         if section.type == SkillAssessmentTypes.CODING_TASK:
             return section.coding_tasks.all().count()
+        if section.type == SkillAssessmentTypes.OPEN_ENDED:
+            return section.open_ended_questions.all().count()
 
 
 class GeneralSkillAssessmentSectionListSerializer(
@@ -255,6 +278,7 @@ class GeneralSkillAssessmentCreateSerializer(serializers.ModelSerializer):
             "shuffle_questions",
             "use_public_link",
             "use_start_and_end_time",
+            "show_results_to_candidate",
             "assessment_type",
         ]
 
@@ -273,8 +297,17 @@ class GeneralSkillAssessmentSectionSerializer(serializers.ModelSerializer):
         assessment_type = getattr(self.instance, "assessment_type", None)
         sections = attrs.get("sections")
 
-        # Single-type assessments (MCQ or CODING_TASK)
-        if assessment_type in [SkillAssessmentTypes.CODING_TASK, SkillAssessmentTypes.MCQ]:
+        # Hybrid assessments freely combine any mix of MCQ/coding/open-ended
+        # sections -- no shape restriction, unlike CUSTOM below.
+        if assessment_type == SkillAssessmentTypes.MIXED:
+            return attrs
+
+        # Single-type assessments (MCQ, CODING_TASK, or OPEN_ENDED)
+        if assessment_type in [
+            SkillAssessmentTypes.CODING_TASK,
+            SkillAssessmentTypes.MCQ,
+            SkillAssessmentTypes.OPEN_ENDED,
+        ]:
             if len(sections) > 1:
                 raise serializers.ValidationError(
                     "Multiple sections are only available for custom skill assessments"
@@ -327,7 +360,187 @@ class GeneralSkillAssessmentListSerializer(GeneralSkillAssessmentCreateSerialize
 
     class Meta:
         model = GeneralSkillAssessment
-        fields = GeneralSkillAssessmentCreateSerializer.Meta.fields + ["id"]
+        fields = GeneralSkillAssessmentCreateSerializer.Meta.fields + ["id", "published"]
+
+
+class AssessmentBundleSerializer(serializers.ModelSerializer):
+    """Recruiter-facing bundle listing for the wizard's Step 2 "Test Library"
+    and the /question-bank browse page. Read-only -- bundles are authored
+    through the staff admin CRUD, not by recruiters."""
+
+    role = RoleSerializer()
+    question_count = serializers.ReadOnlyField()
+
+    class Meta:
+        model = AssessmentBundle
+        fields = [
+            "id", "name", "description", "role", "difficulty_level",
+            "estimated_duration_minutes", "is_recommended", "question_count",
+        ]
+
+
+class GradeOpenEndedAnswerInputSerializer(serializers.Serializer):
+    answer_id = serializers.IntegerField()
+    score = serializers.FloatField(min_value=0)
+    feedback = serializers.CharField(required=False, allow_blank=True)
+
+
+class GradeOpenEndedSerializer(serializers.Serializer):
+    answers = GradeOpenEndedAnswerInputSerializer(many=True, allow_empty=False)
+
+
+class InviteCandidateSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    name = serializers.CharField(max_length=255)
+
+
+class BulkInviteCandidatesSerializer(serializers.Serializer):
+    invites = InviteCandidateSerializer(many=True, allow_empty=False)
+
+
+class AddBundleSectionSerializer(serializers.Serializer):
+    bundle_id = serializers.IntegerField()
+
+    def validate_bundle_id(self, bundle_id):
+        bundle = AssessmentBundle.objects.filter(id=bundle_id, active=True).first()
+        if not bundle:
+            raise serializers.ValidationError("Bundle does not exist")
+        return bundle
+
+
+class TalentQuestionBankManageSerializer(serializers.ModelSerializer):
+    """Staff-only CRUD for question-bank entries -- backs the
+    /admin/assessment/question-bank pages. Exactly one of mcq_question/
+    coding_task/open_ended_question is owned 1:1 by the bank entry (see
+    TalentQuestionBank.clean), so creating/updating a bank entry
+    creates/updates that nested question object directly rather than
+    linking to an existing standalone one."""
+
+    mcq_question = GeneralSkillAssessmentMCQSerializer(required=False, allow_null=True)
+    coding_task = GeneralSkillAssessmentCodingTaskSerializer(required=False, allow_null=True)
+    open_ended_question = OpenEndedQuestionSerializer(required=False, allow_null=True)
+    role = RoleSerializer(read_only=True)
+    role_id = serializers.PrimaryKeyRelatedField(
+        queryset=Role.objects.all(), source="role", write_only=True, required=False, allow_null=True
+    )
+    stack = TechStackSerializer(read_only=True)
+    stack_id = serializers.PrimaryKeyRelatedField(
+        queryset=TechStack.objects.all(), source="stack", write_only=True, required=False, allow_null=True
+    )
+    question_type = serializers.SerializerMethodField()
+
+    class Meta:
+        model = TalentQuestionBank
+        fields = [
+            "id", "role", "role_id", "stack", "stack_id", "difficulty_level", "question_type",
+            "mcq_question", "coding_task", "open_ended_question", "created_at",
+        ]
+
+    def get_question_type(self, obj):
+        if obj.mcq_question_id:
+            return SkillAssessmentTypes.MCQ
+        if obj.coding_task_id:
+            return SkillAssessmentTypes.CODING_TASK
+        if obj.open_ended_question_id:
+            return SkillAssessmentTypes.OPEN_ENDED
+        return None
+
+    def validate(self, attrs):
+        provided = sum(bool(attrs.get(k)) for k in ("mcq_question", "coding_task", "open_ended_question"))
+        if self.instance is None and provided != 1:
+            raise serializers.ValidationError(
+                "Provide exactly one of mcq_question, coding_task, or open_ended_question."
+            )
+        if self.instance is not None and provided > 1:
+            raise serializers.ValidationError(
+                "Provide at most one of mcq_question, coding_task, or open_ended_question."
+            )
+        return attrs
+
+    def create(self, validated_data):
+        mcq_data = validated_data.pop("mcq_question", None)
+        coding_data = validated_data.pop("coding_task", None)
+        oeq_data = validated_data.pop("open_ended_question", None)
+
+        if mcq_data:
+            validated_data["mcq_question"] = GeneralSkillAssessmentMCQQuestion.objects.create(**mcq_data)
+        if coding_data:
+            test_cases = coding_data.pop("test_cases", []) or []
+            task = CodingTask.objects.create(**coding_data)
+            for tc in test_cases:
+                TestCase.objects.create(coding_task=task, **tc)
+            validated_data["coding_task"] = task
+        if oeq_data:
+            validated_data["open_ended_question"] = OpenEndedQuestion.objects.create(**oeq_data)
+
+        return TalentQuestionBank.objects.create(**validated_data)
+
+    def update(self, instance, validated_data):
+        mcq_data = validated_data.pop("mcq_question", None)
+        coding_data = validated_data.pop("coding_task", None)
+        oeq_data = validated_data.pop("open_ended_question", None)
+
+        if mcq_data and instance.mcq_question_id:
+            for k, v in mcq_data.items():
+                setattr(instance.mcq_question, k, v)
+            instance.mcq_question.save()
+        if coding_data and instance.coding_task_id:
+            test_cases = coding_data.pop("test_cases", None)
+            for k, v in coding_data.items():
+                setattr(instance.coding_task, k, v)
+            instance.coding_task.save()
+            if test_cases is not None:
+                instance.coding_task.test_cases.all().delete()
+                for tc in test_cases:
+                    TestCase.objects.create(coding_task=instance.coding_task, **tc)
+        if oeq_data and instance.open_ended_question_id:
+            for k, v in oeq_data.items():
+                setattr(instance.open_ended_question, k, v)
+            instance.open_ended_question.save()
+
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        return instance
+
+
+class AssessmentBundleManageSerializer(serializers.ModelSerializer):
+    """Staff-only CRUD for bundles -- backs the /admin/assessment/bundles
+    pages. Picks its questions from already-authored TalentQuestionBank rows
+    (create those first via the question-bank admin pages)."""
+
+    role = RoleSerializer(read_only=True)
+    role_id = serializers.PrimaryKeyRelatedField(queryset=Role.objects.all(), source="role", write_only=True)
+    bank_questions = TalentQuestionBankManageSerializer(many=True, read_only=True)
+    bank_question_ids = serializers.PrimaryKeyRelatedField(
+        queryset=TalentQuestionBank.objects.all(), source="bank_questions",
+        many=True, write_only=True, required=False,
+    )
+    question_count = serializers.ReadOnlyField()
+
+    class Meta:
+        model = AssessmentBundle
+        fields = [
+            "id", "name", "description", "role", "role_id", "difficulty_level",
+            "estimated_duration_minutes", "is_recommended", "active",
+            "bank_questions", "bank_question_ids", "question_count",
+        ]
+
+    def create(self, validated_data):
+        bank_questions = validated_data.pop("bank_questions", [])
+        bundle = AssessmentBundle.objects.create(**validated_data)
+        if bank_questions:
+            bundle.bank_questions.set(bank_questions)
+        return bundle
+
+    def update(self, instance, validated_data):
+        bank_questions = validated_data.pop("bank_questions", None)
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        if bank_questions is not None:
+            instance.bank_questions.set(bank_questions)
+        return instance
 
 
 class QuestionBankQuestionSerializer(serializers.ModelSerializer):
@@ -402,11 +615,23 @@ class CodingAnswerSerializer(serializers.Serializer):
             )
         return super().validate(attrs)
 
+class OpenEndedAnswerSerializer(serializers.Serializer):
+    open_ended_question_id = serializers.IntegerField()
+    answer_text = serializers.CharField(allow_blank=True)
+
+    def validate(self, attrs):
+        question_id = attrs.get("open_ended_question_id")
+        question = OpenEndedQuestion.objects.filter(id=question_id).first()
+        if not question:
+            raise serializers.ValidationError(f"Matching open-ended question for {question_id} does not exist")
+        return super().validate(attrs)
+
+
 class GeneralSkillAssessmentSectionAnswerSerializer(serializers.Serializer):
     """
     Answers for a single section.
     Now PERMITS partial component submission:
-      - You may submit only MCQs, only Coding, or both for this section.
+      - You may submit only MCQs, only Coding, only open-ended, or any mix, for this section.
     """
     section_id = serializers.IntegerField()
     mcq_answers = serializers.ListField(
@@ -414,6 +639,9 @@ class GeneralSkillAssessmentSectionAnswerSerializer(serializers.Serializer):
     )
     coding_task_answers = serializers.ListField(
         child=CodingAnswerSerializer(), required=False, allow_empty=False
+    )
+    open_ended_answers = serializers.ListField(
+        child=OpenEndedAnswerSerializer(), required=False, allow_empty=False
     )
     # legacy free-text (optional)
     coding_task_answer = serializers.CharField(required=False, allow_blank=True)
@@ -423,13 +651,31 @@ class GeneralSkillAssessmentSectionAnswerSerializer(serializers.Serializer):
         section_id = attrs.get("section_id")
         mcq_answers = attrs.get("mcq_answers") or []
         coding_task_answers = attrs.get("coding_task_answers") or []
+        open_ended_answers = attrs.get("open_ended_answers") or []
         legacy_free = (attrs.get("coding_task_answer") or "").strip()
 
         if not assessment.sections.filter(id=section_id).exists():
             raise serializers.ValidationError(f"Section {section_id} does not belong to this assessment")
 
-        if not mcq_answers and not coding_task_answers and not legacy_free:
+        if not mcq_answers and not coding_task_answers and not open_ended_answers and not legacy_free:
             raise serializers.ValidationError(f"No answers provided for section {section_id}")
+
+        if open_ended_answers:
+            question_ids = [item.get("open_ended_question_id") for item in open_ended_answers]
+            if len(set(question_ids)) != len(question_ids):
+                raise serializers.ValidationError("Duplicate open-ended answers detected")
+
+            valid_question_ids = set(
+                GeneralSkillAssessmentSection.objects
+                .filter(id=section_id, open_ended_questions__id__in=question_ids)
+                .values_list("open_ended_questions__id", flat=True)
+                .distinct()
+            )
+            extra_questions = set(question_ids) - valid_question_ids
+            if extra_questions:
+                raise serializers.ValidationError(
+                    f"{', '.join(map(str, sorted(extra_questions)))} are not valid open-ended questions for section {section_id}"
+                )
 
         if mcq_answers:
             mcq_ids = [item.get("mcq_id") for item in mcq_answers]
@@ -551,6 +797,8 @@ class PreScreeningInterviewResultSerializer(serializers.ModelSerializer):
 class SubmissionSerializer(serializers.ModelSerializer):
     stats = serializers.SerializerMethodField()
     time_taken_formated = serializers.SerializerMethodField()
+    candidate_name = serializers.SerializerMethodField()
+    candidate_email = serializers.SerializerMethodField()
 
     class Meta:
         model = CandidateAssessmentSubmission
@@ -560,7 +808,34 @@ class SubmissionSerializer(serializers.ModelSerializer):
             "time_taken",
             "time_taken_formated",
             "stats",
+            "candidate_name",
+            "candidate_email",
+            "mark_status",
+            "is_passed",
+            "is_completed",
         ]
+
+    def get_candidate_name(self, instance):
+        return get_submission_candidate_name(instance)
+
+    def get_candidate_email(self, instance):
+        return get_submission_candidate_email(instance)
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        # Only gate the candidate-facing view (context set by
+        # SkillAssessmentResultAPIView) -- recruiter/staff views of the same
+        # serializer (GetSubmissionsForASkillAssessment) always see the real
+        # score regardless of show_results_to_candidate.
+        if self.context.get("gate_for_candidate"):
+            assessment = instance.skill_assessment
+            if assessment and not assessment.show_results_to_candidate:
+                data["total_score"] = None
+                data["stats"] = None
+                data["results_hidden"] = True
+                return data
+        data["results_hidden"] = False
+        return data
 
     def get_time_taken_formated(self, instance):
         if not instance.time_taken:
@@ -766,6 +1041,31 @@ class RecruiterSubmissionAnswersSerializer(serializers.Serializer):
                         "candidate_answer": answers_by_task.get(task.id, ""),
                     })
                 entry["coding_tasks"] = tasks
+
+            elif section.type == SkillAssessmentTypes.OPEN_ENDED:
+                answers_by_question = {
+                    a.open_ended_question_id: a
+                    for a in CandidateAssessmentOpenEndedAnswer.objects.filter(
+                        section_submission=ss
+                    ).select_related("open_ended_question")
+                }
+                questions = []
+                for q in section.open_ended_questions.all():
+                    answer = answers_by_question.get(q.id)
+                    questions.append({
+                        "id": q.id,
+                        "question": q.question,
+                        "grading_guidance": q.grading_guidance,
+                        "max_score": q.max_score,
+                        "answer_id": answer.id if answer else None,
+                        "answer_text": answer.answer_text if answer else "",
+                        "ai_suggested_score": answer.ai_suggested_score if answer else None,
+                        "ai_suggested_feedback": answer.ai_suggested_feedback if answer else "",
+                        "score": answer.score if answer else None,
+                        "feedback": answer.feedback if answer else "",
+                        "is_graded": answer.is_graded if answer else False,
+                    })
+                entry["open_ended_questions"] = questions
 
             sections.append(entry)
 
@@ -1492,6 +1792,17 @@ class AssessmentInviteDetailSerializer(serializers.Serializer):
     deadline = serializers.DateTimeField(source="invite_deadline", allow_null=True)
     deadline_formatted = serializers.SerializerMethodField()
     is_expired = serializers.BooleanField(source="is_invite_expired")
+    is_standalone = serializers.SerializerMethodField()
+
+    def get_is_standalone(self, assessment):
+        """True for a recruiter-built, account-less email invite (see
+        GeneralSkillAssessment.invited_email) -- as opposed to the
+        job-application flow, where the candidate already has a
+        TalentProfile. The candidate-facing details step uses this to lock
+        the name field, matching email: the recruiter set it, not the
+        candidate (see the account-less identity design -- no account is
+        ever silently created here)."""
+        return not assessment.job_application_id
 
     def get_deadline_formatted(self, assessment):
         if not assessment.invite_deadline:
@@ -1502,10 +1813,14 @@ class AssessmentInviteDetailSerializer(serializers.Serializer):
 
     def get_proctoring(self, assessment):
         """Job's proctoring settings, for the pre-assessment briefing page to
-        render conditionally. None if proctoring is off for this job."""
+        render conditionally. Falls back to standalone defaults when there's
+        no job (a standalone invite is still proctored). None only if
+        proctoring is explicitly off for the job."""
         job = getattr(assessment.job_application, "job", None)
-        if not job or not job.proctoring_enabled:
+        if assessment.job_application_id and (not job or not job.proctoring_enabled):
             return None
+        if not job:
+            return dict(STANDALONE_PROCTORING_DEFAULTS)
         return {
             "proctoring_enabled": job.proctoring_enabled,
             "require_fullscreen": job.require_fullscreen,
@@ -1526,20 +1841,25 @@ class AssessmentInviteDetailSerializer(serializers.Serializer):
 
     def get_company_name(self, assessment):
         job = getattr(assessment.job_application, "job", None)
-        return job.company.company_name if job and job.company_id else None
+        if job:
+            return job.company.company_name if job.company_id else None
+        return assessment.company.company_name if assessment.company_id else None
 
     def _talent(self, assessment):
-        return assessment.job_application.applicant
+        return resolve_invite_talent(assessment)
 
     def get_candidate_name(self, assessment):
         talent = self._talent(assessment)
         existing = self.context.get("existing_submission")
         if existing and existing.candidate_display_name:
             return existing.candidate_display_name
+        if talent is None:
+            return assessment.invited_name
         return talent.full_name or talent.user.get_full_name() or talent.user.username
 
     def get_candidate_email(self, assessment):
-        return self._talent(assessment).user.email
+        talent = self._talent(assessment)
+        return talent.user.email if talent else assessment.invited_email
 
     def get_already_submitted(self, assessment):
         existing = self.context.get("existing_submission")

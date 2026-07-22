@@ -1,26 +1,16 @@
-import { ISearchParams } from "@/app/common/types";
 import { getTalentRoles } from "@/app/common/services";
-import AddAssessmentForm from "../_components/AddAssessmentForm";
+import CreateAssessmentForm from "./CreateAssessmentForm";
 import DisplayErrorMessages, {
   DisplayErrorMessagesProps,
 } from "@/app/common/components/DisplayErrorMessages";
 import { handleServerApiCallError } from "@/app/common/utils";
 
-type Props = {
-  searchParams: Promise<ISearchParams>;
-};
-
 export const metadata = {
   title: "Add Assessment",
 };
 
-const AddAssessmentPage = async ({ searchParams }: Props) => {
+const AddAssessmentPage = async () => {
   const errors: DisplayErrorMessagesProps["errors"] = [];
-  const resolvedSearchParams = await searchParams;
-  const questionType =
-    typeof resolvedSearchParams.type === "string"
-      ? resolvedSearchParams.type
-      : resolvedSearchParams.type?.at(0);
   const talentRoles = await getTalentRoles().catch(async e => {
     const error = await handleServerApiCallError(e);
     console.log("Get talent roles error (add assessment): ", error);
@@ -37,10 +27,7 @@ const AddAssessmentPage = async ({ searchParams }: Props) => {
         Add Assessment
       </h1>
 
-      <AddAssessmentForm
-        questionType={questionType}
-        talentRoles={talentRoles}
-      />
+      <CreateAssessmentForm talentRoles={talentRoles} />
     </div>
   );
 };

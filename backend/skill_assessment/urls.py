@@ -8,6 +8,14 @@ from .views import (
     GeneralSkillAssessmentAPIView,
     QuestionBankQuestionsAPIView,
     AddSectionsToSkillAssessmentAPIView,
+    AddBundleSectionAPIView,
+    BundleListAPIView,
+    PublishAssessmentAPIView,
+    InviteCandidatesToAssessmentAPIView,
+    TalentQuestionBankManageListCreateView,
+    TalentQuestionBankManageDetailView,
+    AssessmentBundleManageListCreateView,
+    AssessmentBundleManageDetailView,
     GeneralSkillAssessmentDetailAPIView,
     TakeAGeneralSkillAssessmentAPIView,
     TakeAGeneralSkillAssessmentAPIView_V1,
@@ -39,6 +47,7 @@ from .views import (
     AssessmentInviteFeedbackView,
     CandidateSubmissionSnapshotListView,
     RecruiterSubmissionAnswersView,
+    GradeOpenEndedAPIView,
 )
 
 urlpatterns = [
@@ -48,6 +57,46 @@ urlpatterns = [
     path(
         "company-assessments/<int:skill_assessment_id>/add-sections",
         AddSectionsToSkillAssessmentAPIView.as_view(),
+    ),
+    path(
+        "company-assessments/<int:skill_assessment_id>/sections/from-bundle/",
+        AddBundleSectionAPIView.as_view(),
+        name="assessment-add-bundle-section",
+    ),
+    path(
+        "company-assessments/<int:skill_assessment_id>/publish/",
+        PublishAssessmentAPIView.as_view(),
+        name="assessment-publish",
+    ),
+    path(
+        "company-assessments/<int:skill_assessment_id>/invite/",
+        InviteCandidatesToAssessmentAPIView.as_view(),
+        name="assessment-invite-candidates",
+    ),
+    path(
+        "question-bank/bundles/",
+        BundleListAPIView.as_view(),
+        name="assessment-bundle-list",
+    ),
+    path(
+        "staff/question-bank/",
+        TalentQuestionBankManageListCreateView.as_view(),
+        name="staff-question-bank-list",
+    ),
+    path(
+        "staff/question-bank/<int:pk>/",
+        TalentQuestionBankManageDetailView.as_view(),
+        name="staff-question-bank-detail",
+    ),
+    path(
+        "staff/bundles/",
+        AssessmentBundleManageListCreateView.as_view(),
+        name="staff-bundle-list",
+    ),
+    path(
+        "staff/bundles/<int:pk>/",
+        AssessmentBundleManageDetailView.as_view(),
+        name="staff-bundle-detail",
     ),
     path(
         "company-assessments/<int:skill_assessment_id>",
@@ -203,5 +252,10 @@ urlpatterns = [
         "submissions/<int:submission_id>/answers/",
         RecruiterSubmissionAnswersView.as_view(),
         name="submission-answers",
+    ),
+    path(
+        "submissions/<int:submission_id>/grade-open-ended/",
+        GradeOpenEndedAPIView.as_view(),
+        name="submission-grade-open-ended",
     ),
 ]

@@ -549,6 +549,42 @@ class AIServiceHandler:
         data["plagiarism_score"] = self._coerce_score(data.get("plagiarism_score", 0))
         return data
 
+    def suggest_open_ended_grade(self, *, question: str, answer: str, rubric: str = "", max_score: float = 100) -> dict:
+        """
+        Call the open-ended grade-suggestion endpoint for a single free-text
+        answer. Returns the JSON (suggested_score 0..max_score,
+        suggested_feedback, confidence) or raises ValueError with server
+        details. Best-effort by design at the call site (see
+        skill_assessment.tasks.suggest_open_ended_grades) -- a failure here
+        must never block marking/grading.
+        """
+        endpoint = "/suggest-open-ended-grade"
+
+        payload = {
+            "question": question or "",
+            "answer": answer or "",
+            "rubric": rubric or None,
+            "max_score": max_score or 100,
+        }
+
+        resp = self.post(endpoint, json=payload, timeout=30)
+        if not (200 <= resp.status_code < 300):
+            try:
+                err = resp.json()
+            except Exception:
+                err = resp.text
+            raise ValueError(f"Open-ended grade API {resp.status_code} at {endpoint}: {err}")
+
+        try:
+            data = resp.json()
+        except Exception as e:
+            raise ValueError(f"Non-JSON response from open-ended grade API at {endpoint}: {e}") from e
+
+        if not isinstance(data, dict):
+            raise ValueError(f"Unexpected open-ended grade response type: {type(data).__name__}")
+
+        data["suggested_score"] = self._coerce_score(data.get("suggested_score", 0), default=0.0)
+        return data
 
     def grade_coding_assessment(
         self,

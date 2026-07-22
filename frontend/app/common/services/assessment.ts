@@ -16,6 +16,10 @@ import {
   AssessmentCert,
   AssessmentCert2,
   AssessmentCert3,
+  AssessmentBundleSummary,
+  SubmissionAnswers,
+  TalentQuestionBankEntry,
+  AssessmentBundleAdmin,
 } from "../types";
 import { _handleServerApiCallError, handleServerApiCallError } from "../utils";
 import serverKyInstance from "../utils/server-ky.instance";
@@ -215,14 +219,130 @@ export const getCompanyAssessment = async (id: ID) => {
   return data;
 };
 
-export const createCompanyAssessment = async (data: typeof initialValues) => {
+export const createCompanyAssessment = async (
+  data: Partial<typeof initialValues> & Record<string, unknown>
+): Promise<ApiResponse<CompanySkillAssessment>> => {
   try {
     const result = await serverKyInstance
       .post("skill-assessments/company-assessments", { json: data })
       .json<CompanySkillAssessment>();
-    return result;
+    return { success: true, data: result };
   } catch (error) {
-    throw Error(await handleServerApiCallError(error));
+    const errMsg = await handleServerApiCallError(error);
+    return { success: false, error: errMsg };
+  }
+};
+
+export type AssessmentSectionInput = {
+  name: string;
+  type: "MCQ" | "CODING_TASK" | "OPEN_ENDED";
+  mcq_questions?: {
+    question: string;
+    options: { value: string; index: number }[];
+    correct_option_index: number;
+    is_ai_generated?: boolean;
+  }[];
+  coding_tasks?: {
+    title: string;
+    description: string;
+    difficulty_level: string;
+    constraints?: string;
+    sample_input?: string;
+    sample_output?: string;
+    max_score?: number;
+    time_limit?: number;
+    test_cases?: { input_data: string; expected_output: string; is_sample?: boolean }[];
+  }[];
+  open_ended_questions?: {
+    question: string;
+    grading_guidance?: string;
+    max_score?: number;
+  }[];
+};
+
+export const addSectionsToAssessment = async (
+  id: ID,
+  sections: AssessmentSectionInput[]
+): Promise<ApiResponse<{ message: string }>> => {
+  try {
+    const result = await serverKyInstance
+      .post(`skill-assessments/company-assessments/${id}/add-sections`, {
+        json: { sections },
+      })
+      .json<{ message: string }>();
+    return { success: true, data: result };
+  } catch (error) {
+    const errMsg = await handleServerApiCallError(error);
+    return { success: false, error: errMsg };
+  }
+};
+
+export const listAssessmentBundles = async (params?: { role?: ID; search?: string }) => {
+  try {
+    const response = await serverKyInstance
+      .get<PagedResource<AssessmentBundleSummary>>(
+        "skill-assessments/question-bank/bundles/",
+        {
+          searchParams: {
+            ...(params?.role ? { role: params.role } : {}),
+            ...(params?.search ? { search: params.search } : {}),
+          },
+        }
+      )
+      .json();
+    return response;
+  } catch (error) {
+    const errMsg = await handleServerApiCallError(error);
+    console.log("listAssessmentBundles Error: ", errMsg);
+    throw Error(errMsg);
+  }
+};
+
+export const addBundleToAssessment = async (
+  id: ID,
+  bundle_id: ID
+): Promise<ApiResponse<{ message: string; section_ids: ID[] }>> => {
+  try {
+    const result = await serverKyInstance
+      .post(`skill-assessments/company-assessments/${id}/sections/from-bundle/`, {
+        json: { bundle_id },
+      })
+      .json<{ message: string; section_ids: ID[] }>();
+    return { success: true, data: result };
+  } catch (error) {
+    const errMsg = await handleServerApiCallError(error);
+    return { success: false, error: errMsg };
+  }
+};
+
+export const publishCompanyAssessment = async (
+  id: ID
+): Promise<ApiResponse<CompanySkillAssessment>> => {
+  try {
+    const result = await serverKyInstance
+      .post(`skill-assessments/company-assessments/${id}/publish/`)
+      .json<CompanySkillAssessment>();
+    return { success: true, data: result };
+  } catch (error) {
+    const errMsg = await handleServerApiCallError(error);
+    return { success: false, error: errMsg };
+  }
+};
+
+export const inviteCandidatesToAssessment = async (
+  id: ID,
+  invites: { email: string; name: string }[]
+): Promise<ApiResponse<{ sent: string[]; failed: string[] }>> => {
+  try {
+    const result = await serverKyInstance
+      .post(`skill-assessments/company-assessments/${id}/invite/`, {
+        json: { invites },
+      })
+      .json<{ sent: string[]; failed: string[] }>();
+    return { success: true, data: result };
+  } catch (error) {
+    const errMsg = await handleServerApiCallError(error);
+    return { success: false, error: errMsg };
   }
 };
 
@@ -539,5 +659,132 @@ export const getSubmissionSnapshots = async (
     const errMsg = await handleServerApiCallError(error);
     console.log("getSubmissionSnapshots Error: ", errMsg);
     return [];
+  }
+};
+
+export const getSubmissionAnswers = async (submissionId: ID): Promise<SubmissionAnswers> => {
+  const data = await serverKyInstance
+    .get<SubmissionAnswers>(`skill-assessments/submissions/${submissionId}/answers/`)
+    .json();
+  return data;
+};
+
+// --- Staff-only Question Bank / Bundle CRUD, backing /admin/assessment/question-bank and /admin/assessment/bundles ---
+
+export const getStaffQuestionBank = async (params?: { role?: ID; question_type?: string }) => {
+  const data = await serverKyInstance
+    .get<PagedResource<TalentQuestionBankEntry>>("skill-assessments/staff/question-bank/", {
+      searchParams: {
+        ...(params?.role ? { role: params.role } : {}),
+        ...(params?.question_type ? { question_type: params.question_type } : {}),
+      },
+    })
+    .json();
+  return data;
+};
+
+export const createStaffQuestionBankEntry = async (
+  payload: Record<string, unknown>
+): Promise<ApiResponse<TalentQuestionBankEntry>> => {
+  try {
+    const result = await serverKyInstance
+      .post("skill-assessments/staff/question-bank/", { json: payload })
+      .json<TalentQuestionBankEntry>();
+    return { success: true, data: result };
+  } catch (error) {
+    const errMsg = await handleServerApiCallError(error);
+    return { success: false, error: errMsg };
+  }
+};
+
+export const updateStaffQuestionBankEntry = async (
+  id: ID,
+  payload: Record<string, unknown>
+): Promise<ApiResponse<TalentQuestionBankEntry>> => {
+  try {
+    const result = await serverKyInstance
+      .patch(`skill-assessments/staff/question-bank/${id}/`, { json: payload })
+      .json<TalentQuestionBankEntry>();
+    return { success: true, data: result };
+  } catch (error) {
+    const errMsg = await handleServerApiCallError(error);
+    return { success: false, error: errMsg };
+  }
+};
+
+export const deleteStaffQuestionBankEntry = async (id: ID): Promise<ApiResponse<null>> => {
+  try {
+    await serverKyInstance.delete(`skill-assessments/staff/question-bank/${id}/`);
+    return { success: true, data: null };
+  } catch (error) {
+    const errMsg = await handleServerApiCallError(error);
+    return { success: false, error: errMsg };
+  }
+};
+
+export const getStaffBundles = async (params?: { role?: ID }) => {
+  const data = await serverKyInstance
+    .get<PagedResource<AssessmentBundleAdmin>>("skill-assessments/staff/bundles/", {
+      searchParams: params?.role ? { role: params.role } : {},
+    })
+    .json();
+  return data;
+};
+
+export const createStaffBundle = async (
+  payload: Record<string, unknown>
+): Promise<ApiResponse<AssessmentBundleAdmin>> => {
+  try {
+    const result = await serverKyInstance
+      .post("skill-assessments/staff/bundles/", { json: payload })
+      .json<AssessmentBundleAdmin>();
+    return { success: true, data: result };
+  } catch (error) {
+    const errMsg = await handleServerApiCallError(error);
+    return { success: false, error: errMsg };
+  }
+};
+
+export const updateStaffBundle = async (
+  id: ID,
+  payload: Record<string, unknown>
+): Promise<ApiResponse<AssessmentBundleAdmin>> => {
+  try {
+    const result = await serverKyInstance
+      .patch(`skill-assessments/staff/bundles/${id}/`, { json: payload })
+      .json<AssessmentBundleAdmin>();
+    return { success: true, data: result };
+  } catch (error) {
+    const errMsg = await handleServerApiCallError(error);
+    return { success: false, error: errMsg };
+  }
+};
+
+export const deleteStaffBundle = async (id: ID): Promise<ApiResponse<null>> => {
+  try {
+    await serverKyInstance.delete(`skill-assessments/staff/bundles/${id}/`);
+    return { success: true, data: null };
+  } catch (error) {
+    const errMsg = await handleServerApiCallError(error);
+    return { success: false, error: errMsg };
+  }
+};
+
+export const gradeOpenEndedAnswers = async (
+  submissionId: ID,
+  answers: { answer_id: ID; score: number; feedback?: string }[]
+): Promise<
+  ApiResponse<{ message: string; finalized: boolean; score?: number; passed?: boolean }>
+> => {
+  try {
+    const result = await serverKyInstance
+      .post(`skill-assessments/submissions/${submissionId}/grade-open-ended/`, {
+        json: { answers },
+      })
+      .json<{ message: string; finalized: boolean; score?: number; passed?: boolean }>();
+    return { success: true, data: result };
+  } catch (error) {
+    const errMsg = await handleServerApiCallError(error);
+    return { success: false, error: errMsg };
   }
 };

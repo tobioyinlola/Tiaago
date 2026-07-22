@@ -23,8 +23,15 @@ class ProctoringSession(models.Model):
     assessment_attempt = models.OneToOneField(
         CandidateAssessmentSubmission, related_name="proctoring_session", on_delete=models.CASCADE
     )
-    candidate = models.ForeignKey(TalentProfile, related_name="proctoring_sessions", on_delete=models.CASCADE)
-    job = models.ForeignKey(Job, related_name="proctoring_sessions", on_delete=models.CASCADE)
+    # Both null for a standalone (non-job) assessment invite -- see
+    # GeneralSkillAssessment.invited_email/invited_name, the account-less
+    # identity for that path (no TalentProfile is ever created for it).
+    candidate = models.ForeignKey(
+        TalentProfile, related_name="proctoring_sessions", on_delete=models.CASCADE, null=True, blank=True
+    )
+    job = models.ForeignKey(
+        Job, related_name="proctoring_sessions", on_delete=models.CASCADE, null=True, blank=True
+    )
 
     status = models.CharField(max_length=10, choices=Status.choices, default=Status.ACTIVE, db_index=True)
     started_at = models.DateTimeField()

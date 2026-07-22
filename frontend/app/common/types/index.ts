@@ -699,6 +699,88 @@ export type CodingTaskSection = {
   }[];
 };
 
+export type OpenEndedSectionQuestion = {
+  id: ID;
+  is_ai_generated: boolean;
+  question: string;
+  grading_guidance: string;
+  max_score: number;
+  skills_assessed: string[];
+};
+
+export type OpenEndedSection = {
+  id: ID;
+  name: string;
+  type: "OPEN_ENDED";
+  question_count: number;
+  mcq_questions: null;
+  coding_tasks: null;
+  open_ended_questions: OpenEndedSectionQuestion[];
+};
+
+export type AssessmentBundleSummary = {
+  id: ID;
+  name: string;
+  description: string;
+  role: { id: ID; title: string };
+  difficulty_level: string;
+  estimated_duration_minutes: number;
+  is_recommended: boolean;
+  question_count: number;
+};
+
+export type TalentQuestionBankMCQ = {
+  question: string;
+  options: { value: string; index: number }[];
+  correct_option_index: number;
+  is_ai_generated?: boolean;
+};
+
+export type TalentQuestionBankCodingTask = {
+  title: string;
+  description: string;
+  difficulty_level: string;
+  constraints?: string;
+  sample_input?: string;
+  sample_output?: string;
+  max_score?: number;
+  time_limit?: number;
+  test_cases?: { input_data: string; expected_output: string; is_sample?: boolean }[];
+};
+
+export type TalentQuestionBankOpenEnded = {
+  question: string;
+  grading_guidance?: string;
+  max_score?: number;
+  skills_assessed?: string[];
+  is_ai_generated?: boolean;
+};
+
+export type TalentQuestionBankEntry = {
+  id: ID;
+  role: { id: ID; title: string } | null;
+  stack: { id: ID; tech_stack: string } | null;
+  difficulty_level: string;
+  question_type: "MCQ" | "CODING_TASK" | "OPEN_ENDED" | null;
+  mcq_question: TalentQuestionBankMCQ | null;
+  coding_task: TalentQuestionBankCodingTask | null;
+  open_ended_question: TalentQuestionBankOpenEnded | null;
+  created_at: string;
+};
+
+export type AssessmentBundleAdmin = {
+  id: ID;
+  name: string;
+  description: string;
+  role: { id: ID; title: string };
+  difficulty_level: string;
+  estimated_duration_minutes: number;
+  is_recommended: boolean;
+  active: boolean;
+  bank_questions: TalentQuestionBankEntry[];
+  question_count: number;
+};
+
 export type ProctoringSettings = {
   proctoring_enabled: boolean;
   require_fullscreen: boolean;
@@ -726,6 +808,7 @@ export type AssessmentInviteDetail = {
   deadline: string | null;
   deadline_formatted: string | null;
   is_expired: boolean;
+  is_standalone: boolean;
 };
 
 export type CompanySkillAssessment = {
@@ -745,7 +828,13 @@ export type CompanySkillAssessment = {
   use_public_link: boolean;
   use_start_and_end_time: boolean;
   assessment_type: string;
-  sections: (MCQSection | CodingTaskSection)[];
+  sections: (MCQSection | CodingTaskSection | OpenEndedSection)[];
+  /** Draft assessments (published: false) are still being built in the
+   * wizard -- only a published assessment can be invited to candidates. */
+  published?: boolean;
+  /** Recruiter-controlled: whether a candidate can see their own score
+   * after submitting. Defaults to true server-side. */
+  show_results_to_candidate?: boolean;
   /** When this candidate's attempt began -- only present on the no-login
    * invite flow's questions response, anchors the overall countdown so it
    * survives page refresh instead of resetting. */
@@ -754,7 +843,7 @@ export type CompanySkillAssessment = {
 
 export type SkillAssessmentResult = {
   id: ID;
-  total_score: number;
+  total_score: number | null;
   time_taken: number;
   stats: {
     mcq: {
@@ -769,7 +858,12 @@ export type SkillAssessmentResult = {
       total: number;
       percent: number;
     };
-  };
+  } | null;
+  candidate_name?: string | null;
+  candidate_email?: string | null;
+  mark_status?: "Pending" | "Failed to Mark" | "Awaiting Manual Review" | "Marked";
+  is_passed?: boolean;
+  is_completed?: boolean;
 };
 
 export type AssessmentStack = {
@@ -836,12 +930,27 @@ export type SubmissionAnswerCodingTask = {
   candidate_answer: string;
 };
 
+export type SubmissionAnswerOpenEndedQuestion = {
+  id: ID;
+  question: string;
+  grading_guidance: string;
+  max_score: number;
+  answer_id: ID | null;
+  answer_text: string;
+  ai_suggested_score: number | null;
+  ai_suggested_feedback: string;
+  score: number | null;
+  feedback: string;
+  is_graded: boolean;
+};
+
 export type SubmissionAnswersSection = {
   id: ID;
   name: string;
-  type: "MCQ" | "CODING_TASK";
+  type: "MCQ" | "CODING_TASK" | "OPEN_ENDED";
   questions?: SubmissionAnswerMCQQuestion[];
   coding_tasks?: SubmissionAnswerCodingTask[];
+  open_ended_questions?: SubmissionAnswerOpenEndedQuestion[];
 };
 
 export type SubmissionAnswers = {
