@@ -1,6 +1,7 @@
 from rest_framework import serializers
 
 from skill_assessment.models import AssessmentSubmissionSnapshot, CandidateAssessmentCodingAnswer
+from skill_assessment.utils import get_submission_candidate_name
 from .models import ProctoringSession, ProctoringEvent
 
 
@@ -90,13 +91,16 @@ class ProctoringReportSerializer(serializers.ModelSerializer):
         return counts
 
     def get_candidate_name(self, obj):
-        return obj.candidate.full_name or obj.candidate.user.get_full_name() or obj.candidate.user.username
+        return get_submission_candidate_name(obj.assessment_attempt)
 
     def get_job_title(self, obj):
-        return obj.job.title
+        return obj.job.title if obj.job_id else obj.assessment_attempt.skill_assessment.title
 
     def get_company_name(self, obj):
-        return obj.job.company.company_name if obj.job.company_id else None
+        if obj.job_id:
+            return obj.job.company.company_name if obj.job.company_id else None
+        assessment = obj.assessment_attempt.skill_assessment
+        return assessment.company.company_name if assessment and assessment.company_id else None
 
     def get_snapshots(self, obj):
         snapshots = obj.assessment_attempt.snapshots.order_by("created_at")
@@ -126,13 +130,16 @@ class AdminHighRiskSessionSerializer(serializers.ModelSerializer):
         )
 
     def get_candidate_name(self, obj):
-        return obj.candidate.full_name or obj.candidate.user.get_full_name() or obj.candidate.user.username
+        return get_submission_candidate_name(obj.assessment_attempt)
 
     def get_organisation(self, obj):
-        return obj.job.company.company_name if obj.job.company_id else None
+        if obj.job_id:
+            return obj.job.company.company_name if obj.job.company_id else None
+        assessment = obj.assessment_attempt.skill_assessment
+        return assessment.company.company_name if assessment and assessment.company_id else None
 
     def get_job_title(self, obj):
-        return obj.job.title
+        return obj.job.title if obj.job_id else obj.assessment_attempt.skill_assessment.title
 
     def get_top_violations(self, obj):
         counts = {}

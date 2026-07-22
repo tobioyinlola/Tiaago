@@ -612,6 +612,50 @@ def applicant_vetting_mail(
     )
 
 
+def standalone_assessment_invite_mail(email, name, assessment, deadline=None, has_coding_task=False):
+    """Invite email for a recruiter-built, account-less assessment invite --
+    there's no CustomUser/TalentProfile to address this to (see
+    GeneralSkillAssessment.invited_email/invited_name), so this builds the
+    template context directly instead of going through
+    get_email_template_and_context (which expects a real user). Reuses the
+    same assessment_invitation.html template as the job-application flow."""
+    assessment_link = f"{settings.FRONTEND_BASE_URL}/assessment-invite/{assessment.invite_token}/"
+    context = {
+        "first_name": name,
+        "company": getattr(assessment.company, "company_name", "") if assessment.company_id else "",
+        "skill": assessment.title,
+        "assessment_url": assessment_link,
+        "duration": f"{assessment.duration_minutes} minutes" if assessment.duration_minutes else None,
+        "deadline": _format_deadline(deadline),
+        "assessment_format": "MCQ with live coding" if has_coding_task else "Multiple choice assessment",
+        "is_standalone_invite": True,
+    }
+    subject = f"You've been invited to take an assessment: {assessment.title}"
+    return _send_with_latest_flow(
+        email, subject, "emails/assessment_invitation.html", context,
+        email_type="standalone_assessment_invite",
+    )
+
+
+def standalone_assessment_completed_candidate_mail(email, name, assessment):
+    """Confirmation sent to a standalone (account-less) candidate once their
+    entire assessment is graded -- mirrors assessment_submitted_mail, built
+    directly since there's no CustomUser for get_email_template_and_context.
+    Deliberately never includes the score/pass status here regardless of
+    show_results_to_candidate -- that's the results page's job (see
+    SubmissionSerializer), not the email's."""
+    context = {
+        "first_name": name,
+        "company": getattr(assessment.company, "company_name", "") if assessment.company_id else "",
+        "skill": assessment.title,
+    }
+    subject = "We've received your assessment submission"
+    return _send_with_latest_flow(
+        email, subject, "emails/assessment_submitted.html", context,
+        email_type="standalone_assessment_submitted",
+    )
+
+
 def application_received_mail(user, job):
     """Confirmation sent immediately after a candidate submits a job
     application through the no-login apply form -- separate from

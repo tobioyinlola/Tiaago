@@ -37,7 +37,7 @@ const Modal = ({
       id={id}
       className='modal backdrop-blur bg-black/20'
       onKeyDown={e => {
-        if (disableClose) e.preventDefault();
+        if (disableClose && e.key === "Escape") e.preventDefault();
       }}
     >
       <div

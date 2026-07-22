@@ -1,6 +1,7 @@
 class SkillAssessmentTypes:
     MCQ = "MCQ"
     CODING_TASK = "CODING_TASK"
+    OPEN_ENDED = "OPEN_ENDED"
     CUSTOM = "CUSTOM"
     MIXED = "MIXED"
 

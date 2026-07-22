@@ -61,6 +61,19 @@ class PlagiarismCheckResult(BaseModel):
     token_usage: Optional[Dict[str, int]] = None
     token_usage: Optional[Dict[str, int]] = None
 
+class OpenEndedGradeRequest(BaseModel):
+    question: str
+    answer: str
+    rubric: Optional[str] = None  # recruiter-written grading guidance, if any
+    max_score: float = 100
+
+class OpenEndedGradeSuggestionResult(BaseModel):
+    question: str
+    suggested_score: float  # 0..max_score
+    suggested_feedback: str
+    confidence: str  # "low" | "medium" | "high"
+    token_usage: Optional[Dict[str, int]] = None
+
 class StageResult(BaseModel):
     stage: str  # "mcq" or "coding"
     grading_results: List[GradingResult]

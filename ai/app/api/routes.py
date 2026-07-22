@@ -1,13 +1,14 @@
 from fastapi import APIRouter, HTTPException, Query, File, UploadFile
 from fastapi.responses import JSONResponse
 from typing import List, Optional
-from app.services.assessment_service import assess_candidate, grade_coding_assessment, grade_single_coding_question, generate_culture_fit_questions, create_technical_multi_stage_assessment, create_non_technical_assessment, evaluate_stage_progression, get_assessment_by_id, get_current_stage_data, complete_assessment_stage, generate_overall_feedback, create_categorized_mcq_assessment, check_code_plagiarism
+from app.services.assessment_service import assess_candidate, grade_coding_assessment, grade_single_coding_question, generate_culture_fit_questions, create_technical_multi_stage_assessment, create_non_technical_assessment, evaluate_stage_progression, get_assessment_by_id, get_current_stage_data, complete_assessment_stage, generate_overall_feedback, create_categorized_mcq_assessment, check_code_plagiarism, suggest_open_ended_grade
 from app.services.resume_analyzer import analyze_resume
 from app.models.assessment import (
     AssessmentResult, Question, CodingAnswer, MCQAnswer, GradingResult,
     CultureFitQuestion, CultureFitAssessment, AssessmentSubmission,
     MultiStageAssessment, StageResult, CultureFitResults, SkillsAssessmentResults,
-    CategorizedAssessmentResult, PlagiarismCheckResult
+    CategorizedAssessmentResult, PlagiarismCheckResult,
+    OpenEndedGradeRequest, OpenEndedGradeSuggestionResult,
 )
 from app.models.resume import ResumeAnalysis
 import io
@@ -497,6 +498,28 @@ async def check_plagiarism_endpoint(question: Question, user_answer: CodingAnswe
         return check_code_plagiarism(question, user_answer)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error checking plagiarism: {str(e)}")
+
+@router.post("/suggest-open-ended-grade", response_model=OpenEndedGradeSuggestionResult, tags=["Assessment"])
+async def suggest_open_ended_grade_endpoint(request: OpenEndedGradeRequest):
+    """
+    Suggest a score and feedback for a candidate's free-text answer to an
+    open-ended assessment question -- a starting point for the recruiter's
+    own manual grading, never an automatic final grade.
+
+    Parameters:
+    - question: the open-ended question text
+    - answer: the candidate's free-text answer
+    - rubric: optional recruiter-written grading guidance
+    - max_score: the maximum possible score for this question (default 100)
+
+    Returns:
+    An OpenEndedGradeSuggestionResult containing suggested_score (0..max_score),
+    suggested_feedback, and a confidence level.
+    """
+    try:
+        return suggest_open_ended_grade(request)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error suggesting open-ended grade: {str(e)}")
 
 @router.post("/grade-mcq-assessment", response_model=List[GradingResult], tags=["Assessment"])
 async def grade_mcq_assessment(assessment_result: AssessmentResult, user_answers: List[MCQAnswer]):

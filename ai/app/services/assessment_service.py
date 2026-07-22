@@ -1,7 +1,7 @@
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 from app.config import settings
-from app.models.assessment import AssessmentResult, Question, CodingAnswer, GradingResult, CultureFitQuestion, CultureFitAssessment, MultiStageAssessment, StageResult, PlagiarismCheckResult
+from app.models.assessment import AssessmentResult, Question, CodingAnswer, GradingResult, CultureFitQuestion, CultureFitAssessment, MultiStageAssessment, StageResult, PlagiarismCheckResult, OpenEndedGradeRequest, OpenEndedGradeSuggestionResult
 from app.services.storage_service import assessment_storage
 from typing import Dict, List, Optional
 import json
@@ -893,6 +893,95 @@ def grade_single_coding_question(question: Question, user_answer: CodingAnswer) 
         score=grading_result.get("score", 0),
         score_rationale=grading_result.get("score_rationale", {}),
         token_usage=usage or None
+    )
+
+def suggest_open_ended_grade(request: OpenEndedGradeRequest) -> OpenEndedGradeSuggestionResult:
+    """
+    Pre-fill a suggested score/feedback for a candidate's free-text answer to
+    an open-ended assessment question, for a recruiter to review and confirm
+    or override -- this never finalizes a grade on its own (see
+    skill_assessment.tasks.suggest_open_ended_grades, which stores the result
+    on CandidateAssessmentOpenEndedAnswer.ai_suggested_score/feedback only).
+    """
+    chat = get_openai_client()
+
+    system_prompt = """
+    You are an expert assessor helping a recruiter grade a candidate's free-text
+    answer to an open-ended assessment question. Your job is to suggest a fair,
+    constructive score and feedback -- the recruiter always reviews and can
+    override your suggestion, so lean toward being clear and well-reasoned
+    rather than harsh.
+
+    **How to grade:**
+    - Judge the substance of the answer against the question and (if provided)
+      the recruiter's grading guidance/rubric.
+    - Look for a concrete example or reasoning, relevance to what was asked,
+      clarity, and depth appropriate to the question.
+    - A blank or clearly off-topic answer should score very low.
+    - Do not penalize for minor grammar/spelling issues -- focus on substance.
+
+    **Scoring:** suggested_score must be a number between 0 and max_score
+    (inclusive), proportional to how well the answer addresses the question.
+
+    Follow the JSON format precisely. Do not add any extra text outside the JSON.
+    """
+
+    human_prompt = """
+    **Question:**
+    ```
+    {question}
+    ```
+
+    **Grading guidance (if any):**
+    ```
+    {rubric}
+    ```
+
+    **Candidate's Answer:**
+    ```
+    {answer}
+    ```
+
+    **Maximum score:** {max_score}
+
+    **Your Task:**
+    Suggest a score and feedback for this answer. Return your response in the
+    following JSON format:
+
+    ```json
+    {{
+        "suggested_score": <0-{max_score}>,
+        "suggested_feedback": "Two or three sentences of constructive feedback.",
+        "confidence": "<low|medium|high>"
+    }}
+    ```
+    """
+
+    chat_prompt = ChatPromptTemplate.from_messages([
+        ("system", system_prompt),
+        ("human", human_prompt)
+    ])
+
+    messages = chat_prompt.format_messages(
+        question=request.question,
+        rubric=request.rubric or "None provided.",
+        answer=request.answer or "(no answer provided)",
+        max_score=request.max_score,
+    )
+    content, usage = _invoke_chat_and_get_content(chat, messages)
+    result = extract_and_parse_json(content)
+
+    try:
+        suggested_score = max(0.0, min(float(request.max_score), float(result.get("suggested_score", 0))))
+    except (TypeError, ValueError):
+        suggested_score = 0.0
+
+    return OpenEndedGradeSuggestionResult(
+        question=request.question,
+        suggested_score=suggested_score,
+        suggested_feedback=result.get("suggested_feedback", ""),
+        confidence=result.get("confidence", "low"),
+        token_usage=usage or None,
     )
 
 def check_code_plagiarism(question: Question, user_answer: CodingAnswer) -> PlagiarismCheckResult:

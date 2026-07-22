@@ -411,8 +411,22 @@ export const getNoOfCodingTasks = (assessment: CompanySkillAssessment) =>
     return acc;
   }, 0);
 
+export const getNoOfOpenEndedQuestions = (assessment: CompanySkillAssessment) =>
+  assessment.sections.reduce((acc, section) => {
+    if (section.type === "OPEN_ENDED") {
+      return (
+        acc + (section.question_count ?? 0) ||
+        section.open_ended_questions?.length ||
+        0
+      );
+    }
+    return acc;
+  }, 0);
+
 export const getNoOfAssementQuestions = (assessment: CompanySkillAssessment) =>
-  getNoOfMCQQuestions(assessment) + getNoOfCodingTasks(assessment);
+  getNoOfMCQQuestions(assessment) +
+  getNoOfCodingTasks(assessment) +
+  getNoOfOpenEndedQuestions(assessment);
 
 export const getAssessmentDifficultyLevel = (difficultyLevel: string) => {
   switch ((difficultyLevel || "").toLowerCase()) {

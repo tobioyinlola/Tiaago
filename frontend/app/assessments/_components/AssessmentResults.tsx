@@ -65,8 +65,8 @@ const AssessmentResults = async ({
   const assessmentDurationInMinutes =
     getAssessmentDurationInMinutes(assessment);
 
-  const mcqScore = results.stats.mcq.percent;
-  const totalScore = codingTaskSection ? results.total_score : mcqScore;
+  const mcqScore = results.stats?.mcq.percent ?? 0;
+  const totalScore = (codingTaskSection ? results.total_score : mcqScore) ?? 0;
   const passedMcq = mcqScore >= assessment.passing_grade;
   const passed = totalScore >= assessment.passing_grade;
 
@@ -216,7 +216,7 @@ const AssessmentResults = async ({
               jobId={jobId}
               onComplete={onComplete}
               jobRole={jobRole}
-              score={results.total_score}
+              score={results.total_score ?? undefined}
             >
               {!!results.total_score && (
                 <div className='border border-[#EAECF0] rounded-lg bg-white px-6 py-3'>

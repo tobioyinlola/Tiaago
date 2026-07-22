@@ -1,11 +1,8 @@
+import Link from "next/link";
 import { LuListFilter, LuPlus } from "react-icons/lu";
 
-import AddAssessmentModal, {
-  addAssessmentModalId,
-} from "./_components/AddAssessmentModal";
 import StatCard from "./_components/StatCard";
 import AssessmentCard from "./_components/AssessmentCard";
-import { OpenModalByIdButton } from "@/app/common/components/Modal";
 import { getAssessmentDurationInMinutes } from "@/app/common/utils";
 import { getCompanyAssessments } from "@/app/common/services/assessment";
 import DisplayErrorMessages, {
@@ -87,8 +84,8 @@ const AssessementsPage = async () => {
         </div>
 
         <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'>
-          <OpenModalByIdButton
-            modalId={addAssessmentModalId}
+          <Link
+            href='/recruiter/dashboard/assessments/add'
             className='border-2 rounded-lg p-6 flex flex-col items-center justify-center text-gray-500 cursor-pointer hover:border-blue-500 transition-colors'
           >
             <div className='w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mb-4'>
@@ -98,14 +95,13 @@ const AssessementsPage = async () => {
             <p className='text-sm'>
               Click the button below to add a new assessment
             </p>
-          </OpenModalByIdButton>
+          </Link>
 
           {results.map((assessment, index) => (
             <AssessmentCard key={index} {...assessment} />
           ))}
         </div>
       </div>
-      <AddAssessmentModal />
     </div>
   );
 };

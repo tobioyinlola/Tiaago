@@ -12,7 +12,7 @@ import { confirmAssessmentInviteDetails } from "@/app/common/services/assessment
 
 const DetailsPage = () => {
   const router = useRouter();
-  const { token, candidate_name, candidate_email, setCandidateName } = useInviteFlow();
+  const { token, candidate_name, candidate_email, is_standalone, setCandidateName } = useInviteFlow();
   const [fullName, setFullName] = useState(candidate_name);
   const [submitting, setSubmitting] = useState(false);
 
@@ -63,14 +63,33 @@ const DetailsPage = () => {
           <label htmlFor='full_name' className='block text-sm font-medium text-primary-black mb-1.5'>
             Full Name <span className='text-error'>*</span>
           </label>
-          <input
-            id='full_name'
-            type='text'
-            value={fullName}
-            onChange={e => setFullName(e.target.value)}
-            placeholder='Your full name'
-            className='w-full bg-white border border-[#D0D5DD] focus:border-primary rounded-lg px-4 py-3 text-primary-black outline-none transition-colors'
-          />
+          {is_standalone ? (
+            <div className='relative'>
+              <input
+                id='full_name'
+                type='text'
+                value={fullName}
+                disabled
+                readOnly
+                className='w-full bg-[#F9FAFB] border border-gray-200 rounded-lg px-4 py-3 text-secondary-black cursor-not-allowed pr-10'
+              />
+              <Lock className='h-4 w-4 text-gray-400 absolute right-3.5 top-1/2 -translate-y-1/2' />
+            </div>
+          ) : (
+            <input
+              id='full_name'
+              type='text'
+              value={fullName}
+              onChange={e => setFullName(e.target.value)}
+              placeholder='Your full name'
+              className='w-full bg-white border border-[#D0D5DD] focus:border-primary rounded-lg px-4 py-3 text-primary-black outline-none transition-colors'
+            />
+          )}
+          {is_standalone && (
+            <p className='text-xs text-secondary-black/70 mt-1.5'>
+              This is the name provided by the recruiter who invited you and can&apos;t be changed.
+            </p>
+          )}
         </div>
       </div>
 

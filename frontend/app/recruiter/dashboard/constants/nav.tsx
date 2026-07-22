@@ -46,10 +46,10 @@ export const recruiterNavItems: DashboardNavItemV3[] = [
         name: "Assessments",
         href: `${baseHref}/assessments`,
       },
-      // {
-      //   name: "Add Assessment",
-      //   href: `${baseHref}/assessments/add`,
-      // },
+      {
+        name: "Add Assessment",
+        href: `${baseHref}/assessments/add`,
+      },
       {
         name: "Question Bank",
         href: `${baseHref}/question-bank`,

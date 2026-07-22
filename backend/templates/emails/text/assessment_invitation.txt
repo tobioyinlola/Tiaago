@@ -3,8 +3,9 @@
 Show them what you know.
 
 Hi {{ first_name|default:"Amara" }}, {{ company|default:"Paystack" }} would like
-you to take a short {{ skill|default:"React" }} assessment. A strong score earns
-a verified badge and moves you up in recruiter searches.
+you to take a short {{ skill|default:"React" }} assessment.{% if is_standalone_invite %} This
+link is unique to you and doesn't require creating an account.{% else %} A strong
+score earns a verified badge and moves you up in recruiter searches.{% endif %}
 
   Skill:       {{ skill|default:"React" }}
   Duration:    {{ duration|default:"45 minutes" }}

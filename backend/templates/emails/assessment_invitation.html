@@ -4,7 +4,7 @@
 {% block content %}
   <h1 class="h1" style="margin:0 0 14px; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:33px; line-height:1.15; letter-spacing:-0.6px; font-weight:800; color:#0F172A;">Show them what you know</h1>
 
-  <p style="margin:0 0 14px; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:16px; line-height:1.65; color:#475569;">Hi {{ first_name|default:"Amara" }}, {{ company|default:"Paystack" }} would like you to take a short {{ skill|default:"React" }} assessment. A strong score earns a verified badge and moves you up in recruiter searches.</p>
+  <p style="margin:0 0 14px; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:16px; line-height:1.65; color:#475569;">Hi {{ first_name|default:"Amara" }}, {{ company|default:"Paystack" }} would like you to take a short {{ skill|default:"React" }} assessment.{% if is_standalone_invite %} This link is unique to you and doesn't require creating an account.{% else %} A strong score earns a verified badge and moves you up in recruiter searches.{% endif %}</p>
 
   <!-- detail box -->
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:24px 0 28px; background-color:#F8FAFC; border:1px solid #E2E8F0; border-radius:0;">

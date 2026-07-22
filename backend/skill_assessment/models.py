@@ -22,12 +22,15 @@ User = get_user_model()
 SKILL_ASSESSMENT_TYPE_CHOICES = (
     (SkillAssessmentTypes.MCQ, SkillAssessmentTypes.MCQ),
     (SkillAssessmentTypes.CODING_TASK, SkillAssessmentTypes.CODING_TASK),
+    (SkillAssessmentTypes.OPEN_ENDED, SkillAssessmentTypes.OPEN_ENDED),
     (SkillAssessmentTypes.CUSTOM, SkillAssessmentTypes.CUSTOM),
+    (SkillAssessmentTypes.MIXED, SkillAssessmentTypes.MIXED),
 )
 
 SUB_SKILL_ASSESSMENT_TYPE_CHOICES = (
     (SkillAssessmentTypes.MCQ, SkillAssessmentTypes.MCQ),
     (SkillAssessmentTypes.CODING_TASK, SkillAssessmentTypes.CODING_TASK),
+    (SkillAssessmentTypes.OPEN_ENDED, SkillAssessmentTypes.OPEN_ENDED),
 )
 
 DIFFICULTY_LEVEL_CHOICES = (
@@ -191,6 +194,33 @@ class GeneralSkillAssessment(TimeStampedModel):
         null=True, blank=True, help_text="invite_sent_at + 72 hours. Past this, the invite link is expired."
     )
 
+    # Standalone (non-job) recruiter-built assessment, invited directly by
+    # email -- deliberately NOT a CustomUser/TalentProfile FK. The recruiter
+    # sets the candidate's display name at invite time and it is never
+    # editable by the candidate (see assessment-invite frontend flow), unlike
+    # candidate_display_name on CandidateAssessmentSubmission which IS
+    # candidate-editable for the job-application flow. Both job_application
+    # and invited_email being unset marks a Tiaago-owned assessment, same as
+    # today (see is_tiaago_skill_assessment below).
+    invited_email = models.EmailField(null=True, blank=True)
+    invited_name = models.CharField(max_length=255, null=True, blank=True)
+
+    # Set only on a per-candidate clone (see
+    # skill_assessment.views._clone_standalone_assessment_for_candidate),
+    # pointing back at the published draft it was cloned from. Every invited
+    # candidate gets their own independent GeneralSkillAssessment row with
+    # its own sections/questions -- this is the only link back to "which
+    # assessment this invite belongs to" for a recruiter-facing submissions
+    # list (see GetSubmissionsForASkillAssessment).
+    source_template = models.ForeignKey(
+        "self", on_delete=models.SET_NULL, null=True, blank=True, related_name="candidate_clones"
+    )
+
+    # Recruiter-controlled: whether the candidate sees their own score/pass
+    # status after submitting. Defaults to visible, matching today's
+    # behaviour for every existing assessment.
+    show_results_to_candidate = models.BooleanField(default=True)
+
     def __str__(self):
         return self.title
 
@@ -231,6 +261,9 @@ class GeneralSkillAssessmentSection(TimeStampedModel):
     )
     coding_tasks = models.ManyToManyField(
         "CodingTask", blank=True
+    )
+    open_ended_questions = models.ManyToManyField(
+        "OpenEndedQuestion", blank=True
     )
 
     class Meta:
@@ -352,6 +385,25 @@ class TestCase(TimeStampedModel):
     def __str__(self):
         return f"Test Case for {self.coding_task.title}"
 
+
+class OpenEndedQuestion(TimeStampedModel):
+    """Free-text question requiring a human (recruiter) to grade the
+    candidate's written answer -- optionally assisted by an AI-suggested
+    score/feedback (see CandidateAssessmentOpenEndedAnswer)."""
+
+    is_ai_generated = models.BooleanField(default=False)
+    question = models.TextField()
+    # Optional grading guidance shown only to the recruiter -- what a strong
+    # answer should cover, not a single "correct answer" the way MCQ/coding
+    # questions have one.
+    grading_guidance = models.TextField(blank=True, default="")
+    max_score = models.PositiveIntegerField(default=100)
+    skills_assessed = models.JSONField(default=list)
+
+    def __str__(self):
+        return self.question[:80]
+
+
 class TalentQuestionBank(TimeStampedModel):
     mcq_question = models.ForeignKey(
         GeneralSkillAssessmentMCQQuestion,
@@ -362,6 +414,13 @@ class TalentQuestionBank(TimeStampedModel):
     )
     coding_task = models.ForeignKey(
         CodingTask,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="questionbank_entry"
+    )
+    open_ended_question = models.ForeignKey(
+        OpenEndedQuestion,
         on_delete=models.CASCADE,
         null=True,
         blank=True,
@@ -380,17 +439,44 @@ class TalentQuestionBank(TimeStampedModel):
     role = models.ForeignKey(Role, on_delete=models.CASCADE, blank=True, null=True)
 
     def __str__(self):
-        return f"TalentQuestionBank: {'MCQ' if self.mcq_question else 'Coding'} - {self.stack}"
-    
+        kind = "MCQ" if self.mcq_question else "Coding" if self.coding_task else "Open-ended"
+        return f"TalentQuestionBank: {kind} - {self.stack}"
+
     def clean(self):
-        if self.mcq_question and self.coding_task:
-            raise ValidationError("Only one of mcq_question or coding_task should be set.")
-        if not self.mcq_question and not self.coding_task:
-            raise ValidationError("One of mcq_question or coding_task must be set.")
+        set_count = sum(bool(x) for x in (self.mcq_question_id, self.coding_task_id, self.open_ended_question_id))
+        if set_count != 1:
+            raise ValidationError("Exactly one of mcq_question, coding_task, or open_ended_question must be set.")
 
     def save(self, *args, **kwargs):
-        self.clean() 
+        self.clean()
         super().save(*args, **kwargs)
+
+
+class AssessmentBundle(TimeStampedModel):
+    """A named, curated package of question-bank questions a recruiter can
+    add to a draft assessment in one step (the "Test Library" in the
+    creation wizard) -- e.g. "Backend Engineer (Junior)". Adding a bundle
+    CLONES its questions into the recruiter's assessment; editing a bundle
+    later never retroactively changes assessments already built from it."""
+
+    name = models.CharField(max_length=255)
+    description = models.TextField(blank=True, default="")
+    role = models.ForeignKey(Role, on_delete=models.CASCADE, related_name="assessment_bundles")
+    difficulty_level = models.CharField(max_length=100, choices=DIFFICULTY_LEVEL_CHOICES)
+    estimated_duration_minutes = models.PositiveIntegerField(default=30)
+    is_recommended = models.BooleanField(default=False)
+    bank_questions = models.ManyToManyField(TalentQuestionBank, blank=True, related_name="bundles")
+    active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ("-is_recommended", "name")
+
+    def __str__(self):
+        return self.name
+
+    @property
+    def question_count(self):
+        return self.bank_questions.count()
 
 class CandidateAssessmentSectionSubmission(TimeStampedModel):
     """Candidate assessment section submission"""
@@ -455,16 +541,58 @@ class CandidateAssessmentCodingAnswer(TimeStampedModel):
     def __str__(self):
         return f"Answer to {self.coding_task.title}"
 
+
+class CandidateAssessmentOpenEndedAnswer(TimeStampedModel):
+    """Candidate's free-text answer to an OpenEndedQuestion. Requires a
+    recruiter to grade it (see skill_assessment.tasks + the grade-open-ended
+    endpoint) -- score/feedback stay null until then. ai_suggested_* fields
+    are a best-effort pre-fill computed at submit time, never authoritative
+    on their own."""
+
+    section_submission = models.ForeignKey(
+        CandidateAssessmentSectionSubmission, on_delete=models.CASCADE,
+        related_name="open_ended_answers"
+    )
+    open_ended_question = models.ForeignKey(
+        OpenEndedQuestion, on_delete=models.CASCADE,
+        related_name="submitted_answers"
+    )
+    answer_text = models.TextField(blank=True, default="")
+
+    ai_suggested_score = models.FloatField(null=True, blank=True)
+    ai_suggested_feedback = models.TextField(blank=True, default="")
+
+    score = models.FloatField(null=True, blank=True)
+    feedback = models.TextField(blank=True, default="")
+    graded_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name="graded_open_ended_answers"
+    )
+    graded_at = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self):
+        return f"Answer to {self.open_ended_question}"
+
+    @property
+    def is_graded(self):
+        return self.score is not None
+
+
 class CandidateAssessmentSubmission(TimeStampedModel):
     """Full candidate assessment submission"""
 
     class MarkStatusChoices(models.TextChoices):
         PENDING = "Pending", "Pending"
         FAILED_TO_MARK = "Failed to Mark", "Failed to Mark"
+        AWAITING_MANUAL_REVIEW = "Awaiting Manual Review", "Awaiting Manual Review"
         MARKED = "Marked", "Marked"
 
+    # Null for standalone (non-job) assessment invites, which are
+    # deliberately account-less -- see GeneralSkillAssessment.invited_email/
+    # invited_name, which is what candidate-name/email display falls back to
+    # when this is null (see skill_assessment.utils.get_submission_identity).
     candidate = models.ForeignKey(
-        TalentProfile, related_name="candidate_assessments", on_delete=models.CASCADE
+        TalentProfile, related_name="candidate_assessments", on_delete=models.CASCADE,
+        null=True, blank=True,
     )
     skill_assessment = models.ForeignKey(
         GeneralSkillAssessment, on_delete=models.SET_NULL, blank=True, null=True
@@ -499,6 +627,12 @@ class CandidateAssessmentSubmission(TimeStampedModel):
         help_text="Guards the candidate-confirmation + recruiter-notification completion emails "
         "so they fire exactly once, the first time the full assessment (every section) is done.",
     )
+    # Holds {"mcq_avg": float, "code_avg": float, "has_coding": bool} while
+    # mark_status=AWAITING_MANUAL_REVIEW, so the open-ended-grading finalize
+    # step can compute the final weighted total_score without re-running
+    # (and re-billing/re-calling AI for) MCQ/coding grading a second time.
+    # Ignored once mark_status=MARKED.
+    pending_score_breakdown = models.JSONField(default=dict, blank=True)
 
     class Meta:
         indexes = [
