@@ -9,7 +9,7 @@ import Button from "@/app/common/components/DaisyButton";
 import { useAlert } from "@/app/common/store/useAlert";
 import { TalentRole } from "@/app/common/types";
 import { useScrollToTop } from "@/app/common/hooks/useScrollToTop";
-import { handleFormSubmissionError } from "@/app/common/utils";
+import { cn, handleFormSubmissionError } from "@/app/common/utils";
 import FormikField from "@/app/common/components/Forms/FormikField";
 import StepIndicator from "../../../jobs/create/CreateJobForm/_components/StepIndicator";
 import {
@@ -140,7 +140,7 @@ const CreateAssessmentForm = ({ talentRoles }: { talentRoles: TalentRole[] }) =>
           successModalRef.current?.showModal();
         }}
       >
-        {({ handleSubmit, errors, touched, isSubmitting, values, handleChange }) => {
+        {({ handleSubmit, errors, touched, isSubmitting, values, handleChange, setFieldValue, setFieldTouched }) => {
           return (
             <form
               onSubmit={handleSubmit}
@@ -179,16 +179,41 @@ const CreateAssessmentForm = ({ talentRoles }: { talentRoles: TalentRole[] }) =>
                     <FormikField
                       name="skillsets"
                       label="Skill sets"
-                      type="select"
                       value={values.skillsets}
                       error={errors.skillsets as string}
                       touched={touched.skillsets}
                       className="md:w-[48%]"
-                      selectFieldProps={{
-                        isMulti: true,
-                        options: talentRoles.map(role => ({ label: role.title, value: role.id })),
-                      }}
-                    />
+                    >
+                      <div className="flex flex-wrap gap-2 p-3 border rounded-lg border-[#D0D5DD] max-h-48 overflow-y-auto">
+                        {talentRoles.map(role => {
+                          const roleId = String(role.id);
+                          const isSelected = values.skillsets.includes(roleId);
+                          return (
+                            <button
+                              key={roleId}
+                              type="button"
+                              onClick={() => {
+                                setFieldValue(
+                                  "skillsets",
+                                  isSelected
+                                    ? values.skillsets.filter(id => id !== roleId)
+                                    : [...values.skillsets, roleId]
+                                );
+                                setFieldTouched("skillsets", true);
+                              }}
+                              className={cn(
+                                "px-3 py-1.5 rounded-full text-sm font-medium border transition-colors",
+                                isSelected
+                                  ? "bg-primary text-white border-primary"
+                                  : "border-[#D0D5DD] text-[#344054] hover:border-primary"
+                              )}
+                            >
+                              {role.title}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </FormikField>
                     <FormikField
                       name="assessment_type"
                       label="Assessment type"

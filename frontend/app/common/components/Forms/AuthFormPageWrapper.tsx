@@ -66,13 +66,13 @@ const AuthFormPageWrapper = ({
                 <h2 className='text-white font-onest font-semibold text-[60px] leading-[110%] max-w-[562px] mt-[60px] mb-8'>
                   {as === "talent"
                     ? "Get Verified. Get Discovered. Get Hired"
-                    : "Hire Verified Talents, Faster and Smarter"}
+                    : "Your next hire is already in your pipeline."}
                 </h2>
 
                 <p className='text-[#E4DBDB] font-onest text-xl max-w-[480px]'>
                   {as === "talent"
                     ? " Showcase your real skills, get assessed and verified, and connect with companies that value what you can truly do"
-                    : "Assess real skills, verify talent, and shortlist candidates faster, all in one platform."}
+                    : "Tiaago automates resume screening, generates assessments from your job description, and surfaces the candidates worth your time — so you spend less time reading CVs and more time making placements."}
                 </p>
               </div>
 

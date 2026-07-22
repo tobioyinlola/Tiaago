@@ -671,12 +671,22 @@ export const getSubmissionAnswers = async (submissionId: ID): Promise<Submission
 
 // --- Staff-only Question Bank / Bundle CRUD, backing /admin/assessment/question-bank and /admin/assessment/bundles ---
 
-export const getStaffQuestionBank = async (params?: { role?: ID; question_type?: string }) => {
+export const getStaffQuestionBank = async (params?: {
+  role?: ID;
+  question_type?: string;
+  page_size?: number;
+}) => {
   const data = await serverKyInstance
     .get<PagedResource<TalentQuestionBankEntry>>("skill-assessments/staff/question-bank/", {
       searchParams: {
         ...(params?.role ? { role: params.role } : {}),
         ...(params?.question_type ? { question_type: params.question_type } : {}),
+        // Neither the admin list page nor the bundle picker implement page
+        // navigation -- without this, TiaagoPagination's default page_size
+        // of 20 silently hid every entry past the 20th (e.g. an admin
+        // couldn't select more than 20 MCQ questions into a bundle even
+        // though the picker itself has no per-type cap).
+        page_size: params?.page_size ?? 500,
       },
     })
     .json();
