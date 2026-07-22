@@ -178,7 +178,8 @@ class ProctoringReportView(APIView):
 
     def get(self, request, submission_id):
         session = ProctoringSession.objects.filter(assessment_attempt_id=submission_id).select_related(
-            "job", "job__company", "candidate", "candidate__user"
+            "job", "job__company", "candidate", "candidate__user",
+            "assessment_attempt__skill_assessment__company",
         ).prefetch_related("events").first()
         if not session:
             return Response(status=404, data={"error": "No proctoring session found for this submission."})
@@ -193,7 +194,13 @@ class ProctoringReportView(APIView):
                 return Response(status=403, data={"error": "Access denied", "required_permission": "proctoring.view"})
         else:
             company = get_user_company(request.user)
-            if not company or session.job.company_id != company.id:
+            # Standalone (non-job) assessments have no job, so the owning
+            # company lives on the assessment itself -- see
+            # ProctoringReportSerializer.get_company_name for the same fallback.
+            session_company_id = (
+                session.job.company_id if session.job_id else session.assessment_attempt.skill_assessment.company_id
+            )
+            if not company or session_company_id != company.id:
                 return Response(status=404, data={"error": "No proctoring session found for this submission."})
 
         return Response(status=200, data=ProctoringReportSerializer(session, context={"request": request}).data)

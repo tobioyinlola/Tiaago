@@ -9,9 +9,10 @@ import DaisyButton from "@/app/common/components/DaisyButton";
 import BrandLink from "@/app/common/components/BrandLink";
 import ProctoringWarningOverlay from "@/app/common/components/dashboard/ProctoringWarningOverlay";
 import ProctoringViolationBanner from "@/app/common/components/dashboard/ProctoringViolationBanner";
-import { CodingTaskSection, CompanySkillAssessment, MCQSection } from "@/app/common/types";
+import { CodingTaskSection, CompanySkillAssessment, MCQSection, OpenEndedSection } from "@/app/common/types";
 import AssessmentMCQQuiz from "@/app/assessments/_components/AssessmentMCQQuiz";
 import AssessmentCodingTask from "@/app/assessments/_components/AssessmentCodingTask";
+import AssessmentOpenEndedQuiz from "@/app/assessments/_components/AssessmentOpenEndedQuiz";
 import { submitAssessmentInviteAnswers } from "@/app/common/services/assessment-invite";
 import { completeProctoringSession } from "@/app/common/services/assessment-invite-client";
 import { useProctoring } from "@/app/common/hooks/useProctoring";
@@ -158,6 +159,26 @@ const TakeAssessmentFlow = ({ assessment }: { assessment: CompanySkillAssessment
         <AssessmentCodingTask
           key={currentSection.id}
           codeSection={currentSection as CodingTaskSection}
+          assessment={assessment}
+          mode='invite'
+          skipIntro
+          submitOverride={data => submitAssessmentInviteAnswers(token, data)}
+          onComplete={handleSectionComplete}
+          sharedEndDateTime={endDateTime}
+          onTimeExpired={handleTimeExpired}
+          forceSubmitSignal={forceSubmitSignal}
+        />
+      </>
+    );
+  }
+
+  if (currentSection.type === "OPEN_ENDED") {
+    return (
+      <>
+        {proctoringOverlays}
+        <AssessmentOpenEndedQuiz
+          key={currentSection.id}
+          openEndedSection={currentSection as OpenEndedSection}
           assessment={assessment}
           mode='invite'
           skipIntro

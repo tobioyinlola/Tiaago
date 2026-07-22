@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { LuPencilLine } from "react-icons/lu";
-import { HiOutlineTrash } from "react-icons/hi";
+import { ArrowRight, ListChecks, Timer, Target, Users, FileQuestion, Code2, PenLine } from "lucide-react";
 
 import {
   getNoOfAssementQuestions,
@@ -28,6 +27,12 @@ export const generateMetadata = async ({ params }: Props) => {
   };
 };
 
+const sectionTypeMeta: Record<string, { label: string; Icon: typeof FileQuestion }> = {
+  MCQ: { label: "Multiple choice", Icon: FileQuestion },
+  CODING_TASK: { label: "Coding task", Icon: Code2 },
+  OPEN_ENDED: { label: "Open-ended", Icon: PenLine },
+};
+
 const AssessmentDetailsPage = async ({ params }: Props) => {
   const { id } = await params;
   const errors: DisplayErrorMessagesProps["errors"] = [];
@@ -47,35 +52,37 @@ const AssessmentDetailsPage = async ({ params }: Props) => {
 
   const noOfQuestions = getNoOfAssementQuestions(assessment);
 
-  // const questionsFromQuestionBank = await getQuestionsFromQuestionBank(
-  //   assessment.skillsets.map(skillset => skillset.id)
-  // );
-
   const stats = [
-    { title: "Questions", value: noOfQuestions },
-    {
-      title: "Duration",
-      value: `${getAssessmentDurationInMinutes(assessment)}mins`,
-    },
-    { title: "Passing Grade", value: `${assessment.passing_grade}%` },
-    { title: "Attempts", value: 0 },
+    { title: "Questions", value: noOfQuestions, Icon: ListChecks },
+    { title: "Duration", value: `${getAssessmentDurationInMinutes(assessment)}mins`, Icon: Timer },
+    { title: "Passing Grade", value: `${assessment.passing_grade}%`, Icon: Target },
+    { title: "Attempts", value: 0, Icon: Users },
   ];
 
   return (
     <div className='text-black max-w-7xl'>
       <DisplayErrorMessages errors={errors} />
-      <div className='flex items-center justify-between mb-6'>
-        <h1 className='text-2xl font-medium font-space-grotesk text-primaryBlack'>
-          Assessment Details
-        </h1>
+      <div className='flex flex-wrap items-center justify-between gap-4 mb-6'>
+        <div>
+          <Link
+            href='/recruiter/dashboard/assessments'
+            className='text-sm text-secondary-black hover:text-primary'
+          >
+            Assessments
+          </Link>
+          <h1 className='text-2xl font-semibold font-space-grotesk text-primaryBlack mt-1'>
+            Assessment Details
+          </h1>
+        </div>
 
         <div className='flex items-center gap-4'>
           {assessment.published && (
             <Link
               href={`/recruiter/dashboard/assessments/${assessment.id}/submissions`}
-              className='text-sm text-primary font-medium'
+              className='flex items-center gap-1 text-sm text-primary font-medium hover:underline'
             >
               View Submissions
+              <ArrowRight className='w-3.5 h-3.5' />
             </Link>
           )}
           <AssessmentDetailActions
@@ -86,17 +93,17 @@ const AssessmentDetailsPage = async ({ params }: Props) => {
         </div>
       </div>
 
-      <div className='bg-white rounded-xl p-6'>
-        <div className='flex justify-between items-center pb-6 border-b-2 border-[#EAECF0]'>
+      <div className='bg-white rounded-2lg p-6 border border-[#EAECF0]'>
+        <div className='flex flex-wrap justify-between items-start gap-4 pb-6 border-b border-[#EAECF0]'>
           <div>
-            <h2 className='text-lg md:text-2xl font-medium text-primaryBlack mb-3'>
+            <h2 className='text-lg md:text-2xl font-semibold text-primaryBlack mb-3 font-space-grotesk'>
               {assessment.title}
             </h2>
-            <div className='flex gap-2 items-center'>
-              <span className='text-primary bg-[#F5F6F7] px-1 rounded-sm text-base font-medium capitalize'>
+            <div className='flex gap-2 items-center flex-wrap'>
+              <span className='text-primary bg-primary/10 px-2.5 py-1 rounded-full text-xs font-medium capitalize'>
                 {assessment.difficulty_level.toLowerCase()}
               </span>
-              <span className='text-primary bg-[#F5F6F7] px-1 rounded-sm text-base font-medium capitalize'>
+              <span className='text-primary bg-primary/10 px-2.5 py-1 rounded-full text-xs font-medium capitalize'>
                 {assessment.assessment_type === "MCQ"
                   ? "MCQs"
                   : assessment.assessment_type
@@ -104,38 +111,29 @@ const AssessmentDetailsPage = async ({ params }: Props) => {
                       .toLowerCase()}
               </span>
               <span
-                className={`px-2 py-[2px] rounded-full text-xs font-medium italic ${
+                className={`px-2.5 py-1 rounded-full text-xs font-medium ${
                   assessment.published
-                    ? "bg-[#EAFAF1] text-[#2ABA67]"
-                    : "bg-[#FFEDED] text-[#FF4A4A]"
+                    ? "bg-badge-green-bg text-badge-green-text"
+                    : "bg-[#F5F6F7] text-secondary-black"
                 }`}
               >
                 {assessment.published ? "Published" : "Draft"}
               </span>
             </div>
           </div>
-          <div className='flex gap-3 md:gap-8 items-center'>
-            <button className='p-2 hover:bg-gray-100 rounded-full'>
-              <LuPencilLine className='text-primary text-base shrink-0' />
-            </button>
-            <button className='p-2 hover:bg-gray-100 rounded-full'>
-              <HiOutlineTrash className='text-[#FF4A4A] text-base shrink-0' />
-            </button>
-          </div>
         </div>
 
-        <div className='grid grid-cols-2 md:grid-cols-4 gap-6 xl:gap-11 mt-11 w-fit mx-auto'>
+        <div className='grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6 mt-8'>
           {stats.map((stat, index) => (
             <div
-              className='card card-bordered border-[#BEC3C9] min-w-[150px] xl:min-w-[200px]'
               key={index}
+              className='rounded-xl border border-[#EAECF0] p-5 flex flex-col items-center text-center gap-2'
             >
-              <div className='card-body text-center p-6'>
-                <h3 className='text-[#6C757D] text-sm mb-2'>{stat.title}</h3>
-                <p className='text-base font-medium text-primaryBlack'>
-                  {stat.value}
-                </p>
+              <div className='w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center'>
+                <stat.Icon className='w-4 h-4 text-primary' />
               </div>
+              <p className='text-base font-semibold text-primaryBlack'>{stat.value}</p>
+              <h3 className='text-secondary-black text-xs'>{stat.title}</h3>
             </div>
           ))}
         </div>
@@ -147,35 +145,43 @@ const AssessmentDetailsPage = async ({ params }: Props) => {
         </div>
 
         {assessment.sections.length === 0 ? (
-          <div className='bg-white rounded-2xl px-8 pb-10 pt-2 border border-[#EAECF0] flex flex-col items-center'>
+          <div className='bg-white rounded-2lg px-8 pb-10 pt-2 border border-[#EAECF0] flex flex-col items-center'>
             <NoQuestionsIcon />
             <p className='mt-2 mb-1 text-base font-bold text-center text-primaryBlack'>
               No questions added yet
             </p>
-            <p className='text-[#6C757D] text-sm text-center'>
+            <p className='text-secondary-black text-sm text-center'>
               This draft was never finished in the wizard -- start a new assessment to add
               sections.
             </p>
           </div>
         ) : (
-          <div className='bg-white rounded-2xl p-6 border border-[#EAECF0] space-y-3'>
-            {assessment.sections.map(section => (
-              <div
-                key={section.id}
-                className='flex items-center justify-between border border-[#EAECF0] rounded-lg px-4 py-3'
-              >
-                <p className='text-sm font-medium text-primaryBlack'>{section.name}</p>
-                <p className='text-xs text-[#9DA3A8]'>
-                  {section.type.replaceAll("_", " ")} --{" "}
-                  {section.type === "MCQ"
-                    ? section.mcq_questions?.length ?? 0
-                    : section.type === "CODING_TASK"
-                    ? section.coding_tasks?.length ?? 0
-                    : section.open_ended_questions?.length ?? 0}{" "}
-                  question(s)
-                </p>
-              </div>
-            ))}
+          <div className='bg-white rounded-2lg p-6 border border-[#EAECF0] space-y-3'>
+            {assessment.sections.map(section => {
+              const meta = sectionTypeMeta[section.type] ?? { label: section.type, Icon: FileQuestion };
+              const questionCount =
+                section.type === "MCQ"
+                  ? section.mcq_questions?.length ?? 0
+                  : section.type === "CODING_TASK"
+                  ? section.coding_tasks?.length ?? 0
+                  : section.open_ended_questions?.length ?? 0;
+              return (
+                <div
+                  key={section.id}
+                  className='flex items-center justify-between border border-[#EAECF0] rounded-xl px-4 py-3 hover:border-primary/30 transition-colors'
+                >
+                  <div className='flex items-center gap-3'>
+                    <div className='w-8 h-8 rounded-full bg-[#F5F6F7] flex items-center justify-center shrink-0'>
+                      <meta.Icon className='w-4 h-4 text-secondary-black' />
+                    </div>
+                    <p className='text-sm font-medium text-primaryBlack'>{section.name}</p>
+                  </div>
+                  <p className='text-xs text-secondary-black'>
+                    {meta.label} &middot; {questionCount} question{questionCount === 1 ? "" : "s"}
+                  </p>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>

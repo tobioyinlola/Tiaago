@@ -54,6 +54,7 @@ export const submitAssessmentInviteAnswers = async (
       section_id: number | string;
       mcq_answers?: MCQAnswer[];
       coding_task_answers?: { coding_task_id: number | string; user_answer: string }[];
+      open_ended_answers?: { open_ended_question_id: number | string; answer_text: string }[];
     }[];
   }
 ): Promise<ApiResponse<{ message: string }>> => {
