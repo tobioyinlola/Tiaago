@@ -23,7 +23,8 @@ export type AtsProvider =
   | "jobvite"
   | "recruiterflow"
   | "recruitee"
-  | "teamtailor";
+  | "teamtailor"
+  | "bamboohr-basic";
 
 export type AtsConnectionStatus = "PENDING" | "CONNECTED" | "SYNCING" | "SYNCED" | "FAILED";
 

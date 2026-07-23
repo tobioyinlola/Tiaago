@@ -1,4 +1,4 @@
-from . import ashby, breezyhr, gem, greenhouse, jazzhr, jobvite, lever, recruiterflow, recruitee, smartrecruiters, teamtailor, workable, zohorecruit
+from . import ashby, bamboohr, breezyhr, gem, greenhouse, jazzhr, jobvite, lever, recruiterflow, recruitee, smartrecruiters, teamtailor, workable, zohorecruit
 
 PROVIDER_REGISTRY = {
     greenhouse.PROVIDER_CONFIG_KEY: greenhouse,
@@ -14,4 +14,5 @@ PROVIDER_REGISTRY = {
     recruiterflow.PROVIDER_CONFIG_KEY: recruiterflow,
     recruitee.PROVIDER_CONFIG_KEY: recruitee,
     teamtailor.PROVIDER_CONFIG_KEY: teamtailor,
+    bamboohr.PROVIDER_CONFIG_KEY: bamboohr,
 }
