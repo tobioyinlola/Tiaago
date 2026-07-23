@@ -8,6 +8,7 @@ import DisplayErrorMessages, {
 } from "@/app/common/components/DisplayErrorMessages";
 import { EmptyStateV3 } from "@/app/common/components/dashboard/EmptyState";
 import { ISearchParams } from "@/app/common/types";
+import BundleCard from "./_components/BundleCard";
 
 export const metadata = {
   title: "Question Bank",
@@ -79,26 +80,7 @@ const QuestionBank = async ({ searchParams }: Props) => {
       ) : (
         <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'>
           {bundles.map(bundle => (
-            <div
-              key={bundle.id}
-              className='border border-[#EAECF0] rounded-lg p-5 bg-white flex flex-col'
-            >
-              <div className='flex items-center gap-2 mb-1'>
-                <p className='font-semibold text-primaryBlack'>{bundle.name}</p>
-                {bundle.is_recommended && (
-                  <span className='text-xs font-medium px-2 py-[2px] bg-[#F1F3FF] text-primary rounded-full'>
-                    Recommended
-                  </span>
-                )}
-              </div>
-              <p className='text-sm text-[#9DA3A8] mb-3 flex-1'>{bundle.description}</p>
-              <div className='flex items-center gap-4 text-xs text-[#6C757D]'>
-                <span>{bundle.role.title}</span>
-                <span>{bundle.difficulty_level}</span>
-                <span>{bundle.estimated_duration_minutes}m</span>
-                <span>{bundle.question_count} questions</span>
-              </div>
-            </div>
+            <BundleCard key={bundle.id} {...bundle} />
           ))}
         </div>
       )}

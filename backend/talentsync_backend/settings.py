@@ -78,6 +78,7 @@ INSTALLED_APPS = [
     "segments.apps.SegmentsConfig",
     "campaigns.apps.CampaignsConfig",
     "staff.apps.StaffConfig",
+    "ats_integrations.apps.AtsIntegrationsConfig",
     # 3rd party apps
     "allauth",
     "allauth.account",
@@ -389,6 +390,13 @@ DAILY_API_TOKEN = env("DAILY_API_TOKEN", default="")
 ELEVENLABS_API_KEY = env("ELEVENLABS_API_KEY", default="")
 OPENAI_API_KEY = env('OPENAI_API_KEY', default="")
 DEEPGRAM_API_KEY = env('DEEPGRAM_API_KEY', default="")
+
+# Server-side only -- used by ats_integrations.nango_client to call Nango's
+# REST API (create connect sessions, proxy ATS requests, delete connections
+# after a sync). Never expose this to the frontend. Nango's public-key
+# frontend flow was retired in March 2025; the frontend only ever sees a
+# short-lived Connect session token minted via this key, never the key itself.
+NANGO_SECRET_KEY = env("NANGO_SECRET_KEY", default="")
 
 
 CHANNEL_LAYERS = {

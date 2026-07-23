@@ -17,6 +17,7 @@ import {
   AssessmentCert2,
   AssessmentCert3,
   AssessmentBundleSummary,
+  AssessmentBundlePreview,
   SubmissionAnswers,
   TalentQuestionBankEntry,
   AssessmentBundleAdmin,
@@ -295,6 +296,20 @@ export const listAssessmentBundles = async (params?: { role?: ID; search?: strin
     const errMsg = await handleServerApiCallError(error);
     console.log("listAssessmentBundles Error: ", errMsg);
     throw Error(errMsg);
+  }
+};
+
+export const previewAssessmentBundle = async (
+  id: ID
+): Promise<ApiResponse<AssessmentBundlePreview>> => {
+  try {
+    const result = await serverKyInstance
+      .get(`skill-assessments/question-bank/bundles/${id}/preview/`)
+      .json<AssessmentBundlePreview>();
+    return { success: true, data: result };
+  } catch (error) {
+    const errMsg = await handleServerApiCallError(error);
+    return { success: false, error: errMsg };
   }
 };
 

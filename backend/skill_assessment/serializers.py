@@ -379,6 +379,70 @@ class AssessmentBundleSerializer(serializers.ModelSerializer):
         ]
 
 
+class AssessmentBundlePreviewSerializer(serializers.ModelSerializer):
+    """Recruiter-facing bundle detail for the /question-bank "Preview" panel.
+    Adds the spoken language(s) a bundle can be taken in, a question-type
+    breakdown, and a handful of sample question prompts -- text only, never
+    a correct option, test case, correct_answer, or grading_guidance, so a
+    recruiter can judge fit without the full question bank (or any answer
+    key) ever being exposed through this endpoint."""
+
+    role = RoleSerializer()
+    question_count = serializers.ReadOnlyField()
+    languages = serializers.SerializerMethodField()
+    question_type_breakdown = serializers.SerializerMethodField()
+    sample_questions = serializers.SerializerMethodField()
+
+    class Meta:
+        model = AssessmentBundle
+        fields = [
+            "id", "name", "description", "role", "difficulty_level",
+            "estimated_duration_minutes", "is_recommended", "question_count",
+            "languages", "question_type_breakdown", "sample_questions",
+        ]
+
+    def get_languages(self, obj):
+        # All question content is authored in English only -- there's no
+        # per-question spoken-language field on the assessment models, so
+        # this is a fact about the platform today rather than a per-bundle
+        # lookup. Kept as a list (not a hardcoded string) so a future
+        # localization feature can populate it per-bundle without an API
+        # shape change on the frontend.
+        return ["English"]
+
+    def get_question_type_breakdown(self, obj):
+        counts = {"MCQ": 0, "CODING_TASK": 0, "OPEN_ENDED": 0}
+        for q in obj.bank_questions.all():
+            if q.mcq_question_id:
+                counts["MCQ"] += 1
+            elif q.coding_task_id:
+                counts["CODING_TASK"] += 1
+            elif q.open_ended_question_id:
+                counts["OPEN_ENDED"] += 1
+        return counts
+
+    def get_sample_questions(self, obj):
+        samples = []
+        for q in obj.bank_questions.all():
+            if q.mcq_question_id:
+                samples.append({"type": "MCQ", "question": q.mcq_question.question, "skills_assessed": []})
+            elif q.coding_task_id:
+                samples.append(
+                    {"type": "CODING_TASK", "question": q.coding_task.title, "skills_assessed": q.coding_task.skills_assessed}
+                )
+            elif q.open_ended_question_id:
+                samples.append(
+                    {
+                        "type": "OPEN_ENDED",
+                        "question": q.open_ended_question.question,
+                        "skills_assessed": q.open_ended_question.skills_assessed,
+                    }
+                )
+            if len(samples) >= 3:
+                break
+        return samples
+
+
 class GradeOpenEndedAnswerInputSerializer(serializers.Serializer):
     answer_id = serializers.IntegerField()
     score = serializers.FloatField(min_value=0)

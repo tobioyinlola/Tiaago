@@ -729,6 +729,21 @@ export type AssessmentBundleSummary = {
   question_count: number;
 };
 
+export type AssessmentBundleSampleQuestion = {
+  type: "MCQ" | "CODING_TASK" | "OPEN_ENDED";
+  question: string;
+  skills_assessed?: string[];
+};
+
+/** Full detail for one bundle's "Preview" panel -- never includes answers,
+ * correct options, test cases, or grading guidance, only enough to judge
+ * fit before adding it to an assessment. */
+export type AssessmentBundlePreview = AssessmentBundleSummary & {
+  languages: string[];
+  question_type_breakdown: { MCQ: number; CODING_TASK: number; OPEN_ENDED: number };
+  sample_questions: AssessmentBundleSampleQuestion[];
+};
+
 export type TalentQuestionBankMCQ = {
   question: string;
   options: { value: string; index: number }[];
