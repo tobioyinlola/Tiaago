@@ -25,6 +25,7 @@ class AtsProvider(models.TextChoices):
     RECRUITERFLOW = "recruiterflow", "Recruiterflow"
     RECRUITEE = "recruitee", "Recruitee"
     TEAMTAILOR = "teamtailor", "Teamtailor"
+    BAMBOOHR = "bamboohr-basic", "BambooHR"
 
 
 class AtsConnection(TimeStampedModel):
