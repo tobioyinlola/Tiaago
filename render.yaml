@@ -118,3 +118,7 @@ services:
 #   ELEVENLABS_API_KEY     (ElevenLabs TTS)
 #   DEEPGRAM_API_KEY       (Deepgram STT)
 #   MAX_CONCURRENT_INTERVIEWS
+#   NANGO_SECRET_KEY       (Nango secret key for ATS integrations -- required on BOTH
+#                           tiaago-backend-web, which serves the connect-session/
+#                           available-integrations endpoints, AND tiaago-backend-worker,
+#                           which runs the actual sync as a Celery task)
