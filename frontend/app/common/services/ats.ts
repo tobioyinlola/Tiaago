@@ -24,7 +24,8 @@ export type AtsProvider =
   | "recruiterflow"
   | "recruitee"
   | "teamtailor"
-  | "bamboohr-basic";
+  | "bamboohr-basic"
+  | "workday-oauth";
 
 export type AtsConnectionStatus = "PENDING" | "CONNECTED" | "SYNCING" | "SYNCED" | "FAILED";
 

@@ -26,6 +26,7 @@ class AtsProvider(models.TextChoices):
     RECRUITEE = "recruitee", "Recruitee"
     TEAMTAILOR = "teamtailor", "Teamtailor"
     BAMBOOHR = "bamboohr-basic", "BambooHR"
+    WORKDAY = "workday-oauth", "Workday"
 
 
 class AtsConnection(TimeStampedModel):
