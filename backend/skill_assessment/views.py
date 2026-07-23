@@ -94,6 +94,7 @@ from .serializers import (
     AssessmentInviteFeedbackSerializer,
     AssessmentSubmissionSnapshotSerializer,
     AssessmentBundleSerializer,
+    AssessmentBundlePreviewSerializer,
     BulkInviteCandidatesSerializer,
     AddBundleSectionSerializer,
     GradeOpenEndedSerializer,
@@ -445,6 +446,28 @@ class BundleListAPIView(APIView, PaginationHandlerMixin):
         paginated_queryset = self.paginate_queryset(queryset)
         data = AssessmentBundleSerializer(paginated_queryset, many=True).data
         return Response(data=self.get_paginated_response(data), status=200)
+
+
+class BundlePreviewAPIView(APIView):
+    """GET /question-bank/bundles/<id>/preview/ -- full detail for one
+    bundle (duration, description, the tech-stack languages its coding
+    questions cover, a type breakdown, and a few sample question prompts)
+    so a recruiter can judge fit before adding it to an assessment. Never
+    exposes answers/correct options/test cases/grading guidance -- see
+    AssessmentBundlePreviewSerializer."""
+
+    permission_classes = [IsCompanyRepUser]
+
+    def get(self, request, pk):
+        bundle = (
+            AssessmentBundle.objects.filter(id=pk, active=True)
+            .select_related("role")
+            .prefetch_related("bank_questions__mcq_question", "bank_questions__coding_task", "bank_questions__open_ended_question", "bank_questions__stack")
+            .first()
+        )
+        if not bundle:
+            return Response(status=404, data={"error": "Bundle not found."})
+        return Response(status=200, data=AssessmentBundlePreviewSerializer(bundle).data)
 
 
 class TalentQuestionBankManageListCreateView(ListCreateAPIView):

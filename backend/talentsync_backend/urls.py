@@ -55,6 +55,7 @@ urlpatterns = [
     path("api/campaigns/", include("campaigns.urls")),
     path("api/email/", include("campaigns.tracking_urls")),
     path("api/staff/", include("staff.urls")),
+    path("api/ats/", include("ats_integrations.urls")),
     # Registered before the router include so it can never be shadowed.
     path("api/health/", health_status, name="health-status"),
     path("api/", include(router.urls)),

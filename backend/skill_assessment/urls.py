@@ -10,6 +10,7 @@ from .views import (
     AddSectionsToSkillAssessmentAPIView,
     AddBundleSectionAPIView,
     BundleListAPIView,
+    BundlePreviewAPIView,
     PublishAssessmentAPIView,
     InviteCandidatesToAssessmentAPIView,
     TalentQuestionBankManageListCreateView,
@@ -77,6 +78,11 @@ urlpatterns = [
         "question-bank/bundles/",
         BundleListAPIView.as_view(),
         name="assessment-bundle-list",
+    ),
+    path(
+        "question-bank/bundles/<int:pk>/preview/",
+        BundlePreviewAPIView.as_view(),
+        name="assessment-bundle-preview",
     ),
     path(
         "staff/question-bank/",
