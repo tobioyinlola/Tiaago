@@ -316,6 +316,19 @@ def send_assessment_link(job_application_id, trials=0):
         logger.error("Job application %s not found", job_application_id)
         return "Job application not found"
 
+    # Idempotency guard: GeneralSkillAssessment.job_application is a plain FK
+    # (not unique), and this task can be re-delivered by Celery (worker crash/
+    # visibility-timeout redelivery) or invoked twice from an upstream trigger.
+    # Without this check, a re-run would silently create a second assessment
+    # row -- a second invite email/token and a second billing charge for the
+    # same application.
+    if GeneralSkillAssessment.objects.filter(job_application=job_application).exists():
+        logger.warning(
+            "send_assessment_link: assessment already exists for job_application %s, skipping duplicate creation",
+            job_application_id,
+        )
+        return "Assessment already exists for this application"
+
     company = job_application.job.company
     flow_status, _ = ReportPAYGFlowStatus.objects.get_or_create(job_application=job_application)
     flow_status.status = ReportPAYGFlowStatus.Status.STARTED

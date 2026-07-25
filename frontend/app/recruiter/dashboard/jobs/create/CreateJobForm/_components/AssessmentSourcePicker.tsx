@@ -134,7 +134,7 @@ const AssessmentSourcePicker = ({
       id="assessment-source-picker"
       open={open}
       onClose={onClose}
-      title="Use an existing question source"
+      title="Choose a saved assessment"
       className="max-w-2xl"
     >
       <div className="flex gap-1 rounded-lg bg-muted p-1 mb-5 w-fit">

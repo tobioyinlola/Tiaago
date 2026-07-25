@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Formik, Form } from "formik";
 import * as Yup from "yup";
 import { GroupBase } from "react-select";
-import { CheckCircle2 } from "lucide-react";
+import { CheckCircle2, ArrowLeft, ArrowRight } from "lucide-react";
 
 import { cn } from "@/app/common/utils";
 import { useAlert } from "@/app/common/store/useAlert";
@@ -67,6 +67,25 @@ const validationSchema = Yup.object({
   consent: Yup.boolean().oneOf([true], "You must agree to receive job opportunities from TIAAGO"),
 });
 
+const STEPS = [
+  { name: "Your details", fields: ["first_name", "last_name", "email", "phone", "country", "state", "city"] },
+  {
+    name: "Career preferences",
+    fields: [
+      "job_title",
+      "years_experience",
+      "industry",
+      "interested_roles",
+      "preferred_work_type",
+      "preferred_locations",
+      "communities",
+      "other_community",
+      "email_frequency",
+      "consent",
+    ],
+  },
+] as const;
+
 /** Multi-select against a fixed { value, label } options list, computing
  * the controlled `value` array Formik <-> react-select requires (mirrors
  * how CountrySelect does it for single-select). */
@@ -98,9 +117,29 @@ const MultiSelectField = ({
   />
 );
 
+const StepIndicator = ({ step }: { step: number }) => (
+  <div className="mb-6">
+    <div className="flex items-center justify-between mb-2">
+      <span className="text-xs font-semibold uppercase tracking-wide text-secondary-black">
+        Step {step + 1} of {STEPS.length}
+      </span>
+      <span className="text-xs font-medium text-secondary-black">{STEPS[step].name}</span>
+    </div>
+    <div className="flex gap-1.5">
+      {STEPS.map((s, i) => (
+        <div
+          key={s.name}
+          className={cn("h-1.5 flex-1 rounded-full transition-colors", i <= step ? "bg-primary" : "bg-[#EAECF0]")}
+        />
+      ))}
+    </div>
+  </div>
+);
+
 const TalentNetworkJoinForm = ({ groupedCountries }: Props) => {
   const setAlert = useAlert(s => s.setAlert);
   const [submitted, setSubmitted] = useState(false);
+  const [step, setStep] = useState(0);
 
   if (submitted) {
     return (
@@ -133,175 +172,211 @@ const TalentNetworkJoinForm = ({ groupedCountries }: Props) => {
         setSubmitted(true);
       }}
     >
-      {({ values, errors, touched, isSubmitting, setFieldValue }) => (
-        <Form className="bg-white border border-[#EAECF0] rounded-2lg shadow-card p-6 sm:p-8 space-y-8">
-          <section>
-            <h3 className="text-sm font-semibold uppercase tracking-wide text-secondary-black mb-4">
-              Personal Information
-            </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <FormikField name="first_name" label="First Name" value={values.first_name} error={errors.first_name} touched={touched.first_name} />
-              <FormikField name="last_name" label="Last Name" value={values.last_name} error={errors.last_name} touched={touched.last_name} />
-              <FormikField name="email" label="Email Address" type="email" value={values.email} error={errors.email} touched={touched.email} />
-              <FormikField name="phone" label="Phone Number (Optional)" type="tel" value={values.phone} error={errors.phone} touched={touched.phone} />
-            </div>
-          </section>
+      {({ values, errors, touched, isSubmitting, setFieldValue, validateForm, setTouched }) => {
+        const goToStep2 = async () => {
+          const stepErrors = await validateForm();
+          const step1Fields = STEPS[0].fields;
+          const hasStep1Errors = step1Fields.some(f => (stepErrors as Record<string, unknown>)[f]);
+          if (hasStep1Errors) {
+            setTouched(Object.fromEntries(step1Fields.map(f => [f, true])), false);
+            return;
+          }
+          setStep(1);
+        };
 
-          <section>
-            <h3 className="text-sm font-semibold uppercase tracking-wide text-secondary-black mb-4">Location</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <CountrySelect
-                name="country"
-                label="Country"
-                value={values.country}
-                error={errors.country as string}
-                touched={!!touched.country}
-                type="select"
-                options={groupedCountries}
-              />
-              <FormikField name="state" label="State/Province (Optional)" value={values.state} error={errors.state} touched={touched.state} />
-              <FormikField name="city" label="City (Optional)" value={values.city} error={errors.city} touched={touched.city} />
-            </div>
-          </section>
+        return (
+          <Form className="bg-white border border-[#EAECF0] rounded-2lg shadow-card p-6 sm:p-8">
+            <StepIndicator step={step} />
 
-          <section>
-            <h3 className="text-sm font-semibold uppercase tracking-wide text-secondary-black mb-4">
-              Professional Information
-            </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-              <FormikField name="job_title" label="Current Job Title" value={values.job_title} error={errors.job_title} touched={touched.job_title} />
-              <FormikField
-                name="years_experience"
-                label="Years of Experience"
-                type="select"
-                value={values.years_experience}
-                error={errors.years_experience as string}
-                touched={!!touched.years_experience}
-                selectFieldProps={{
-                  options: YEARS_EXPERIENCE_OPTIONS,
-                  value: YEARS_EXPERIENCE_OPTIONS.find(o => o.value === values.years_experience),
-                }}
-              />
-            </div>
+            {step === 0 && (
+              <div className="space-y-8">
+                <section>
+                  <h3 className="text-sm font-semibold uppercase tracking-wide text-secondary-black mb-4">
+                    Personal Information
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <FormikField name="first_name" label="First Name" value={values.first_name} error={errors.first_name} touched={touched.first_name} />
+                    <FormikField name="last_name" label="Last Name" value={values.last_name} error={errors.last_name} touched={touched.last_name} />
+                    <FormikField name="email" label="Email Address" type="email" value={values.email} error={errors.email} touched={touched.email} />
+                    <FormikField name="phone" label="Phone Number (Optional)" type="tel" value={values.phone} error={errors.phone} touched={touched.phone} />
+                  </div>
+                </section>
 
-            <div className="mb-4">
-              <MultiSelectField name="industry" label="Industry" options={INDUSTRY_OPTIONS} values={values.industry} />
-              {errors.industry && touched.industry && (
-                <p className="text-xs text-error mt-1">{errors.industry as string}</p>
-              )}
-            </div>
+                <section>
+                  <h3 className="text-sm font-semibold uppercase tracking-wide text-secondary-black mb-4">Location</h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <CountrySelect
+                      name="country"
+                      label="Country"
+                      value={values.country}
+                      error={errors.country as string}
+                      touched={!!touched.country}
+                      type="select"
+                      options={groupedCountries}
+                    />
+                    <FormikField name="state" label="State/Province (Optional)" value={values.state} error={errors.state} touched={touched.state} />
+                    <FormikField name="city" label="City (Optional)" value={values.city} error={errors.city} touched={touched.city} />
+                  </div>
+                </section>
 
-            <div className="mb-4">
-              <MultiSelectField
-                name="interested_roles"
-                label="Interested Roles"
-                options={ROLE_CATEGORY_OPTIONS}
-                values={values.interested_roles}
-              />
-              {errors.interested_roles && touched.interested_roles && (
-                <p className="text-xs text-error mt-1">{errors.interested_roles as string}</p>
-              )}
-            </div>
-
-            <div className="mb-4">
-              <FormikField
-                name="preferred_work_type"
-                label="Preferred Work Type"
-                type="select"
-                value={values.preferred_work_type}
-                error={errors.preferred_work_type as string}
-                touched={!!touched.preferred_work_type}
-                selectFieldProps={{
-                  options: WORK_TYPE_OPTIONS,
-                  value: WORK_TYPE_OPTIONS.find(o => o.value === values.preferred_work_type),
-                }}
-              />
-            </div>
-
-            <div className="mb-4">
-              <FormikSelectField
-                name="preferred_locations"
-                label="Preferred Locations"
-                value={values.preferred_locations}
-                type="select"
-                selectFieldProps={{ isMulti: true, options: groupedCountries }}
-                selectProps={{
-                  isMulti: true,
-                  options: groupedCountries,
-                  value: groupedCountries
-                    .flatMap(g => g.options)
-                    .filter(c => values.preferred_locations.includes(c.value)),
-                  placeholder: "Select countries you'd consider working in",
-                }}
-              />
-            </div>
-
-            <div className="mb-4">
-              <MultiSelectField
-                name="communities"
-                label="Community Affiliation"
-                options={COMMUNITY_OPTIONS}
-                values={values.communities}
-              />
-            </div>
-
-            <FormikField
-              name="other_community"
-              label="Other Community"
-              placeholder="Not listed above? Tell us here"
-              value={values.other_community}
-              error={errors.other_community}
-              touched={touched.other_community}
-            />
-          </section>
-
-          <section>
-            <h3 className="text-sm font-semibold uppercase tracking-wide text-secondary-black mb-4">
-              Email Preferences
-            </h3>
-            <FormikField
-              name="email_frequency"
-              label="How often should we email you?"
-              type="select"
-              value={values.email_frequency}
-              error={errors.email_frequency as string}
-              touched={!!touched.email_frequency}
-              selectFieldProps={{
-                options: EMAIL_FREQUENCY_OPTIONS,
-                value: EMAIL_FREQUENCY_OPTIONS.find(o => o.value === values.email_frequency),
-              }}
-            />
-          </section>
-
-          <section>
-            <label className="flex items-start gap-3 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={values.consent}
-                onChange={e => setFieldValue("consent", e.target.checked)}
-                className="checkbox checkbox-sm mt-0.5"
-              />
-              <span className="text-sm text-secondary-black">
-                I agree to receive relevant job opportunities from TIAAGO.
-              </span>
-            </label>
-            {errors.consent && touched.consent && (
-              <p className="text-xs text-error mt-1">{errors.consent as string}</p>
+                <button type="button" onClick={goToStep2} className="w-full btn btn-primary text-white gap-2">
+                  Continue <ArrowRight className="h-4 w-4" />
+                </button>
+              </div>
             )}
-          </section>
 
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className={cn(
-              "w-full btn btn-primary text-white",
-              isSubmitting && "opacity-70 pointer-events-none"
+            {step === 1 && (
+              <div className="space-y-8">
+                <section>
+                  <h3 className="text-sm font-semibold uppercase tracking-wide text-secondary-black mb-4">
+                    Professional Information
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                    <FormikField name="job_title" label="Current Job Title" value={values.job_title} error={errors.job_title} touched={touched.job_title} />
+                    <FormikField
+                      name="years_experience"
+                      label="Years of Experience"
+                      type="select"
+                      value={values.years_experience}
+                      error={errors.years_experience as string}
+                      touched={!!touched.years_experience}
+                      selectFieldProps={{
+                        options: YEARS_EXPERIENCE_OPTIONS,
+                        value: YEARS_EXPERIENCE_OPTIONS.find(o => o.value === values.years_experience),
+                      }}
+                    />
+                  </div>
+
+                  <div className="mb-4">
+                    <MultiSelectField name="industry" label="Industry" options={INDUSTRY_OPTIONS} values={values.industry} />
+                    {errors.industry && touched.industry && (
+                      <p className="text-xs text-error mt-1">{errors.industry as string}</p>
+                    )}
+                  </div>
+
+                  <div className="mb-4">
+                    <MultiSelectField
+                      name="interested_roles"
+                      label="Interested Roles"
+                      options={ROLE_CATEGORY_OPTIONS}
+                      values={values.interested_roles}
+                    />
+                    {errors.interested_roles && touched.interested_roles && (
+                      <p className="text-xs text-error mt-1">{errors.interested_roles as string}</p>
+                    )}
+                  </div>
+
+                  <div className="mb-4">
+                    <FormikField
+                      name="preferred_work_type"
+                      label="Preferred Work Type"
+                      type="select"
+                      value={values.preferred_work_type}
+                      error={errors.preferred_work_type as string}
+                      touched={!!touched.preferred_work_type}
+                      selectFieldProps={{
+                        options: WORK_TYPE_OPTIONS,
+                        value: WORK_TYPE_OPTIONS.find(o => o.value === values.preferred_work_type),
+                      }}
+                    />
+                  </div>
+
+                  <div className="mb-4">
+                    <FormikSelectField
+                      name="preferred_locations"
+                      label="Preferred Locations"
+                      value={values.preferred_locations}
+                      type="select"
+                      selectFieldProps={{ isMulti: true, options: groupedCountries }}
+                      selectProps={{
+                        isMulti: true,
+                        options: groupedCountries,
+                        value: groupedCountries
+                          .flatMap(g => g.options)
+                          .filter(c => values.preferred_locations.includes(c.value)),
+                        placeholder: "Select countries you'd consider working in",
+                      }}
+                    />
+                  </div>
+
+                  <div className="mb-4">
+                    <MultiSelectField
+                      name="communities"
+                      label="Community Affiliation"
+                      options={COMMUNITY_OPTIONS}
+                      values={values.communities}
+                    />
+                  </div>
+
+                  <FormikField
+                    name="other_community"
+                    label="Other Community"
+                    placeholder="Not listed above? Tell us here"
+                    value={values.other_community}
+                    error={errors.other_community}
+                    touched={touched.other_community}
+                  />
+                </section>
+
+                <section>
+                  <h3 className="text-sm font-semibold uppercase tracking-wide text-secondary-black mb-4">
+                    Email Preferences
+                  </h3>
+                  <FormikField
+                    name="email_frequency"
+                    label="How often should we email you?"
+                    type="select"
+                    value={values.email_frequency}
+                    error={errors.email_frequency as string}
+                    touched={!!touched.email_frequency}
+                    selectFieldProps={{
+                      options: EMAIL_FREQUENCY_OPTIONS,
+                      value: EMAIL_FREQUENCY_OPTIONS.find(o => o.value === values.email_frequency),
+                    }}
+                  />
+                </section>
+
+                <section>
+                  <label className="flex items-start gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={values.consent}
+                      onChange={e => setFieldValue("consent", e.target.checked)}
+                      className="checkbox checkbox-sm mt-0.5"
+                    />
+                    <span className="text-sm text-secondary-black">
+                      I agree to receive relevant job opportunities from TIAAGO.
+                    </span>
+                  </label>
+                  {errors.consent && touched.consent && (
+                    <p className="text-xs text-error mt-1">{errors.consent as string}</p>
+                  )}
+                </section>
+
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setStep(0)}
+                    className="btn btn-outline gap-2"
+                  >
+                    <ArrowLeft className="h-4 w-4" /> Back
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className={cn(
+                      "flex-1 btn btn-primary text-white",
+                      isSubmitting && "opacity-70 pointer-events-none"
+                    )}
+                  >
+                    {isSubmitting ? "Joining..." : "Join Talent Network"}
+                  </button>
+                </div>
+              </div>
             )}
-          >
-            {isSubmitting ? "Joining..." : "Join Talent Network"}
-          </button>
-        </Form>
-      )}
+          </Form>
+        );
+      }}
     </Formik>
   );
 };
