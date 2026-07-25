@@ -3,7 +3,7 @@
 Your submission is in.
 
 Hi {{ first_name|default:"Amara" }}, we've received your completed {{ skill|default:"React" }}
-assessment for {{ company|default:"Paystack" }}. There's nothing further you need to do
+assessment for {{ company|default:"The hiring team" }}. There's nothing further you need to do
 right now.
 
 The recruiting team will review your results and follow up by email with

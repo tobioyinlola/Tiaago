@@ -9,32 +9,53 @@ import DisplayErrorMessages, {
   DisplayErrorMessagesProps,
 } from "@/app/common/components/DisplayErrorMessages";
 import { handleServerApiCallError } from "@/app/common/utils";
+import ServerPagination from "@/app/common/components/ServerPagination";
+import { ISearchParams } from "@/app/common/types";
 
 export const metadata = {
   title: "Assessment",
 };
 
-const AssessementsPage = async () => {
+const AssessementsPage = async ({
+  searchParams,
+}: {
+  searchParams: Promise<ISearchParams>;
+}) => {
   const errors: DisplayErrorMessagesProps["errors"] = [];
-  const { count, results } = await getCompanyAssessments().catch(async e => {
-    const error = await handleServerApiCallError(e);
-    console.log("Get company assessments error (assessments page): ", error);
-    errors.push({
-      message: error,
-      title: "Error getting company assessments",
-    });
-    return { count: 0, results: [] };
-  });
+  const resolvedSearchParams = await searchParams;
+  const _page = resolvedSearchParams.page
+    ? parseInt(resolvedSearchParams.page as string)
+    : 1;
+  const page = isNaN(_page) ? 1 : _page;
 
-  const publishedCount = results.filter(a => a.published).length;
-  const draftCount = results.length - publishedCount;
+  const [pageRes, allRes] = await Promise.all([
+    getCompanyAssessments(page).catch(async e => {
+      const error = await handleServerApiCallError(e);
+      console.log("Get company assessments error (assessments page): ", error);
+      errors.push({
+        message: error,
+        title: "Error getting company assessments",
+      });
+      return null;
+    }),
+    // Whole-set fetch purely for the stat cards below (published/draft/avg
+    // duration), since a single page's worth of items can't represent
+    // totals across the company once the list is paginated.
+    getCompanyAssessments(1, 10000).catch(() => null),
+  ]);
+  const count = pageRes?.count ?? 0;
+  const results = pageRes?.results ?? [];
+  const allResults = allRes?.results ?? results;
+
+  const publishedCount = allResults.filter(a => a.published).length;
+  const draftCount = allResults.length - publishedCount;
 
   const getAverageTime = () => {
-    const totalMinutes = results.reduce(
+    const totalMinutes = allResults.reduce(
       (acc, curr) => acc + (getAssessmentDurationInMinutes(curr) || 0),
       0
     );
-    const avg = results.length ? totalMinutes / results.length : 0;
+    const avg = allResults.length ? totalMinutes / allResults.length : 0;
     const minutes = Math.abs(Math.floor(avg));
     const seconds = Math.abs(Math.round((avg - minutes) * 60));
     return `${minutes}m ${seconds}s`;
@@ -106,6 +127,12 @@ const AssessementsPage = async () => {
               <AssessmentCard key={index} {...assessment} />
             ))}
           </div>
+        )}
+        {!!pageRes && (
+          <ServerPagination
+            pagedResource={pageRes}
+            searchParams={resolvedSearchParams}
+          />
         )}
       </div>
     </div>

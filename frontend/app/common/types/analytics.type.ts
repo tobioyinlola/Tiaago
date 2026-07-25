@@ -126,7 +126,13 @@ export type PipelineSummary = {
   outreach_messages_this_month: number;
   source_split: { added_via_invite_link: number; added_directly_by_team: number };
   avg_pipeline_size_per_active_org: number;
-  orgs_with_zero_pipeline_entries: { id: number; company_name: string; date_joined: string; active_jobs: number }[];
+  orgs_with_zero_pipeline_entries: {
+    current: number;
+    count: number;
+    next: number | null;
+    previous: number | null;
+    results: { id: number; company_name: string; date_joined: string; active_jobs: number }[];
+  };
   pipeline_growth_90d: DailyCountPoint[];
 };
 

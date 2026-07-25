@@ -5,14 +5,26 @@ import DisplayErrorMessages, {
 } from "@/app/common/components/DisplayErrorMessages";
 import { handleServerApiCallError } from "@/app/common/utils";
 import JobsTable from "../components/JobsTable";
+import ServerPagination from "@/app/common/components/ServerPagination";
+import { ISearchParams } from "@/app/common/types";
 
 export const metadata: Metadata = {
   title: "Jobs",
 };
 
-const JobsPage = async () => {
+const JobsPage = async ({
+  searchParams,
+}: {
+  searchParams: Promise<ISearchParams>;
+}) => {
   const errors: DisplayErrorMessagesProps["errors"] = [];
-  const jobsRes = await getJobs(1, 50).catch(async e => {
+  const resolvedSearchParams = await searchParams;
+  const _page = resolvedSearchParams.page
+    ? parseInt(resolvedSearchParams.page as string)
+    : 1;
+  const page = isNaN(_page) ? 1 : _page;
+
+  const jobsRes = await getJobs(page, 20).catch(async e => {
     const error = await handleServerApiCallError(e);
     console.log("Get jobs error (admin jobs page): ", error);
     errors.push({
@@ -33,6 +45,12 @@ const JobsPage = async () => {
         </h4>
       </div>
       <JobsTable jobs={jobs} dataType="approved" />
+      {!!jobsRes && (
+        <ServerPagination
+          pagedResource={jobsRes}
+          searchParams={resolvedSearchParams}
+        />
+      )}
     </>
   );
 };

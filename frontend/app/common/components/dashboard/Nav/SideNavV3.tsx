@@ -37,6 +37,7 @@ const SECTION_PERMISSIONS: Record<string, string[]> = {
   system_health: ["system.view"],
   staff: ["staff.view"],
   marketing: ["campaigns.view", "tags.view"],
+  talent_network: ["talent_network.view"],
 };
 
 const SideNavV3 = ({

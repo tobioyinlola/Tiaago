@@ -1,3 +1,5 @@
+import csv
+import io
 import uuid
 from datetime import timedelta
 from django.forms import ValidationError
@@ -36,6 +38,7 @@ from skill_assessment.tasks import mark_skill_assessment_submission, finalize_gr
 from skill_assessment.utils import resolve_invite_talent
 from .filters import GeneralSkillAssessmentFilter
 from .models import (
+    DIFFICULTY_LEVEL_CHOICES,
     CandidateAssessmentMCQAnswer,
     CandidateAssessmentCodingAnswer,
     CandidateAssessmentOpenEndedAnswer,
@@ -470,6 +473,40 @@ class BundlePreviewAPIView(APIView):
         return Response(status=200, data=AssessmentBundlePreviewSerializer(bundle).data)
 
 
+class BundleMCQQuestionsAPIView(APIView):
+    """GET /question-bank/bundles/<id>/mcq-questions/ -- the bundle's MCQ
+    questions with full options and correct_option_index, for the job
+    wizard's "use the question bank" assessment-source option. Unlike
+    BundlePreviewAPIView this is not redacted: once a recruiter picks a
+    bundle here its questions become their job's assessment content, which
+    is exactly the same trust level as attaching a bundle to a
+    CompanySkillAssessment via add-sections/from-bundle (already exposes the
+    same full question data to the recruiter's own assessment)."""
+
+    permission_classes = [IsCompanyRepUser]
+
+    def get(self, request, pk):
+        bundle = (
+            AssessmentBundle.objects.filter(id=pk, active=True)
+            .prefetch_related("bank_questions__mcq_question")
+            .first()
+        )
+        if not bundle:
+            return Response(status=404, data={"error": "Bundle not found."})
+
+        questions = [
+            {
+                "question": entry.mcq_question.question,
+                "options": entry.mcq_question.options,
+                "correct_option_index": entry.mcq_question.correct_option_index,
+                "is_ai_generated": entry.mcq_question.is_ai_generated,
+            }
+            for entry in bundle.bank_questions.all()
+            if entry.mcq_question_id
+        ]
+        return Response(status=200, data={"id": bundle.id, "name": bundle.name, "questions": questions})
+
+
 class TalentQuestionBankManageListCreateView(ListCreateAPIView):
     """Staff-only: list/create question-bank entries -- backs the
     /admin/assessment/question-bank pages."""
@@ -531,6 +568,220 @@ class AssessmentBundleManageDetailView(RetrieveUpdateDestroyAPIView):
     queryset = AssessmentBundle.objects.all().select_related("role").prefetch_related(
         "bank_questions__mcq_question", "bank_questions__coding_task", "bank_questions__open_ended_question",
     )
+
+
+_VALID_DIFFICULTY_LEVELS = {choice[0].upper() for choice in DIFFICULTY_LEVEL_CHOICES}
+_VALID_QUESTION_TYPES = {"MCQ", "CODING_TASK", "OPEN_ENDED"}
+
+
+def _parse_bundle_csv_row(row: dict, row_number: int, default_difficulty: str):
+    """Builds one TalentQuestionBank (+ its underlying question row) from a
+    single CSV row. Raises ValidationError with a row number on any problem
+    so the whole upload can report exactly which row is wrong rather than
+    failing silently or generically."""
+    question_type = (row.get("question_type") or "").strip().upper()
+    if question_type not in _VALID_QUESTION_TYPES:
+        raise ValidationError(
+            f"Row {row_number}: question_type must be one of MCQ, CODING_TASK, OPEN_ENDED (got {question_type!r})"
+        )
+
+    difficulty_level = (row.get("difficulty_level") or "").strip().upper() or default_difficulty
+    if difficulty_level not in _VALID_DIFFICULTY_LEVELS:
+        raise ValidationError(
+            f"Row {row_number}: difficulty_level must be one of {sorted(_VALID_DIFFICULTY_LEVELS)} (got {difficulty_level!r})"
+        )
+
+    stack = None
+    stack_name = (row.get("stack") or "").strip()
+    if stack_name:
+        stack = TechStack.objects.filter(stack__iexact=stack_name).first()
+        # Soft failure -- an unrecognized stack name shouldn't sink an
+        # otherwise-valid row, it just leaves the question unstacked.
+
+    question_text = (row.get("question") or "").strip()
+    if not question_text:
+        raise ValidationError(f"Row {row_number}: question is required")
+
+    if question_type == "MCQ":
+        options = [
+            (row.get(f"option_{i}") or "").strip() for i in range(1, 5)
+        ]
+        options = [o for o in options if o]
+        if len(options) < 2:
+            raise ValidationError(f"Row {row_number}: MCQ needs at least 2 non-empty options")
+        try:
+            correct_option = int((row.get("correct_option") or "").strip())
+        except (TypeError, ValueError):
+            raise ValidationError(f"Row {row_number}: correct_option must be a number matching one of the option columns")
+        if not (1 <= correct_option <= len(options)):
+            raise ValidationError(f"Row {row_number}: correct_option {correct_option} doesn't match any provided option")
+
+        mcq = GeneralSkillAssessmentMCQQuestion.objects.create(
+            question=question_text,
+            options=[{"value": opt, "index": i + 1} for i, opt in enumerate(options)],
+            correct_option_index=correct_option,
+        )
+        return TalentQuestionBank.objects.create(
+            mcq_question=mcq, stack=stack, difficulty_level=difficulty_level,
+        )
+
+    if question_type == "CODING_TASK":
+        description = (row.get("description") or "").strip()
+        if not description:
+            raise ValidationError(f"Row {row_number}: CODING_TASK requires a description")
+        skills_assessed = [s.strip() for s in (row.get("skills_assessed") or "").split(";") if s.strip()]
+        coding_task = CodingTask.objects.create(
+            title=question_text,
+            description=description,
+            sample_input=(row.get("sample_input") or "").strip(),
+            sample_output=(row.get("sample_output") or "").strip(),
+            difficulty_level=difficulty_level,
+            skills_assessed=skills_assessed,
+            stack=stack,
+        )
+        return TalentQuestionBank.objects.create(
+            coding_task=coding_task, stack=stack, difficulty_level=difficulty_level,
+        )
+
+    # OPEN_ENDED
+    skills_assessed = [s.strip() for s in (row.get("skills_assessed") or "").split(";") if s.strip()]
+    open_ended = OpenEndedQuestion.objects.create(
+        question=question_text,
+        grading_guidance=(row.get("grading_guidance") or "").strip(),
+        skills_assessed=skills_assessed,
+    )
+    return TalentQuestionBank.objects.create(
+        open_ended_question=open_ended, stack=stack, difficulty_level=difficulty_level,
+    )
+
+
+def _parse_bundle_open_ended_entries(raw: str, default_difficulty: str):
+    """Builds TalentQuestionBank rows for open-ended questions submitted as a
+    JSON list (from the bundle builder's inline form) rather than CSV rows --
+    open-ended questions are free-text grading rubrics, not tabular data, so
+    forcing them through a CSV file is unnecessary friction. Mirrors the
+    validation style of _parse_bundle_csv_row (row-numbered ValidationErrors)
+    so both paths report errors the same way."""
+    try:
+        entries = json.loads(raw)
+    except (TypeError, ValueError):
+        raise ValidationError("open_ended_questions must be valid JSON")
+    if not isinstance(entries, list):
+        raise ValidationError("open_ended_questions must be a JSON array")
+
+    bank_entries = []
+    for i, item in enumerate(entries, start=1):
+        if not isinstance(item, dict):
+            raise ValidationError(f"Open-ended question {i}: must be an object")
+        question_text = (item.get("question") or "").strip()
+        if not question_text:
+            raise ValidationError(f"Open-ended question {i}: question text is required")
+
+        difficulty_level = (item.get("difficulty_level") or "").strip().upper() or default_difficulty
+        if difficulty_level not in _VALID_DIFFICULTY_LEVELS:
+            raise ValidationError(
+                f"Open-ended question {i}: difficulty_level must be one of {sorted(_VALID_DIFFICULTY_LEVELS)}"
+            )
+
+        skills_assessed = item.get("skills_assessed") or []
+        if isinstance(skills_assessed, str):
+            skills_assessed = [s.strip() for s in skills_assessed.split(";") if s.strip()]
+
+        open_ended = OpenEndedQuestion.objects.create(
+            question=question_text,
+            grading_guidance=(item.get("grading_guidance") or "").strip(),
+            skills_assessed=skills_assessed,
+        )
+        bank_entries.append(
+            TalentQuestionBank.objects.create(
+                open_ended_question=open_ended, difficulty_level=difficulty_level,
+            )
+        )
+    return bank_entries
+
+
+class AssessmentBundleCsvUploadView(APIView):
+    """Staff-only: POST /staff/bundles/csv-upload/ -- creates a bundle and
+    its questions in one step. Expected multipart fields: name, description,
+    role_id, difficulty_level, estimated_duration_minutes, is_recommended,
+    plus at least one of:
+      - csv_file: MCQ / CODING_TASK (and optionally OPEN_ENDED) rows.
+      - open_ended_questions: a JSON-encoded array of
+        {question, grading_guidance, skills_assessed, difficulty_level?}
+        for open-ended questions authored directly in the builder UI instead
+        of via CSV.
+
+    CSV columns (header row required): question_type, question, option_1,
+    option_2, option_3, option_4, correct_option, description, sample_input,
+    sample_output, skills_assessed, grading_guidance, difficulty_level, stack.
+    Not every column applies to every question_type -- see
+    _parse_bundle_csv_row for exactly which ones each type reads.
+    difficulty_level and stack are optional per row; a blank difficulty_level
+    falls back to the bundle-level value in the form fields above.
+    """
+
+    permission_classes = [IsStaffUser]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def post(self, request):
+        csv_file = request.FILES.get("csv_file")
+        open_ended_raw = request.data.get("open_ended_questions")
+        if not csv_file and not open_ended_raw:
+            return Response(
+                {"error": "Add questions via csv_file, open_ended_questions, or both"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        name = (request.data.get("name") or "").strip()
+        role_id = request.data.get("role_id")
+        difficulty_level = (request.data.get("difficulty_level") or "").strip().upper()
+        if not name or not role_id or difficulty_level not in _VALID_DIFFICULTY_LEVELS:
+            return Response(
+                {"error": "name, role_id, and a valid difficulty_level are required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        reader = None
+        if csv_file:
+            try:
+                decoded = csv_file.read().decode("utf-8-sig")
+            except UnicodeDecodeError:
+                return Response({"error": "Could not read the file as UTF-8 CSV"}, status=status.HTTP_400_BAD_REQUEST)
+
+            reader = csv.DictReader(io.StringIO(decoded))
+            if reader.fieldnames is None:
+                return Response({"error": "CSV file has no header row"}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            with transaction.atomic():
+                bank_entries = []
+                if reader is not None:
+                    bank_entries += [
+                        _parse_bundle_csv_row(row, row_number, difficulty_level)
+                        for row_number, row in enumerate(reader, start=2)  # row 1 is the header
+                    ]
+                if open_ended_raw:
+                    bank_entries += _parse_bundle_open_ended_entries(open_ended_raw, difficulty_level)
+
+                if not bank_entries:
+                    raise ValidationError("Add at least one question via CSV or the open-ended question builder")
+
+                bundle = AssessmentBundle.objects.create(
+                    name=name,
+                    description=request.data.get("description") or "",
+                    role_id=role_id,
+                    difficulty_level=difficulty_level,
+                    estimated_duration_minutes=int(request.data.get("estimated_duration_minutes") or 30),
+                    is_recommended=str(request.data.get("is_recommended")).lower() in ("true", "1", "on"),
+                )
+                bundle.bank_questions.set(bank_entries)
+        except ValidationError as e:
+            message = e.message if hasattr(e, "message") else str(e)
+            return Response({"error": message}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response(
+            AssessmentBundleManageSerializer(bundle).data, status=status.HTTP_201_CREATED
+        )
 
 
 class PublishAssessmentAPIView(APIView):

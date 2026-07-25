@@ -21,6 +21,7 @@ import {
   SubmissionAnswers,
   TalentQuestionBankEntry,
   AssessmentBundleAdmin,
+  JobAssessmentQuestion,
 } from "../types";
 import { _handleServerApiCallError, handleServerApiCallError } from "../utils";
 import serverKyInstance from "../utils/server-ky.instance";
@@ -278,7 +279,7 @@ export const addSectionsToAssessment = async (
   }
 };
 
-export const listAssessmentBundles = async (params?: { role?: ID; search?: string }) => {
+export const listAssessmentBundles = async (params?: { role?: ID; search?: string; page?: number }) => {
   try {
     const response = await serverKyInstance
       .get<PagedResource<AssessmentBundleSummary>>(
@@ -287,6 +288,7 @@ export const listAssessmentBundles = async (params?: { role?: ID; search?: strin
           searchParams: {
             ...(params?.role ? { role: params.role } : {}),
             ...(params?.search ? { search: params.search } : {}),
+            ...(params?.page ? { page: params.page } : {}),
           },
         }
       )
@@ -306,6 +308,20 @@ export const previewAssessmentBundle = async (
     const result = await serverKyInstance
       .get(`skill-assessments/question-bank/bundles/${id}/preview/`)
       .json<AssessmentBundlePreview>();
+    return { success: true, data: result };
+  } catch (error) {
+    const errMsg = await handleServerApiCallError(error);
+    return { success: false, error: errMsg };
+  }
+};
+
+export const getBundleMcqQuestions = async (
+  id: ID
+): Promise<ApiResponse<{ id: ID; name: string; questions: JobAssessmentQuestion[] }>> => {
+  try {
+    const result = await serverKyInstance
+      .get(`skill-assessments/question-bank/bundles/${id}/mcq-questions/`)
+      .json<{ id: ID; name: string; questions: JobAssessmentQuestion[] }>();
     return { success: true, data: result };
   } catch (error) {
     const errMsg = await handleServerApiCallError(error);
@@ -538,11 +554,14 @@ export const createCodeAssessment = async (json: {
   }
 };
 
-export const getAiFeedback = async (publicId: string) => {
+export const getAiFeedback = async (publicId: string, page?: number) => {
   try {
+    const searchParams: Record<string, string> = {};
+    if (page) searchParams.page = String(page);
     const response = await serverKyInstance
       .get<PagedResource<AiFeedbackItem>>(
-        `skill-assessments/company-ai-applications/${publicId}/summary`
+        `skill-assessments/company-ai-applications/${publicId}/summary`,
+        { searchParams }
       )
       .json();
     return response;
@@ -747,10 +766,13 @@ export const deleteStaffQuestionBankEntry = async (id: ID): Promise<ApiResponse<
   }
 };
 
-export const getStaffBundles = async (params?: { role?: ID }) => {
+export const getStaffBundles = async (params?: { role?: ID; page?: number }) => {
+  const searchParams: Record<string, string> = {};
+  if (params?.role) searchParams.role = String(params.role);
+  if (params?.page) searchParams.page = String(params.page);
   const data = await serverKyInstance
     .get<PagedResource<AssessmentBundleAdmin>>("skill-assessments/staff/bundles/", {
-      searchParams: params?.role ? { role: params.role } : {},
+      searchParams,
     })
     .json();
   return data;
@@ -789,6 +811,21 @@ export const deleteStaffBundle = async (id: ID): Promise<ApiResponse<null>> => {
   try {
     await serverKyInstance.delete(`skill-assessments/staff/bundles/${id}/`);
     return { success: true, data: null };
+  } catch (error) {
+    const errMsg = await handleServerApiCallError(error);
+    return { success: false, error: errMsg };
+  }
+};
+
+/** Creates a bundle and every one of its questions in one step from a CSV
+ * upload -- see skill_assessment.views.AssessmentBundleCsvUploadView for
+ * the exact expected column schema. */
+export const uploadStaffBundleCsv = async (data: FormData): Promise<ApiResponse<AssessmentBundleAdmin>> => {
+  try {
+    const result = await serverKyInstance
+      .post("skill-assessments/staff/bundles/csv-upload/", { body: data })
+      .json<AssessmentBundleAdmin>();
+    return { success: true, data: result };
   } catch (error) {
     const errMsg = await handleServerApiCallError(error);
     return { success: false, error: errMsg };

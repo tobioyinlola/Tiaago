@@ -21,7 +21,10 @@ type StatusBadgeProps = {
     | "offer_declined"
     | "rejected"
     | "failed"
-    | "withdrawn";
+    | "withdrawn"
+    | "pending_confirmation"
+    | "unsubscribed"
+    | "deactivated";
   hideDot?: boolean;
 };
 
@@ -51,6 +54,9 @@ const statusColorMap: Record<
   pending: warning,
   on_hold: warning,
   pending_decision: warning,
+  pending_confirmation: warning,
+  unsubscribed: error,
+  deactivated: error,
   basic: info,
   hired: info,
   reviewed: info,

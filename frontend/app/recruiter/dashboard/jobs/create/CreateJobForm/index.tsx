@@ -417,6 +417,18 @@ const CreateJobForm = ({
                             />
                           );
 
+                        if (name === "country")
+                          return (
+                            <CountrySelect
+                              key={name}
+                              {...{ name, value, ...props }}
+                              options={groupedCountries}
+                              error={error}
+                              touched={touched[name]}
+                              placeholder='Select Country'
+                            />
+                          );
+
                         if (name === "payment_range")
                           return (
                             <div

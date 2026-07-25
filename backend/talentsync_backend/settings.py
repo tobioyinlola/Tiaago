@@ -79,6 +79,7 @@ INSTALLED_APPS = [
     "campaigns.apps.CampaignsConfig",
     "staff.apps.StaffConfig",
     "ats_integrations.apps.AtsIntegrationsConfig",
+    "talent_network.apps.TalentNetworkConfig",
     # 3rd party apps
     "allauth",
     "allauth.account",
@@ -315,6 +316,15 @@ REST_FRAMEWORK = {
     "VERSION_PARAM": "v",
     # 'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     # 'PAGE_SIZE': 25,
+    # Scoped throttle rates for specific public, unauthenticated endpoints --
+    # see talent_network.views (public join/confirm forms). The blanket
+    # anon/user rates below only apply in prod_settings.py/staging_settings.py;
+    # these scope-specific rates apply in every environment since they guard
+    # a dedicated abuse-prone endpoint rather than general API traffic.
+    "DEFAULT_THROTTLE_RATES": {
+        "talent_network_join": "5/hour",
+        "talent_network_confirm": "20/hour",
+    },
 }
 
 SIMPLE_JWT = {

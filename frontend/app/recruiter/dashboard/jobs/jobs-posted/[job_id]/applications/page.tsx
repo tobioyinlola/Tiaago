@@ -16,6 +16,8 @@ import DisplayErrorMessages, {
   DisplayErrorMessagesProps,
 } from "@/app/common/components/DisplayErrorMessages";
 import { handleServerApiCallError } from "@/app/common/utils";
+import ServerPagination from "@/app/common/components/ServerPagination";
+import { ISearchParams } from "@/app/common/types";
 
 export const metadata = {
   title: "View Talent Applications",
@@ -23,14 +25,22 @@ export const metadata = {
 
 const ViewTalentApplicationsPage = async ({
   params,
+  searchParams,
 }: {
   params: Promise<{
     job_id?: string;
   }>;
+  searchParams: Promise<ISearchParams>;
 }) => {
   const errors: DisplayErrorMessagesProps["errors"] = [];
   const { job_id } = await params;
   if (typeof job_id !== "string") return notFound();
+  const resolvedSearchParams = await searchParams;
+  const _page = resolvedSearchParams.page
+    ? parseInt(resolvedSearchParams.page as string)
+    : 1;
+  const page = isNaN(_page) ? 1 : _page;
+
   const job = await getJob(job_id).catch(async e => {
     const error = await handleServerApiCallError(e);
     console.log("Get job error (view talent applications): ", error);
@@ -56,7 +66,7 @@ const ViewTalentApplicationsPage = async ({
       });
       return null;
     }),
-    getAiFeedback(job_id).catch(async e => {
+    getAiFeedback(job_id, page).catch(async e => {
       const error = await handleServerApiCallError(e);
       console.log("Get AI feedback error (view talent applications): ", error);
       errors.push({
@@ -117,7 +127,15 @@ const ViewTalentApplicationsPage = async ({
       </div>
       <UpdateJobStatus job={job} />
       {isHireWithAi ? (
-        <JobApplicationsTable data={aiFeedbacks} />
+        <>
+          <JobApplicationsTable data={aiFeedbacks} />
+          {!!aiFeedbackRes && (
+            <ServerPagination
+              pagedResource={aiFeedbackRes}
+              searchParams={resolvedSearchParams}
+            />
+          )}
+        </>
       ) : (
         <>
           <h4 className='text-[#101828] text-lg my-8 font-medium'>

@@ -63,7 +63,13 @@ REST_FRAMEWORK_OVERRIDES = {
         "rest_framework.throttling.AnonRateThrottle",
         "rest_framework.throttling.UserRateThrottle",
     ],
-    "DEFAULT_THROTTLE_RATES": {"anon": "100/minute", "user": "1000/minute"},
+    "DEFAULT_THROTTLE_RATES": {
+        "anon": "100/minute",
+        "user": "1000/minute",
+        # See prod_settings.py for why these are repeated here.
+        "talent_network_join": "5/hour",
+        "talent_network_confirm": "20/hour",
+    },
 }
 
 DEBUG = True

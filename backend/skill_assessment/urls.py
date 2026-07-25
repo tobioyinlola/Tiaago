@@ -11,12 +11,14 @@ from .views import (
     AddBundleSectionAPIView,
     BundleListAPIView,
     BundlePreviewAPIView,
+    BundleMCQQuestionsAPIView,
     PublishAssessmentAPIView,
     InviteCandidatesToAssessmentAPIView,
     TalentQuestionBankManageListCreateView,
     TalentQuestionBankManageDetailView,
     AssessmentBundleManageListCreateView,
     AssessmentBundleManageDetailView,
+    AssessmentBundleCsvUploadView,
     GeneralSkillAssessmentDetailAPIView,
     TakeAGeneralSkillAssessmentAPIView,
     TakeAGeneralSkillAssessmentAPIView_V1,
@@ -85,6 +87,11 @@ urlpatterns = [
         name="assessment-bundle-preview",
     ),
     path(
+        "question-bank/bundles/<int:pk>/mcq-questions/",
+        BundleMCQQuestionsAPIView.as_view(),
+        name="assessment-bundle-mcq-questions",
+    ),
+    path(
         "staff/question-bank/",
         TalentQuestionBankManageListCreateView.as_view(),
         name="staff-question-bank-list",
@@ -103,6 +110,11 @@ urlpatterns = [
         "staff/bundles/<int:pk>/",
         AssessmentBundleManageDetailView.as_view(),
         name="staff-bundle-detail",
+    ),
+    path(
+        "staff/bundles/csv-upload/",
+        AssessmentBundleCsvUploadView.as_view(),
+        name="staff-bundle-csv-upload",
     ),
     path(
         "company-assessments/<int:skill_assessment_id>",

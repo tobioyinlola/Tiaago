@@ -1,5 +1,7 @@
 "use client";
-import { useState, useMemo, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+
 import { VettedCandidateCard } from "./VettedCandidateCard";
 import { Input } from "@/app/common/components/ui/input";
 import {
@@ -10,54 +12,76 @@ import {
   SelectValue,
 } from "@/app/common/components/ui/select";
 import { Search, Users } from "lucide-react";
-import { Talent, TalentRole } from "@/app/common/types";
-import { toast } from "sonner";
+import { ISearchParams, PagedResource, Talent, TalentRole } from "@/app/common/types";
 import CreateContractModal from "@/app/common/components/CreateContractModal";
 import ProfileModal from "@/app/common/components/ProfileModal";
 import { toggleCreateContractModal } from "@/app/common/utils";
 import { experienceLevelOptions } from "@/app/talents/signup/constants/form.contants";
+import ServerPagination from "@/app/common/components/ServerPagination";
 
 interface VettedTalentsTabProps {
-  talents: Talent[];
+  talentsRes: PagedResource<Talent> | null;
   roles: TalentRole[];
+  searchParams?: ISearchParams;
 }
 
 export function VettedTalentsTab({
-  talents: vettedCandidates,
+  talentsRes,
   roles,
+  searchParams = {},
 }: VettedTalentsTabProps) {
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedRole, setSelectedRole] = useState<string>("all");
-  const [selectedExperience, setSelectedExperience] = useState<string>("all");
+  const router = useRouter();
+  const pathname = usePathname();
+
+  const vettedCandidates = talentsRes?.results || [];
+
+  const initialSearch =
+    typeof searchParams.search === "string" ? searchParams.search : "";
+  const initialRole = typeof searchParams.role === "string" ? searchParams.role : "all";
+  const initialExperience =
+    typeof searchParams.experience_level === "string"
+      ? searchParams.experience_level
+      : "all";
+
+  const [searchQuery, setSearchQuery] = useState(initialSearch);
+  const [selectedRole, setSelectedRole] = useState(initialRole);
+  const [selectedExperience, setSelectedExperience] = useState(initialExperience);
   const [activeTalent, setActivetalent] = useState(vettedCandidates[0]);
 
   const profileModalRef = useRef<HTMLDialogElement>(null);
 
-  const filteredCandidates = useMemo(() => {
-    return vettedCandidates.filter(candidate => {
-      const matchesSearch =
-        searchQuery === "" ||
-        candidate.first_name
-          ?.toLowerCase()
-          .includes(searchQuery.toLowerCase()) ||
-        candidate.last_name
-          ?.toLowerCase()
-          .includes(searchQuery.toLowerCase()) ||
-        candidate.country?.toLowerCase().includes(searchQuery.toLowerCase());
+  const pushFilters = (next: {
+    search?: string;
+    role?: string;
+    experience_level?: string;
+  }) => {
+    const params = new URLSearchParams();
+    const search = next.search ?? searchQuery;
+    const role = next.role ?? selectedRole;
+    const experienceLevel = next.experience_level ?? selectedExperience;
+    if (search) params.set("search", search);
+    if (role && role !== "all") params.set("role", role);
+    if (experienceLevel && experienceLevel !== "all")
+      params.set("experience_level", experienceLevel);
+    router.push(`${pathname}?${params.toString()}`);
+  };
 
-      const matchesRole =
-        selectedRole === "all" ||
-        candidate.role.toLowerCase() === selectedRole.toLowerCase();
+  useEffect(() => {
+    if (searchQuery === initialSearch) return;
+    const timeout = setTimeout(() => pushFilters({ search: searchQuery }), 500);
+    return () => clearTimeout(timeout);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery]);
 
-      const matchesExperience =
-        selectedExperience === "all" ||
-        candidate.experience_level
-          .toLowerCase()
-          .includes(selectedExperience.toLowerCase());
+  const handleRoleChange = (value: string) => {
+    setSelectedRole(value);
+    pushFilters({ role: value });
+  };
 
-      return matchesSearch && matchesRole && matchesExperience;
-    });
-  }, [searchQuery, selectedRole, selectedExperience, vettedCandidates]);
+  const handleExperienceChange = (value: string) => {
+    setSelectedExperience(value);
+    pushFilters({ experience_level: value });
+  };
 
   const handleCreateContract = (candidate: Talent) => {
     setActivetalent(candidate);
@@ -92,7 +116,7 @@ export function VettedTalentsTab({
         </div>
 
         <div className='flex flex-wrap gap-3'>
-          <Select value={selectedRole} onValueChange={setSelectedRole}>
+          <Select value={selectedRole} onValueChange={handleRoleChange}>
             <SelectTrigger className='w-40 bg-background'>
               <SelectValue placeholder='Role' />
             </SelectTrigger>
@@ -106,10 +130,7 @@ export function VettedTalentsTab({
             </SelectContent>
           </Select>
 
-          <Select
-            value={selectedExperience}
-            onValueChange={setSelectedExperience}
-          >
+          <Select value={selectedExperience} onValueChange={handleExperienceChange}>
             <SelectTrigger className='w-44 bg-background'>
               <SelectValue placeholder='Experience Level' />
             </SelectTrigger>
@@ -126,9 +147,9 @@ export function VettedTalentsTab({
       </div>
 
       {/* Results */}
-      {filteredCandidates.length > 0 ? (
+      {vettedCandidates.length > 0 ? (
         <div className='space-y-4'>
-          {filteredCandidates.map(candidate => (
+          {vettedCandidates.map(candidate => (
             <VettedCandidateCard
               key={candidate.id}
               candidate={candidate}
@@ -149,6 +170,10 @@ export function VettedTalentsTab({
             Try adjusting your filters or search query
           </p>
         </div>
+      )}
+
+      {talentsRes && (
+        <ServerPagination pagedResource={talentsRes} searchParams={searchParams} />
       )}
 
       {/* Modals */}

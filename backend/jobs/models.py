@@ -11,6 +11,11 @@ from jobs.constants import MANUALLY, WITH_AI
 from uuid import uuid4
 from django.utils import timezone
 from django.conf import settings
+from talent_network.choices import (
+    TalentNetworkIndustry,
+    TalentNetworkRoleCategory,
+    TalentNetworkWorkMode,
+)
 
 
 def get_location_options():
@@ -102,6 +107,27 @@ class Job(models.Model):
     
     # Location dropdown (Remote or Country)
     location = models.CharField(max_length=100, help_text="Remote or specific country", default="Remote")
+
+    # -- Talent Network matching signals -----------------------------------
+    # All optional/blank so every existing job keeps working untouched;
+    # jobs missing role_category simply never qualify for Talent Network
+    # notifications (see talent_network.matching.score_member_for_job).
+    role_category = models.CharField(
+        max_length=30, choices=TalentNetworkRoleCategory.choices, blank=True, default="",
+        help_text="Broad functional category, used to match against Talent Network members' stated interests",
+    )
+    industry = models.CharField(
+        max_length=20, choices=TalentNetworkIndustry.choices, blank=True, default="",
+        help_text="Used to match against Talent Network members' stated industry interests",
+    )
+    work_mode = models.CharField(
+        max_length=10, choices=TalentNetworkWorkMode.choices, blank=True, default="",
+        help_text="Remote/Hybrid/On-site -- distinct from `location`, used for structured Talent Network matching",
+    )
+    country = models.CharField(
+        max_length=100, blank=True, default="",
+        help_text="Structured country value for Talent Network location matching (location above stays free text)",
+    )
     
     # Minimum experience dropdown (0-10 years). Nullable so a draft job (not
     # yet published) can be saved before this field is filled in.

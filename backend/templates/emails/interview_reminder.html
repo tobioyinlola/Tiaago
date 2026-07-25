@@ -1,10 +1,10 @@
 {% extends "emails/base.html" %}
 {% block title %}Interview reminder{% endblock %}
-{% block preheader %}Your interview with {{ company|default:"Paystack" }} starts {{ countdown|default:"in 1 hour" }}.{% endblock %}
+{% block preheader %}Your interview with {{ company|default:"The hiring team" }} starts {{ countdown|default:"in 1 hour" }}.{% endblock %}
 {% block content %}
   <h1 class="h1" style="margin:0 0 14px; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:33px; line-height:1.15; letter-spacing:-0.6px; font-weight:800; color:#0F172A;">Your interview starts soon</h1>
 
-  <p style="margin:0 0 24px; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:16px; line-height:1.65; color:#475569;">A quick reminder, {{ first_name|default:"Amara" }}. Your interview with {{ company|default:"Paystack" }} is coming up. Find a quiet spot with a stable connection and join a few minutes early.</p>
+  <p style="margin:0 0 24px; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:16px; line-height:1.65; color:#475569;">A quick reminder, {{ first_name|default:"Amara" }}. Your interview with {{ company|default:"The hiring team" }} is coming up. Find a quiet spot with a stable connection and join a few minutes early.</p>
 
   <!-- prominent time callout -->
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 28px; background-color:#EFF2FF; border:1px solid #DCE3FF; border-radius:0;">

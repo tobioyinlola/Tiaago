@@ -1,10 +1,11 @@
 "use client";
 
 import ReactSelect from "react-select";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { FiSearch } from "react-icons/fi";
 
-import { Talent, TalentRole } from "@/app/common/types";
+import { ISearchParams, PagedResource, Talent, TalentRole } from "@/app/common/types";
 import TalentCard, { FindTalentCard } from "./TalentCard";
 import { toggleCreateContractModal } from "@/app/common/utils";
 import ProfileModal from "@/app/common/components/ProfileModal";
@@ -12,6 +13,7 @@ import EmptyState from "@/app/common/components/dashboard/EmptyState";
 import CreateContractModal from "@/app/common/components/CreateContractModal";
 import CarouselControls from "@/app/common/components/Carousel/CarouselControls";
 import { experienceLevelOptions } from "@/app/talents/signup/constants/form.contants";
+import ServerPagination from "@/app/common/components/ServerPagination";
 
 const ExploreTalents = ({
   talents,
@@ -60,24 +62,36 @@ const ExploreTalents = ({
 };
 
 export const FindTalents = ({
-  talents,
+  talentsRes,
   roles,
   disableScheduleMeeting,
+  searchParams = {},
 }: {
-  talents: Talent[];
+  talentsRes: PagedResource<Talent> | null;
   roles: TalentRole[];
   disableScheduleMeeting: boolean;
+  searchParams?: ISearchParams;
 }) => {
+  const router = useRouter();
+  const pathname = usePathname();
   const profileModalRef = useRef<HTMLDialogElement>(null);
-  const [page, setPage] = useState(1);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [selectedRole, setSelectedRole] = useState("");
-  const [selectedExperienceLevel, setSelectedExperienceLevel] = useState("");
-  const [activeTalent, setActivetalent] = useState(talents[0]);
-  const [filteredTalents, setFilteredTalents] = useState(talents);
 
-  const nextPage = () => setPage(prev => prev + 1);
-  const prevPage = () => setPage(prev => prev - 1);
+  const talents = talentsRes?.results || [];
+
+  const initialSearch =
+    typeof searchParams.search === "string" ? searchParams.search : "";
+  const initialRole = typeof searchParams.role === "string" ? searchParams.role : "";
+  const initialExperienceLevel =
+    typeof searchParams.experience_level === "string"
+      ? searchParams.experience_level
+      : "";
+
+  const [searchTerm, setSearchTerm] = useState(initialSearch);
+  const [selectedRole, setSelectedRole] = useState(initialRole);
+  const [selectedExperienceLevel, setSelectedExperienceLevel] =
+    useState(initialExperienceLevel);
+  const [activeTalent, setActivetalent] = useState(talents[0]);
+
   const showContractModal = (talent: Talent) => {
     setActivetalent(talent);
     toggleCreateContractModal();
@@ -87,59 +101,39 @@ export const FindTalents = ({
     profileModalRef.current?.showModal();
   };
 
+  const pushFilters = (next: {
+    search?: string;
+    role?: string;
+    experience_level?: string;
+  }) => {
+    const params = new URLSearchParams();
+    const search = next.search ?? searchTerm;
+    const role = next.role ?? selectedRole;
+    const experienceLevel = next.experience_level ?? selectedExperienceLevel;
+    if (search) params.set("search", search);
+    if (role) params.set("role", role);
+    if (experienceLevel) params.set("experience_level", experienceLevel);
+    router.push(`${pathname}?${params.toString()}`);
+  };
+
+  useEffect(() => {
+    if (searchTerm === initialSearch) return;
+    const timeout = setTimeout(() => pushFilters({ search: searchTerm }), 500);
+    return () => clearTimeout(timeout);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchTerm]);
+
   const onSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const search = e.target.value;
-    setSearchTerm(search);
-    applyFilters({
-      search,
-    });
+    setSearchTerm(e.target.value);
   };
   const onSelectedRole = (role: string) => {
     setSelectedRole(role);
-    applyFilters({
-      role,
-    });
+    pushFilters({ role });
   };
   const onSelectedExperienceLevel = (experienceLevel: string) => {
     setSelectedExperienceLevel(experienceLevel);
-    applyFilters({
-      experienceLevel,
-    });
+    pushFilters({ experience_level: experienceLevel });
   };
-
-  const applyFilters = ({
-    search = searchTerm,
-    role = selectedRole,
-    experienceLevel = selectedExperienceLevel,
-  }) => {
-    let filtered = talents;
-    if (search) {
-      const value = search.toLowerCase();
-      filtered = filtered.filter(
-        talent =>
-          talent.first_name?.toLowerCase().includes(value) ||
-          talent.last_name?.toLowerCase().includes(value) ||
-          talent.country?.toLowerCase().includes(value) ||
-          talent.experience_level?.toLowerCase().includes(value) ||
-          talent.role?.toLowerCase().includes(value)
-      );
-    }
-    if (role) {
-      filtered = filtered.filter(
-        talent => talent.role.toLowerCase() === role.toLowerCase()
-      );
-    }
-    if (experienceLevel) {
-      filtered = filtered.filter(
-        talent =>
-          talent.experience_level.toLowerCase() ===
-          experienceLevel.toLowerCase()
-      );
-    }
-    setFilteredTalents(filtered);
-  };
-
-  const pagedData = filteredTalents.slice((page - 1) * 10, page * 10);
 
   return (
     <div className='pb-8 mt-2'>
@@ -183,7 +177,7 @@ export const FindTalents = ({
         </div>
       </div>
       <div className='flex flex-col gap-6'>
-        {pagedData.map(talent => (
+        {talents.map(talent => (
           <FindTalentCard
             key={talent.pk ?? talent.id}
             talent={talent}
@@ -192,32 +186,18 @@ export const FindTalents = ({
           />
         ))}
       </div>
-      {!pagedData.length && (
+      {!talents.length && (
         <EmptyState
           text={
-            talents.length
+            searchTerm || selectedRole || selectedExperienceLevel
               ? "No talents found for the search term"
               : "No talents found"
           }
         />
       )}
-      {filteredTalents.length > 10 && (
-        <div className='join my-8 mx-auto'>
-          <button
-            className='join-item btn'
-            onClick={prevPage}
-            disabled={page === 1}
-          >
-            «
-          </button>
-          <button className='join-item btn'>Page {page}</button>
-          <button
-            className='join-item btn'
-            onClick={nextPage}
-            disabled={page * 10 >= filteredTalents.length}
-          >
-            »
-          </button>
+      {talentsRes && (
+        <div className='my-8'>
+          <ServerPagination pagedResource={talentsRes} searchParams={searchParams} />
         </div>
       )}
       <CreateContractModal

@@ -15,7 +15,7 @@ const LinkOrButton = ({ href, children, className }: any) => {
 };
 
 // Utility function to extract page number from URL or return the number as-is
-const getPageNumber = (pageValue: number | string | undefined): number | null => {
+const getPageNumber = (pageValue: number | string | null | undefined): number | null => {
   if (!pageValue) return null;
   
   if (typeof pageValue === 'number') {

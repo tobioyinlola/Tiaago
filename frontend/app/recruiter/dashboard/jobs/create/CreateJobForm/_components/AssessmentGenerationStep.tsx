@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Loader2, RefreshCw, ShieldCheck, Sparkles, Wand2 } from "lucide-react";
+import { Loader2, RefreshCw, ShieldCheck, Sparkles, FolderOpen } from "lucide-react";
 import { FormikErrors, FormikTouched } from "formik";
 
 import { cn } from "@/app/common/utils";
@@ -11,7 +11,7 @@ import FormikField from "@/app/common/components/Forms/FormikField";
 import { Switch } from "@/app/common/components/ui/switch";
 import { generateAssessmentQuestions } from "@/app/common/services/jobs";
 import { AssessmentGenerationFormValues } from "../wizard.constants";
-import { getSampleAssessmentQuestions } from "../wizard.sample-data";
+import AssessmentSourcePicker from "./AssessmentSourcePicker";
 
 const INTEGRITY_LEVELS = [
   { min: 0, label: "Minimal", className: "bg-[#EAECF0] text-secondary-black w-1/3" },
@@ -49,6 +49,7 @@ const AssessmentGenerationStep = ({
 }) => {
   const [status, setStatus] = useState<"idle" | "generating" | "error">("idle");
   const [errorMessage, setErrorMessage] = useState("");
+  const [sourcePickerOpen, setSourcePickerOpen] = useState(false);
 
   const hasQuestions = (values.assessment_questions || []).length > 0;
 
@@ -76,11 +77,10 @@ const AssessmentGenerationStep = ({
     }
   };
 
-  const handleLoadSample = () => {
-    setFieldValue("assessment_questions", getSampleAssessmentQuestions());
+  const handleUseSource = (sections: AssessmentQuestionSection[]) => {
+    setFieldValue("assessment_questions", sections);
     setStatus("idle");
     setErrorMessage("");
-    toast.success("Loaded sample questions for preview");
   };
 
   const updateQuestion = (
@@ -238,12 +238,12 @@ const AssessmentGenerationStep = ({
           <div className='flex items-center gap-2'>
             <button
               type='button'
-              onClick={handleLoadSample}
+              onClick={() => setSourcePickerOpen(true)}
               disabled={status === "generating"}
               className='btn btn-outline gap-2 disabled:opacity-70'
-              title='Preview the review/edit UI with sample questions -- no AI call'
+              title='Reuse questions from an assessment you already built, or the question bank'
             >
-              <Wand2 className='h-4 w-4' /> Load Sample
+              <FolderOpen className='h-4 w-4' /> Use Existing Source
             </button>
             <button
               type='button'
@@ -288,8 +288,12 @@ const AssessmentGenerationStep = ({
               >
                 <RefreshCw className='h-4 w-4' /> Retry
               </button>
-              <button type='button' onClick={handleLoadSample} className='btn btn-outline gap-2'>
-                <Wand2 className='h-4 w-4' /> Load Sample Instead
+              <button
+                type='button'
+                onClick={() => setSourcePickerOpen(true)}
+                className='btn btn-outline gap-2'
+              >
+                <FolderOpen className='h-4 w-4' /> Use Existing Source Instead
               </button>
             </div>
           </div>
@@ -300,10 +304,14 @@ const AssessmentGenerationStep = ({
             <p className='text-sm text-secondary-black max-w-sm'>
               No questions generated yet. Click &quot;Generate Questions&quot; to create an
               assessment from your job details (technical roles include a coding section), or
-              load sample questions to preview this step.
+              reuse questions from an assessment you already built or the question bank.
             </p>
-            <button type='button' onClick={handleLoadSample} className='btn btn-outline btn-sm gap-2'>
-              <Wand2 className='h-4 w-4' /> Load Sample
+            <button
+              type='button'
+              onClick={() => setSourcePickerOpen(true)}
+              className='btn btn-outline btn-sm gap-2'
+            >
+              <FolderOpen className='h-4 w-4' /> Use Existing Source
             </button>
           </div>
         )}
@@ -389,6 +397,12 @@ const AssessmentGenerationStep = ({
             <p className='text-xs text-error mt-2'>{errors.assessment_questions}</p>
           )}
       </div>
+
+      <AssessmentSourcePicker
+        open={sourcePickerOpen}
+        onClose={() => setSourcePickerOpen(false)}
+        onSelect={handleUseSource}
+      />
     </div>
   );
 };

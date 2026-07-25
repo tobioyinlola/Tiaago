@@ -1,0 +1,53 @@
+{% extends "emails/base.html" %}
+
+{% block title %}A new opportunity matches your profile{% endblock %}
+{% block preheader %}A new {{ job.role }} opportunity at {{ company_name }} matches your career interests.{% endblock %}
+
+{% block content %}
+<p style="margin:0 0 20px; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:22px; font-weight:700; color:#1C3477;">Hi {{ first_name }},</p>
+
+<p style="margin:0 0 24px; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.7; color:#3B3F5C;">
+  A new opportunity matches your career interests.
+</p>
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#F8FAFC; border-radius:8px; margin:0 0 24px;">
+  <tr>
+    <td style="padding:20px 24px; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+      <p style="margin:0 0 6px; font-size:17px; font-weight:700; color:#1C3477;">{{ job.role }}</p>
+      <p style="margin:0 0 2px; font-size:14px; color:#3B3F5C;">{{ company_name }}</p>
+      <p style="margin:0 0 2px; font-size:13px; color:#64748B;">{{ job.location }}{% if job.get_job_type_display %} &middot; {{ job.get_job_type_display }}{% endif %}</p>
+      <p style="margin:0; font-size:13px; color:#64748B;">{% if job.work_mode %}{{ job.get_work_mode_display }}{% endif %}</p>
+    </td>
+  </tr>
+</table>
+
+<p style="margin:0 0 10px; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:13px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:#64748B;">Why you're receiving this</p>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 28px;">
+  {% if matched_criteria.role.matched %}
+  <tr><td style="padding:4px 0; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:14px; color:#3B3F5C;">&#10003; Interested in this role category</td></tr>
+  {% endif %}
+  {% if matched_criteria.location.score %}
+  <tr><td style="padding:4px 0; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:14px; color:#3B3F5C;">&#10003; Matches your location/work-mode preference</td></tr>
+  {% endif %}
+  {% if matched_criteria.industry.matched %}
+  <tr><td style="padding:4px 0; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:14px; color:#3B3F5C;">&#10003; In an industry you're interested in</td></tr>
+  {% endif %}
+  {% if matched_criteria.experience.score %}
+  <tr><td style="padding:4px 0; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:14px; color:#3B3F5C;">&#10003; Experience level matches this role</td></tr>
+  {% endif %}
+</table>
+
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" class="cta-table">
+  <tr>
+    <td style="background-color:#5465FF; border-radius:6px;">
+      <a href="{{ apply_url }}" target="_blank" class="cta-a" style="display:inline-block; padding:14px 32px; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:15px; font-weight:700; color:#FFFFFF;">Apply Now</a>
+    </td>
+  </tr>
+</table>
+
+<p style="margin:28px 0 0; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:12px; line-height:1.6; color:#9AA0B4;">
+  You're receiving this because you joined the TIAAGO Talent Network. <a href="{{ unsubscribe_url }}" style="color:#64748B; text-decoration:underline;">Unsubscribe</a> at any time.
+</p>
+
+<img src="{{ open_pixel_url }}" width="1" height="1" alt="" style="display:block; width:1px; height:1px; border:0;" />
+{% endblock %}

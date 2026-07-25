@@ -151,12 +151,17 @@ export const getAllRecruiters = async (
 export const getAllTalents = async (
   page = 1,
   verified?: boolean | null,
-  search?: string
+  search?: string,
+  role?: string,
+  experienceLevel?: string
 ) => {
   const searchParams = new URLSearchParams();
   searchParams.append("page", page + "");
-  if (verified !== undefined) searchParams.append("verified", verified + "");
+  if (verified !== undefined && verified !== null)
+    searchParams.append("verified", verified + "");
   if (search) searchParams.append("q", search);
+  if (role) searchParams.append("role", role);
+  if (experienceLevel) searchParams.append("experience_level", experienceLevel);
   const data = await serverKyInstance
     .get<PagedResource<any>>(`auth/all-talents?${searchParams.toString()}`)
     .json();

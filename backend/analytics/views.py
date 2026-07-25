@@ -94,7 +94,22 @@ class FunnelAPIView(_AnalyticsBaseView):
 
 class PipelineAPIView(_AnalyticsBaseView):
     def get(self, request):
-        return Response(status=200, data=utils.get_pipeline_summary())
+        data = dict(utils.get_pipeline_summary())
+
+        zero_pipeline_orgs = data["orgs_with_zero_pipeline_entries"]
+        page = int(request.query_params.get("zero_pipeline_page", 1))
+        page_size = int(request.query_params.get("zero_pipeline_page_size", 20))
+        total = len(zero_pipeline_orgs)
+        num_pages = max(1, -(-total // page_size))
+        start = (page - 1) * page_size
+        data["orgs_with_zero_pipeline_entries"] = {
+            "current": page,
+            "count": total,
+            "next": page + 1 if page < num_pages else None,
+            "previous": page - 1 if page > 1 else None,
+            "results": zero_pipeline_orgs[start:start + page_size],
+        }
+        return Response(status=200, data=data)
 
 
 class GrowthAPIView(_AnalyticsBaseView):

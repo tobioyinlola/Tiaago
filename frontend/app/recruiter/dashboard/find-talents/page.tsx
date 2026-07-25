@@ -10,16 +10,36 @@ import { getSchedule } from "@/app/common/services/schedule";
 import { handleServerApiCallError } from "@/app/common/utils";
 import { FREE_RECRUITER_MAX_MEETINGS_PER_MONTH } from "@/app/common/constants";
 import { getAllTalents, getCurrentUser } from "@/app/common/services/profile";
+import { ISearchParams } from "@/app/common/types";
 
 export const metadata = {
   title: "Find Talents",
 };
 
-const FindTalentsPage = async () => {
+const FindTalentsPage = async ({
+  searchParams,
+}: {
+  searchParams: Promise<ISearchParams>;
+}) => {
   const errors: DisplayErrorMessagesProps["errors"] = [];
+  const resolvedSearchParams = await searchParams;
+  const page = resolvedSearchParams.page ? Number(resolvedSearchParams.page) : 1;
+  const search =
+    typeof resolvedSearchParams.search === "string"
+      ? resolvedSearchParams.search
+      : undefined;
+  const role =
+    typeof resolvedSearchParams.role === "string"
+      ? resolvedSearchParams.role
+      : undefined;
+  const experienceLevel =
+    typeof resolvedSearchParams.experience_level === "string"
+      ? resolvedSearchParams.experience_level
+      : undefined;
+
   // currentUser, roles, and talents are independent requests -- fetch in
   // parallel instead of waiting on currentUser first.
-  const [userRes, roles, talents] = await Promise.all([
+  const [userRes, roles, talentsRes] = await Promise.all([
     getCurrentUser("recruiter"),
     getTalentRoles().catch(async (e: any) => {
       const error = await handleServerApiCallError(e);
@@ -30,7 +50,7 @@ const FindTalentsPage = async () => {
       });
       return [];
     }),
-    getAllTalents().catch(async (e: any) => {
+    getAllTalents(page, undefined, search, role, experienceLevel).catch(async (e: any) => {
       const error = await handleServerApiCallError(e);
       console.log("Get talents error (find talents): ", error);
       errors.push({
@@ -72,9 +92,10 @@ const FindTalentsPage = async () => {
         </h4>
       </div>
       <FindTalents
-        talents={talents?.results || []}
+        talentsRes={talentsRes}
         roles={roles}
         disableScheduleMeeting={!canScheduleMeeting}
+        searchParams={resolvedSearchParams}
       />
       <DisplayErrorMessages errors={errors} />
     </>

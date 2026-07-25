@@ -3,7 +3,7 @@
 Your interview starts soon.
 
 A quick reminder, {{ first_name|default:"Amara" }}. Your interview with
-{{ company|default:"Paystack" }} is coming up. Find a quiet spot with a stable
+{{ company|default:"The hiring team" }} is coming up. Find a quiet spot with a stable
 connection and join a few minutes early.
 
   Starts {{ countdown|default:"in 1 hour" }}

@@ -72,7 +72,7 @@ const AuthFormPageWrapper = ({
                 <p className='text-[#E4DBDB] font-onest text-xl max-w-[480px]'>
                   {as === "talent"
                     ? " Showcase your real skills, get assessed and verified, and connect with companies that value what you can truly do"
-                    : "Tiaago automates resume screening, generates assessments from your job description, and surfaces the candidates worth your time — so you spend less time reading CVs and more time making placements."}
+                    : "Tiaago screens resumes, generates assessments, and surfaces your best candidates automatically so you spend more time making placements."}
                 </p>
               </div>
 

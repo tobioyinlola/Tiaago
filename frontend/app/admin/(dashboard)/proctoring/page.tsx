@@ -13,6 +13,8 @@ import ChartContainer from "@/app/common/components/dashboard/charts/ChartContai
 import DashboardBarChart from "@/app/common/components/dashboard/charts/DashboardBarChart";
 import { RiskLevelBadge } from "@/app/common/components/dashboard/ProctoringBadges";
 import { AdminHighRiskSession } from "@/app/common/types/proctoring.type";
+import ServerPagination from "@/app/common/components/ServerPagination";
+import { ISearchParams } from "@/app/common/types";
 
 export const metadata = {
   title: "Proctoring",
@@ -27,7 +29,11 @@ const EVENT_TYPE_LABELS: Record<string, string> = {
   SCREENSHOT_ATTEMPT: "Screenshot attempt",
 };
 
-const AdminProctoringPage = async () => {
+const AdminProctoringPage = async ({
+  searchParams,
+}: {
+  searchParams: Promise<ISearchParams>;
+}) => {
   const { currentUser } = await getCurrentUser("staff");
   const canView = currentUser.is_super_admin || currentUser.permissions.includes("proctoring.admin");
   if (!canView) {
@@ -35,6 +41,11 @@ const AdminProctoringPage = async () => {
   }
 
   const errors: DisplayErrorMessagesProps["errors"] = [];
+  const resolvedSearchParams = await searchParams;
+  const _page = resolvedSearchParams.page
+    ? parseInt(resolvedSearchParams.page as string)
+    : 1;
+  const page = isNaN(_page) ? 1 : _page;
 
   const overview = await getAdminProctoringOverview().catch(async e => {
     const error = await handleServerApiCallError(e);
@@ -43,7 +54,7 @@ const AdminProctoringPage = async () => {
     return null;
   });
 
-  const sessionsRes = await getAdminHighRiskSessions().catch(async e => {
+  const sessionsRes = await getAdminHighRiskSessions(page).catch(async e => {
     const error = await handleServerApiCallError(e);
     console.log("Get high-risk sessions error (admin proctoring): ", error);
     errors.push({ title: "Error getting high-risk sessions", message: error });
@@ -139,6 +150,12 @@ const AdminProctoringPage = async () => {
       <section>
         <h3 className='text-gray-900 text-lg font-medium mb-4'>High-risk sessions</h3>
         <DataTable columns={columns} data={sessions} rowKey={r => r.id} emptyText='No high-risk sessions' />
+        {!!sessionsRes && (
+          <ServerPagination
+            pagedResource={sessionsRes}
+            searchParams={resolvedSearchParams}
+          />
+        )}
       </section>
     </>
   );

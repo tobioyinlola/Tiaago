@@ -1,5 +1,7 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
+import ServerPagination from "@/app/common/components/ServerPagination";
 import { CandidateDetailPanel } from "./CandidateDetailPanel";
 import { InviteDialog } from "./InviteDialog";
 import { TalentPoolInviteDialog } from "./TalentPoolInviteDialog";
@@ -31,7 +33,7 @@ import { toast } from "sonner";
 import { OutreachDialog } from "../../sourcing/_components/OutreachDialog";
 import { useRouter } from "next/navigation";
 import { useAlert } from "@/app/common/store/useAlert";
-import { deletePipelineEntry, updatePipelineEntry } from "@/app/common/services/sourcing";
+import { deletePipelineEntry, getPipeline, updatePipelineEntry } from "@/app/common/services/sourcing";
 import { handleFormSubmissionError } from "@/app/common/utils";
 import { formatDistanceToNow } from "date-fns";
 
@@ -79,20 +81,107 @@ export default function Pipeline({
   pipeline,
   categoryName,
   categoryId,
+  searchParams = {},
 }: {
   pipeline: GetPipelineResponse | null;
   categoryName?: string;
   categoryId?: string;
+  searchParams?: Record<string, string | string[] | undefined>;
 }) {
+  // `candidates` is the current page's rows only -- search/status are
+  // server-filtered (see the debounced URL push below), so this component
+  // no longer needs the full pipeline in memory. Bulk-select/outreach act
+  // on the current page; CSV export fetches the full filtered set
+  // separately on click rather than depending on this paginated state.
   const [candidates, setCandidates] = useState<PipelineEntry[]>(
     pipeline?.entries || []
   );
+  useEffect(() => {
+    setCandidates(pipeline?.entries || []);
+  }, [pipeline]);
+
   const router = useRouter();
+  const pathname = usePathname();
   const setAlert = useAlert(s => s.setAlert);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const initialSearch = typeof searchParams.search === "string" ? searchParams.search : "";
+  const initialStatus = typeof searchParams.status === "string" ? searchParams.status : "all";
+  const [searchQuery, setSearchQuery] = useState(initialSearch);
+  const [statusFilter, setStatusFilter] = useState<string>(initialStatus);
   const [roleFilter, setRoleFilter] = useState<string>("all");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [exportingCsv, setExportingCsv] = useState(false);
+
+  const pushFilters = (next: { search?: string; status?: string }) => {
+    const params = new URLSearchParams();
+    const search = next.search ?? searchQuery;
+    const status = next.status ?? statusFilter;
+    if (search) params.set("search", search);
+    if (status && status !== "all") params.set("status", status);
+    // Any filter change resets to page 1 -- an old page number for a new
+    // filter could point past the end of the new, smaller result set.
+    router.push(`${pathname}?${params.toString()}`);
+  };
+
+  // Debounced so typing doesn't fire a request per keystroke.
+  useEffect(() => {
+    if (searchQuery === initialSearch) return;
+    const timeout = setTimeout(() => pushFilters({ search: searchQuery }), 500);
+    return () => clearTimeout(timeout);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery]);
+
+  const handleStatusFilterChange = (value: string) => {
+    setStatusFilter(value);
+    pushFilters({ status: value });
+  };
+
+  const handleExportCsv = async () => {
+    setExportingCsv(true);
+    const full = await getPipeline(categoryId, {
+      search: initialSearch || undefined,
+      status: initialStatus !== "all" ? initialStatus : undefined,
+      page_size: 10000,
+    }).catch(() => null);
+    setExportingCsv(false);
+    if (!full) {
+      toast.error("Failed to export CSV");
+      return;
+    }
+    const esc = (v: string) => `"${(v || "").replace(/"/g, '""')}"`;
+    const csv = [
+      "Name,Email,Role,Status,Country,Skills,LinkedIn,Portfolio,Resume,Phone,Experience Level,Years of Experience,Current Company,Education,Current Pay,Summary,Avatar,Date Sourced",
+      ...full.entries.map(c =>
+        [
+          esc(c.name),
+          esc(c.email || ""),
+          esc(c.role),
+          esc(c.status),
+          esc(c.country),
+          esc((c.skills || []).join(", ")),
+          esc(c.linkedin_profile || ""),
+          esc(c.portfolio_url || ""),
+          esc(c.resume || ""),
+          esc(c.phone_number || ""),
+          esc(c.experience_level || ""),
+          esc(c.years_of_expr ? String(c.years_of_expr) : ""),
+          esc(c.current_company || ""),
+          esc(c.education || ""),
+          esc(c.current_pay ? `${c.pay_currency || ""} ${c.current_pay}`.trim() : ""),
+          esc(c.summary || ""),
+          esc(c.avatar || ""),
+          esc(c.created_at ? new Date(c.created_at).toLocaleDateString() : ""),
+        ].join(",")
+      ),
+    ].join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "pipeline-export.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success("CSV exported");
+  };
 
   // Dialog / panel states
   const [detailCandidate, setDetailCandidate] =
@@ -189,27 +278,21 @@ export default function Pipeline({
     }
   };
 
-  // Filter candidates
+  // Search and status are server-filtered (see pushFilters above) -- only
+  // role is filtered client-side, since it isn't a backend query param.
   const filteredCandidates = candidates.filter(c => {
-    const matchesSearch =
-      c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.role.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.skills.some(s => s.toLowerCase().includes(searchQuery.toLowerCase()));
-
-    const matchesStatus = statusFilter === "all" || c.status === statusFilter;
-    const matchesRole = roleFilter === "all" || c.role === roleFilter;
-
-    return matchesSearch && matchesStatus && matchesRole;
+    return roleFilter === "all" || c.role === roleFilter;
   });
 
   const selectedCandidates = candidates.filter(c => selectedIds.has(c.id + ""));
 
-  // Stats
+  // Real totals across the whole (search/status-filtered) pipeline, not
+  // just the current page -- these come straight from the backend.
   const stats = {
-    total: candidates.length,
-    new: candidates.filter(c => c.status === "new").length,
-    contacted: candidates.filter(c => c.status === "contacted").length,
-    interested: candidates.filter(c => c.status === "interested").length,
+    total: pipeline?.total_in_pipeline ?? candidates.length,
+    new: pipeline?.total_new ?? 0,
+    contacted: pipeline?.total_contacted ?? 0,
+    interested: pipeline?.total_interested ?? 0,
   };
 
   return (
@@ -239,42 +322,11 @@ export default function Pipeline({
               variant='outline'
               size='sm'
               className='sm:size-default'
-              onClick={() => {
-                const esc = (v: string) => `"${(v || "").replace(/"/g, '""')}"`;
-                const csv = [
-                  "Name,Email,Role,Status,Country,Skills,LinkedIn,Portfolio,Phone,Experience Level,Years of Experience,Current Company,Education,Current Pay",
-                  ...candidates.map(c =>
-                    [
-                      esc(c.name),
-                      esc(c.email || ""),
-                      esc(c.role),
-                      esc(c.status),
-                      esc(c.country),
-                      esc((c.skills || []).join(", ")),
-                      esc(c.linkedin_profile || ""),
-                      esc(c.portfolio_url || ""),
-                      esc(c.phone_number || ""),
-                      esc(c.experience_level || ""),
-                      esc(c.years_of_expr ? String(c.years_of_expr) : ""),
-                      esc(c.current_company || ""),
-                      esc(c.education || ""),
-                      esc(c.current_pay ? `${c.pay_currency || ""} ${c.current_pay}`.trim() : ""),
-                    ].join(",")
-                  ),
-                ].join("\n");
-                const blob = new Blob([csv], { type: "text/csv" });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement("a");
-                a.href = url;
-                a.download = "pipeline-export.csv";
-                a.click();
-                URL.revokeObjectURL(url);
-                toast.success("CSV exported");
-              }}
-              disabled={candidates.length === 0}
+              onClick={handleExportCsv}
+              disabled={exportingCsv || (candidates.length === 0 && !pipeline?.total_in_pipeline)}
             >
               <Download className='h-4 w-4 sm:mr-2' />
-              <span className='hidden sm:inline'>Export CSV</span>
+              <span className='hidden sm:inline'>{exportingCsv ? "Exporting..." : "Export CSV"}</span>
             </Button>
             <Button
               variant='outline'
@@ -353,7 +405,7 @@ export default function Pipeline({
                 </SelectContent>
               </Select>
 
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <Select value={statusFilter} onValueChange={handleStatusFilterChange}>
                 <SelectTrigger className='w-full sm:w-40'>
                   <Filter className='mr-2 h-4 w-4' />
                   <SelectValue placeholder='Status' />
@@ -370,8 +422,8 @@ export default function Pipeline({
             </div>
 
             <Badge variant='secondary' className='hidden sm:flex'>
-              {filteredCandidates.length} candidate
-              {filteredCandidates.length !== 1 ? "s" : ""}
+              {pipeline?.count ?? filteredCandidates.length} candidate
+              {(pipeline?.count ?? filteredCandidates.length) !== 1 ? "s" : ""}
             </Badge>
           </div>
 
@@ -555,6 +607,19 @@ export default function Pipeline({
               Try adjusting your search or filters
             </p>
           </div>
+        )}
+
+        {pipeline && (
+          <ServerPagination
+            pagedResource={{
+              current: pipeline.current,
+              count: pipeline.count,
+              next: pipeline.next,
+              previous: pipeline.previous,
+              results: pipeline.entries,
+            }}
+            searchParams={searchParams}
+          />
         )}
       </div>
 
