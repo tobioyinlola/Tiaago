@@ -183,7 +183,13 @@ REST_FRAMEWORK_OVERRIDES = {
     ],
     'DEFAULT_THROTTLE_RATES': {
         'anon': '100/hour',
-        'user': '1000/hour'
+        'user': '1000/hour',
+        # Scoped rates for talent_network's public join/confirm endpoints --
+        # this dict REPLACES (not merges into) the base settings.py value via
+        # REST_FRAMEWORK.update(REST_FRAMEWORK_OVERRIDES), so these have to be
+        # repeated here or they'd silently disappear in production.
+        'talent_network_join': '5/hour',
+        'talent_network_confirm': '20/hour',
     }
 }
 

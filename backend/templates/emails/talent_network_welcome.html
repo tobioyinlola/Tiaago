@@ -1,0 +1,24 @@
+{% extends "emails/base.html" %}
+
+{% block title %}Confirm your spot in the Talent Network{% endblock %}
+{% block preheader %}One click to start receiving curated job opportunities.{% endblock %}
+
+{% block content %}
+<p style="margin:0 0 20px; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:22px; font-weight:700; color:#1C3477;">Hi {{ first_name }},</p>
+
+<p style="margin:0 0 24px; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.7; color:#3B3F5C;">
+  Thanks for joining the TIAAGO Talent Network. Confirm your email address below and we'll start sending you curated job opportunities that match your career interests -- no spam, no subscription fee, only relevant roles.
+</p>
+
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" class="cta-table">
+  <tr>
+    <td style="background-color:#5465FF; border-radius:6px;">
+      <a href="{{ confirm_url }}" target="_blank" class="cta-a" style="display:inline-block; padding:14px 32px; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:15px; font-weight:700; color:#FFFFFF;">Confirm My Spot</a>
+    </td>
+  </tr>
+</table>
+
+<p style="margin:28px 0 0; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:12px; line-height:1.6; color:#9AA0B4;">
+  If you didn't request this, you can safely ignore this email.
+</p>
+{% endblock %}

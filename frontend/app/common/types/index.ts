@@ -22,8 +22,8 @@ export type ApiResponse<T> = ApiResponseWithSuccess<T> | ApiResponseWithError;
 export type PagedResource<T> = {
   current: number;
   count: number;
-  next?: number | string;
-  previous?: number | string;
+  next?: number | string | null;
+  previous?: number | string | null;
   results: T[];
 };
 
@@ -1310,6 +1310,11 @@ export type GetPipelineResponse = {
   total_in_pipeline: number;
   total_contacted: number;
   total_new: number;
+  total_interested: number;
+  current: number;
+  count: number;
+  next: number | null;
+  previous: number | null;
   entries: PipelineEntry[];
 };
 

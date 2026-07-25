@@ -3,10 +3,10 @@
 We've got your application.
 
 Thanks, {{ first_name|default:"Amara" }}. Your application is in front of the
-{{ company|default:"Paystack" }} team. Here's what happens next.
+{{ company|default:"The hiring team" }} team. Here's what happens next.
 
   Role:      {{ role|default:"Senior Frontend Engineer" }}
-  Company:   {{ company|default:"Paystack" }}
+  Company:   {{ company|default:"The hiring team" }}
   Submitted: {{ submitted|default:"Jun 12, 2026" }}
 
 What happens next:

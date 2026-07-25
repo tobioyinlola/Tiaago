@@ -24,6 +24,8 @@ import { cn, handleFormSubmissionError } from "@/app/common/utils";
 import { Button } from "@/app/common/components/ui/button";
 import {
   ID,
+  ISearchParams,
+  PagedResource,
   ServerCandidate,
   SourcingSearchInput,
   Talent,
@@ -50,11 +52,13 @@ import {
 import { useAlert } from "@/app/common/store/useAlert";
 
 const Sourcing = ({
-  talents,
+  talentsRes,
   roles,
+  searchParams,
 }: {
-  talents: Talent[];
+  talentsRes: PagedResource<Talent> | null;
   roles: TalentRole[];
+  searchParams?: ISearchParams;
 }) => {
   const setAlert = useAlert(s => s.setAlert);
 
@@ -436,7 +440,11 @@ const Sourcing = ({
         </TabsContent>
 
         <TabsContent value='vetted' className='mt-0'>
-          <VettedTalentsTab talents={talents} roles={roles} />
+          <VettedTalentsTab
+            talentsRes={talentsRes}
+            roles={roles}
+            searchParams={searchParams}
+          />
         </TabsContent>
       </Tabs>
 

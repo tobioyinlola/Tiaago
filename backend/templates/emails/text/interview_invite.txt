@@ -1,13 +1,13 @@
 {% autoescape off %}INTERVIEW INVITATION
 
-You're interviewing with {{ company|default:"Paystack" }}.
+You're interviewing with {{ company|default:"The hiring team" }}.
 
 Great news, {{ first_name|default:"Amara" }}. Your profile stood out and the
 team would like to meet you. Here are the details for your live, AI-assisted
 interview.
 
   Role:    {{ role|default:"Senior Frontend Engineer" }}
-  Company: {{ company|default:"Paystack" }}
+  Company: {{ company|default:"The hiring team" }}
   When:    {{ when|default:"Thu, Jun 19 - 2:00 PM WAT" }}
   Format:  {{ format|default:"Live AI interview - 45 min" }}
 

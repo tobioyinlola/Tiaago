@@ -584,6 +584,15 @@ class TalentListView(APIView, PaginationHandlerMixin):
             queryset = queryset.filter(user__verified=True)
         elif approval_filter == "false":
             queryset = queryset.filter(user__verified=False)
+
+        role_filter = extract_query_from_request(request, "role")
+        if role_filter and role_filter != "all":
+            queryset = queryset.filter(role__title__iexact=role_filter)
+
+        experience_filter = extract_query_from_request(request, "experience_level")
+        if experience_filter and experience_filter != "all":
+            queryset = queryset.filter(experience_level__icontains=experience_filter)
+
         paginated_queryset = self.paginate_queryset(queryset)
         data = TalentForUserProfileSerializer(paginated_queryset, many=True).data
         response = self.get_paginated_response(data)
@@ -661,7 +670,9 @@ class UserProfileView(RetrieveUpdateAPIView):
 
         instance = self.get_object()
         serializer_class = self.get_serializer_class()
-        serializer = serializer_class(instance, data=request.data, partial=True)
+        serializer = serializer_class(
+            instance, data=request.data, partial=True, context={"request": request}
+        )
         serializer.is_valid(raise_exception=True)
         print(serializer.validated_data)
         serializer.save()

@@ -3,6 +3,7 @@ import DisplayErrorMessages, {
   DisplayErrorMessagesProps,
 } from "@/app/common/components/DisplayErrorMessages";
 import { getCategories, getPipeline } from "@/app/common/services/sourcing";
+import { ISearchParams } from "@/app/common/types";
 import Pipeline from "../_components/Pipeline";
 
 export const metadata = {
@@ -11,16 +12,22 @@ export const metadata = {
 
 const PipelineDetailPage = async ({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<ISearchParams>;
 }) => {
   const { id } = await params;
+  const resolvedSearchParams = await searchParams;
   const errors: DisplayErrorMessagesProps["errors"] = [];
   const isAll = id === "all";
 
   const categoryId = isAll ? undefined : id;
+  const search = typeof resolvedSearchParams.search === "string" ? resolvedSearchParams.search : undefined;
+  const status = typeof resolvedSearchParams.status === "string" ? resolvedSearchParams.status : undefined;
+  const page = resolvedSearchParams.page ? Number(resolvedSearchParams.page) : undefined;
 
-  const pipeline = await getPipeline(categoryId).catch(async e => {
+  const pipeline = await getPipeline(categoryId, { search, status, page }).catch(async e => {
     const error = await handleServerApiCallError(e);
     console.log("Get pipeline error (pipeline detail): ", error);
     errors.push({
@@ -43,6 +50,7 @@ const PipelineDetailPage = async ({
         pipeline={pipeline}
         categoryName={categoryName}
         categoryId={categoryId}
+        searchParams={resolvedSearchParams}
       />
       <DisplayErrorMessages errors={errors} />
     </>

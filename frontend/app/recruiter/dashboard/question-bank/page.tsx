@@ -9,6 +9,7 @@ import DisplayErrorMessages, {
 import { EmptyStateV3 } from "@/app/common/components/dashboard/EmptyState";
 import { ISearchParams } from "@/app/common/types";
 import BundleCard from "./_components/BundleCard";
+import ServerPagination from "@/app/common/components/ServerPagination";
 
 export const metadata = {
   title: "Question Bank",
@@ -22,6 +23,10 @@ const QuestionBank = async ({ searchParams }: Props) => {
   const resolvedSearchParams = await searchParams;
   const roleFilter =
     typeof resolvedSearchParams.role === "string" ? resolvedSearchParams.role : undefined;
+  const _page = resolvedSearchParams.page
+    ? parseInt(resolvedSearchParams.page as string)
+    : 1;
+  const page = isNaN(_page) ? 1 : _page;
 
   const errors: DisplayErrorMessagesProps["errors"] = [];
   const talentRoles = await getTalentRoles().catch(async e => {
@@ -29,13 +34,15 @@ const QuestionBank = async ({ searchParams }: Props) => {
     errors.push({ message: error, title: "Error getting roles" });
     return [];
   });
-  const { results: bundles } = await listAssessmentBundles(
-    roleFilter ? { role: roleFilter } : undefined
-  ).catch(async e => {
+  const bundlesRes = await listAssessmentBundles({
+    ...(roleFilter ? { role: roleFilter } : {}),
+    page,
+  }).catch(async e => {
     const error = await handleServerApiCallError(e);
     errors.push({ message: error, title: "Error getting question bank" });
-    return { results: [] };
+    return null;
   });
+  const bundles = bundlesRes?.results ?? [];
 
   return (
     <div className='flex-1 flex flex-col'>
@@ -82,6 +89,12 @@ const QuestionBank = async ({ searchParams }: Props) => {
           {bundles.map(bundle => (
             <BundleCard key={bundle.id} {...bundle} />
           ))}
+        </div>
+      )}
+
+      {!!bundlesRes && (
+        <div className='mt-6'>
+          <ServerPagination pagedResource={bundlesRes} searchParams={resolvedSearchParams} />
         </div>
       )}
 

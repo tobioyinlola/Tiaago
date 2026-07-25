@@ -1470,12 +1470,19 @@ export const deletePipelineEntry = async (id: ID) => {
   }
 };
 
-export const getPipeline = async (categoryId?: string) => {
-  const url = categoryId
-    ? `sourcing/pipeline/?category=${categoryId}`
-    : "sourcing/pipeline/";
+export const getPipeline = async (
+  categoryId?: string,
+  params?: { search?: string; status?: string; page?: number; page_size?: number }
+) => {
+  const searchParams: Record<string, string> = {};
+  if (categoryId) searchParams.category = categoryId;
+  if (params?.search) searchParams.search = params.search;
+  if (params?.status && params.status !== "all") searchParams.status = params.status;
+  if (params?.page) searchParams.page = String(params.page);
+  if (params?.page_size) searchParams.page_size = String(params.page_size);
+
   const data = await serverKyInstance
-    .get<GetPipelineResponse>(url)
+    .get<GetPipelineResponse>("sourcing/pipeline/", { searchParams })
     .json();
   return data;
 };

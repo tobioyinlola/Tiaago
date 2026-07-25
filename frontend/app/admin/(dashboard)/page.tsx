@@ -1,13 +1,10 @@
 import { Metadata } from "next";
 
 import { getCurrentUser } from "@/app/common/services/profile";
-import { getAdminMetrics } from "@/app/common/services/metrics";
 import { getOverviewMetrics } from "@/app/common/services/overview";
-import { cn, getMetricPercentageChange } from "../../common/utils";
-import MetricItem from "@/app/common/components/dashboard/MetricItem";
-import ChartContainer from "@/app/common/components/dashboard/charts/ChartContainer";
 import MorningDigest from "@/app/common/components/dashboard/MorningDigest";
 import StatCard from "@/app/common/components/dashboard/StatCard";
+import ChartContainer from "@/app/common/components/dashboard/charts/ChartContainer";
 import DashboardLineChart from "@/app/common/components/dashboard/charts/DashboardLineChart";
 import DashboardBarChart from "@/app/common/components/dashboard/charts/DashboardBarChart";
 
@@ -16,9 +13,8 @@ export const metadata: Metadata = {
 };
 
 const AdminDashboard = async () => {
-  const [{ currentUser }, dashboardMetrics, overview] = await Promise.all([
+  const [{ currentUser }, overview] = await Promise.all([
     getCurrentUser("staff"),
-    getAdminMetrics(),
     getOverviewMetrics(),
   ]);
 
@@ -101,33 +97,6 @@ const AdminDashboard = async () => {
             />
           </div>
         </section>
-
-        {Object.entries(dashboardMetrics).map(([title, metrics]) => (
-          <div className='mt-8' key={title}>
-            <h3 className='text-gray-900 text-lg font-medium'>{title}</h3>
-            <div
-              className={cn(
-                "my-8 gap-6 grid grid-cols-1",
-                metrics.length > 1 && "sm:grid-cols-2",
-                metrics.length > 2 && "lg:grid-cols-3"
-              )}
-            >
-              {metrics.map(metric => (
-                <MetricItem
-                  key={metric.title}
-                  title={metric.title}
-                  currentVal={metric.current_value}
-                  data={[metric.value_last_month, metric.value_this_month]}
-                  percentChange={getMetricPercentageChange(
-                    metric.value_this_month,
-                    metric.value_last_month
-                  )}
-                  valueLastMonth={metric.value_last_month}
-                />
-              ))}
-            </div>
-          </div>
-        ))}
       </ChartContainer>
     </>
   );

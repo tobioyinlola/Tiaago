@@ -15,6 +15,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
 
+from base.mixins.pagination import PaginationHandlerMixin, TiaagoPagination
 from .models import GmailSmtpConfig, OutreachEmail, PipelineCandidate, PipelineCategory, PipelineInviteLink
 from .serializers import (
     AddToPipelineSerializer,
@@ -46,15 +47,23 @@ def _is_viewer(request):
     return membership and membership.role == CompanyTeamMember.ROLE.VIEWER
 
 
-class PipelineListView(APIView):
+class PipelineListView(APIView, PaginationHandlerMixin):
+    """Candidate list for a pipeline (or "all" pipelines when no category is
+    given). total_in_pipeline/total_new/total_contacted always describe the
+    whole category+search-filtered set (not just the current status filter
+    or page), matching the KPI cards shown alongside the table; `entries`
+    is paginated and additionally narrowed by `status` if given."""
+
     permission_classes = [IsAuthenticated]
+    pagination_class = TiaagoPagination
 
     def get(self, request):
         company = _get_company(request)
         if not company:
-            return Response(
-                {"total_in_pipeline": 0, "total_new": 0, "total_contacted": 0, "entries": []},
-            )
+            return Response({
+                "total_in_pipeline": 0, "total_new": 0, "total_contacted": 0, "total_interested": 0,
+                "current": 1, "count": 0, "next": None, "previous": None, "entries": [],
+            })
 
         qs = PipelineCandidate.objects.filter(company=company)
 
@@ -66,17 +75,29 @@ class PipelineListView(APIView):
         if search:
             qs = qs.filter(name__icontains=search)
 
-        entries = PipelineCandidateSerializer(qs, many=True).data
+        total = qs.count()
+        total_new = qs.filter(status=PipelineCandidate.Status.NEW).count()
+        total_contacted = qs.filter(status=PipelineCandidate.Status.CONTACTED).count()
+        total_interested = qs.filter(status=PipelineCandidate.Status.INTERESTED).count()
 
-        total = len(entries)
-        total_new = sum(1 for e in entries if e["status"] == "new")
-        total_contacted = sum(1 for e in entries if e["status"] == "contacted")
+        status_filter = request.query_params.get("status")
+        if status_filter and status_filter != "all":
+            qs = qs.filter(status=status_filter)
+
+        page = self.paginate_queryset(qs.order_by("-created_at"))
+        entries = PipelineCandidateSerializer(page, many=True).data
+        paginated = self.get_paginated_response(entries)
 
         return Response({
             "total_in_pipeline": total,
             "total_new": total_new,
             "total_contacted": total_contacted,
-            "entries": entries,
+            "total_interested": total_interested,
+            "current": paginated["current"],
+            "count": paginated["count"],
+            "next": paginated["next"],
+            "previous": paginated["previous"],
+            "entries": paginated["results"],
         })
 
 

@@ -117,6 +117,11 @@ class JobPagination(PageNumberPagination):
     page_size_query_param = 'page_size'
     max_page_size = 100
 
+    def get_paginated_response(self, data):
+        response = super().get_paginated_response(data)
+        response.data["current"] = self.page.number
+        return response
+
 
 @method_decorator(cache_page(60), name="dispatch")
 class JobDetailView(RetrieveAPIView):
@@ -302,7 +307,25 @@ class JobListCreateView(ListCreateAPIView):
                 {"detail": "The user does not have an associated company"},
                 status=HTTP_400_BAD_REQUEST,
             )
-        serializer.save(company=company, job_status=Job.JobStatus.ACTIVE)
+        job = serializer.save(company=company, job_status=Job.JobStatus.ACTIVE)
+
+        # Talent Network matching is a fully automatic background process --
+        # no recruiter-facing control, it just runs on every publish. Role
+        # category isn't collected in the wizard (recruiters only ever type
+        # the plain job title, same as always), so it's inferred here from
+        # that title -- see talent_network.role_classifier for why blank
+        # would otherwise permanently disqualify every job from matching.
+        from talent_network.models import JobMatchNotification
+        from talent_network.role_classifier import classify_role_category
+        from talent_network.tasks import run_talent_network_matching
+
+        if not job.role_category:
+            job.role_category = classify_role_category(job.role)
+            job.save(update_fields=["role_category"])
+
+        if not JobMatchNotification.objects.filter(job=job).exists():
+            run_talent_network_matching.delay(job.id, notify=True)
+
         return Response(serializer.data, status=HTTP_201_CREATED)
 
 
@@ -343,7 +366,6 @@ class JobDraftSaveView(GenericAPIView):
             return Response({"detail": "The user does not have an associated company"}, status=HTTP_400_BAD_REQUEST)
         deleted, _ = Job.objects.filter(company=company, job_status=Job.JobStatus.DRAFT).delete()
         return Response(status=HTTP_204_NO_CONTENT if deleted else HTTP_404_NOT_FOUND)
-
 
 
 class GenerateAssessmentQuestionsView(APIView):

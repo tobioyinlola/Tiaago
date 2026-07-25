@@ -7,6 +7,7 @@ import {
   jobTypeEnumToLabel,
 } from "@/app/common/utils";
 import { richtextValidationSchema } from "@/app/common/constants/validationSchemas";
+import { WORK_TYPE_OPTIONS } from "@/app/common/constants/talent-network";
 
 export const jobBasicDetailsValidationSchema = Yup.object().shape({
   role: Yup.string().required().label("Job title/position"),
@@ -29,6 +30,8 @@ export const jobBasicDetailsValidationSchema = Yup.object().shape({
   payment_currency: Yup.string().required().label("Currency"),
   experience: Yup.number().required().min(0).label("Experience"),
   location: Yup.string().required().label("Location"),
+  work_mode: Yup.string().label("Work mode"),
+  country: Yup.string().label("Country"),
 });
 
 export const companyDescriptionValidationSchema = Yup.object().shape({
@@ -94,6 +97,18 @@ export const jobBasicDetailsFormFields: FormField<JobBasicDetailsFormValues>[] =
       name: "location",
       label: "Location",
       className: "md:w-[48%] [&_input]:w-full",
+    },
+    {
+      name: "country",
+      label: "Country",
+      className: "md:w-[48%] [&_input]:w-full",
+    },
+    {
+      name: "work_mode",
+      label: "Work Mode",
+      type: "select",
+      className: "md:w-[48%] [&_input]:w-full",
+      selectFieldProps: { options: WORK_TYPE_OPTIONS },
     },
 
     {
@@ -182,6 +197,9 @@ export const initialValues: InitialValues = {
   // @ts-ignore
   job_type: "",
   location: "",
+  // @ts-ignore
+  work_mode: "",
+  country: "",
   description: "",
   payment_currency: "USD",
   // @ts-ignore

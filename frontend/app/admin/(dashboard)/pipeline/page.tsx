@@ -10,14 +10,26 @@ import DataTable, { DataTableColumn } from "@/app/common/components/dashboard/Da
 import ChartContainer from "@/app/common/components/dashboard/charts/ChartContainer";
 import DashboardLineChart from "@/app/common/components/dashboard/charts/DashboardLineChart";
 import DashboardDonutChart from "@/app/common/components/dashboard/charts/DashboardDonutChart";
+import ServerPagination from "@/app/common/components/ServerPagination";
+import { ISearchParams } from "@/app/common/types";
 
 export const metadata = {
   title: "Pipeline and Talent Pool",
 };
 
-const PipelinePage = async () => {
+const PipelinePage = async ({
+  searchParams,
+}: {
+  searchParams: Promise<ISearchParams>;
+}) => {
   const errors: DisplayErrorMessagesProps["errors"] = [];
-  const pipeline = await getPipelineSummary().catch(async e => {
+  const resolvedSearchParams = await searchParams;
+  const _page = resolvedSearchParams.page
+    ? parseInt(resolvedSearchParams.page as string)
+    : 1;
+  const zeroPipelinePage = isNaN(_page) ? 1 : _page;
+
+  const pipeline = await getPipelineSummary(zeroPipelinePage).catch(async e => {
     const error = await handleServerApiCallError(e);
     console.log("Get pipeline summary error (admin pipeline): ", error);
     errors.push({ title: "Error getting pipeline data", message: error });
@@ -32,7 +44,7 @@ const PipelinePage = async () => {
     new Date(d.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })
   );
 
-  type ZeroPipelineOrg = (typeof pipeline.orgs_with_zero_pipeline_entries)[number];
+  type ZeroPipelineOrg = (typeof pipeline.orgs_with_zero_pipeline_entries.results)[number];
   const zeroPipelineColumns: DataTableColumn<ZeroPipelineOrg>[] = [
     { key: "company_name", header: "Organisation", render: r => r.company_name, className: "text-left" },
     { key: "date_joined", header: "Joined", render: r => format(new Date(r.date_joined), "MMM dd, yyyy") },
@@ -55,8 +67,8 @@ const PipelinePage = async () => {
         <StatCard label='Avg pipeline size per active org' value={pipeline.avg_pipeline_size_per_active_org} />
         <StatCard
           label='Orgs with zero pipeline entries'
-          value={pipeline.orgs_with_zero_pipeline_entries.length}
-          alert={pipeline.orgs_with_zero_pipeline_entries.length > 0}
+          value={pipeline.orgs_with_zero_pipeline_entries.count}
+          alert={pipeline.orgs_with_zero_pipeline_entries.count > 0}
         />
       </div>
 
@@ -84,9 +96,13 @@ const PipelinePage = async () => {
       </p>
       <DataTable
         columns={zeroPipelineColumns}
-        data={pipeline.orgs_with_zero_pipeline_entries}
+        data={pipeline.orgs_with_zero_pipeline_entries.results}
         rowKey={r => r.id}
         emptyText='Every organisation has at least one pipeline entry'
+      />
+      <ServerPagination
+        pagedResource={pipeline.orgs_with_zero_pipeline_entries}
+        searchParams={resolvedSearchParams}
       />
     </>
   );
