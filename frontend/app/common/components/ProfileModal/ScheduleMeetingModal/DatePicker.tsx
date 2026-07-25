@@ -86,7 +86,7 @@ const DatePicker = ({
                 </p>
                 <p className='font-semibold text-2xl'>{day}</p>
                 {isSameDay(today, currentDate) && (
-                  <span className='w-2 h-2 bg-blue-600 rounded-full absolute top-1 right-1' />
+                  <span className='w-2 h-2 bg-primary rounded-full absolute top-1 right-1' />
                 )}
               </button>
             );

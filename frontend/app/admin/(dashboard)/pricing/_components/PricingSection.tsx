@@ -60,7 +60,7 @@ const PricingField = ({
             value={value}
             onChange={e => setValue(e.target.value)}
             disabled={!canManage}
-            className="w-full pl-7 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-gray-50 disabled:text-gray-500"
+            className="w-full pl-7 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-gray-50 disabled:text-gray-500"
           />
         </div>
         {field.suffix && <span className="block text-xs text-gray-500 mt-1">{field.suffix}</span>}
@@ -76,7 +76,7 @@ const PricingField = ({
           type="button"
           onClick={handleSave}
           disabled={saving}
-          className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 whitespace-nowrap"
+          className="px-4 py-2 bg-primary text-white text-sm font-medium rounded-lg hover:bg-primary-dark transition-colors disabled:opacity-50 whitespace-nowrap"
         >
           {saving ? "Saving..." : "Save"}
         </button>
