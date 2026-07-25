@@ -87,12 +87,18 @@ class PayStackSubscriptionHandler(APIHandler):
             response = self.requests.post(url, json=data, headers=headers)
             result = response.json()
             logger.debug(f"Paystack Fund Wallet Response: {result}")
-            
+
             if response.status_code == 200 or result.get("status") is True:
                 logger.info(f"Wallet funding initialized successfully: {result['data'].get('reference')}")
-                return result 
             else:
                 logger.error(f"Error initializing wallet funding: {result}")
+            # Always return the parsed Paystack response (success or failure)
+            # instead of implicitly returning None here -- callers rely on
+            # response.get("status")/.get("data"), and a bare None crashes
+            # that with an unrelated AttributeError, hiding the real
+            # Paystack-reported reason (e.g. secret_key_invalid) behind a
+            # generic 500.
+            return result
         except Exception as e:
             logger.error(f"Request error: {e}")
-            return None
+            return {"status": False, "message": str(e)}

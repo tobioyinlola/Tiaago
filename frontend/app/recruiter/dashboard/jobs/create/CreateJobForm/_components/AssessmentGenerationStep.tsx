@@ -241,9 +241,9 @@ const AssessmentGenerationStep = ({
               onClick={() => setSourcePickerOpen(true)}
               disabled={status === "generating"}
               className='btn btn-outline gap-2 disabled:opacity-70'
-              title='Reuse questions from an assessment you already built, or the question bank'
+              title='Reuse a saved assessment you already built, or the question bank'
             >
-              <FolderOpen className='h-4 w-4' /> Use Existing Source
+              <FolderOpen className='h-4 w-4' /> Saved Assessment
             </button>
             <button
               type='button'
@@ -293,7 +293,7 @@ const AssessmentGenerationStep = ({
                 onClick={() => setSourcePickerOpen(true)}
                 className='btn btn-outline gap-2'
               >
-                <FolderOpen className='h-4 w-4' /> Use Existing Source Instead
+                <FolderOpen className='h-4 w-4' /> Saved Assessment
               </button>
             </div>
           </div>
@@ -311,7 +311,7 @@ const AssessmentGenerationStep = ({
               onClick={() => setSourcePickerOpen(true)}
               className='btn btn-outline btn-sm gap-2'
             >
-              <FolderOpen className='h-4 w-4' /> Use Existing Source
+              <FolderOpen className='h-4 w-4' /> Saved Assessment
             </button>
           </div>
         )}

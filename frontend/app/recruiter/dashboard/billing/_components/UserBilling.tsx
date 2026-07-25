@@ -342,7 +342,7 @@ const UserBilling = ({
                 <select
                   value={currency}
                   onChange={e => setCurrency(e.target.value as Currency)}
-                  className='px-2 sm:px-3 py-1.5 sm:py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500'
+                  className='px-2 sm:px-3 py-1.5 sm:py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary'
                 >
                   <option value='USD'>USD ($)</option>
                   <option value='EUR'>EUR (€)</option>
@@ -366,7 +366,7 @@ const UserBilling = ({
           )}
 
           <div className='grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4 sm:mb-6'>
-            <div className='bg-gradient-to-br from-indigo-600 to-indigo-700 rounded-xl p-4 sm:p-5 text-white'>
+            <div className='bg-gradient-to-br from-primary to-primary-dark rounded-xl p-4 sm:p-5 text-white'>
               <div className='flex items-center justify-between mb-3'>
                 <span className='text-xs sm:text-sm font-medium opacity-90'>
                   Wallet Balance
@@ -390,7 +390,7 @@ const UserBilling = ({
               </div>
               <button
                 onClick={() => setShowFundModal(true)}
-                className='w-full bg-white text-indigo-600 font-medium py-2 sm:py-2.5 text-sm sm:text-base rounded-lg hover:bg-gray-50 transition-colors flex items-center justify-center gap-2'
+                className='w-full bg-white text-primary font-medium py-2 sm:py-2.5 text-sm sm:text-base rounded-lg hover:bg-gray-50 transition-colors flex items-center justify-center gap-2'
               >
                 <CreditCard size={18} />
                 Fund Wallet
@@ -476,7 +476,7 @@ const UserBilling = ({
                 </p>
                 <button
                   onClick={() => setShowAutoRechargeSetup(true)}
-                  className='px-4 py-2 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 transition-colors'
+                  className='px-4 py-2 bg-primary text-white font-medium rounded-lg hover:bg-primary-dark transition-colors'
                 >
                   Set Up Auto-Recharge
                 </button>
@@ -488,7 +488,7 @@ const UserBilling = ({
             <div className='px-6 py-4 border-b border-gray-200'>
               <div className='flex items-center justify-between'>
                 <div className='flex items-center gap-2'>
-                  <BarChart3 size={20} className='text-indigo-600' />
+                  <BarChart3 size={20} className='text-primary' />
                   <h2 className='text-lg font-semibold text-gray-900'>
                     Monthly Usage Overview
                   </h2>
@@ -496,7 +496,7 @@ const UserBilling = ({
                 {/* <select
                   value={selectedMonth}
                   onChange={e => setSelectedMonth(Number(e.target.value))}
-                  className='px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500'
+                  className='px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary'
                 >
                   {MOCK_MONTHLY_USAGE.map((month, index) => (
                     <option key={month.month} value={index}>
@@ -613,7 +613,7 @@ const UserBilling = ({
                       </g>
                     </svg>
                     <div className='absolute inset-0 flex flex-col items-center justify-center'>
-                      <div className='text-5xl font-bold bg-gradient-to-br from-indigo-600 via-indigo-700 to-indigo-800 bg-clip-text text-transparent'>
+                      <div className='text-5xl font-bold bg-gradient-to-br from-primary via-primary to-primary-dark bg-clip-text text-transparent'>
                         {totalUsage}
                       </div>
                       <div className='text-xs font-semibold text-gray-500 mt-2 tracking-wide uppercase'>
@@ -627,7 +627,7 @@ const UserBilling = ({
                   <div>
                     <div className='flex items-center justify-between mb-3'>
                       <div className='flex items-center gap-2'>
-                        <div className='w-3 h-3 rounded-full bg-gradient-to-br from-indigo-500 to-indigo-600 shadow-sm'></div>
+                        <div className='w-3 h-3 rounded-full bg-gradient-to-br from-primary/80 to-primary shadow-sm'></div>
                         <span className='text-sm font-medium text-gray-700'>
                           Resume Screenings
                         </span>
@@ -638,7 +638,7 @@ const UserBilling = ({
                     </div>
                     <div className='bg-gray-100 rounded-full h-2.5 overflow-hidden'>
                       <div
-                        className='bg-gradient-to-r from-indigo-500 to-indigo-600 h-2.5 rounded-full transition-all duration-1000 ease-out shadow-sm'
+                        className='bg-gradient-to-r from-primary/80 to-primary h-2.5 rounded-full transition-all duration-1000 ease-out shadow-sm'
                         style={{ width: `${screeningsPercentage}%` }}
                       ></div>
                     </div>
@@ -675,7 +675,7 @@ const UserBilling = ({
                       <span className='text-sm font-semibold text-gray-600 uppercase tracking-wide'>
                         Amount Spent
                       </span>
-                      <span className='text-3xl font-bold bg-gradient-to-r from-indigo-600 to-indigo-700 bg-clip-text text-transparent'>
+                      <span className='text-3xl font-bold bg-gradient-to-r from-primary to-primary-dark bg-clip-text text-transparent'>
                         {formatCurrency(currentMonthData.amount)}
                       </span>
                     </div>
@@ -687,7 +687,7 @@ const UserBilling = ({
 
           <div className='bg-white rounded-xl border border-gray-200 p-5 mb-4 sm:mb-6'>
             <div className='flex items-center gap-2 mb-1'>
-              <BellRing size={18} className='text-indigo-600' />
+              <BellRing size={18} className='text-primary' />
               <h3 className='text-lg font-semibold text-gray-900'>Low Balance Alerts</h3>
             </div>
             <p className='text-sm text-gray-600 mb-4'>
@@ -700,7 +700,7 @@ const UserBilling = ({
                   type='checkbox'
                   checked={lowBalanceEnabled}
                   onChange={e => setLowBalanceEnabled(e.target.checked)}
-                  className='w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500'
+                  className='w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary'
                 />
                 <span className='text-sm font-medium text-gray-700'>Enable low balance alerts</span>
               </label>
@@ -719,14 +719,14 @@ const UserBilling = ({
                     value={lowBalanceThreshold}
                     onChange={e => setLowBalanceThreshold(e.target.value)}
                     placeholder='0.00'
-                    className='w-full pl-7 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500'
+                    className='w-full pl-7 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary'
                   />
                 </div>
               </div>
               <button
                 onClick={handleSaveLowBalanceSettings}
                 disabled={savingLowBalance}
-                className='px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 whitespace-nowrap'
+                className='px-4 py-2 bg-primary text-white text-sm font-medium rounded-lg hover:bg-primary-dark transition-colors disabled:opacity-50 whitespace-nowrap'
               >
                 {savingLowBalance ? "Saving..." : "Save"}
               </button>
@@ -745,7 +745,7 @@ const UserBilling = ({
                     setTransactionsPage(1);
                     setTransactionTypeFilter(e.target.value as typeof transactionTypeFilter);
                   }}
-                  className='px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500'
+                  className='px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary'
                 >
                   <option value=''>All</option>
                   <option value='credit'>Credits</option>
@@ -809,7 +809,7 @@ const UserBilling = ({
                           </p>
                           <button
                             onClick={() => setShowFundModal(true)}
-                            className='px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition-colors'
+                            className='px-4 py-2 bg-primary text-white text-sm font-medium rounded-lg hover:bg-primary-dark transition-colors'
                           >
                             Fund Wallet
                           </button>
@@ -833,7 +833,7 @@ const UserBilling = ({
                               className={cn(
                                 "inline-flex items-center gap-1",
                                 isFreeCredit
-                                  ? "text-indigo-600"
+                                  ? "text-primary"
                                   : isCredit
                                     ? "text-green-600"
                                     : "text-red-600"
@@ -940,7 +940,7 @@ const UserBilling = ({
                   <select
                     value={fundCurrency}
                     onChange={e => setFundCurrency(e.target.value as Currency)}
-                    className='w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500'
+                    className='w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary'
                   >
                     <option value='USD'>USD - US Dollar ($)</option>
                     <option value='EUR'>EUR - Euro (€)</option>
@@ -964,7 +964,7 @@ const UserBilling = ({
                         onClick={() => handleFundWallet(amount)}
                         className={`p-4 border-2 rounded-xl text-center transition-all ${
                           selectedAmount === amount
-                            ? "border-indigo-600 bg-indigo-50"
+                            ? "border-primary bg-primary/5"
                             : "border-gray-200 hover:border-gray-300"
                         }`}
                       >
@@ -990,7 +990,7 @@ const UserBilling = ({
                       onClick={() => setSelectedProvider("paystack")}
                       className={`p-4 border-2 rounded-xl transition-all ${
                         selectedProvider === "paystack"
-                          ? "border-indigo-600 bg-indigo-50"
+                          ? "border-primary bg-primary/5"
                           : "border-gray-200 hover:border-gray-300"
                       }`}
                     >
@@ -1009,7 +1009,7 @@ const UserBilling = ({
                       onClick={() => setSelectedProvider("stripe")}
                       className={`p-4 border-2 rounded-xl transition-all ${
                         selectedProvider === "stripe"
-                          ? "border-indigo-600 bg-indigo-50"
+                          ? "border-primary bg-primary/5"
                           : "border-gray-200 hover:border-gray-300"
                       }`}
                     >
@@ -1032,7 +1032,7 @@ const UserBilling = ({
                   disabled={!selectedAmount || !selectedProvider || isFunding}
                   className={`w-full py-3 rounded-lg font-medium transition-colors flex items-center justify-center gap-2 ${
                     selectedAmount && selectedProvider
-                      ? "bg-indigo-600 text-white hover:bg-indigo-700"
+                      ? "bg-primary text-white hover:bg-primary-dark"
                       : "bg-gray-100 text-gray-400 cursor-not-allowed"
                   }`}
                 >
@@ -1102,7 +1102,7 @@ const UserBilling = ({
                     type='number'
                     value={editAmount}
                     onChange={e => setEditAmount(Number(e.target.value))}
-                    className='w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500'
+                    className='w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary'
                     min='10'
                   />
                 </div>
@@ -1115,7 +1115,7 @@ const UserBilling = ({
                     type='number'
                     value={editThreshold}
                     onChange={e => setEditThreshold(Number(e.target.value))}
-                    className='w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500'
+                    className='w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary'
                     min='1'
                   />
                 </div>
@@ -1129,7 +1129,7 @@ const UserBilling = ({
                   </button>
                   <button
                     onClick={handleSaveAutoRecharge}
-                    className='flex-1 px-4 py-3 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 transition-colors'
+                    className='flex-1 px-4 py-3 bg-primary text-white font-medium rounded-lg hover:bg-primary-dark transition-colors'
                   >
                     Save Changes
                   </button>
@@ -1167,7 +1167,7 @@ const UserBilling = ({
                     }
                   }}
                   placeholder='1234 5678 9012 3456'
-                  className='w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500'
+                  className='w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary'
                   maxLength={19}
                 />
               </div>
@@ -1181,7 +1181,7 @@ const UserBilling = ({
                   value={cardName}
                   onChange={e => setCardName(e.target.value)}
                   placeholder='John Doe'
-                  className='w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500'
+                  className='w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary'
                 />
               </div>
 
@@ -1200,7 +1200,7 @@ const UserBilling = ({
                       }
                     }}
                     placeholder='MM/YY'
-                    className='w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500'
+                    className='w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary'
                     maxLength={5}
                   />
                 </div>
@@ -1218,7 +1218,7 @@ const UserBilling = ({
                       }
                     }}
                     placeholder='123'
-                    className='w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500'
+                    className='w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary'
                     maxLength={3}
                   />
                 </div>
@@ -1235,7 +1235,7 @@ const UserBilling = ({
                     onChange={e =>
                       setNewAutoRechargeAmount(Number(e.target.value))
                     }
-                    className='w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500'
+                    className='w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary'
                     min='10'
                     placeholder='50'
                   />
@@ -1254,7 +1254,7 @@ const UserBilling = ({
                     onChange={e =>
                       setNewAutoRechargeThreshold(Number(e.target.value))
                     }
-                    className='w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500'
+                    className='w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary'
                     min='1'
                     placeholder='10'
                   />
@@ -1282,7 +1282,7 @@ const UserBilling = ({
               </button>
               <button
                 onClick={handleSetupAutoRecharge}
-                className='flex-1 px-4 py-3 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 transition-colors'
+                className='flex-1 px-4 py-3 bg-primary text-white font-medium rounded-lg hover:bg-primary-dark transition-colors'
               >
                 Enable Auto-Recharge
               </button>

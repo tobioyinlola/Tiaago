@@ -11,6 +11,10 @@ type Props = BasePageProps & {
   title: string;
   unconstrainedWidth?: boolean;
   hideSupport?: boolean;
+  /** Suppresses the "Don't/Already have an account? Sign Up/Log In" line --
+   * for pages that reuse this layout but aren't actually a signin/signup
+   * step (e.g. the talent network join form). */
+  hideAltLink?: boolean;
   className?: string;
   description?: string;
   containerClassName?: string;
@@ -31,6 +35,7 @@ const AuthFormPageWrapper = ({
   as = "recruiter",
   goBackHref,
   hideSupport,
+  hideAltLink,
   next,
 }: Props) => {
   const hrefSuffix = next ? `?next=${next}` : "";
@@ -127,21 +132,23 @@ const AuthFormPageWrapper = ({
                 <h1 className='text-2xl md:text-4xl font-semibold text-left font-onest text-black'>
                   {title}
                 </h1>
-                <p
-                  className={cn(
-                    "text-[#5F6264] text-sm font-onest mt-2 mb-8",
-                    altLinkClassName,
-                    href === `/recruiter/signup${hrefSuffix}` && "invisible"
-                  )}
-                >
-                  {isSignIn ? "Don't" : "Already"} have an account?{" "}
-                  <Link
-                    href={href}
-                    className='font-semibold text-primary hover:underline'
+                {!hideAltLink && (
+                  <p
+                    className={cn(
+                      "text-[#5F6264] text-sm font-onest mt-2 mb-8",
+                      altLinkClassName,
+                      href === `/recruiter/signup${hrefSuffix}` && "invisible"
+                    )}
                   >
-                    {!isSignIn ? "Log In" : "Sign Up"}
-                  </Link>
-                </p>
+                    {isSignIn ? "Don't" : "Already"} have an account?{" "}
+                    <Link
+                      href={href}
+                      className='font-semibold text-primary hover:underline'
+                    >
+                      {!isSignIn ? "Log In" : "Sign Up"}
+                    </Link>
+                  </p>
+                )}
               </div>
               {children}
             </div>

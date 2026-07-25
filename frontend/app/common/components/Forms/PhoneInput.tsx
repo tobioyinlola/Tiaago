@@ -27,6 +27,12 @@ const PhoneInputField = ({ name, placeholder, disabled }: Props) => {
             value={value}
             placeholder={placeholder}
             disabled={disabled}
+            // FormikField already renders a proper <label> above this field;
+            // react-phone-input-2's own built-in floating label ("Phone" by
+            // default) is redundant, and our position:static container/input
+            // overrides below break its absolute-positioned overlay, causing
+            // it to render as stray visible text next to the input instead.
+            specialLabel=""
             inputProps={{
               name,
               onBlur: () => setFieldTouched(name, true),

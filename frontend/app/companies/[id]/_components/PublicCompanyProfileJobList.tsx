@@ -126,7 +126,7 @@ const PublicCompanyProfileJobList = ({ jobs }: { jobs: Job[] }) => {
                   onClick={() =>
                     setSelectedJob(selectedJob === job.id ? null : job.id)
                   }
-                  className='w-full flex items-center justify-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3.5 bg-blue-600 hover:bg-blue-700 text-white text-sm sm:text-base font-semibold rounded-lg sm:rounded-xl transition-all shadow-lg shadow-blue-600/20 hover:shadow-xl hover:shadow-blue-600/30 group'
+                  className='w-full flex items-center justify-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3.5 bg-primary hover:bg-primary-dark text-white text-sm sm:text-base font-semibold rounded-lg sm:rounded-xl transition-all shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 group'
                 >
                   <span>View Details & Apply</span>
                   <ArrowRight

@@ -702,7 +702,7 @@ class FundWalletView(APIView):
                 response = paystack_handler.fund_wallet(
                     customer_email=request.user.email,
                     amount=amount,
-                )
+                ) or {}
                 if response.get("status") and response.get("data"):
                     reference = response["data"].get("reference")
                     data = {
@@ -717,11 +717,15 @@ class FundWalletView(APIView):
                     logger.debug(f"Paystack wallet funding session created successfully for user {request.user.email}")
                     return Response({'status': 'wallet funding session created', 'data': data}, status=status.HTTP_201_CREATED)
                 else:
-                    logger.error("Failed to create Paystack wallet funding session.")
-                    return Response({'error': 'Failed to create wallet funding session.'}, status=status.HTTP_400_BAD_REQUEST)
+                    # Surface Paystack's own reported reason (e.g. "secret_key_invalid",
+                    # a validation message) instead of a generic string -- this is
+                    # exactly the detail that was previously swallowed.
+                    provider_message = response.get("message") or "Paystack did not return a valid response."
+                    logger.error(f"Failed to create Paystack wallet funding session: {provider_message}")
+                    return Response({'error': provider_message}, status=status.HTTP_400_BAD_REQUEST)
             except Exception as e:
-                logger.error(f"Error creating Paystack wallet funding session: {e}")
-                return Response({'error': 'Error creating wallet funding session.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                logger.exception(f"Error creating Paystack wallet funding session for user {request.user.email}")
+                return Response({'error': f'Error creating wallet funding session: {e}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 # view to get wallet transaction based on user

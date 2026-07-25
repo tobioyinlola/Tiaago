@@ -163,9 +163,9 @@ const JobApplicationAssessmentLandingPage = async ({
           <div className='h-8' />
           {/* Welcome Section */}
           <div className='text-center mb-12'>
-            <div className='inline-flex items-center bg-blue-50 rounded-full px-6 py-3 mb-6 border border-blue-200'>
-              <User className='w-5 h-5 text-blue-600 mr-2' />
-              <span className='text-blue-700 font-medium'>
+            <div className='inline-flex items-center bg-primary/5 rounded-full px-6 py-3 mb-6 border border-primary/20'>
+              <User className='w-5 h-5 text-primary mr-2' />
+              <span className='text-primary font-medium'>
                 Welcome, {user.first_name}!
               </span>
             </div>
@@ -182,7 +182,7 @@ const JobApplicationAssessmentLandingPage = async ({
           {/* Assessment Card */}
           <div className='bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden mb-8'>
             {/* Card Header */}
-            <div className='bg-blue-600 text-white p-8'>
+            <div className='bg-primary text-white p-8'>
               <div className='flex items-center mb-4'>
                 <div className='w-16 h-16 bg-white bg-opacity-20 rounded-xl flex items-center justify-center mr-6'>
                   <Briefcase className='w-8 h-8' />
@@ -191,7 +191,7 @@ const JobApplicationAssessmentLandingPage = async ({
                   <h2 className='text-2xl font-bold mb-1'>
                     Assessment for {job.role_title}
                   </h2>
-                  <p className='text-blue-100 text-lg'>
+                  <p className='text-primary-content/80 text-lg'>
                     {job.company?.company_name} • {user.first_name}
                   </p>
                 </div>
@@ -201,12 +201,12 @@ const JobApplicationAssessmentLandingPage = async ({
             {/* Card Content */}
             <div className='p-8'>
               <div className='grid grid-cols-1 md:grid-cols-3 gap-6 mb-8'>
-                <div className='flex items-center p-6 bg-blue-50 rounded-xl border border-blue-200'>
-                  <div className='w-12 h-12 bg-blue-600 rounded-lg flex items-center justify-center mr-4'>
+                <div className='flex items-center p-6 bg-primary/5 rounded-xl border border-primary/20'>
+                  <div className='w-12 h-12 bg-primary rounded-lg flex items-center justify-center mr-4'>
                     <Clock className='w-6 h-6 text-white' />
                   </div>
                   <div>
-                    <div className='text-sm text-blue-600 font-medium'>
+                    <div className='text-sm text-primary font-medium'>
                       Duration
                     </div>
                     <div className='font-bold text-gray-900 text-lg'>
@@ -215,12 +215,12 @@ const JobApplicationAssessmentLandingPage = async ({
                   </div>
                 </div>
 
-                <div className='flex items-center p-6 bg-blue-50 rounded-xl border border-blue-200'>
-                  <div className='w-12 h-12 bg-blue-600 rounded-lg flex items-center justify-center mr-4'>
+                <div className='flex items-center p-6 bg-primary/5 rounded-xl border border-primary/20'>
+                  <div className='w-12 h-12 bg-primary rounded-lg flex items-center justify-center mr-4'>
                     <HelpCircle className='w-6 h-6 text-white' />
                   </div>
                   <div>
-                    <div className='text-sm text-blue-600 font-medium'>
+                    <div className='text-sm text-primary font-medium'>
                       Questions
                     </div>
                     <div className='font-bold text-gray-900 text-lg'>
@@ -229,12 +229,12 @@ const JobApplicationAssessmentLandingPage = async ({
                   </div>
                 </div>
 
-                <div className='flex items-center p-6 bg-blue-50 rounded-xl border border-blue-200'>
-                  <div className='w-12 h-12 bg-blue-600 rounded-lg flex items-center justify-center mr-4'>
+                <div className='flex items-center p-6 bg-primary/5 rounded-xl border border-primary/20'>
+                  <div className='w-12 h-12 bg-primary rounded-lg flex items-center justify-center mr-4'>
                     <Code className='w-6 h-6 text-white' />
                   </div>
                   <div>
-                    <div className='text-sm text-blue-600 font-medium'>
+                    <div className='text-sm text-primary font-medium'>
                       Coding Task
                     </div>
                     <div className='font-bold text-gray-900 text-lg'>
@@ -244,7 +244,7 @@ const JobApplicationAssessmentLandingPage = async ({
                 </div>
               </div>
 
-              <div className='bg-blue-50 rounded-xl p-6 mb-8 border border-blue-200'>
+              <div className='bg-primary/5 rounded-xl p-6 mb-8 border border-primary/20'>
                 <h3 className='text-xl font-bold text-gray-900 mb-4'>
                   What to Expect
                 </h3>
@@ -254,8 +254,8 @@ const JobApplicationAssessmentLandingPage = async ({
 
                 <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
                   <div className='flex items-start space-x-3'>
-                    <div className='w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center mt-0.5'>
-                      <CheckCircle className='w-4 h-4 text-blue-600' />
+                    <div className='w-6 h-6 bg-primary/10 rounded-full flex items-center justify-center mt-0.5'>
+                      <CheckCircle className='w-4 h-4 text-primary' />
                     </div>
                     <div>
                       <div className='font-medium text-gray-900'>
@@ -268,8 +268,8 @@ const JobApplicationAssessmentLandingPage = async ({
                   </div>
 
                   <div className='flex items-start space-x-3'>
-                    <div className='w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center mt-0.5'>
-                      <Shield className='w-4 h-4 text-blue-600' />
+                    <div className='w-6 h-6 bg-primary/10 rounded-full flex items-center justify-center mt-0.5'>
+                      <Shield className='w-4 h-4 text-primary' />
                     </div>
                     <div>
                       <div className='font-medium text-gray-900'>
@@ -282,8 +282,8 @@ const JobApplicationAssessmentLandingPage = async ({
                   </div>
 
                   <div className='flex items-start space-x-3'>
-                    <div className='w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center mt-0.5'>
-                      <Award className='w-4 h-4 text-blue-600' />
+                    <div className='w-6 h-6 bg-primary/10 rounded-full flex items-center justify-center mt-0.5'>
+                      <Award className='w-4 h-4 text-primary' />
                     </div>
                     <div>
                       <div className='font-medium text-gray-900'>
@@ -296,8 +296,8 @@ const JobApplicationAssessmentLandingPage = async ({
                   </div>
 
                   <div className='flex items-start space-x-3'>
-                    <div className='w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center mt-0.5'>
-                      <Zap className='w-4 h-4 text-blue-600' />
+                    <div className='w-6 h-6 bg-primary/10 rounded-full flex items-center justify-center mt-0.5'>
+                      <Zap className='w-4 h-4 text-primary' />
                     </div>
                     <div>
                       <div className='font-medium text-gray-900'>
@@ -312,10 +312,10 @@ const JobApplicationAssessmentLandingPage = async ({
               </div>
 
               {/* Important Notes */}
-              <div className='bg-blue-50 border border-blue-200 rounded-xl p-6 mb-8'>
+              <div className='bg-primary/5 border border-primary/20 rounded-xl p-6 mb-8'>
                 <div className='flex items-start space-x-3'>
-                  <div className='w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center mt-0.5'>
-                    <Star className='w-4 h-4 text-blue-600' />
+                  <div className='w-6 h-6 bg-primary/10 rounded-full flex items-center justify-center mt-0.5'>
+                    <Star className='w-4 h-4 text-primary' />
                   </div>
                   <div>
                     <h4 className='font-semibold text-gray-900 mb-2'>
@@ -360,16 +360,16 @@ const JobApplicationAssessmentLandingPage = async ({
                   vetting process
                 </p>
 
-                <div className='bg-blue-50 border border-blue-200 rounded-lg p-6 mb-8'>
-                  <h2 className='text-xl font-semibold text-blue-900 mb-3'>
+                <div className='bg-primary/5 border border-primary/20 rounded-lg p-6 mb-8'>
+                  <h2 className='text-xl font-semibold text-primary-dark mb-3'>
                     {assessment.title}
                   </h2>
-                  <p className='text-blue-800 mb-4'>
+                  <p className='text-primary-dark mb-4'>
                     {assessment.description ||
                       "Complete this assessment to demonstrate your skills and knowledge."}
                   </p>
 
-                  <div className='flex items-center justify-center gap-4 text-sm text-blue-700'>
+                  <div className='flex items-center justify-center gap-4 text-sm text-primary'>
                     <span>
                       ⏱️ Duration: {assessment.duration_minutes || 30} minutes
                     </span>
@@ -383,7 +383,7 @@ const JobApplicationAssessmentLandingPage = async ({
                 <div className='space-y-4'>
                   <Link
                     href={`/jobs/${job_id}/assessment/${assessment_id}/details`}
-                    className='inline-block w-full bg-blue-600 text-white py-3 px-6 rounded-lg font-semibold hover:bg-blue-700 transition-colors'
+                    className='inline-block w-full bg-primary text-white py-3 px-6 rounded-lg font-semibold hover:bg-primary-dark transition-colors'
                   >
                     Start Assessment
                   </Link>

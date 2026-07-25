@@ -83,7 +83,7 @@ const JobsPostedPage = async ({
                 {publicUrl}
               </div>
               <CopyToClipboard
-                className='flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors'
+                className='flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-white bg-primary rounded-lg hover:bg-primary-dark transition-colors'
                 text={publicUrl}
               >
                 Copy Link
