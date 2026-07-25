@@ -221,7 +221,7 @@ const BundleCsvUploadModal = ({ roles }: { roles: TalentRole[] }) => {
               Multiple-choice &amp; coding questions
             </h4>
             <p className="text-xs text-secondary-black mb-3">
-              Upload a CSV file to add MCQ or coding-task questions in bulk. Optional if you're
+              Upload a CSV file to add MCQ or coding-task questions in bulk. Optional if you&apos;re
               only adding open-ended questions below.
             </p>
             <input

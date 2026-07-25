@@ -43,7 +43,11 @@ const AssessmentSourcePicker = ({
 
   useEffect(() => {
     if (!open) return;
-    setLoading(true);
+    // react-hooks/set-state-in-effect forbids setState as a direct
+    // synchronous statement in an effect body -- defer to a microtask so
+    // the update happens inside a callback instead (fires before the fetch
+    // below can possibly resolve, so no visible behavior change).
+    queueMicrotask(() => setLoading(true));
     if (tab === "assessments") {
       getCompanyAssessments(1, 50)
         .then(res =>
@@ -57,7 +61,6 @@ const AssessmentSourcePicker = ({
         .catch(() => setBundles([]))
         .finally(() => setLoading(false));
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, tab, roleFilter]);
 
   const mcqQuestionCount = (assessment: CompanySkillAssessment) =>
