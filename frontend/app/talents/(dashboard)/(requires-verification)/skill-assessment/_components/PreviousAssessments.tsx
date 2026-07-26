@@ -81,7 +81,9 @@ const PreviousAssessments = ({
               <th className='max-md:hidden'>Skill Assessed</th>
               <th>Score Achieved</th>
               <th className='max-md:hidden'>Feedback</th>
-              <th className='max-md:hidden'>Case Study Project</th>
+              <th>
+                <span className='max-md:hidden'>Case Study Project</span>
+              </th>
               <th>Overall Status</th>
               <th />
             </tr>
@@ -126,8 +128,10 @@ const PreviousAssessments = ({
                       </span>
                     </td>
                     <td className='max-md:hidden'>-</td>
-                    <td className='max-md:hidden flex items-center gap-1'>
-                      {item.project_name ?? "-"}
+                    <td className='flex items-center gap-1'>
+                      <span className={cn(!!item.project_id && "max-md:hidden")}>
+                        {item.project_name ?? "-"}
+                      </span>
                       {!!item.project_id && (
                         <Link
                           href={`/talents/skill-assessment/case-study-project/select?id=${item.project_id}`}

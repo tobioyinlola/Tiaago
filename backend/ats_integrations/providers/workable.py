@@ -33,11 +33,13 @@ def _paginate(connection_id: str, endpoint: str, list_key: str) -> Iterator[dict
         data = proxy_get(
             connection_id=connection_id, provider_config_key=PROVIDER_CONFIG_KEY, endpoint=endpoint, params=params
         ).json()
+        if not isinstance(data, dict):
+            return
         items = data.get(list_key) or []
         if not items:
             return
         yield from items
-        next_url = (data.get("paging") or {}).get("next")
+        next_url = (data.get("paging") or {}).get("next") if isinstance(data.get("paging"), dict) else None
         since_id = extract_query_param(next_url, "since_id") if next_url else None
         if not since_id:
             return
@@ -57,7 +59,8 @@ def normalize_candidate(raw: dict[str, Any]) -> NormalizedCandidate:
     job = raw.get("job") or {}
     resume = raw.get("resume") or {}
     address = raw.get("address") or {}
-    social_profiles = raw.get("social_profiles") or []
+    source = raw.get("source")
+    social_profiles = [p for p in (raw.get("social_profiles") or []) if isinstance(p, dict)]
     linkedin = next(
         (p.get("url", "") for p in social_profiles if "linkedin" in (p.get("type") or "").lower()), ""
     )
@@ -77,7 +80,7 @@ def normalize_candidate(raw: dict[str, Any]) -> NormalizedCandidate:
         phone=raw.get("phone") or "",
         resume_url=raw.get("resume_url") or resume.get("url") or "",
         stage=raw.get("stage") or "",
-        source=(raw.get("source") or {}).get("name", ""),
+        source=source if isinstance(source, str) else (source or {}).get("name", "") if isinstance(source, dict) else "",
         tags=raw.get("tags") or [],
         ats_job_external_ids=[str(job["shortcode"])] if job.get("shortcode") else [],
         ats_created_at=raw.get("created_at"),

@@ -57,37 +57,39 @@ const JobList = ({
       {/* Search */}
       <form
         onSubmit={handleSearch}
-        className='flex items-center w-full font-dm-sans'
+        className='flex flex-col md:flex-row items-stretch md:items-center w-full gap-2 md:gap-0 font-dm-sans'
       >
-        <div className='relative flex-[0.8] md:flex-[0.45]'>
-          <FiSearch
-            className='absolute left-3 top-1/2 -translate-y-1/2 text-[#14141480] text-2xl'
-            aria-hidden
-          />
-          <input
-            type='text'
-            placeholder='What position are you looking for?'
-            className='input input-bordered pl-12 w-full text-base rounded-r-none placeholder:text-[#14141480] focus:outline-none bg-white dark:bg-white'
-            onChange={e => setFilter("role", e.target.value)}
-            value={filters.role}
-          />
-        </div>
-        <div className='relative max-md:hidden flex-[0.45]'>
-          <PiMapPinLine
-            className='absolute left-3 top-1/2 -translate-y-1/2 text-[#14141480] text-2xl'
-            aria-hidden
-          />
-          <input
-            type='text'
-            placeholder='Location'
-            className='input input-bordered pl-12 w-full text-base rounded-none border-x-0 placeholder:text-[#14141480] focus:outline-none'
-            onChange={e => setFilter("location", e.target.value)}
-            value={filters.location}
-          />
+        <div className='grid grid-cols-2 md:contents gap-2'>
+          <div className='relative md:flex-[0.45]'>
+            <FiSearch
+              className='absolute left-3 top-1/2 -translate-y-1/2 text-[#14141480] text-2xl'
+              aria-hidden
+            />
+            <input
+              type='text'
+              placeholder='What position are you looking for?'
+              className='input input-bordered pl-12 w-full text-base rounded-lg md:rounded-r-none placeholder:text-[#14141480] focus:outline-none bg-white dark:bg-white'
+              onChange={e => setFilter("role", e.target.value)}
+              value={filters.role}
+            />
+          </div>
+          <div className='relative md:flex-[0.45]'>
+            <PiMapPinLine
+              className='absolute left-3 top-1/2 -translate-y-1/2 text-[#14141480] text-2xl'
+              aria-hidden
+            />
+            <input
+              type='text'
+              placeholder='Location'
+              className='input input-bordered pl-12 w-full text-base rounded-lg md:rounded-none md:border-x-0 placeholder:text-[#14141480] focus:outline-none'
+              onChange={e => setFilter("location", e.target.value)}
+              value={filters.location}
+            />
+          </div>
         </div>
         <button
           type='submit'
-          className='btn btn-primary text-base flex-[0.2] md:flex-[0.1] rounded-l-none font-medium'
+          className='btn btn-primary text-base w-full md:w-auto md:flex-[0.1] rounded-lg md:rounded-l-none font-medium'
         >
           Search Job
         </button>

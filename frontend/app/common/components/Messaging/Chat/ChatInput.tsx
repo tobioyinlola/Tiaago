@@ -191,9 +191,7 @@ const ChatInput = ({
         autoFocus
       />
       <div className='flex items-center justify-end md:pr-3 md:pb-3 gap-3'>
-        <div className='max-md:hidden'>
-          <EmojiPicker inputRef={inputRef} />
-        </div>
+        <EmojiPicker inputRef={inputRef} />
         <label className='cursor-pointer max-md:hidden'>
           <input type='file' name='file' className='hidden' />
           <IoLink className='text-3xl text-gray-500' />
