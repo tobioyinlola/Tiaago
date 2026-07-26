@@ -8,6 +8,8 @@ from .views import (
     TalentNetworkMemberDetailView,
     TalentNetworkMemberListView,
     TalentNetworkOverviewView,
+    TalentNetworkSmtpConfigView,
+    TalentNetworkSmtpVerifyView,
     TrackClickView,
     TrackOpenView,
 )
@@ -24,4 +26,6 @@ urlpatterns = [
     path("admin/members/export/", TalentNetworkExportCsvView.as_view(), name="talent-network-admin-members-export"),
     path("admin/members/<int:pk>/", TalentNetworkMemberDetailView.as_view(), name="talent-network-admin-member-detail"),
     path("admin/analytics/", TalentNetworkAnalyticsView.as_view(), name="talent-network-admin-analytics"),
+    path("admin/smtp-config/", TalentNetworkSmtpConfigView.as_view(), name="talent-network-admin-smtp-config"),
+    path("admin/smtp-config/verify/", TalentNetworkSmtpVerifyView.as_view(), name="talent-network-admin-smtp-verify"),
 ]

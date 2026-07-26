@@ -10,6 +10,7 @@ import BundleCsvUploadModal from "./_components/BundleCsvUploadModal";
 import DeleteBundleButton from "./_components/DeleteBundleButton";
 import ServerPagination from "@/app/common/components/ServerPagination";
 import { ISearchParams } from "@/app/common/types";
+import AddNewRole from "../../components/AddNewRole";
 
 export const metadata = {
   title: "Assessment Bundles",
@@ -47,7 +48,10 @@ const AdminBundlesPage = async ({
       <div className='border-b w-full border-gray-200 pb-1 mb-8'>
         <div className='flex items-center justify-between'>
           <h1 className='text-2xl font-bold mb-1 font-space-grotesk'>Assessment Bundles</h1>
-          <BundleCsvUploadModal roles={roles} />
+          <div className='flex items-center gap-2'>
+            <AddNewRole refresh buttonClassName='btn-primary btn-outline' />
+            <BundleCsvUploadModal roles={roles} />
+          </div>
         </div>
         <h4 className='text-gray-900 text-sm md:text-base'>
           Curated question packages recruiters can add to an assessment in one click -- upload a CSV to create one

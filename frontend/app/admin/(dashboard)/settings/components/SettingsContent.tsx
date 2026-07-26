@@ -7,6 +7,7 @@ import SecurityTab from "@/app/common/components/SecurityTab";
 import ClientTabs from "@/app/common/components/ClientTabs";
 import { Staff } from "@/app/common/types";
 import { ProfileInfoFormProps } from "./Tabs/ProfileTab/PersonalInfoForm";
+import EmailIntegrationTab from "./Tabs/EmailIntegrationTab";
 
 type SettingsContentProps = {
   groupedCountries: ProfileInfoFormProps["groupedCountries"];
@@ -30,6 +31,8 @@ const SettingsContent = ({ groupedCountries, serverProfile }: SettingsContentPro
             );
           case "security":
             return <SecurityTab />;
+          case "email":
+            return <EmailIntegrationTab />;
           default:
             return null;
         }

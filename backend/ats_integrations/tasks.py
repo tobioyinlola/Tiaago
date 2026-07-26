@@ -1,9 +1,14 @@
+import requests
 from celery import shared_task
+from django.core.files.base import ContentFile
 from django.utils import timezone
 from loguru import logger
 
+from jobs.models import JobApplication
+from jobs.tasks import carry_out_resume_analysis
+
 from . import nango_client
-from .models import AtsConnection
+from .models import AtsCandidate, AtsConnection
 from .providers import PROVIDER_REGISTRY
 from .services import upsert_candidate, upsert_job
 
@@ -74,3 +79,36 @@ def run_ats_sync(connection_id: int):
     connection.nango_connection_id = ""
     connection.disconnected_at = timezone.now()
     connection.save(update_fields=["nango_connection_id", "disconnected_at", "updated_at"])
+
+
+@shared_task(name="attach_ats_candidate_resume")
+def attach_ats_candidate_resume(job_application_id: int):
+    """Fetches a converted ATS candidate's resume_url and attaches it to
+    their TalentProfile.resume, so AI resume screening has something to
+    analyze. Runs async, after the JobApplication already exists, and is
+    best-effort: a slow/broken/expired third-party resume URL must never
+    block the recruiter's convert action or fail the conversion itself."""
+    application = JobApplication.objects.select_related("applicant__user", "job").filter(id=job_application_id).first()
+    if not application or application.applicant.resume:
+        return  # gone, or already has a resume -- never clobber a real upload
+
+    candidate = AtsCandidate.objects.filter(
+        company=application.job.company, email__iexact=application.applicant.user.email,
+    ).exclude(resume_url="").first()
+    if not candidate:
+        return
+
+    try:
+        resp = requests.get(candidate.resume_url, timeout=15)
+        resp.raise_for_status()
+        filename = candidate.resume_url.rstrip("/").split("/")[-1].split("?")[0] or f"resume-{candidate.id}"
+        application.applicant.resume.save(filename, ContentFile(resp.content), save=True)
+    except Exception as e:
+        logger.warning(f"attach_ats_candidate_resume: failed to fetch resume for application {job_application_id}: {e}")
+        return
+
+    if application.job.hires_with_ai:
+        try:
+            carry_out_resume_analysis.delay(application.id)
+        except Exception:
+            logger.exception(f"Failed to dispatch resume analysis for application {application.id}")

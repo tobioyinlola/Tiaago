@@ -177,6 +177,9 @@ export type Talent = BaseUser & {
 export type Recruiter = BaseUser & {
   bio?: string;
   role: string;
+  /** Human-readable role title (e.g. "Sourcing Lead") -- `role` itself is
+   * the slug, which isn't fit to display back to the user as-is. */
+  role_display?: string | null;
   size: string;
   company_name: string;
   company_email: string;
@@ -385,6 +388,26 @@ export type TalentRole = {
   title: string;
   is_technical: boolean;
   slug: string;
+};
+
+/** A job synced in from a connected ATS (Greenhouse, Lever, etc.) that
+ * hasn't been converted into a real job posting yet -- see
+ * ats_integrations.AtsJobSerializer on the backend. */
+export type AtsJob = {
+  id: ID;
+  provider: string;
+  external_id: string;
+  title: string;
+  description: string;
+  location: string;
+  department: string;
+  employment_type: string;
+  status: "OPEN" | "CLOSED" | "DRAFT" | "UNKNOWN";
+  salary_min: string | null;
+  salary_max: string | null;
+  salary_currency: string;
+  ats_created_at: string | null;
+  candidate_count: number;
 };
 
 export type GetProfileArgs = {
@@ -740,7 +763,11 @@ export type AssessmentBundleSampleQuestion = {
  * fit before adding it to an assessment. */
 export type AssessmentBundlePreview = AssessmentBundleSummary & {
   languages: string[];
-  question_type_breakdown: { MCQ: number; CODING_TASK: number; OPEN_ENDED: number };
+  question_type_breakdown: {
+    MCQ: number;
+    CODING_TASK: number;
+    OPEN_ENDED: number;
+  };
   sample_questions: AssessmentBundleSampleQuestion[];
 };
 
@@ -760,7 +787,11 @@ export type TalentQuestionBankCodingTask = {
   sample_output?: string;
   max_score?: number;
   time_limit?: number;
-  test_cases?: { input_data: string; expected_output: string; is_sample?: boolean }[];
+  test_cases?: {
+    input_data: string;
+    expected_output: string;
+    is_sample?: boolean;
+  }[];
 };
 
 export type TalentQuestionBankOpenEnded = {
@@ -813,7 +844,12 @@ export type ProctoringSettings = {
 export type AssessmentInviteDetail = {
   assessment_title: string;
   duration_minutes: number;
-  sections: { id: ID; name: string; type: "MCQ" | "CODING_TASK"; question_count: number }[];
+  sections: {
+    id: ID;
+    name: string;
+    type: "MCQ" | "CODING_TASK";
+    question_count: number;
+  }[];
   job_title: string | null;
   company_name: string | null;
   candidate_name: string;
@@ -876,7 +912,8 @@ export type SkillAssessmentResult = {
   } | null;
   candidate_name?: string | null;
   candidate_email?: string | null;
-  mark_status?: "Pending" | "Failed to Mark" | "Awaiting Manual Review" | "Marked";
+  mark_status?:
+    "Pending" | "Failed to Mark" | "Awaiting Manual Review" | "Marked";
   is_passed?: boolean;
   is_completed?: boolean;
 };
@@ -1074,10 +1111,7 @@ export type TalentProfileStatus = {
 };
 
 export type CompanyAccountType =
-  | "in-house"
-  | "agency"
-  | "hiring-company"
-  | "independent";
+  "in-house" | "agency" | "hiring-company" | "independent";
 
 export type CompanyOnboarding = {
   account_type: CompanyAccountType | "";
@@ -1175,7 +1209,13 @@ export type WalletTransaction = {
   wallet: string;
   amount: number | string;
   transaction_type: "credit" | "debit" | "refund" | "adjustment";
-  service_type?: "resume_screening" | "assessment" | "wallet_topup" | "free_credit" | "other" | null;
+  service_type?:
+    | "resume_screening"
+    | "assessment"
+    | "wallet_topup"
+    | "free_credit"
+    | "other"
+    | null;
   balance_after?: number | string | null;
   description?: string | null;
   status?: "pending" | "completed" | "failed" | "reversed";

@@ -16,6 +16,7 @@ from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
 
 from base.mixins.pagination import PaginationHandlerMixin, TiaagoPagination
+from utils.gmail_smtp import test_smtp_connection
 from .models import GmailSmtpConfig, OutreachEmail, PipelineCandidate, PipelineCategory, PipelineInviteLink
 from .serializers import (
     AddToPipelineSerializer,
@@ -327,20 +328,6 @@ class SubmitInviteApplicationView(APIView):
 
 # ── Gmail SMTP Config ──────────────────────────────────────────────
 
-def _test_smtp_connection(gmail_address: str, app_password: str) -> tuple[bool, str]:
-    try:
-        with smtplib.SMTP("smtp.gmail.com", 587, timeout=10) as server:
-            server.ehlo()
-            server.starttls()
-            server.ehlo()
-            server.login(gmail_address, app_password)
-        return True, ""
-    except smtplib.SMTPAuthenticationError:
-        return False, "Invalid email or App Password. Please double-check your credentials."
-    except Exception as e:
-        return False, f"Connection failed: {str(e)}"
-
-
 class SmtpConfigView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -368,7 +355,7 @@ class SmtpConfigView(APIView):
         gmail_address = serializer.validated_data["gmail_address"] or request.user.email
         app_password = serializer.validated_data["app_password"]
 
-        ok, error_msg = _test_smtp_connection(gmail_address, app_password)
+        ok, error_msg = test_smtp_connection(gmail_address, app_password)
         if not ok:
             return Response({"error": error_msg}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -421,7 +408,7 @@ class SmtpVerifyView(APIView):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
-        ok, error_msg = _test_smtp_connection(config.gmail_address, config.app_password)
+        ok, error_msg = test_smtp_connection(config.gmail_address, config.app_password)
         if ok:
             config.is_verified = True
             config.verified_at = timezone.now()

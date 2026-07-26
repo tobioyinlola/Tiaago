@@ -12,7 +12,7 @@ import {
   recruiterProfileValidationSchema,
 } from "../../../constants/recruiterProfileForm";
 import { useAlert } from "@/app/common/store/useAlert";
-import { handleFormSubmissionError } from "@/app/common/utils";
+import { handleFormSubmissionError, normalizeWebsiteUrl } from "@/app/common/utils";
 import { updateRecruiter } from "@/app/common/services/recruiters";
 import { useRecruiterStore } from "@/app/recruiter/dashboard/store";
 import FormikField from "@/app/common/components/Forms/FormikField";
@@ -33,7 +33,10 @@ const RecruiterProfileForm = ({
     <Formik
       initialValues={getRecruiterProfileInitiaValues(profile)}
       onSubmit={(values, { setSubmitting, setFieldError }) => {
-        updateRecruiter(values, "profile")
+        updateRecruiter(
+          { ...values, website: normalizeWebsiteUrl(values.website) },
+          "profile"
+        )
           .then(data => {
             toast.dismiss();
             setProfile(data);

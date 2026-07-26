@@ -15,13 +15,9 @@ const difficultyLevels = ["JUNIOR", "INTERMEDIATE", "SENIOR"];
 const CSV_COLUMN_ROWS: { column: string; appliesTo: string; notes: string }[] = [
   { column: "question_type", appliesTo: "All rows", notes: "MCQ or CODING_TASK (required)" },
   { column: "question", appliesTo: "All rows", notes: "Question text, or the coding task's title" },
-  { column: "option_1 … option_4", appliesTo: "MCQ", notes: "At least 2 non-empty options" },
-  { column: "correct_option", appliesTo: "MCQ", notes: "1-based index of the correct option" },
-  { column: "description", appliesTo: "CODING_TASK", notes: "The problem statement" },
-  { column: "sample_input / sample_output", appliesTo: "CODING_TASK", notes: "Optional example I/O" },
-  { column: "skills_assessed", appliesTo: "CODING_TASK", notes: "Separate multiple with a semicolon (;)" },
+  { column: "option_a … option_d", appliesTo: "MCQ", notes: "At least 2 non-empty options" },
+  { column: "correct_option", appliesTo: "MCQ", notes: "Letter (a, b, c or d) of the correct option" },
   { column: "difficulty_level", appliesTo: "Optional", notes: "Falls back to the bundle-level value below" },
-  { column: "stack", appliesTo: "Optional", notes: "Matched by name against existing tech stacks" },
 ];
 
 type OpenEndedRow = { question: string; grading_guidance: string; skills_assessed: string };
@@ -29,6 +25,22 @@ type OpenEndedRow = { question: string; grading_guidance: string; skills_assesse
 const emptyOpenEndedRow = (): OpenEndedRow => ({
   question: "",
   grading_guidance: "",
+  skills_assessed: "",
+});
+
+type CodingTaskRow = {
+  question: string;
+  description: string;
+  sample_input: string;
+  sample_output: string;
+  skills_assessed: string;
+};
+
+const emptyCodingTaskRow = (): CodingTaskRow => ({
+  question: "",
+  description: "",
+  sample_input: "",
+  sample_output: "",
   skills_assessed: "",
 });
 
@@ -46,6 +58,7 @@ const BundleCsvUploadModal = ({ roles }: { roles: TalentRole[] }) => {
   const [isRecommended, setIsRecommended] = useState(false);
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [openEndedRows, setOpenEndedRows] = useState<OpenEndedRow[]>([]);
+  const [codingTaskRows, setCodingTaskRows] = useState<CodingTaskRow[]>([]);
 
   const reset = () => {
     setName("");
@@ -56,6 +69,7 @@ const BundleCsvUploadModal = ({ roles }: { roles: TalentRole[] }) => {
     setIsRecommended(false);
     setCsvFile(null);
     setOpenEndedRows([]);
+    setCodingTaskRows([]);
   };
 
   const updateOpenEndedRow = (
@@ -68,14 +82,25 @@ const BundleCsvUploadModal = ({ roles }: { roles: TalentRole[] }) => {
     );
   };
 
+  const updateCodingTaskRow = (
+    index: number,
+    field: keyof CodingTaskRow,
+    value: string
+  ) => {
+    setCodingTaskRows(rows =>
+      rows.map((row, i) => (i === index ? { ...row, [field]: value } : row))
+    );
+  };
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
     const nonEmptyOpenEnded = openEndedRows.filter(r => r.question.trim());
-    if (!csvFile && nonEmptyOpenEnded.length === 0) {
+    const nonEmptyCodingTasks = codingTaskRows.filter(r => r.question.trim());
+    if (!csvFile && nonEmptyOpenEnded.length === 0 && nonEmptyCodingTasks.length === 0) {
       setAlert({
         title: "Error",
-        message: "Add questions via a CSV file, the open-ended builder below, or both.",
+        message: "Add questions via a CSV file, the open-ended builder, the coding task builder, or a combination.",
         icon: "error",
       });
       return;
@@ -96,6 +121,23 @@ const BundleCsvUploadModal = ({ roles }: { roles: TalentRole[] }) => {
           nonEmptyOpenEnded.map(r => ({
             question: r.question.trim(),
             grading_guidance: r.grading_guidance.trim(),
+            skills_assessed: r.skills_assessed
+              .split(",")
+              .map(s => s.trim())
+              .filter(Boolean),
+          }))
+        )
+      );
+    }
+    if (nonEmptyCodingTasks.length) {
+      formData.set(
+        "coding_tasks",
+        JSON.stringify(
+          nonEmptyCodingTasks.map(r => ({
+            question: r.question.trim(),
+            description: r.description.trim(),
+            sample_input: r.sample_input.trim(),
+            sample_output: r.sample_output.trim(),
             skills_assessed: r.skills_assessed
               .split(",")
               .map(s => s.trim())
@@ -221,8 +263,10 @@ const BundleCsvUploadModal = ({ roles }: { roles: TalentRole[] }) => {
               Multiple-choice &amp; coding questions
             </h4>
             <p className="text-xs text-secondary-black mb-3">
-              Upload a CSV file to add MCQ or coding-task questions in bulk. Optional if you&apos;re
-              only adding open-ended questions below.
+              Upload a CSV file to add MCQ or coding-task questions in bulk, using a strict
+              8-column format. Coding-task rows only need a title here -- add a full description
+              and sample input/output via the coding task builder below instead. Optional if
+              you&apos;re only adding questions via the builders below.
             </p>
             <input
               type="file"
@@ -333,6 +377,109 @@ const BundleCsvUploadModal = ({ roles }: { roles: TalentRole[] }) => {
                         }
                         className="input input-bordered input-sm w-full"
                         placeholder="e.g. Debugging, Communication"
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <hr className="border-border" />
+
+          {/* Coding tasks with full detail, authored inline -- no CSV needed */}
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <h4 className="text-sm font-semibold text-primaryBlack">Coding tasks (optional detail)</h4>
+              <button
+                type="button"
+                onClick={() => setCodingTaskRows(rows => [...rows, emptyCodingTaskRow()])}
+                className="flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+              >
+                <LuPlus className="w-3.5 h-3.5" />
+                Add coding task
+              </button>
+            </div>
+            <p className="text-xs text-secondary-black mb-3">
+              Add a coding task with a full problem statement and sample input/output directly
+              here, no CSV required. Use this instead of (or alongside) a CSV row when a coding
+              task needs more than just a title.
+            </p>
+
+            {codingTaskRows.length === 0 ? (
+              <p className="text-xs text-secondary-black italic">
+                No coding tasks added yet.
+              </p>
+            ) : (
+              <div className="space-y-4">
+                {codingTaskRows.map((row, i) => (
+                  <div key={i} className="rounded-lg border border-border p-3 space-y-2 relative">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setCodingTaskRows(rows => rows.filter((_, idx) => idx !== i))
+                      }
+                      className="absolute top-2 right-2 text-secondary-black hover:text-error"
+                      aria-label="Remove coding task"
+                    >
+                      <LuTrash2 className="w-4 h-4" />
+                    </button>
+                    <div>
+                      <label className="label-text text-black text-xs font-medium font-onest mb-1 block">
+                        Title
+                      </label>
+                      <input
+                        value={row.question}
+                        onChange={e => updateCodingTaskRow(i, "question", e.target.value)}
+                        className="input input-bordered input-sm w-full"
+                        placeholder="e.g. Reverse a linked list"
+                      />
+                    </div>
+                    <div>
+                      <label className="label-text text-black text-xs font-medium font-onest mb-1 block">
+                        Description (optional)
+                      </label>
+                      <textarea
+                        value={row.description}
+                        onChange={e => updateCodingTaskRow(i, "description", e.target.value)}
+                        className="textarea textarea-bordered textarea-sm w-full"
+                        rows={2}
+                        placeholder="The problem statement"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="label-text text-black text-xs font-medium font-onest mb-1 block">
+                          Sample input (optional)
+                        </label>
+                        <textarea
+                          value={row.sample_input}
+                          onChange={e => updateCodingTaskRow(i, "sample_input", e.target.value)}
+                          className="textarea textarea-bordered textarea-sm w-full"
+                          rows={2}
+                        />
+                      </div>
+                      <div>
+                        <label className="label-text text-black text-xs font-medium font-onest mb-1 block">
+                          Sample output (optional)
+                        </label>
+                        <textarea
+                          value={row.sample_output}
+                          onChange={e => updateCodingTaskRow(i, "sample_output", e.target.value)}
+                          className="textarea textarea-bordered textarea-sm w-full"
+                          rows={2}
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="label-text text-black text-xs font-medium font-onest mb-1 block">
+                        Skills assessed (optional, comma-separated)
+                      </label>
+                      <input
+                        value={row.skills_assessed}
+                        onChange={e => updateCodingTaskRow(i, "skills_assessed", e.target.value)}
+                        className="input input-bordered input-sm w-full"
+                        placeholder="e.g. Data Structures, Algorithms"
                       />
                     </div>
                   </div>

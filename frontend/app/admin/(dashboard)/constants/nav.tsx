@@ -4,7 +4,6 @@ import type { DashboardNavItemV3 } from "@/app/common/types";
 import {
   IoBusinessOutline,
   IoMailOutline,
-  IoNewspaperOutline,
   IoSettingsOutline,
   IoCashOutline,
   IoFunnelOutline,
@@ -12,13 +11,12 @@ import {
   IoTrendingUpOutline,
   IoAnalyticsOutline,
   IoPulseOutline,
-  IoNotificationsOutline,
   IoShieldCheckmarkOutline,
   IoPricetagsOutline,
   IoCalculatorOutline,
-  IoHelpBuoyOutline,
   IoPeopleOutline,
   IoPersonAddOutline,
+  IoChatbubblesOutline,
 } from "react-icons/io5";
 
 const baseHref = "/admin";
@@ -27,37 +25,15 @@ const baseHref = "/admin";
 export const navItems: DashboardNavItemV3[] = [
   {
     name: "assessment",
-    href: `${baseHref}/assessment`,
+    href: `${baseHref}/assessment/bundles`,
     Icon: PiExam,
     section: "assessment_moderation",
-    subLinks: [
-      {
-        name: "Assessments",
-        href: `${baseHref}/assessment/assessments`,
-      },
-      {
-        name: "Bundles",
-        href: `${baseHref}/assessment/bundles`,
-      },
-    ],
-  },
-  {
-    name: "blog",
-    href: `${baseHref}/blog`,
-    Icon: IoNewspaperOutline,
-    section: "blog",
   },
   {
     name: "email logs",
     href: `${baseHref}/email-logs`,
     Icon: IoMailOutline,
     section: "email_logs",
-  },
-  {
-    name: "notifications",
-    href: `${baseHref}/notifications`,
-    Icon: IoNotificationsOutline,
-    section: "notifications",
   },
   {
     name: "jobs",
@@ -79,21 +55,6 @@ export const navItems: DashboardNavItemV3[] = [
       </svg>
     ),
   },
-  {
-    name: "settings",
-    href: `${baseHref}/settings`,
-    Icon: IoSettingsOutline,
-    subLinks: [
-      {
-        name: "Profile",
-        href: `${baseHref}/settings?tab=profile`,
-      },
-      {
-        name: "Security",
-        href: `${baseHref}/settings?tab=security`,
-      },
-    ],
-  },
   { type: "divider" },
   {
     name: "organisations",
@@ -112,12 +73,6 @@ export const navItems: DashboardNavItemV3[] = [
     href: `${baseHref}/pricing`,
     Icon: IoCalculatorOutline,
     section: "pricing",
-  },
-  {
-    name: "support",
-    href: `${baseHref}/support`,
-    Icon: IoHelpBuoyOutline,
-    section: "support",
   },
   {
     name: "funnel",
@@ -164,13 +119,17 @@ export const navItems: DashboardNavItemV3[] = [
       { name: "Tags", href: `${baseHref}/tags`, section: "tags" },
       { name: "Segments", href: `${baseHref}/segments`, section: "tags" },
       { name: "Campaigns", href: `${baseHref}/campaigns`, section: "campaigns" },
+      { name: "Blog", href: `${baseHref}/blog`, section: "blog" },
     ],
   },
   {
-    name: "staff",
-    href: `${baseHref}/staff`,
-    Icon: IoPeopleOutline,
-    section: "staff",
+    name: "communication",
+    href: `${baseHref}/support`,
+    Icon: IoChatbubblesOutline,
+    subLinks: [
+      { name: "Support", href: `${baseHref}/support`, section: "support" },
+      { name: "Notifications", href: `${baseHref}/notifications`, section: "notifications" },
+    ],
   },
   {
     name: "talent network",
@@ -180,6 +139,17 @@ export const navItems: DashboardNavItemV3[] = [
     subLinks: [
       { name: "Overview", href: `${baseHref}/talent-network` },
       { name: "Analytics", href: `${baseHref}/talent-network/analytics` },
+    ],
+  },
+  {
+    name: "settings",
+    href: `${baseHref}/settings`,
+    Icon: IoSettingsOutline,
+    subLinks: [
+      { name: "Profile", href: `${baseHref}/settings?tab=profile` },
+      { name: "Security", href: `${baseHref}/settings?tab=security` },
+      { name: "Email Integration", href: `${baseHref}/settings?tab=email`, section: "talent_network" },
+      { name: "Staff", href: `${baseHref}/staff`, section: "staff" },
     ],
   },
 ];

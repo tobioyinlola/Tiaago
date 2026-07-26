@@ -522,7 +522,13 @@ class CompanyOnboardingSerializer(serializers.ModelSerializer):
 class CustomUserSerializer(serializers.ModelSerializer):
     bio = serializers.CharField(required=False)
     subscribed_plan = serializers.SerializerMethodField()
-    role = serializers.SlugRelatedField(read_only=True, slug_field="slug")
+    # Plain CharField (not SlugRelatedField(read_only=True)): CustomUser has
+    # no `role` attribute of its own -- this proxies to company.role (or
+    # profile.role for talents) in to_representation()/update() below, and
+    # accepts free text so a role that doesn't exist yet gets created,
+    # matching the create-or-find behavior already used at signup
+    # (see validate_role on the registration serializers).
+    role = serializers.CharField(required=False, allow_blank=True, allow_null=True)
     phone_number = PhoneNumberField()
     profile_pic = serializers.SerializerMethodField()
     
@@ -575,10 +581,10 @@ class CustomUserSerializer(serializers.ModelSerializer):
     
     def update(self, instance, validated_data):
         request = self.context.get("request")
-        
+
         # Old country BEFORE update
         old_country = instance.country
-        
+
         # New country (if provided)
         new_country = validated_data.get("country", old_country)
 
@@ -588,8 +594,32 @@ class CustomUserSerializer(serializers.ModelSerializer):
                 # perform your conversion
                 convert_wallet_currency(request.user.company, new_country)
 
+        # `role` isn't a real field on CustomUser -- resolve/create the
+        # Role and persist it on the linked company or talent profile.
+        if "role" in validated_data:
+            role_value = validated_data.pop("role")
+            if role_value:
+                role = self._resolve_role(role_value)
+                if instance.is_company():
+                    instance.company.role = role
+                    instance.company.save(update_fields=["role"])
+                elif instance.is_talent():
+                    instance.profile.role = role
+                    instance.profile.save(update_fields=["role"])
+
         # Continue with normal update
         return super().update(instance, validated_data)
+
+    @staticmethod
+    def _resolve_role(value):
+        value = value.strip()
+        role = Role.objects.filter(slug__iexact=value).first()
+        if role:
+            return role
+        role = Role.objects.filter(title__iexact=value).first()
+        if role:
+            return role
+        return Role.objects.create(title=value)
     
     def get_billing_type(self, obj):
         company = getattr(obj, 'company', None)
@@ -630,6 +660,15 @@ class CustomUserSerializer(serializers.ModelSerializer):
 
     def to_representation(self, instance):
         representation = super().to_representation(instance)
+        role = None
+        if instance.is_company():
+            role = getattr(instance.company, "role", None)
+        elif instance.is_talent():
+            role = getattr(instance.profile, "role", None)
+        representation["role"] = role.slug if role else None
+        # Human-readable label, since a freeform-created role's slug (e.g.
+        # "sourcing-lead") isn't fit to display back as-is.
+        representation["role_display"] = role.title if role else None
         return representation
 
     def get_subscribed_plan(self, obj):

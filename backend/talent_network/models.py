@@ -159,3 +159,39 @@ class TalentNetworkAuditLog(models.Model):
 
     def __str__(self):
         return f"{self.action} ({self.target_member_id}) @ {self.created_at:%Y-%m-%d %H:%M}"
+
+
+class TalentNetworkSmtpConfig(TimeStampedModel):
+    """Platform-wide Gmail App Password SMTP connection used to send Talent
+    Network emails (the double opt-in confirmation, and the platform-default
+    path for job-match notifications when a company hasn't connected its own
+    Gmail) -- same mechanism as sourcing.models.GmailSmtpConfig, just not
+    scoped to a company since the Talent Network isn't owned by any one
+    recruiter. Configured from Admin > Settings. Singleton by convention --
+    the admin UI only ever creates/updates a single row (see
+    talent_network.views.TalentNetworkSmtpConfigView)."""
+
+    gmail_address = models.EmailField()
+    encrypted_app_password = models.TextField()
+    is_verified = models.BooleanField(default=False)
+    verified_at = models.DateTimeField(null=True, blank=True)
+    last_used_at = models.DateTimeField(null=True, blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+    )
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"Talent Network SMTP: {self.gmail_address}"
+
+    @property
+    def app_password(self):
+        from utils.encryption import decrypt_value
+        return decrypt_value(self.encrypted_app_password)
+
+    @app_password.setter
+    def app_password(self, value):
+        from utils.encryption import encrypt_value
+        self.encrypted_app_password = encrypt_value(value)

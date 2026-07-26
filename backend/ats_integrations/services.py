@@ -4,10 +4,13 @@ already-connected ATS never creates duplicates."""
 
 from datetime import datetime
 
+from loguru import logger
+
 from django.utils.dateparse import parse_datetime
 from django.utils.timezone import is_naive, make_aware
 
-from create_user.models import Company
+from create_user.models import Company, CustomUser, TalentProfile
+from jobs.models import Job, JobApplication
 
 from .models import AtsCandidate, AtsJob
 
@@ -72,3 +75,45 @@ def upsert_job(company: Company, provider: str, normalized: dict) -> AtsJob:
         },
     )
     return obj
+
+
+def convert_ats_candidate_to_application(candidate: AtsCandidate, job: Job) -> JobApplication | None:
+    """Turns a synced AtsCandidate into an ordinary JobApplication, mirroring
+    GuestJobApplicationSerializer.create(): resolve-or-provision a
+    CustomUser/TalentProfile by email, then create the application. Returns
+    None (never raises) for a candidate with no email -- there's no way to
+    provision an account without one, and one bad candidate row must never
+    abort the rest of the conversion."""
+    if not candidate.email:
+        logger.warning(f"Skipping AtsCandidate {candidate.id}: no email, cannot provision an application account")
+        return None
+
+    user = CustomUser.objects.filter(email__iexact=candidate.email).first()
+    if not user:
+        user = CustomUser.objects.create_user(
+            username=candidate.email,
+            email=candidate.email,
+            first_name=candidate.first_name,
+            last_name=candidate.last_name,
+            phone_number=candidate.phone,
+            user_type=CustomUser.USER_TYPE.TALENT,
+            is_verified=False,
+            password=None,
+        )
+
+    talent_profile = TalentProfile.objects.filter(user=user).first()
+    if not talent_profile:
+        full_name = f"{candidate.first_name} {candidate.last_name}".strip()
+        talent_profile = TalentProfile.objects.create(
+            user=user, full_name=full_name, linkedin_url=candidate.linkedin_url or "",
+        )
+
+    application, _created = JobApplication.objects.get_or_create(
+        applicant=talent_profile,
+        job=job,
+        defaults={
+            "cover_letter": candidate.cover_letter or "",
+            "is_external_application": True,
+        },
+    )
+    return application

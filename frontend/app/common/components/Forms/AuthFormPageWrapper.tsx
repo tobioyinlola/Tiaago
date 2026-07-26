@@ -22,6 +22,18 @@ type Props = BasePageProps & {
   titleContainerClassName?: string;
   goBackHref?: string;
   next?: string;
+  /** Overrides the left-panel headline/description/testimonial copy for
+   * pages that reuse this layout but aren't a signin/signup step (e.g. the
+   * talent network landing page). Omit to keep the default per-`as` copy. */
+  heroHeadline?: string;
+  heroDescription?: string;
+  testimonialQuote?: string;
+  testimonialName?: string;
+  testimonialTitle?: string;
+  /** When true, only the form column scrolls (the left branding panel stays
+   * pinned) instead of the whole page scrolling together. Opt-in so it
+   * doesn't change behavior on the existing signin/signup pages. */
+  formScrollOnly?: boolean;
 };
 
 const AuthFormPageWrapper = ({
@@ -37,6 +49,12 @@ const AuthFormPageWrapper = ({
   hideSupport,
   hideAltLink,
   next,
+  heroHeadline,
+  heroDescription,
+  testimonialQuote,
+  testimonialName,
+  testimonialTitle,
+  formScrollOnly,
 }: Props) => {
   const hrefSuffix = next ? `?next=${next}` : "";
   const roleSegment = as === "staff" ? "admin" : getRoleUrlSegment(as!);
@@ -44,15 +62,20 @@ const AuthFormPageWrapper = ({
     ? `/${as === "staff" ? "recruiter" : roleSegment}/signup${hrefSuffix}`
     : `/${roleSegment}/signin${hrefSuffix}`;
   return (
-    <div className='h-[100svh] w-[100svw] bg-white scrollbar-none md:scrollbar-thin relative overflow-x-hidden'>
+    <div
+      className={cn(
+        "h-[100svh] w-[100svw] bg-white scrollbar-none md:scrollbar-thin relative overflow-x-hidden",
+        formScrollOnly && "md:overflow-y-hidden"
+      )}
+    >
       <Image
         src='/assets/images/Pricing Background pattern.png'
         alt='Bg pattern'
         className='object-cover'
         fill
       />
-      <div className='relative grid md:grid-cols-2 max-md:items-start'>
-        <div className='pl-5 py-[30px] flex max-md:hidden'>
+      <div className={cn("relative grid md:grid-cols-2 max-md:items-start", formScrollOnly && "md:h-[100svh]")}>
+        <div className={cn("pl-5 py-[30px] flex max-md:hidden", formScrollOnly && "md:h-[100svh]")}>
           <div className='bg-black rounded-[30px] flex-1 pt-[65px] pb-20 px-[60px] relative'>
             <Image
               src='/assets/images/Auth Background pattern.png'
@@ -69,23 +92,24 @@ const AuthFormPageWrapper = ({
                 />
 
                 <h2 className='text-white font-onest font-semibold text-[60px] leading-[110%] max-w-[562px] mt-[60px] mb-8'>
-                  {as === "talent"
-                    ? "Get Verified. Get Discovered. Get Hired"
-                    : "Your next hire is already in your pipeline."}
+                  {heroHeadline ??
+                    (as === "talent"
+                      ? "Get Verified. Get Discovered. Get Hired"
+                      : "Your next hire is already in your pipeline.")}
                 </h2>
 
                 <p className='text-[#E4DBDB] font-onest text-xl max-w-[480px]'>
-                  {as === "talent"
-                    ? " Showcase your real skills, get assessed and verified, and connect with companies that value what you can truly do"
-                    : "Tiaago screens resumes, generates assessments, and surfaces your best candidates automatically so you spend more time making placements."}
+                  {heroDescription ??
+                    (as === "talent"
+                      ? " Showcase your real skills, get assessed and verified, and connect with companies that value what you can truly do"
+                      : "Tiaago screens resumes, generates assessments, and surfaces your best candidates automatically so you spend more time making placements.")}
                 </p>
               </div>
 
               <div className='bg-[#5F6264] w-full max-w-[580px] rounded-xl p-6'>
                 <p className='text-[#E4DBDB] font-onest text-base mb-4'>
-                  The AI assessment tools have been game-changing for our
-                  technical hires. We can now accurately evaluate skills and
-                  knowledge in a way that traditional interviews never could
+                  {testimonialQuote ??
+                    "The AI assessment tools have been game-changing for our technical hires. We can now accurately evaluate skills and knowledge in a way that traditional interviews never could"}
                 </p>
 
                 <div className='flex items-center'>
@@ -98,10 +122,10 @@ const AuthFormPageWrapper = ({
                   />
                   <div>
                     <h6 className='font-semibold text-sm font-onest text-white'>
-                      Alex Parker
+                      {testimonialName ?? "Alex Parker"}
                     </h6>
                     <p className='text-sm font-onest text-[#DEE1E3] mt-0.5'>
-                      Software Engineer at TechWave
+                      {testimonialTitle ?? "Software Engineer at TechWave"}
                     </p>
                   </div>
                 </div>
@@ -110,7 +134,7 @@ const AuthFormPageWrapper = ({
           </div>
         </div>
         {/* <ScrollArea className='h-[100svh]'> */}
-        <main className={cn("min-h-[100svh] md:pb-5", className)}>
+        <main className={cn("min-h-[100svh] md:pb-5", formScrollOnly && "md:h-[100svh] md:overflow-y-auto", className)}>
           <div className='px-3.5 py-5 md:hidden'>
             <BrandLink containerClassName='block w-fit' />
           </div>

@@ -18,7 +18,6 @@ import {
   ROLE_CATEGORY_OPTIONS,
   YEARS_EXPERIENCE_OPTIONS,
   WORK_TYPE_OPTIONS,
-  EMAIL_FREQUENCY_OPTIONS,
   TalentNetworkJoinPayload,
 } from "@/app/common/constants/talent-network";
 import { joinTalentNetwork } from "@/app/common/services/talent-network";
@@ -34,7 +33,6 @@ const initialValues: TalentNetworkJoinPayload = {
   phone: "",
   country: "",
   state: "",
-  city: "",
   job_title: "",
   years_experience: "0-2",
   industry: [],
@@ -54,7 +52,6 @@ const validationSchema = Yup.object({
   phone: Yup.string(),
   country: Yup.string().required("Country is required"),
   state: Yup.string(),
-  city: Yup.string(),
   job_title: Yup.string().required("Current job title is required"),
   years_experience: Yup.string().required("Select your years of experience"),
   industry: Yup.array().min(1, "Select at least one industry"),
@@ -63,12 +60,11 @@ const validationSchema = Yup.object({
   preferred_locations: Yup.array(),
   communities: Yup.array(),
   other_community: Yup.string(),
-  email_frequency: Yup.string().required("Select an email preference"),
   consent: Yup.boolean().oneOf([true], "You must agree to receive job opportunities from TIAAGO"),
 });
 
 const STEPS = [
-  { name: "Your details", fields: ["first_name", "last_name", "email", "phone", "country", "state", "city"] },
+  { name: "Your details", fields: ["first_name", "last_name", "email", "phone", "country", "state"] },
   {
     name: "Career preferences",
     fields: [
@@ -80,7 +76,6 @@ const STEPS = [
       "preferred_locations",
       "communities",
       "other_community",
-      "email_frequency",
       "consent",
     ],
   },
@@ -204,7 +199,7 @@ const TalentNetworkJoinForm = ({ groupedCountries }: Props) => {
 
                 <section>
                   <h3 className="text-sm font-semibold uppercase tracking-wide text-secondary-black mb-4">Location</h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <CountrySelect
                       name="country"
                       label="Country"
@@ -215,7 +210,6 @@ const TalentNetworkJoinForm = ({ groupedCountries }: Props) => {
                       options={groupedCountries}
                     />
                     <FormikField name="state" label="State/Province (Optional)" value={values.state} error={errors.state} touched={touched.state} />
-                    <FormikField name="city" label="City (Optional)" value={values.city} error={errors.city} touched={touched.city} />
                   </div>
                 </section>
 
@@ -315,24 +309,6 @@ const TalentNetworkJoinForm = ({ groupedCountries }: Props) => {
                     value={values.other_community}
                     error={errors.other_community}
                     touched={touched.other_community}
-                  />
-                </section>
-
-                <section>
-                  <h3 className="text-sm font-semibold uppercase tracking-wide text-secondary-black mb-4">
-                    Email Preferences
-                  </h3>
-                  <FormikField
-                    name="email_frequency"
-                    label="How often should we email you?"
-                    type="select"
-                    value={values.email_frequency}
-                    error={errors.email_frequency as string}
-                    touched={!!touched.email_frequency}
-                    selectFieldProps={{
-                      options: EMAIL_FREQUENCY_OPTIONS,
-                      value: EMAIL_FREQUENCY_OPTIONS.find(o => o.value === values.email_frequency),
-                    }}
                   />
                 </section>
 

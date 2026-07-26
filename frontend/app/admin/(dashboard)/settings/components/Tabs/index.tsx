@@ -3,6 +3,7 @@ import { useAdminStore } from "../../../store";
 import { settingsTabs } from "../../constants/tabs";
 import SecurityTab from "@/app/common/components/SecurityTab";
 import { ProfileInfoFormProps } from "./ProfileTab/PersonalInfoForm";
+import EmailIntegrationTab from "./EmailIntegrationTab";
 
 export type TabKey = (typeof settingsTabs)[number]["name"];
 
@@ -18,6 +19,7 @@ const Tab = ({ tab, groupedCountries }: TabProps) => {
       <ProfileTab serverProfile={user} groupedCountries={groupedCountries} />
     ),
     security: <SecurityTab />,
+    email: <EmailIntegrationTab />,
   };
   return (
     <div

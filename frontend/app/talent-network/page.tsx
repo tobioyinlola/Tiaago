@@ -11,14 +11,22 @@ const TalentNetworkPage = async () => {
 
   return (
     <AuthFormPageWrapper
-      title="Join the TIAAGO Talent Network"
+      title="Your Next Opportunity Should Find You."
       as="talent"
       hideAltLink
+      hideSupport
+      formScrollOnly
       containerClassName="md:max-w-[560px]"
+      heroHeadline="Your Next Opportunity Should Find You."
+      heroDescription="Join thousands of professionals in the TIAAGO Talent Network and get matched with opportunities from startups and growing companies actively hiring."
+      testimonialQuote="Within two weeks of joining the Talent Network, I received three interview invitations from companies I wouldn't have discovered on my own."
+      testimonialName="Sarah A."
+      testimonialTitle="Product Manager"
     >
       <p className="text-[#5F6264] text-sm font-onest mt-2 mb-8 max-w-md">
-        Receive curated job opportunities that match your career interests --
-        no spam, no subscription fee, only relevant opportunities.
+        Join thousands of professionals in the TIAAGO Talent Network and get
+        matched with opportunities from startups and growing companies
+        actively hiring.
       </p>
       <TalentNetworkJoinForm groupedCountries={groupedCountries} />
     </AuthFormPageWrapper>
