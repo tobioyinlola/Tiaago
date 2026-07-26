@@ -117,15 +117,35 @@ const RecruiterRepForm = ({
                   {...{ name, value, ...props }}
                   error={errors[name]}
                   touched={touched[name]}
-                  {...(name === "role" && {
+                  {...(name === "role" && props.type === "select" && {
                     selectFieldProps: {
+                      ...props.selectFieldProps,
                       options: recruiterRoles.map(({ title, slug }) => ({
                         label: title,
                         value: slug,
                       })),
-                      defaultValue: recruiterRoles.find(
-                        r => r.slug === user.role
-                      ),
+                      // Controlled by Formik's values.role (fixed to actually
+                      // load from the saved profile above) rather than an
+                      // uncontrolled defaultValue -- otherwise saving without
+                      // touching this field would submit an empty role and
+                      // wipe a previously-saved one. Falls back to a
+                      // synthesized option since this field is "createable"
+                      // (free text), so a saved role that isn't one of the
+                      // predefined recruiterRoles still displays correctly.
+                      value: values.role
+                        ? recruiterRoles.find(r => r.slug === values.role) ?? {
+                            // Use the human-readable title for the still-
+                            // unmodified saved role (values.role here is a
+                            // slug, e.g. "sourcing-lead" -- not fit to show
+                            // as-is); once the user picks/types something
+                            // new, its own text is already the right label.
+                            label:
+                              values.role === user.role && user.role_display
+                                ? user.role_display
+                                : values.role,
+                            value: values.role,
+                          }
+                        : null,
                     },
                   })}
                 />

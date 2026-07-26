@@ -11,6 +11,23 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
 
+def test_smtp_connection(gmail_address: str, app_password: str) -> tuple[bool, str]:
+    """Verifies Gmail App Password credentials by logging in without sending
+    anything -- used by the connect/verify flow before a config is saved or
+    re-checked. Returns (ok, error_message)."""
+    try:
+        with smtplib.SMTP("smtp.gmail.com", 587, timeout=10) as server:
+            server.ehlo()
+            server.starttls()
+            server.ehlo()
+            server.login(gmail_address, app_password)
+        return True, ""
+    except smtplib.SMTPAuthenticationError:
+        return False, "Invalid email or App Password. Please double-check your credentials."
+    except Exception as e:
+        return False, f"Connection failed: {str(e)}"
+
+
 def send_gmail_email(smtp_config, from_name: str, to_email: str, subject: str, html_body: str) -> tuple[bool, str]:
     """Sends a single email through a connected GmailSmtpConfig.
 

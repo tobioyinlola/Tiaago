@@ -16,14 +16,17 @@ from rest_framework.views import APIView
 
 from base.mixins.pagination import TiaagoPagination
 from staff.permissions import requirePermission
+from utils.gmail_smtp import test_smtp_connection
 
 from .audit import log_audit
 from .choices import TalentNetworkMemberStatus
-from .models import JobMatchNotification, TalentNetworkAuditLog, TalentNetworkMember
+from .models import JobMatchNotification, TalentNetworkAuditLog, TalentNetworkMember, TalentNetworkSmtpConfig
 from .serializers import (
     JobMatchNotificationSerializer,
     TalentNetworkJoinSerializer,
     TalentNetworkMemberSerializer,
+    TalentNetworkSmtpConfigSerializer,
+    TalentNetworkSmtpSetupSerializer,
 )
 
 
@@ -302,3 +305,78 @@ class TalentNetworkAnalyticsView(APIView):
             "top_recruiters": list(top_recruiters),
             "members_growth": list(members_growth),
         })
+
+
+# ── Admin: platform SMTP config ─────────────────────────────────────────────
+
+class TalentNetworkSmtpConfigView(APIView):
+    """GET/POST/DELETE /api/talent-network/admin/smtp-config/ -- the
+    platform-wide Gmail SMTP connection used to send Talent Network emails
+    (see talent_network.mailer). Singleton: POST always replaces whatever
+    row exists rather than creating a second one, same update_or_create
+    pattern as sourcing.views.SmtpConfigView (its per-company equivalent)."""
+
+    def get_permissions(self):
+        if self.request.method == "GET":
+            return [requirePermission("talent_network.view")()]
+        return [requirePermission("talent_network.manage")()]
+
+    def get(self, request):
+        config = TalentNetworkSmtpConfig.objects.first()
+        return Response({"data": TalentNetworkSmtpConfigSerializer(config).data if config else None})
+
+    def post(self, request):
+        serializer = TalentNetworkSmtpSetupSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        gmail_address = serializer.validated_data["gmail_address"]
+        app_password = serializer.validated_data["app_password"]
+
+        ok, error_msg = test_smtp_connection(gmail_address, app_password)
+        if not ok:
+            return Response({"error": error_msg}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Singleton -- reuse the existing row if one exists instead of ever
+        # having two, since callers (talent_network.mailer) look up "the"
+        # config with .first().
+        config = TalentNetworkSmtpConfig.objects.first()
+        created = config is None
+        if config is None:
+            config = TalentNetworkSmtpConfig()
+        config.gmail_address = gmail_address
+        config.is_verified = True
+        config.verified_at = timezone.now()
+        config.created_by = request.user
+        config.app_password = app_password
+        config.save()
+
+        log_audit(TalentNetworkAuditLog.Action.SETTINGS_UPDATE, actor=request.user, request=request)
+
+        return Response(
+            {"success": True, "data": TalentNetworkSmtpConfigSerializer(config).data},
+            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
+        )
+
+    def delete(self, request):
+        TalentNetworkSmtpConfig.objects.all().delete()
+        log_audit(TalentNetworkAuditLog.Action.SETTINGS_UPDATE, actor=request.user, request=request)
+        return Response({"success": True})
+
+
+class TalentNetworkSmtpVerifyView(APIView):
+    permission_classes = [requirePermission("talent_network.manage")]
+
+    def post(self, request):
+        config = TalentNetworkSmtpConfig.objects.first()
+        if config is None:
+            return Response({"error": "No SMTP configuration found."}, status=status.HTTP_404_NOT_FOUND)
+
+        ok, error_msg = test_smtp_connection(config.gmail_address, config.app_password)
+        if ok:
+            config.is_verified = True
+            config.verified_at = timezone.now()
+            config.save(update_fields=["is_verified", "verified_at"])
+            return Response({"success": True, "message": "SMTP connection verified."})
+        else:
+            config.is_verified = False
+            config.save(update_fields=["is_verified"])
+            return Response({"error": error_msg}, status=status.HTTP_400_BAD_REQUEST)

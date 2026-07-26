@@ -15,6 +15,15 @@ import {
 
 export const cn = (...inputs: ClassValue[]) => twMerge(clsx(inputs));
 
+/** Backend website fields are a strict Django URLField (requires a scheme),
+ * but typing "https://" is friction recruiters shouldn't have to deal with --
+ * prepend it if missing so "www.example.com" or "example.com" saves cleanly. */
+export const normalizeWebsiteUrl = (url: string) => {
+  const trimmed = url.trim();
+  if (!trimmed) return trimmed;
+  return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+};
+
 export const isNullOrUndef = (v: unknown): v is null | undefined =>
   v === null || v === undefined;
 

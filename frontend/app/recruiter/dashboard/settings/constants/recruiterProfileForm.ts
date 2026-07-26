@@ -102,6 +102,7 @@ export const getRecruiterRepInitiaValues = (
     email = "",
     phone_number = "234",
     country = "",
+    role = "",
   } = profile ?? {};
   return {
     last_name,
@@ -109,7 +110,7 @@ export const getRecruiterRepInitiaValues = (
     first_name,
     phone_number,
     country,
-    role: "",
+    role,
   };
 };
 

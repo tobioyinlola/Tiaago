@@ -1,0 +1,599 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { toast } from "sonner";
+import Image from "next/image";
+import {
+  Mail,
+  CheckCircle2,
+  XCircle,
+  Loader2,
+  Trash2,
+  RefreshCw,
+  ExternalLink,
+  Eye,
+  EyeOff,
+  ArrowRight,
+  ArrowLeft,
+  Lock,
+} from "lucide-react";
+import { Button } from "@/app/common/components/ui/button";
+import { Badge } from "@/app/common/components/ui/badge";
+import { GoogleIcon } from "@/app/common/icons/GoogleIcon";
+import {
+  getTalentNetworkSmtpConfig,
+  saveTalentNetworkSmtpConfig,
+  verifyTalentNetworkSmtpConfig,
+  deleteTalentNetworkSmtpConfig,
+  TalentNetworkSmtpConfig,
+} from "@/app/common/services/talent-network-admin-client";
+
+type WizardStep = "intro" | "app-password" | "enter-password" | "success";
+
+const STEPS: { key: WizardStep; label: string }[] = [
+  { key: "intro", label: "Gmail" },
+  { key: "app-password", label: "App Password" },
+  { key: "enter-password", label: "Connect" },
+];
+
+const STEP_ILLUSTRATIONS: Record<WizardStep, string> = {
+  intro: "/assets/illustrations/email-intro.svg",
+  "app-password": "/assets/illustrations/app-password.svg",
+  "enter-password": "/assets/illustrations/email-connect.svg",
+  success: "/assets/illustrations/email-success.svg",
+};
+
+function StepIndicator({ current }: { current: WizardStep }) {
+  const currentIdx = STEPS.findIndex((s) => s.key === current);
+  if (currentIdx === -1) return null;
+
+  return (
+    <>
+      {/* Mobile: simple dots */}
+      <div className="flex sm:hidden items-center gap-1.5">
+        {STEPS.map((step, i) => (
+          <div
+            key={step.key}
+            className={`h-2 rounded-full transition-all ${
+              i === currentIdx
+                ? "w-6 bg-primary"
+                : i < currentIdx
+                  ? "w-2 bg-primary"
+                  : "w-2 bg-border"
+            }`}
+          />
+        ))}
+      </div>
+
+      {/* Desktop: numbered steps with labels */}
+      <div className="hidden sm:flex items-center gap-2">
+        {STEPS.map((step, i) => {
+          const isActive = i === currentIdx;
+          const isCompleted = i < currentIdx;
+          return (
+            <div key={step.key} className="flex items-center gap-2">
+              {i > 0 && (
+                <div
+                  className={`h-px w-8 transition-colors ${
+                    isCompleted ? "bg-primary" : "bg-border"
+                  }`}
+                />
+              )}
+              <div className="flex items-center gap-1.5">
+                <div
+                  className={`flex items-center justify-center w-6 h-6 rounded-full text-xs font-semibold transition-all ${
+                    isActive
+                      ? "bg-primary text-white shadow-sm shadow-primary/30"
+                      : isCompleted
+                        ? "bg-primary text-white"
+                        : "bg-muted text-muted-foreground"
+                  }`}
+                >
+                  {isCompleted ? (
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                  ) : (
+                    i + 1
+                  )}
+                </div>
+                <span
+                  className={`text-xs font-medium ${
+                    isActive
+                      ? "text-foreground"
+                      : isCompleted
+                        ? "text-primary"
+                        : "text-muted-foreground"
+                  }`}
+                >
+                  {step.label}
+                </span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </>
+  );
+}
+
+export default function EmailIntegrationTab() {
+  const [loading, setLoading] = useState(true);
+  const [config, setConfig] = useState<TalentNetworkSmtpConfig | null>(null);
+  const [wizardOpen, setWizardOpen] = useState(false);
+  const [wizardStep, setWizardStep] = useState<WizardStep>("intro");
+  const [gmailAddress, setGmailAddress] = useState("");
+  const [appPassword, setAppPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    getTalentNetworkSmtpConfig().then((result) => {
+      if (cancelled) return;
+      if (result.success) setConfig(result.data);
+      setLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const handleSave = async () => {
+    if (!gmailAddress.includes("@")) {
+      toast.error("Please enter a valid Gmail address.");
+      return;
+    }
+    if (!appPassword.trim()) {
+      toast.error("Please enter your App Password.");
+      return;
+    }
+    setSaving(true);
+    const result = await saveTalentNetworkSmtpConfig({
+      gmail_address: gmailAddress.trim(),
+      app_password: appPassword.replace(/\s/g, ""),
+    });
+    setSaving(false);
+    if (result.success) {
+      setConfig(result.data);
+      setWizardStep("success");
+      toast.success("Gmail SMTP connected successfully!");
+    } else {
+      toast.error(result.error || "Failed to connect. Check your App Password.");
+    }
+  };
+
+  const handleVerify = async () => {
+    setVerifying(true);
+    const result = await verifyTalentNetworkSmtpConfig();
+    setVerifying(false);
+    if (result.success) {
+      toast.success("SMTP connection verified!");
+      const refreshed = await getTalentNetworkSmtpConfig();
+      if (refreshed.success) setConfig(refreshed.data);
+    } else {
+      toast.error(result.error || "Verification failed.");
+    }
+  };
+
+  const handleDelete = async () => {
+    setDeleting(true);
+    const result = await deleteTalentNetworkSmtpConfig();
+    setDeleting(false);
+    if (result.success) {
+      setConfig(null);
+      toast.success("Gmail SMTP disconnected.");
+    } else {
+      toast.error(result.error || "Failed to disconnect.");
+    }
+  };
+
+  const resetWizard = () => {
+    setWizardStep("intro");
+    setGmailAddress("");
+    setAppPassword("");
+    setShowPassword(false);
+    setWizardOpen(true);
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  /* ── Wizard ────────────────────────────────────────────────────── */
+  if (wizardOpen) {
+    return (
+      <div className="rounded-xl border border-border bg-card overflow-hidden">
+        {/* Header with step indicator */}
+        <div className="border-b border-border px-5 sm:px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-muted/30">
+          <div>
+            <h2 className="text-base font-semibold text-foreground">
+              Connect Gmail for the Talent Network
+            </h2>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Set up SMTP to send Talent Network emails from this address
+            </p>
+          </div>
+          {wizardStep !== "success" && <StepIndicator current={wizardStep} />}
+        </div>
+
+        {/* Success state — full-width centered */}
+        {wizardStep === "success" ? (
+          <div className="flex flex-col items-center justify-center py-8 sm:py-14 px-6 text-center">
+            <div className="w-32 h-32 sm:w-48 sm:h-48 mb-4 sm:mb-6">
+              <Image
+                src={STEP_ILLUSTRATIONS.success}
+                alt="Success"
+                width={192}
+                height={192}
+                className="w-full h-full object-contain"
+              />
+            </div>
+            <div className="w-10 h-10 rounded-full bg-success/10 flex items-center justify-center mb-4">
+              <CheckCircle2 className="h-5 w-5 text-success" />
+            </div>
+            <h3 className="text-lg font-semibold text-foreground">
+              Gmail Connected!
+            </h3>
+            <p className="text-sm text-muted-foreground mt-1.5 max-w-sm">
+              Your Gmail SMTP is set up and verified. Talent Network confirmation
+              and job-match emails will now send through this address.
+            </p>
+            <Button className="mt-6" onClick={() => setWizardOpen(false)}>
+              Done
+            </Button>
+          </div>
+        ) : (
+          /* Split layout for wizard steps */
+          <div className="flex flex-col md:flex-row md:min-h-[400px]">
+            {/* Mobile illustration */}
+            <div className="flex md:hidden justify-center pt-4 pb-2 px-4">
+              <Image
+                src={STEP_ILLUSTRATIONS[wizardStep]}
+                alt=""
+                width={120}
+                height={120}
+                className="w-24 h-24 object-contain opacity-80"
+              />
+            </div>
+
+            {/* Desktop — Illustration panel */}
+            <div className="hidden md:flex md:w-2/5 items-center justify-center p-8 bg-gradient-to-br from-primary/[0.04] to-primary/[0.08]">
+              <Image
+                src={STEP_ILLUSTRATIONS[wizardStep]}
+                alt=""
+                width={280}
+                height={280}
+                className="w-full max-w-[260px] h-auto object-contain opacity-90"
+              />
+            </div>
+
+            {/* Right — Step content */}
+            <div className="flex-1 p-4 sm:p-8 flex flex-col justify-center">
+              {wizardStep === "intro" && (
+                <div className="space-y-3 sm:space-y-5">
+                  <div>
+                    <h3 className="text-lg font-semibold text-foreground">
+                      Enter the Gmail address
+                    </h3>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Talent Network confirmation and job-match emails will be
+                      sent from this Gmail account. You will need to create an
+                      App Password in the next step.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label
+                      htmlFor="admin-settings-gmail"
+                      className="flex items-center gap-1.5 text-sm font-medium text-foreground"
+                    >
+                      <GoogleIcon className="h-4 w-4" />
+                      Gmail Address
+                    </label>
+                    <input
+                      id="admin-settings-gmail"
+                      type="email"
+                      value={gmailAddress}
+                      onChange={(e) => setGmailAddress(e.target.value)}
+                      placeholder="talent-network@tiaago.com"
+                      className="w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:border-primary focus-visible:outline-none transition-colors"
+                      autoComplete="email"
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/50 rounded-lg px-3 py-2">
+                    <Lock className="h-3.5 w-3.5 shrink-0" />
+                    Your credentials are encrypted at rest. Never stored in plain text.
+                  </div>
+
+                  <div className="flex flex-col-reverse sm:flex-row gap-2 sm:gap-3 pt-2">
+                    <Button onClick={() => setWizardStep("app-password")} disabled={!gmailAddress.includes("@")}>
+                      Continue
+                      <ArrowRight className="ml-2 h-4 w-4" />
+                    </Button>
+                    <Button variant="ghost" onClick={() => setWizardOpen(false)}>
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {wizardStep === "app-password" && (
+                <div className="space-y-3 sm:space-y-5">
+                  <div>
+                    <Badge variant="secondary" className="mb-2 text-xs">
+                      Step 1 of 2
+                    </Badge>
+                    <h3 className="text-lg font-semibold text-foreground">
+                      Create an App Password
+                    </h3>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Sign in to the Google Account above at the link below.
+                      Name the App Password{" "}
+                      <strong className="text-foreground">TIAAGO</strong>, then
+                      copy the 16-character password Google generates.
+                    </p>
+                  </div>
+
+                  <a
+                    href="https://myaccount.google.com/apppasswords"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 text-sm font-medium text-primary hover:text-primary/80 transition-colors"
+                  >
+                    <GoogleIcon className="h-4 w-4" />
+                    Open Google App Passwords
+                    <ExternalLink className="h-3.5 w-3.5" />
+                  </a>
+
+                  <div className="rounded-lg bg-amber-50 border border-amber-200 p-3">
+                    <p className="text-xs text-amber-800">
+                      <strong>Note:</strong> If Google asks you to enable 2-Step Verification first,
+                      follow the prompt to set it up, then come back to create the App Password.
+                    </p>
+                  </div>
+
+                  <div className="flex flex-col-reverse sm:flex-row gap-2 sm:gap-3 pt-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setWizardStep("intro")}
+                    >
+                      <ArrowLeft className="mr-1.5 h-4 w-4" />
+                      Back
+                    </Button>
+                    <Button onClick={() => setWizardStep("enter-password")}>
+                      I&apos;ve copied the password
+                      <ArrowRight className="ml-2 h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {wizardStep === "enter-password" && (
+                <div className="space-y-3 sm:space-y-5">
+                  <div>
+                    <Badge variant="secondary" className="mb-2 text-xs">
+                      Step 2 of 2
+                    </Badge>
+                    <h3 className="text-lg font-semibold text-foreground">
+                      Enter the App Password
+                    </h3>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Paste the 16-character App Password below. We&apos;ll test
+                      the SMTP connection to make sure it works.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label
+                      htmlFor="admin-app-password"
+                      className="flex items-center gap-1.5 text-sm font-medium text-foreground"
+                    >
+                      <GoogleIcon className="h-4 w-4" />
+                      Gmail App Password
+                    </label>
+                    <div className="relative">
+                      <input
+                        id="admin-app-password"
+                        type={showPassword ? "text" : "password"}
+                        value={appPassword}
+                        onChange={(e) => setAppPassword(e.target.value)}
+                        placeholder="xxxx xxxx xxxx xxxx"
+                        className="w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm font-mono tracking-widest pr-10 focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:border-primary focus-visible:outline-none transition-colors"
+                        autoComplete="off"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        {showPassword ? (
+                          <EyeOff className="h-4 w-4" />
+                        ) : (
+                          <Eye className="h-4 w-4" />
+                        )}
+                      </button>
+                    </div>
+                    <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                      <Lock className="h-3 w-3" />
+                      Encrypted before storage. Never stored in plain text.
+                    </p>
+                  </div>
+
+                  <div className="flex flex-col-reverse sm:flex-row gap-2 sm:gap-3 pt-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setWizardStep("app-password")}
+                      disabled={saving}
+                    >
+                      <ArrowLeft className="mr-1.5 h-4 w-4" />
+                      Back
+                    </Button>
+                    <Button
+                      onClick={handleSave}
+                      disabled={saving || !appPassword.trim()}
+                    >
+                      {saving ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Testing connection...
+                        </>
+                      ) : (
+                        <>
+                          Connect Gmail
+                          <ArrowRight className="ml-2 h-4 w-4" />
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  /* ── Connected / Empty states ──────────────────────────────────── */
+  return (
+    <div className="rounded-xl border border-border bg-card overflow-hidden">
+      <div className="border-b border-border px-5 sm:px-6 py-4 bg-muted/30">
+        <h2 className="text-base font-semibold text-foreground">
+          Email Integration
+        </h2>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          Connect a Gmail account to send Talent Network confirmation and
+          job-match emails through SMTP.
+        </p>
+      </div>
+
+      <div className="p-5 sm:p-6">
+        {config ? (
+          <div className="space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl border border-border bg-muted/20">
+              <div className="flex items-center gap-3">
+                <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-primary/10">
+                  <Mail className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <p className="font-medium text-sm text-foreground">
+                    {config.gmail_address}
+                  </p>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    {config.is_verified ? (
+                      <>
+                        <CheckCircle2 className="h-3.5 w-3.5 text-success" />
+                        <span className="text-xs text-success font-medium">
+                          Verified
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <XCircle className="h-3.5 w-3.5 text-destructive" />
+                        <span className="text-xs text-destructive font-medium">
+                          Not verified
+                        </span>
+                      </>
+                    )}
+                    {config.last_used_at && (
+                      <span className="text-xs text-muted-foreground ml-2">
+                        Last used:{" "}
+                        {new Date(config.last_used_at).toLocaleDateString()}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleVerify}
+                  disabled={verifying}
+                >
+                  {verifying ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-4 w-4" />
+                  )}
+                  <span className="ml-1.5">
+                    {verifying ? "Testing..." : "Test"}
+                  </span>
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleDelete}
+                  disabled={deleting}
+                  className="text-destructive hover:text-destructive hover:bg-destructive/5"
+                >
+                  {deleting ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="h-4 w-4" />
+                  )}
+                  <span className="ml-1.5">Disconnect</span>
+                </Button>
+              </div>
+            </div>
+
+            {!config.is_verified && (
+              <div className="flex items-start gap-3 p-3 rounded-lg bg-warning/10 border border-warning/20 text-sm text-warning-foreground">
+                <XCircle className="h-4 w-4 text-warning shrink-0 mt-0.5" />
+                <p>
+                  Your SMTP connection is not verified. The App Password may have
+                  been revoked.{" "}
+                  <button
+                    onClick={resetWizard}
+                    className="text-primary font-medium hover:underline"
+                  >
+                    Set up a new one
+                  </button>
+                  .
+                </p>
+              </div>
+            )}
+
+            <Button variant="outline" size="sm" onClick={resetWizard}>
+              Update App Password
+            </Button>
+          </div>
+        ) : (
+          <div className="flex flex-col md:flex-row items-center gap-8 py-6">
+            <div className="w-40 h-40 shrink-0">
+              <Image
+                src={STEP_ILLUSTRATIONS.intro}
+                alt="Email integration"
+                width={160}
+                height={160}
+                className="w-full h-full object-contain opacity-80"
+              />
+            </div>
+            <div className="text-center md:text-left space-y-3">
+              <h3 className="font-semibold text-foreground">
+                No email connected
+              </h3>
+              <p className="text-sm text-muted-foreground max-w-sm">
+                Connect a Gmail account so Talent Network confirmation and
+                job-match emails send through SMTP instead of the platform
+                default sender.
+              </p>
+              <Button onClick={resetWizard}>
+                <Mail className="mr-2 h-4 w-4" />
+                Connect Gmail
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

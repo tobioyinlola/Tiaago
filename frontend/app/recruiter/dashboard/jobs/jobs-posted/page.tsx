@@ -8,10 +8,12 @@ import { ISearchParams } from "@/app/common/types";
 import PostJobBtn from "../../components/PostJobBtn";
 import { getJobs } from "@/app/common/services/jobs";
 import JobsPostedTable from "../_components/JobsPostedTable";
+import SyncedJobsSection from "../_components/SyncedJobsSection";
 import { handleServerApiCallError } from "@/app/common/utils";
 import ServerPagination from "@/app/common/components/ServerPagination";
 import { BASE_URL } from "@/app/common/constants";
 import { getCurrentUser } from "@/app/common/services/profile";
+import { getSyncedJobs } from "@/app/common/services/ats-server";
 import CopyToClipboard from "@/app/common/components/CopyToClipboard";
 import Link from "next/link";
 
@@ -30,9 +32,9 @@ const JobsPostedPage = async ({
     ? parseInt(resolvedSearchParams.page as string)
     : 1;
   const page = isNaN(_page) ? 1 : _page;
-  // currentUser and jobs are independent requests -- fetch in parallel
-  // instead of round-tripping to the backend one after the other.
-  const [userRes, jobsRes] = await Promise.all([
+  // currentUser, jobs, and synced ATS jobs are independent requests -- fetch
+  // in parallel instead of round-tripping to the backend one after the other.
+  const [userRes, jobsRes, syncedJobsRes] = await Promise.all([
     getCurrentUser("recruiter"),
     getJobs(page).catch(async e => {
       const error = await handleServerApiCallError(e);
@@ -43,9 +45,11 @@ const JobsPostedPage = async ({
       });
       return null;
     }),
+    getSyncedJobs(),
   ]);
   const currentUser = userRes.currentUser;
   const jobs = jobsRes?.results || [];
+  const syncedJobs = syncedJobsRes.success ? syncedJobsRes.data : [];
   // const filteredJobs = jobs.filter(job => job.company.id === currentUser!.id);
 
   // Company names routinely contain spaces/slashes/ampersands -- an
@@ -100,6 +104,7 @@ const JobsPostedPage = async ({
           </div>
         </div>
       </div>
+      <SyncedJobsSection jobs={syncedJobs} />
       <JobsPostedTable jobs={jobs} />
       {!!jobsRes && (
         <ServerPagination

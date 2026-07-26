@@ -571,18 +571,26 @@ class AssessmentBundleManageDetailView(RetrieveUpdateDestroyAPIView):
 
 
 _VALID_DIFFICULTY_LEVELS = {choice[0].upper() for choice in DIFFICULTY_LEVEL_CHOICES}
-_VALID_QUESTION_TYPES = {"MCQ", "CODING_TASK", "OPEN_ENDED"}
+_VALID_CSV_QUESTION_TYPES = {"MCQ", "CODING_TASK"}
+_OPTION_LETTERS = ["a", "b", "c", "d"]
 
 
 def _parse_bundle_csv_row(row: dict, row_number: int, default_difficulty: str):
     """Builds one TalentQuestionBank (+ its underlying question row) from a
-    single CSV row. Raises ValidationError with a row number on any problem
-    so the whole upload can report exactly which row is wrong rather than
-    failing silently or generically."""
+    single CSV row. The CSV format is intentionally strict -- only MCQ and
+    CODING_TASK rows, with columns: question_type, question, option_a,
+    option_b, option_c, option_d, correct_option, difficulty_level. Richer
+    per-question detail (coding task description/sample IO, open-ended
+    grading guidance) is entered via the builder's optional inline sections
+    instead (see _parse_bundle_open_ended_entries /
+    _parse_bundle_coding_task_entries), not via CSV columns.
+    Raises ValidationError with a row number on any problem so the whole
+    upload can report exactly which row is wrong rather than failing
+    silently or generically."""
     question_type = (row.get("question_type") or "").strip().upper()
-    if question_type not in _VALID_QUESTION_TYPES:
+    if question_type not in _VALID_CSV_QUESTION_TYPES:
         raise ValidationError(
-            f"Row {row_number}: question_type must be one of MCQ, CODING_TASK, OPEN_ENDED (got {question_type!r})"
+            f"Row {row_number}: question_type must be one of MCQ, CODING_TASK (got {question_type!r})"
         )
 
     difficulty_level = (row.get("difficulty_level") or "").strip().upper() or default_difficulty
@@ -591,67 +599,47 @@ def _parse_bundle_csv_row(row: dict, row_number: int, default_difficulty: str):
             f"Row {row_number}: difficulty_level must be one of {sorted(_VALID_DIFFICULTY_LEVELS)} (got {difficulty_level!r})"
         )
 
-    stack = None
-    stack_name = (row.get("stack") or "").strip()
-    if stack_name:
-        stack = TechStack.objects.filter(stack__iexact=stack_name).first()
-        # Soft failure -- an unrecognized stack name shouldn't sink an
-        # otherwise-valid row, it just leaves the question unstacked.
-
     question_text = (row.get("question") or "").strip()
     if not question_text:
         raise ValidationError(f"Row {row_number}: question is required")
 
     if question_type == "MCQ":
-        options = [
-            (row.get(f"option_{i}") or "").strip() for i in range(1, 5)
+        lettered_options = [
+            (letter, (row.get(f"option_{letter}") or "").strip()) for letter in _OPTION_LETTERS
         ]
-        options = [o for o in options if o]
-        if len(options) < 2:
-            raise ValidationError(f"Row {row_number}: MCQ needs at least 2 non-empty options")
-        try:
-            correct_option = int((row.get("correct_option") or "").strip())
-        except (TypeError, ValueError):
-            raise ValidationError(f"Row {row_number}: correct_option must be a number matching one of the option columns")
-        if not (1 <= correct_option <= len(options)):
-            raise ValidationError(f"Row {row_number}: correct_option {correct_option} doesn't match any provided option")
+        non_empty_options = [(letter, value) for letter, value in lettered_options if value]
+        if len(non_empty_options) < 2:
+            raise ValidationError(f"Row {row_number}: MCQ needs at least 2 non-empty options (option_a-option_d)")
+
+        correct_letter = (row.get("correct_option") or "").strip().lower()
+        correct_index = next(
+            (i for i, (letter, _) in enumerate(non_empty_options, start=1) if letter == correct_letter),
+            None,
+        )
+        if correct_index is None:
+            raise ValidationError(
+                f"Row {row_number}: correct_option must be one of a, b, c, d matching a non-empty option column"
+            )
 
         mcq = GeneralSkillAssessmentMCQQuestion.objects.create(
             question=question_text,
-            options=[{"value": opt, "index": i + 1} for i, opt in enumerate(options)],
-            correct_option_index=correct_option,
+            options=[{"value": value, "index": i + 1} for i, (_, value) in enumerate(non_empty_options)],
+            correct_option_index=correct_index,
         )
         return TalentQuestionBank.objects.create(
-            mcq_question=mcq, stack=stack, difficulty_level=difficulty_level,
+            mcq_question=mcq, difficulty_level=difficulty_level,
         )
 
-    if question_type == "CODING_TASK":
-        description = (row.get("description") or "").strip()
-        if not description:
-            raise ValidationError(f"Row {row_number}: CODING_TASK requires a description")
-        skills_assessed = [s.strip() for s in (row.get("skills_assessed") or "").split(";") if s.strip()]
-        coding_task = CodingTask.objects.create(
-            title=question_text,
-            description=description,
-            sample_input=(row.get("sample_input") or "").strip(),
-            sample_output=(row.get("sample_output") or "").strip(),
-            difficulty_level=difficulty_level,
-            skills_assessed=skills_assessed,
-            stack=stack,
-        )
-        return TalentQuestionBank.objects.create(
-            coding_task=coding_task, stack=stack, difficulty_level=difficulty_level,
-        )
-
-    # OPEN_ENDED
-    skills_assessed = [s.strip() for s in (row.get("skills_assessed") or "").split(";") if s.strip()]
-    open_ended = OpenEndedQuestion.objects.create(
-        question=question_text,
-        grading_guidance=(row.get("grading_guidance") or "").strip(),
-        skills_assessed=skills_assessed,
+    # CODING_TASK -- only title + difficulty_level come from the strict CSV;
+    # full detail (description, sample input/output) is optional and entered
+    # via the coding_tasks builder section instead (_parse_bundle_coding_task_entries).
+    coding_task = CodingTask.objects.create(
+        title=question_text,
+        description="",
+        difficulty_level=difficulty_level,
     )
     return TalentQuestionBank.objects.create(
-        open_ended_question=open_ended, stack=stack, difficulty_level=difficulty_level,
+        coding_task=coding_task, difficulty_level=difficulty_level,
     )
 
 
@@ -700,24 +688,74 @@ def _parse_bundle_open_ended_entries(raw: str, default_difficulty: str):
     return bank_entries
 
 
+def _parse_bundle_coding_task_entries(raw: str, default_difficulty: str):
+    """Builds TalentQuestionBank rows for coding tasks submitted as a JSON
+    list (from the bundle builder's optional inline form) rather than CSV
+    rows -- mirrors _parse_bundle_open_ended_entries, letting a coding task
+    carry a full description/sample input/output without forcing those
+    columns into the strict CSV format."""
+    try:
+        entries = json.loads(raw)
+    except (TypeError, ValueError):
+        raise ValidationError("coding_tasks must be valid JSON")
+    if not isinstance(entries, list):
+        raise ValidationError("coding_tasks must be a JSON array")
+
+    bank_entries = []
+    for i, item in enumerate(entries, start=1):
+        if not isinstance(item, dict):
+            raise ValidationError(f"Coding task {i}: must be an object")
+        title = (item.get("question") or item.get("title") or "").strip()
+        if not title:
+            raise ValidationError(f"Coding task {i}: title/question text is required")
+
+        difficulty_level = (item.get("difficulty_level") or "").strip().upper() or default_difficulty
+        if difficulty_level not in _VALID_DIFFICULTY_LEVELS:
+            raise ValidationError(
+                f"Coding task {i}: difficulty_level must be one of {sorted(_VALID_DIFFICULTY_LEVELS)}"
+            )
+
+        skills_assessed = item.get("skills_assessed") or []
+        if isinstance(skills_assessed, str):
+            skills_assessed = [s.strip() for s in skills_assessed.split(";") if s.strip()]
+
+        coding_task = CodingTask.objects.create(
+            title=title,
+            description=(item.get("description") or "").strip(),
+            sample_input=(item.get("sample_input") or "").strip(),
+            sample_output=(item.get("sample_output") or "").strip(),
+            difficulty_level=difficulty_level,
+            skills_assessed=skills_assessed,
+        )
+        bank_entries.append(
+            TalentQuestionBank.objects.create(
+                coding_task=coding_task, difficulty_level=difficulty_level,
+            )
+        )
+    return bank_entries
+
+
 class AssessmentBundleCsvUploadView(APIView):
     """Staff-only: POST /staff/bundles/csv-upload/ -- creates a bundle and
     its questions in one step. Expected multipart fields: name, description,
     role_id, difficulty_level, estimated_duration_minutes, is_recommended,
     plus at least one of:
-      - csv_file: MCQ / CODING_TASK (and optionally OPEN_ENDED) rows.
+      - csv_file: strict MCQ / CODING_TASK rows (see column list below).
       - open_ended_questions: a JSON-encoded array of
         {question, grading_guidance, skills_assessed, difficulty_level?}
         for open-ended questions authored directly in the builder UI instead
         of via CSV.
+      - coding_tasks: a JSON-encoded array of
+        {question, description, sample_input, sample_output,
+        skills_assessed, difficulty_level?} for coding tasks that need full
+        detail beyond the CSV's bare title, authored via the builder UI.
 
-    CSV columns (header row required): question_type, question, option_1,
-    option_2, option_3, option_4, correct_option, description, sample_input,
-    sample_output, skills_assessed, grading_guidance, difficulty_level, stack.
-    Not every column applies to every question_type -- see
-    _parse_bundle_csv_row for exactly which ones each type reads.
-    difficulty_level and stack are optional per row; a blank difficulty_level
-    falls back to the bundle-level value in the form fields above.
+    CSV columns (header row required, strict): question_type, question,
+    option_a, option_b, option_c, option_d, correct_option, difficulty_level.
+    question_type must be MCQ or CODING_TASK -- see _parse_bundle_csv_row for
+    exactly what each type reads. difficulty_level is optional per row; a
+    blank value falls back to the bundle-level value in the form fields
+    above. correct_option is the letter (a-d) of the correct option column.
     """
 
     permission_classes = [IsStaffUser]
@@ -726,9 +764,10 @@ class AssessmentBundleCsvUploadView(APIView):
     def post(self, request):
         csv_file = request.FILES.get("csv_file")
         open_ended_raw = request.data.get("open_ended_questions")
-        if not csv_file and not open_ended_raw:
+        coding_tasks_raw = request.data.get("coding_tasks")
+        if not csv_file and not open_ended_raw and not coding_tasks_raw:
             return Response(
-                {"error": "Add questions via csv_file, open_ended_questions, or both"},
+                {"error": "Add questions via csv_file, open_ended_questions, coding_tasks, or a combination"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -762,9 +801,11 @@ class AssessmentBundleCsvUploadView(APIView):
                     ]
                 if open_ended_raw:
                     bank_entries += _parse_bundle_open_ended_entries(open_ended_raw, difficulty_level)
+                if coding_tasks_raw:
+                    bank_entries += _parse_bundle_coding_task_entries(coding_tasks_raw, difficulty_level)
 
                 if not bank_entries:
-                    raise ValidationError("Add at least one question via CSV or the open-ended question builder")
+                    raise ValidationError("Add at least one question via CSV, the open-ended builder, or the coding task builder")
 
                 bundle = AssessmentBundle.objects.create(
                     name=name,

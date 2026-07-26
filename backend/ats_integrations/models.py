@@ -134,6 +134,15 @@ class AtsJob(TimeStampedModel):
     ats_created_at = models.DateTimeField(null=True, blank=True)
     raw_data = models.JSONField(default=dict, blank=True, help_text="Original ATS payload, kept for debugging and future re-mapping")
     last_synced_at = models.DateTimeField(auto_now=True)
+    # `converted_job_id is not None` doubles as the "already converted" flag,
+    # so there's no separate boolean that could drift out of sync with it.
+    # SET_NULL (not CASCADE either direction): deleting the real Job later
+    # shouldn't delete this sync record, and vice versa.
+    converted_job = models.OneToOneField(
+        "jobs.Job", null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="source_ats_job",
+    )
+    converted_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         constraints = [

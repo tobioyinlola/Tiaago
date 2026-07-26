@@ -7,4 +7,8 @@ export const settingsTabs = [
     name: "security" as const,
     label: "Password and Security",
   },
+  {
+    name: "email" as const,
+    label: "Email Integration",
+  },
 ];

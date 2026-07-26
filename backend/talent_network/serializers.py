@@ -1,7 +1,7 @@
 from rest_framework import serializers
 
 from .choices import TalentNetworkMemberStatus
-from .models import JobMatchNotification, TalentNetworkMember
+from .models import JobMatchNotification, TalentNetworkMember, TalentNetworkSmtpConfig
 
 
 class TalentNetworkJoinSerializer(serializers.ModelSerializer):
@@ -51,6 +51,18 @@ class TalentNetworkMemberSerializer(serializers.ModelSerializer):
             "created_at", "updated_at", "last_email_sent", "last_opened",
         ]
         read_only_fields = fields
+
+
+class TalentNetworkSmtpConfigSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TalentNetworkSmtpConfig
+        fields = ("id", "gmail_address", "is_verified", "verified_at", "last_used_at", "created_at")
+        read_only_fields = ("id", "is_verified", "verified_at", "last_used_at", "created_at")
+
+
+class TalentNetworkSmtpSetupSerializer(serializers.Serializer):
+    gmail_address = serializers.EmailField()
+    app_password = serializers.CharField(min_length=8, max_length=64)
 
 
 class JobMatchNotificationSerializer(serializers.ModelSerializer):

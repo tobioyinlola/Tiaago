@@ -21,7 +21,12 @@ export const emailValidationSchema = Yup.string()
 
 export const urlValidationSchema = Yup.string()
   .matches(
-    /^((ftp|http|https):\/\/)?(www\.)?(?!.*(ftp|http|https|www\.))([a-zA-Z0-9-]+(\.[a-zA-Z]+)+)((\/[\w-]+)*)(\/\w+\?[a-zA-Z0-9_]+=\w+(&[a-zA-Z0-9_]+=\w+)*)?\/?$/gm,
+    // No `g`/`m` flags: Yup reuses this exact regex object across every
+    // revalidation (e.g. on every keystroke), and `g` makes `.test()` carry
+    // `lastIndex` state between calls on the *same* object -- which made this
+    // spuriously alternate pass/fail on an unchanged value. `m` served no
+    // purpose either (single-line input, not per-line matching).
+    /^((ftp|http|https):\/\/)?(www\.)?(?!.*(ftp|http|https|www\.))([a-zA-Z0-9-]+(\.[a-zA-Z]+)+)((\/[\w-]+)*)(\/\w+\?[a-zA-Z0-9_]+=\w+(&[a-zA-Z0-9_]+=\w+)*)?\/?$/,
     "Please enter a valid URL"
   )
   .required();

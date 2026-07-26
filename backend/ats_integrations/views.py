@@ -1,3 +1,4 @@
+from django.db import transaction
 from django.utils import timezone
 from loguru import logger
 from rest_framework.generics import ListAPIView, RetrieveAPIView
@@ -7,13 +8,21 @@ from rest_framework.views import APIView
 from base.mixins.pagination import TiaagoPagination
 from base.permissions import IsCompanyRepOrStaffUser
 from create_user.permissions import get_user_company
+from jobs.serializers import JobSerializer
 
 from . import nango_client
-from .models import AtsConnection
+from .models import AtsCandidate, AtsConnection, AtsJob
 from .nango_client import NangoError
 from .providers import PROVIDER_REGISTRY
-from .serializers import AtsConnectionSerializer, AtsConnectSessionInputSerializer, AtsSyncTriggerInputSerializer
-from .tasks import run_ats_sync
+from .serializers import (
+    AtsConnectionSerializer,
+    AtsConnectSessionInputSerializer,
+    AtsJobConvertInputSerializer,
+    AtsJobSerializer,
+    AtsSyncTriggerInputSerializer,
+)
+from .services import convert_ats_candidate_to_application
+from .tasks import attach_ats_candidate_resume, run_ats_sync
 
 
 class AtsAvailableIntegrationsView(APIView):
@@ -161,3 +170,86 @@ class AtsConnectionListView(ListAPIView):
 
     def get_queryset(self):
         return AtsConnection.objects.filter(company=get_user_company(self.request.user))
+
+
+class AtsJobListView(ListAPIView):
+    """GET /api/ats/jobs/ -- unconverted synced jobs for the recruiter's
+    company, across all ATS connections. Deliberately unpaginated: sync
+    volumes are small relative to the native job list, and this is meant to
+    render as a small standalone section on the Jobs Posted page, not a
+    second paginated table."""
+
+    permission_classes = [IsCompanyRepOrStaffUser]
+    serializer_class = AtsJobSerializer
+    pagination_class = None
+
+    def get_queryset(self):
+        return AtsJob.objects.filter(
+            company=get_user_company(self.request.user), converted_job__isnull=True,
+        ).order_by("-ats_created_at")
+
+
+class AtsJobConvertView(APIView):
+    """POST /api/ats/jobs/<id>/convert/ -- turns a synced AtsJob into a real,
+    immediately-ACTIVE Job (reusing JobSerializer.create(), so assessment
+    template/interview slots are built exactly like the normal job wizard),
+    then converts every matching AtsCandidate into an ordinary JobApplication
+    (see services.convert_ats_candidate_to_application). Resume files are
+    fetched from each candidate's resume_url asynchronously afterward -- the
+    Job/JobApplications are created and returned immediately, never blocked
+    on that network fetch."""
+
+    permission_classes = [IsCompanyRepOrStaffUser]
+
+    def post(self, request, pk):
+        company = get_user_company(request.user)
+        ats_job = AtsJob.objects.filter(id=pk, company=company, converted_job__isnull=True).first()
+        if not ats_job:
+            return Response(status=404, data={"error": "Synced job not found or already converted."})
+
+        input_serializer = AtsJobConvertInputSerializer(data=request.data)
+        input_serializer.is_valid(raise_exception=True)
+        v = input_serializer.validated_data
+
+        job_payload = {
+            "role": ats_job.title or "Untitled role",
+            "description": ats_job.description,
+            "location": ats_job.location or "Remote",
+            **v,
+        }
+
+        with transaction.atomic():
+            job_serializer = JobSerializer(data=job_payload)
+            job_serializer.is_valid(raise_exception=True)
+            job = job_serializer.save(company=company)
+
+            ats_job.converted_job = job
+            ats_job.converted_at = timezone.now()
+            ats_job.save(update_fields=["converted_job", "converted_at", "updated_at"])
+
+            candidates = list(AtsCandidate.objects.filter(
+                company=company, provider=ats_job.provider, ats_job_external_ids__contains=[ats_job.external_id],
+            ))
+            resume_fetch_application_ids = []
+            applications_created = 0
+            for candidate in candidates:
+                application = convert_ats_candidate_to_application(candidate, job)
+                if not application:
+                    continue
+                applications_created += 1
+                if candidate.resume_url:
+                    resume_fetch_application_ids.append(application.id)
+
+        for application_id in resume_fetch_application_ids:
+            try:
+                attach_ats_candidate_resume.delay(application_id)
+            except Exception:
+                logger.exception(f"Failed to dispatch attach_ats_candidate_resume for application {application_id}")
+
+        return Response(
+            status=201,
+            data={
+                "job": JobSerializer(job).data,
+                "applications_created": applications_created,
+            },
+        )
