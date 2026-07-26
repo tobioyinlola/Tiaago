@@ -58,6 +58,7 @@ from .models import CustomUser, Company, TalentProfile, OneTimePassword, Referra
 from payments.models import WalletTransaction
 from django.db import IntegrityError
 from subscriptions.models import FreePlan
+from subscriptions.billing_service import get_or_create_wallet
 from subscriptions.permissions import IsCompanyRepOrStaffUser, IsTalentOrStaffUser
 from .api.serializers import (
     CompanyOnboardingSerializer,
@@ -170,6 +171,7 @@ class GoogleSignInView(APIView):
                 FreePlan.objects.get_or_create(
                     company=company, defaults={"company_email": email}
                 )
+                get_or_create_wallet(company)
             else:
                 TalentProfile.objects.create(user=user)
             send_after_commit(send_welcome_mail, user_pk=user.pk)

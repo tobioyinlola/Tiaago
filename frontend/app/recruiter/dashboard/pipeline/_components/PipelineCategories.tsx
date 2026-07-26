@@ -409,7 +409,6 @@ export default function PipelineCategories({
                               checked={cat.is_active}
                               onCheckedChange={() => handleToggleActive(cat)}
                               aria-label={`Toggle ${cat.name} active status`}
-                              className="max-sm:hidden"
                             />
                           </div>
                         </TableCell>

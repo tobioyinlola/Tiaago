@@ -37,6 +37,7 @@ from jobs.models import Portfolio, Tool
 from roles.models import Role
 from skill_assessment.models import CandidateAssessmentSubmission
 from subscriptions.models import FreePlan
+from subscriptions.billing_service import get_or_create_wallet
 
 from ..models import CustomUser, Company, SocialMediaLink, TalentProfile, Referral, ReferralWallet, WithdrawalRequest, CompanyTeamMember, CompanyTeamInvite
 from ..utils import get_company_billing_type, get_active_subscription, get_wallet_balance
@@ -410,6 +411,7 @@ class CompanySerializer(RegisterSerializer):
             pass
 
         FreePlan.objects.get_or_create(company=company, company_email=user.email)
+        get_or_create_wallet(company)
         return user
 
     def validate(self, data):

@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { useState } from "react";
 import Button from "@/app/common/components/DaisyButton";
 import { useRouter } from "next/navigation";
-import { LuExternalLink } from "react-icons/lu";
+import { LuExternalLink, LuPencil, LuUsers } from "react-icons/lu";
 import { HiOutlineUsers, HiOutlineEye } from "react-icons/hi2";
 
 import {
@@ -108,16 +108,19 @@ const JobsPostedTable = ({ jobs = [] }: { jobs: Job[] }) => {
                   <div className='flex items-center gap-3.5'>
                     <Link
                       href={`/recruiter/dashboard/jobs/edit/${job.public_id}`}
-                      className='font-medium max-md:hidden text-primary hover:text-primary/80'
+                      className='font-medium text-primary hover:text-primary/80 flex items-center gap-1'
                       title='Edit Job'
                     >
-                      Edit
+                      <LuPencil className='text-base md:hidden' />
+                      <span className='max-md:hidden'>Edit</span>
                     </Link>
                     <a
                       href={`/recruiter/dashboard/jobs/jobs-posted/${job.public_id}/applications`}
-                      className='font-medium max-md:hidden text-primary'
+                      className='font-medium text-primary flex items-center gap-1'
+                      title='View Applications'
                     >
-                      View Applications
+                      <LuUsers className='text-base md:hidden' />
+                      <span className='max-md:hidden'>View Applications</span>
                     </a>
                   </div>
                   <div className='flex items-center gap-3'>

@@ -331,9 +331,11 @@ const JobsTable = ({
                     <td className='flex items-center justify-between'>
                       <a
                         href={`/recruiter/dashboard/jobs/jobs-posted/${job.public_id}/applications`}
-                        className='font-medium max-md:hidden text-primary'
+                        className='font-medium text-primary flex items-center gap-1'
+                        title='View Applications'
                       >
-                        View Applications
+                        <Users className='text-base md:hidden' size={16} />
+                        <span className='max-md:hidden'>View Applications</span>
                       </a>
                       <Link target='_blank' href={job.detail_url || "#"}>
                         <LuExternalLink className='text-base text-[#7F7F7F]' />

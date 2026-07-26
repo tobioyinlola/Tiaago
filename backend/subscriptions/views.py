@@ -61,6 +61,7 @@ from .serializers import (
     SubscriptionTransactionSerializer,
 )
 from .helper import determine_plan_usage, determine_free_plan_usage, get_pricing_decimal, get_action_price, COUNTRY_CURRENCY_MAP
+from .billing_service import get_or_create_wallet
 from emails import emails
 from utils.stripe_sub_handler import create_stripe_product_price, create_checkout_session, stripe_api_key, fund_wallet_stripe
 import stripe
@@ -669,9 +670,7 @@ class FundWalletView(APIView):
                 {'error': f'Minimum top-up amount is {minimum}.'}, status=status.HTTP_400_BAD_REQUEST
             )
 
-        wallet, _ = Wallet.objects.get_or_create(
-            company=company, defaults={"currency": COUNTRY_CURRENCY_MAP.get(company.country, "USD")}
-        )
+        wallet = get_or_create_wallet(company)
 
         if provider == 'stripe':
             # create checkout session
@@ -818,13 +817,7 @@ def get_wallet_balance(request):
     if not company:
         return Response({'error': 'No company associated'}, status=status.HTTP_403_FORBIDDEN)
 
-    wallet, created = Wallet.objects.get_or_create(
-        company=company,
-        defaults={
-            'balance': 0.00,
-            'currency': COUNTRY_CURRENCY_MAP.get(company.country, "USD"),
-        },
-    )
+    wallet = get_or_create_wallet(company)
     currency = wallet.currency or COUNTRY_CURRENCY_MAP.get(company.country, "USD")
 
     return Response(
@@ -856,9 +849,7 @@ def update_wallet_settings(request):
     if not company:
         return Response({'error': 'No company associated'}, status=status.HTTP_403_FORBIDDEN)
 
-    wallet, _ = Wallet.objects.get_or_create(
-        company=company, defaults={"currency": COUNTRY_CURRENCY_MAP.get(company.country, "USD")}
-    )
+    wallet = get_or_create_wallet(company)
 
     update_fields = []
     if "low_balance_alert_enabled" in request.data:
@@ -1384,7 +1375,7 @@ def paystack_wallet_fund_webhook(request):
             company = Company.objects.filter(company_email=customer_email).first()
             
             if company:
-                wallet, _ = Wallet.objects.get_or_create(company=company)
+                wallet = get_or_create_wallet(company)
 
                 # Idempotency: Paystack retries webhooks — never credit the
                 # same reference twice. Checked against both the topup
@@ -1521,7 +1512,7 @@ def stripe_wallet_fund_webhook(request):
             # get company
             company = Company.objects.filter(company_email=customer_email).first()
             if company:
-                wallet, _ = Wallet.objects.get_or_create(company=company)
+                wallet = get_or_create_wallet(company)
 
                 # Idempotency: Stripe retries webhooks — never credit the
                 # same checkout session twice. Checked against both the
