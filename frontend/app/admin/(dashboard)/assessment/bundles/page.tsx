@@ -8,6 +8,7 @@ import DisplayErrorMessages, {
 } from "@/app/common/components/DisplayErrorMessages";
 import BundleCsvUploadModal from "./_components/BundleCsvUploadModal";
 import DeleteBundleButton from "./_components/DeleteBundleButton";
+import EditBundlePanel from "./_components/EditBundlePanel";
 import ServerPagination from "@/app/common/components/ServerPagination";
 import { ISearchParams } from "@/app/common/types";
 import AddNewRole from "../../components/AddNewRole";
@@ -81,6 +82,7 @@ const AdminBundlesPage = async ({
                   <td>{bundle.question_count}</td>
                   <td>{bundle.is_recommended ? "Yes" : "No"}</td>
                   <td className='flex gap-2 items-center'>
+                    <EditBundlePanel bundle={bundle} roles={roles} />
                     <DeleteBundleButton id={bundle.id} />
                   </td>
                 </tr>
