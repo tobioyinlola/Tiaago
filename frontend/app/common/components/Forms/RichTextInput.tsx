@@ -2,8 +2,10 @@
 
 import { Field } from "formik";
 import dynamic from "next/dynamic";
+import { useMemo } from "react";
 
 import { cn, htmlToPlainText } from "../../utils";
+import { RichTextToolbar } from "../../types";
 
 const ReactQuill = dynamic(() => import("react-quill-new"), {
   ssr: false,
@@ -15,6 +17,9 @@ type Props = {
   placeholder?: string;
   maxChars?: number;
   minHeight?: number;
+  /** Restricts which buttons Quill renders. Leave undefined to keep Quill's
+   * full default toolbar (bold/italic/underline, headings, colours, ...). */
+  toolbar?: RichTextToolbar;
 };
 
 const RichTextInputField = ({
@@ -22,7 +27,15 @@ const RichTextInputField = ({
   placeholder,
   maxChars = 255,
   minHeight = 140,
+  toolbar,
 }: Props) => {
+  // Quill re-initialises the editor whenever `modules` changes identity, so
+  // keep the object stable across renders instead of building it inline.
+  const modules = useMemo(
+    () => (toolbar ? { toolbar } : undefined),
+    [toolbar]
+  );
+
   return (
     <Field name={name}>
       {({
@@ -49,6 +62,7 @@ const RichTextInputField = ({
             >
               <ReactQuill
                 value={value}
+                modules={modules}
                 placeholder={placeholder}
                 onChange={val => {
                   setFieldValue(name, val);

@@ -22,6 +22,7 @@ import { useAlert } from "@/app/common/store/useAlert";
 import HiringProcess from "../../_components/HiringProcess";
 import RoleTitleField from "../../create/CreateJobForm/_components/RoleTitleField";
 import InfoCircleIcon from "@/app/common/icons/InfoCircleIcon";
+import InfoTooltip from "@/app/common/components/InfoTooltip";
 import { useMultiStep } from "@/app/common/store/useMultiStep";
 import { CountryField, TalentRole, Job } from "@/app/common/types";
 import { cn, handleFormSubmissionError, openModal } from "@/app/common/utils";
@@ -30,7 +31,6 @@ import CopyToClipboard from "@/app/common/components/CopyToClipboard";
 import JobDetails from "@/app/common/components/dashboard/JobDetails";
 import CountrySelect from "@/app/common/components/Forms/CountrySelect";
 import { SuccessIconWithConfetti } from "@/app/common/icons/SuccessIcon";
-import info_direct from "../../../../../../public/assets/images/companies/Polygon 20.png";
 import { useScrollToTop } from "@/app/common/hooks/useScrollToTop";
 import { useRouter } from "next/navigation";
 
@@ -49,7 +49,6 @@ const EditJobForm = ({
   job,
   groupedCountries,
   talentRoles,
-  recruiterCountry,
   hasAddedPaymentCard,
   usePaystack,
   // stripeClientSecret,
@@ -59,7 +58,6 @@ const EditJobForm = ({
   job: Job;
   groupedCountries: GroupBase<CountryField>[];
   talentRoles: TalentRole[];
-  recruiterCountry?: string;
   hasAddedPaymentCard: boolean;
   usePaystack: boolean;
   // stripeClientSecret: string;
@@ -97,7 +95,6 @@ const EditJobForm = ({
       payment_range: paymentRange,
       payment_currency: currency,
       experience: job.experience,
-      location: job.location,
       description: job.description,
       about_company: job.about_company,
       job_requirement: job.job_requirement,
@@ -194,27 +191,7 @@ const EditJobForm = ({
                   >
                     {title}
                   </h2>
-                  {description && (
-                    <>
-                      <InfoCircleIcon className='text-secondary-black' />
-                      <Image
-                        src={info_direct}
-                        alt=''
-                        className='w-[36px] h-[28px]'
-                      />
-                    </>
-                  )}
-
-                  {description && (
-                    <div
-                      className='bg-[#9DA3A8] shadow-[#00000040] md:max-w-[446px] flex items-center justify-center
-                px-3 py-2 rounded-md'
-                    >
-                      <p className='text-sm text-white  italic'>
-                        {description}
-                      </p>
-                    </div>
-                  )}
+                  <InfoTooltip description={description} />
                 </div>
 
                 <div className='flex-wrap md:flex justify-between'>
@@ -285,27 +262,15 @@ const EditJobForm = ({
                         />
                       );
 
-                    if (name === "location")
+                    if (name === "country")
                       return (
                         <CountrySelect
                           key={name}
                           {...{ name, value, ...props }}
-                          options={[
-                            {
-                              label: "Remote",
-                              options: [
-                                {
-                                  label: "Remote",
-                                  value: "Remote",
-                                  region: "Remote",
-                                },
-                              ],
-                            },
-                            ...groupedCountries,
-                          ]}
+                          options={groupedCountries}
                           error={error}
                           touched={touched[name]}
-                          placeholder='Select Location'
+                          placeholder='Select Country'
                         />
                       );
 

@@ -184,6 +184,12 @@ class GoogleSignInView(APIView):
         if user.auth_provider != CustomUser.AuthProvider.GOOGLE:
             user.auth_provider = CustomUser.AuthProvider.GOOGLE
             update_fields.append("auth_provider")
+        if user.is_guest_provisioned:
+            # A verified Google sign-in claims any shadow account that was
+            # auto-provisioned for this email by a guest job application/ATS
+            # sync -- Google already proved they own the address.
+            user.is_guest_provisioned = False
+            update_fields.append("is_guest_provisioned")
         if update_fields:
             user.save(update_fields=update_fields)
 
@@ -352,7 +358,17 @@ class ConfirmEmailView(APIView):
             user = otp_entry.user
             user.is_verified = True
             user.verified = True
-            user.save(update_fields=["is_verified", "verified"])
+            update_fields = ["is_verified", "verified"]
+            # This code being verified is the proof-of-inbox-ownership a
+            # guest-account claim (TalentSerializer._claim_guest_provisioned_user)
+            # was withholding a password for -- only now, with that proof in
+            # hand, does the submitted password actually become usable and
+            # the account stop being guest-provisioned.
+            if otp_entry.pending_password:
+                user.password = otp_entry.pending_password
+                user.is_guest_provisioned = False
+                update_fields += ["password", "is_guest_provisioned"]
+            user.save(update_fields=update_fields)
 
             send_after_commit(send_welcome_mail, user_pk=user.pk)
 

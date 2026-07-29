@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { ServerCandidate } from "@/app/common/types";
 import { emailTemplates } from "@/app/common/constants/mockCandidates";
+import { JOB_LEVEL_DISPLAY } from "@/app/common/constants/jobs";
 import {
   Dialog,
   DialogContent,
@@ -98,7 +99,6 @@ function EmailPreview({
   recruiterName: string;
 }) {
   const jobTitle = selectedJob?.title || "Backend Engineer";
-  const JOB_LEVEL_DISPLAY: Record<string, string> = { ENTRY: "Entry", JUNIOR: "Junior", SENIOR: "Senior" };
   const jobLevel = JOB_LEVEL_DISPLAY[selectedJob?.job_level || ""] || selectedJob?.job_level || "Senior";
 
   const previewBody = useMemo(() => {

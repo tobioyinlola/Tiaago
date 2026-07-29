@@ -1,5 +1,7 @@
 import * as Yup from "yup";
 
+import { CompanySkillAssessment } from "@/app/common/types";
+
 export const difficultyLevels = ["Junior", "Intermediate", "Senior"];
 
 export const assessmentTypeOptions = [
@@ -29,6 +31,32 @@ export const detailsValidationSchema = Yup.object().shape({
   shuffle_questions: Yup.boolean().required(),
   use_public_link: Yup.boolean().required(),
   use_start_and_end_time: Yup.boolean().required(),
+  // Availability window -- only collected (and only required) while the
+  // "Start and end date/time" toggle is on. Held as the raw
+  // `datetime-local` string ("YYYY-MM-DDTHH:mm"), which DRF parses fine.
+  start_at: Yup.string()
+    .nullable()
+    .label("Start date/time")
+    .when("use_start_and_end_time", {
+      is: true,
+      then: schema => schema.required("Start date/time is required"),
+    }),
+  end_at: Yup.string()
+    .nullable()
+    .label("End date/time")
+    .when("use_start_and_end_time", {
+      is: true,
+      then: schema =>
+        schema.required("End date/time is required").test(
+          "end-after-start",
+          "End date/time must be after the start date/time",
+          function (value) {
+            const start = this.parent?.start_at;
+            if (!value || !start) return true;
+            return new Date(value).getTime() > new Date(start).getTime();
+          }
+        ),
+    }),
 });
 
 export type DetailsFormValues = Yup.InferType<typeof detailsValidationSchema>;
@@ -47,7 +75,46 @@ export const detailsInitialValues: DetailsFormValues = {
   shuffle_questions: true,
   use_public_link: false,
   use_start_and_end_time: false,
+  start_at: "",
+  end_at: "",
 };
+
+/** `<input type="datetime-local">` only accepts "YYYY-MM-DDTHH:mm" in local
+ * time -- the API hands back a full ISO string (usually UTC with a "Z"), so
+ * it has to be shifted into the browser's zone before it will display. */
+export const toDatetimeLocalValue = (iso?: string | null) => {
+  if (!iso) return "";
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(
+    date.getHours()
+  )}:${pad(date.getMinutes())}`;
+};
+
+/** Rehydrates step 0's Formik state from an assessment row that already
+ * exists server-side -- used when a recruiter resumes an abandoned draft
+ * via /assessments/add?assessmentId=<id>. */
+export const detailsValuesFromAssessment = (
+  assessment: CompanySkillAssessment
+): DetailsFormValues => ({
+  ...detailsInitialValues,
+  title: assessment.title ?? "",
+  description: assessment.description ?? "",
+  difficulty_level: assessment.difficulty_level ?? "",
+  skillsets: (assessment.skillsets ?? []).map(skillset => String(skillset.id)),
+  assessment_type: assessment.assessment_type ?? "",
+  duration_minutes: assessment.duration_minutes ?? detailsInitialValues.duration_minutes,
+  passing_grade: assessment.passing_grade ?? detailsInitialValues.passing_grade,
+  show_results_to_candidate: assessment.show_results_to_candidate ?? true,
+  display_review_and_approve_responses: !!assessment.display_review_and_approve_responses,
+  display_feedback: !!assessment.display_feedback,
+  shuffle_questions: !!assessment.shuffle_questions,
+  use_public_link: !!assessment.use_public_link,
+  use_start_and_end_time: !!assessment.use_start_and_end_time,
+  start_at: toDatetimeLocalValue(assessment.start_at),
+  end_at: toDatetimeLocalValue(assessment.end_at),
+});
 
 type BooleanField = {
   name:

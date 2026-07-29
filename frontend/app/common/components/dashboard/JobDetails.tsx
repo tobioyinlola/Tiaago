@@ -3,9 +3,22 @@ import { HiOutlineBriefcase } from "react-icons/hi2";
 
 import MoneyBagIcon from "../../icons/MoneyBagIcon";
 import { jobSalaryTypeToLabel, jobTypeEnumToLabel } from "../../utils";
+import { WORK_TYPE_OPTIONS } from "../../constants/talent-network";
 import { InitialValues as JobV3 } from "@/app/recruiter/dashboard/jobs/create/CreateJobForm/form.constants";
 
-const JobDetails = ({ job }: { job: JobV3 }) => {
+/** `location` is no longer a recruiter-editable form field -- the backend
+ * derives it from work mode + country -- so it only exists on an already saved
+ * job (the public job detail page). While previewing an unsaved edit we fall
+ * back to the two fields it's derived from. */
+const JobDetails = ({ job }: { job: JobV3 & { location?: string } }) => {
+  const workModeLabel = WORK_TYPE_OPTIONS.find(
+    ({ value }) => value === job.work_mode
+  )?.label;
+  const location =
+    job.location ||
+    [workModeLabel, job.country].filter(Boolean).join(", ") ||
+    "Unavailable";
+
   // const [minSalary, maxSalary] = (job.payment_range ?? "")
   //   .split("-")
   //   .map(s => s.trim())
@@ -25,7 +38,7 @@ const JobDetails = ({ job }: { job: JobV3 }) => {
             <PiMapPinLine aria-hidden className='text-[#868A8D] text-xl' />
             <h4 className='text-[#343A40]'>Location</h4>
           </div>
-          <p>{job.location}</p>
+          <p>{location}</p>
         </div>
         <div>
           <div className='flex items-center gap-2'>

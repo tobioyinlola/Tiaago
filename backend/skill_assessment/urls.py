@@ -9,6 +9,7 @@ from .views import (
     QuestionBankQuestionsAPIView,
     AddSectionsToSkillAssessmentAPIView,
     AddBundleSectionAPIView,
+    RemoveSectionAPIView,
     BundleListAPIView,
     BundlePreviewAPIView,
     BundleMCQQuestionsAPIView,
@@ -51,6 +52,7 @@ from .views import (
     CandidateSubmissionSnapshotListView,
     RecruiterSubmissionAnswersView,
     GradeOpenEndedAPIView,
+    ApproveSubmissionAPIView,
 )
 
 urlpatterns = [
@@ -65,6 +67,11 @@ urlpatterns = [
         "company-assessments/<int:skill_assessment_id>/sections/from-bundle/",
         AddBundleSectionAPIView.as_view(),
         name="assessment-add-bundle-section",
+    ),
+    path(
+        "company-assessments/<int:skill_assessment_id>/sections/<int:section_id>/",
+        RemoveSectionAPIView.as_view(),
+        name="assessment-remove-section",
     ),
     path(
         "company-assessments/<int:skill_assessment_id>/publish/",
@@ -275,5 +282,10 @@ urlpatterns = [
         "submissions/<int:submission_id>/grade-open-ended/",
         GradeOpenEndedAPIView.as_view(),
         name="submission-grade-open-ended",
+    ),
+    path(
+        "submissions/<int:submission_id>/approve/",
+        ApproveSubmissionAPIView.as_view(),
+        name="submission-approve",
     ),
 ]

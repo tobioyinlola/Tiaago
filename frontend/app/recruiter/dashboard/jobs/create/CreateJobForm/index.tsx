@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { Formik, FormikProps } from "formik";
 import { useEffect, useRef, useState } from "react";
 import Button from "@/app/common/components/DaisyButton";
@@ -18,7 +17,7 @@ import { useRouter } from "next/navigation";
 import Modal from "@/app/common/components/Modal";
 import { createJob, getJobDraft, saveJobDraft, deleteJobDraft } from "@/app/common/services/jobs";
 import { useAlert } from "@/app/common/store/useAlert";
-import InfoCircleIcon from "@/app/common/icons/InfoCircleIcon";
+import InfoTooltip from "@/app/common/components/InfoTooltip";
 import { CountryField, TalentRole } from "@/app/common/types";
 import { useScrollToTop } from "@/app/common/hooks/useScrollToTop";
 import { cn, handleFormSubmissionError } from "@/app/common/utils";
@@ -26,7 +25,6 @@ import FormikField from "@/app/common/components/Forms/FormikField";
 import CopyToClipboard from "@/app/common/components/CopyToClipboard";
 import CountrySelect from "@/app/common/components/Forms/CountrySelect";
 import { SuccessIconWithConfetti } from "@/app/common/icons/SuccessIcon";
-import info_direct from "../../../../../../public/assets/images/companies/Polygon 20.png";
 import StepIndicator from "./_components/StepIndicator";
 import RoleTitleField from "./_components/RoleTitleField";
 import CriteriaAvailabilityStep from "./_components/CriteriaAvailabilityStep";
@@ -103,11 +101,9 @@ const DraftAutosave = ({
 const CreateJobForm = ({
   groupedCountries,
   talentRoles,
-  recruiterCountry,
 }: {
   groupedCountries: GroupBase<CountryField>[];
   talentRoles: TalentRole[];
-  recruiterCountry?: string;
 }) => {
   const [jobDetailUrl, setJobDetailUrl] = useState<string>();
   const [step, setStep] = useState(0);
@@ -213,7 +209,6 @@ const CreateJobForm = ({
           ...initialValues,
           ...criteriaAvailabilityInitialValues,
           ...assessmentGenerationInitialValues,
-          location: recruiterCountry || "",
         }}
         onSubmit={(
           {
@@ -312,27 +307,7 @@ const CreateJobForm = ({
                       >
                         {title}
                       </h2>
-                      {description && (
-                        <>
-                          <InfoCircleIcon className='text-secondary-black' />
-                          <Image
-                            src={info_direct}
-                            alt=''
-                            className='w-[36px] h-[28px]'
-                          />
-                        </>
-                      )}
-
-                      {description && (
-                        <div
-                          className='bg-[#9DA3A8] shadow-[#00000040] md:max-w-[446px] flex items-center justify-center
-                    px-3 py-2 rounded-md'
-                        >
-                          <p className='text-sm text-white  italic'>
-                            {description}
-                          </p>
-                        </div>
-                      )}
+                      <InfoTooltip description={description} />
                     </div>
 
                     <div className='flex-wrap md:flex justify-between'>
@@ -390,30 +365,6 @@ const CreateJobForm = ({
                               error={error}
                               touched={!!touched[name]}
                               className={props.className}
-                            />
-                          );
-
-                        if (name === "location")
-                          return (
-                            <CountrySelect
-                              key={name}
-                              {...{ name, value, ...props }}
-                              options={[
-                                {
-                                  label: "Remote",
-                                  options: [
-                                    {
-                                      label: "Remote",
-                                      value: "Remote",
-                                      region: "Remote",
-                                    },
-                                  ],
-                                },
-                                ...groupedCountries,
-                              ]}
-                              error={error}
-                              touched={touched[name]}
-                              placeholder='Select Location'
                             />
                           );
 

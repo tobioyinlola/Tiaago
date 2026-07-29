@@ -83,6 +83,11 @@ export type SelectFieldProps = {
   value?: any;
 };
 
+/** A Quill `modules.toolbar` definition: an array of button groups, where each
+ * button is either a format name ("link", "clean") or a format/value pair
+ * ({ header: [false] }, { list: "ordered" }). */
+export type RichTextToolbar = (string | Record<string, any>)[][];
+
 export type FormField<T = Record<string, any>> = {
   name: keyof T;
   label: string;
@@ -93,6 +98,9 @@ export type FormField<T = Record<string, any>> = {
   autoFocus?: boolean;
   leftIcon?: React.ReactNode;
   rightIcon?: React.ReactNode;
+  /** Only meaningful for `type: "richtext"` fields -- restricts the Quill
+   * toolbar to these button groups. Omit to keep Quill's full default toolbar. */
+  richTextToolbar?: RichTextToolbar;
 } & (
   | {
       type?:
@@ -433,7 +441,7 @@ export type Job = {
   payment_currency: string;
   experience: number;
   job_type: "FT" | "PT" | "CW" | "IN"; //FT-full time, PT-part time, CW-contract, IN-internship
-  job_level: "ENTRY" | "JUNIOR" | "SENIOR";
+  job_level: "JUNIOR" | "INTERMEDIATE" | "SENIOR";
   job_status: "DRAFT" | "ACTIVE" | "ON_HOLD" | "HIRED" | "EXPIRED";
   location: string;
   description: string;
@@ -890,6 +898,14 @@ export type CompanySkillAssessment = {
    * invite flow's questions response, anchors the overall countdown so it
    * survives page refresh instead of resetting. */
   started_at?: string | null;
+  /** Real count of completed submissions against this assessment (both the
+   * shared/public-link flow and the per-candidate invite clones), computed
+   * server-side by GeneralSkillAssessmentListSerializer. */
+  attempts_count?: number;
+  /** Availability window, only meaningful when use_start_and_end_time is on.
+   * ISO datetime strings. */
+  start_at?: string | null;
+  end_at?: string | null;
 };
 
 export type SkillAssessmentResult = {
@@ -910,12 +926,22 @@ export type SkillAssessmentResult = {
       percent: number;
     };
   } | null;
+  time_taken_formated?: string | null;
   candidate_name?: string | null;
   candidate_email?: string | null;
   mark_status?:
     "Pending" | "Failed to Mark" | "Awaiting Manual Review" | "Marked";
   is_passed?: boolean;
   is_completed?: boolean;
+  /** Set once a recruiter has reviewed/released this submission. Only
+   * gates what the candidate sees when the parent assessment has
+   * display_review_and_approve_responses enabled. */
+  approved_at?: string | null;
+  /** Candidate-facing gating flags -- only present on the candidate's own
+   * view of a submission (SubmissionSerializer's gate_for_candidate). */
+  results_hidden?: boolean;
+  feedback_hidden?: boolean;
+  pending_review?: boolean;
 };
 
 export type AssessmentStack = {
@@ -938,6 +964,8 @@ export type AiFeedbackItem = {
   prescreening_feedback: string;
   assessment_score: number;
   email: string;
+  phone_number: string | null;
+  linkedin_url: string | null;
   portfolio_slug: string;
   assessment_title: string;
   has_passed_tiaago_assessment: boolean;
@@ -959,6 +987,11 @@ export type AiFeedbackItem = {
   resume_achievement_quality: string;
   time_taken: string;
   difficulty_level: CompanySkillAssessment["difficulty_level"];
+  total_questions: number | null;
+  duration_minutes: number | null;
+  passing_grade: number | null;
+  is_passed: boolean | null;
+  completed_at: string | null;
   cover_letter: string;
   submission_id: ID | null;
   proctoring_integrity_score: number | null;

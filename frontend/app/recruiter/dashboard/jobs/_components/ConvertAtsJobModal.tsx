@@ -16,6 +16,10 @@ import {
   handleFormSubmissionError,
 } from "@/app/common/utils";
 import { useAlert } from "@/app/common/store/useAlert";
+import {
+  JOB_LEVEL_OPTIONS,
+  JOB_LEVEL_VALUES,
+} from "@/app/common/constants/jobs";
 import { convertAtsJob } from "@/app/common/services/ats-server";
 import CriteriaAvailabilityStep from "../create/CreateJobForm/_components/CriteriaAvailabilityStep";
 import AssessmentGenerationStep from "../create/CreateJobForm/_components/AssessmentGenerationStep";
@@ -37,7 +41,7 @@ const gapFillValidationSchema = Yup.object().shape({
   job_level: Yup.string()
     .required()
     .label("Job level")
-    .oneOf(["ENTRY", "JUNIOR", "SENIOR"], "Please select a valid job level"),
+    .oneOf(JOB_LEVEL_VALUES, "Please select a valid job level"),
   experience: Yup.number().required().min(0).max(10).label("Experience"),
   payment_currency: Yup.string().required().label("Currency"),
   payment_range: Yup.string().required().label("Payment range"),
@@ -67,7 +71,7 @@ const steps = [
 
 const gapFillInitialValues = {
   job_type: "",
-  job_level: "ENTRY",
+  job_level: "JUNIOR",
   experience: 0,
   payment_currency: "USD",
   payment_range: "",
@@ -254,13 +258,7 @@ const ConvertAtsJobModal = ({
                       value={values.job_level}
                       error={errors.job_level as string | undefined}
                       touched={touched.job_level as boolean | undefined}
-                      selectFieldProps={{
-                        options: [
-                          { label: "Entry", value: "ENTRY" },
-                          { label: "Junior", value: "JUNIOR" },
-                          { label: "Senior", value: "SENIOR" },
-                        ],
-                      }}
+                      selectFieldProps={{ options: JOB_LEVEL_OPTIONS }}
                     />
                     <FormikField
                       name='experience'

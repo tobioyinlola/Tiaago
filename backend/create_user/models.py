@@ -39,6 +39,12 @@ class CustomUser(AbstractUser):
     created = models.DateTimeField(auto_now_add=True)
     updated = models.DateTimeField(auto_now=True)
     is_verified = models.BooleanField(default=False)
+    # True for accounts auto-provisioned as a side effect of a candidate
+    # action that isn't an explicit signup (guest job application, ATS
+    # candidate sync) -- always created with an unusable password, so these
+    # are inert until the person actually signs up and claims the account
+    # (see TalentSerializer.validate_email/save in create_user/api/serializers.py).
+    is_guest_provisioned = models.BooleanField(default=False)
 
     class AuthProvider(models.TextChoices):
         EMAIL = "email", "Email"
@@ -386,6 +392,14 @@ class OneTimePassword(models.Model):
     otp_expires = models.DateTimeField(blank=True, null=True)
     # Wrong guesses so far; the OTP is invalidated at MAX_ATTEMPTS.
     attempts = models.PositiveSmallIntegerField(default=0)
+    # Set only when this OTP is standing in for proof-of-inbox-ownership on
+    # a guest-account claim (TalentSerializer._claim_guest_provisioned_user)
+    # -- an already-hashed password, applied to the user by ConfirmEmailView
+    # once the code is verified, never before. Keeping the claim's password
+    # out of `user.password` until then is what stops an attacker from
+    # logging into someone else's pre-existing guest-provisioned account
+    # just by typing their email into the signup form.
+    pending_password = models.CharField(max_length=255, blank=True, default="")
 
     def __str__(self):
         return f"{self.user.first_name}-passcode"

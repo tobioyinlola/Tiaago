@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRef } from "react";
-import { Clock, ListChecks, Send } from "lucide-react";
+import { Clock, ListChecks, Send, PenLine } from "lucide-react";
 
 import { cn, getAssessmentDurationInMinutes, getNoOfAssementQuestions } from "@/app/common/utils";
 import { CompanySkillAssessment } from "@/app/common/types";
@@ -30,10 +30,16 @@ const AssessmentCard = (assessment: CompanySkillAssessment) => {
   const inviteModalRef = useRef<HTMLDialogElement>(null);
   const modalId = `invite-candidates-modal-${assessment.id}`;
   const detailsHref = `/recruiter/dashboard/assessments/${assessment.id}`;
+  // Drafts still have an unfinished wizard behind them -- send the recruiter
+  // straight back into it rather than to the read-only detail page.
+  const resumeHref = `/recruiter/dashboard/assessments/add?assessmentId=${assessment.id}`;
 
   return (
     <div className='group bg-white border border-[#EAECF0] rounded-2lg p-6 hover:shadow-card-hover hover:border-primary/30 transition-all flex flex-col'>
-      <Link href={detailsHref} className='flex flex-col flex-1'>
+      <Link
+        href={assessment.published ? detailsHref : resumeHref}
+        className='flex flex-col flex-1'
+      >
         <div className='flex justify-between items-start gap-3 mb-4'>
           <h3 className='text-primaryBlack text-base md:text-lg font-semibold line-clamp-2'>{assessment.title}</h3>
           <StatusBadge published={assessment.published} />
@@ -84,7 +90,21 @@ const AssessmentCard = (assessment: CompanySkillAssessment) => {
             Invite
           </button>
         ) : (
-          <span className='text-xs text-secondary-black italic'>Not yet published</span>
+          <div className='flex items-center gap-3'>
+            <Link
+              href={detailsHref}
+              className='text-xs text-secondary-black hover:text-primary hover:underline'
+            >
+              Details
+            </Link>
+            <Link
+              href={resumeHref}
+              className='flex items-center gap-1.5 text-primary text-sm font-medium hover:underline'
+            >
+              <PenLine className='w-3.5 h-3.5' />
+              Continue
+            </Link>
+          </div>
         )}
       </div>
 

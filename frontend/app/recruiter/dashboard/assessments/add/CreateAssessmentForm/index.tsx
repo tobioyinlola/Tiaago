@@ -1,13 +1,13 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { Formik } from "formik";
+import { useMemo, useRef, useState } from "react";
+import { Formik, type FormikProps } from "formik";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, ArrowRight, Send } from "lucide-react";
 
 import Button from "@/app/common/components/DaisyButton";
 import { useAlert } from "@/app/common/store/useAlert";
-import { TalentRole } from "@/app/common/types";
+import { CompanySkillAssessment, TalentRole } from "@/app/common/types";
 import { useScrollToTop } from "@/app/common/hooks/useScrollToTop";
 import { cn, handleFormSubmissionError } from "@/app/common/utils";
 import FormikField from "@/app/common/components/Forms/FormikField";
@@ -20,30 +20,79 @@ import {
 import {
   wizardSteps,
   detailsInitialValues,
+  detailsValuesFromAssessment,
   assessmentTypeOptions,
   difficultyLevels,
   booleanFields,
+  type DetailsFormValues,
 } from "./wizard.constants";
 import BundleLibraryStep, { SelectedSection } from "./_components/BundleLibraryStep";
 import CustomSectionModal from "./_components/CustomSectionModal";
 import PreviewPublishStep from "./_components/PreviewPublishStep";
+import SkillsetAutocomplete from "./_components/SkillsetAutocomplete";
 import InviteCandidatesModal from "../../_components/InviteCandidatesModal";
 
 const totalSteps = wizardSteps.length;
 
-const CreateAssessmentForm = ({ talentRoles }: { talentRoles: TalentRole[] }) => {
+/** Flattens the API's section shape into what steps 2 and 3 render. */
+const toSelectedSections = (assessment: CompanySkillAssessment): SelectedSection[] =>
+  assessment.sections.map(s => ({
+    id: s.id,
+    name: s.name,
+    type: s.type,
+    question_count:
+      s.question_count ??
+      (s.type === "MCQ"
+        ? s.mcq_questions?.length
+        : s.type === "CODING_TASK"
+        ? s.coding_tasks?.length
+        : s.open_ended_questions?.length) ??
+      0,
+  }));
+
+const CreateAssessmentForm = ({
+  talentRoles,
+  existingAssessment,
+}: {
+  talentRoles: TalentRole[];
+  /** Set when the wizard was opened with ?assessmentId=<id> to resume an
+   * abandoned draft: the row already exists server-side, so step 0 skips
+   * the create-POST and everything starts pre-filled from it. */
+  existingAssessment?: CompanySkillAssessment | null;
+}) => {
   const router = useRouter();
   const setAlert = useAlert(state => state.setAlert);
   const scrollToTop = useScrollToTop("recruiter-dashboard-scroll-area");
-  const [step, setStep] = useState(0);
+  const isResuming = !!existingAssessment;
+  const [step, setStep] = useState(isResuming ? 1 : 0);
   const currentStep = wizardSteps[step];
   const isLastStep = step === totalSteps - 1;
 
-  const [assessmentId, setAssessmentId] = useState<string | number | null>(null);
-  const [sections, setSections] = useState<SelectedSection[]>([]);
+  const initialValues = useMemo<DetailsFormValues>(
+    () => (existingAssessment ? detailsValuesFromAssessment(existingAssessment) : detailsInitialValues),
+    [existingAssessment]
+  );
+
+  const [assessmentId, setAssessmentId] = useState<string | number | null>(
+    existingAssessment?.id ?? null
+  );
+  const [sections, setSections] = useState<SelectedSection[]>(
+    existingAssessment ? toSelectedSections(existingAssessment) : []
+  );
   const [publishedTitle, setPublishedTitle] = useState("");
+  const [customSectionPanelOpen, setCustomSectionPanelOpen] = useState(false);
+  // The type the assessment was actually *created* with. Sections are
+  // validated against the stored value server-side, and nothing in this
+  // wizard PATCHes it afterwards, so this -- not the live Formik field --
+  // is what the custom-test panel must lock itself to.
+  const [assessmentType, setAssessmentType] = useState(
+    existingAssessment?.assessment_type ?? ""
+  );
   const successModalRef = useRef<HTMLDialogElement>(null);
-  const customSectionModalRef = useRef<HTMLDialogElement>(null);
+  // Formik's instance, so the section-syncing helper below (which lives
+  // outside the render-prop) can write the server's authoritative
+  // duration back into step 1's field.
+  const formikRef = useRef<FormikProps<DetailsFormValues>>(null);
 
   // Lives outside Formik's render-prop (and outside the wizard's own <form>
   // element) on purpose: it's called from CustomSectionModal, which -- like
@@ -58,20 +107,15 @@ const CreateAssessmentForm = ({ talentRoles }: { talentRoles: TalentRole[] }) =>
     if (!assessmentId) return;
     try {
       const assessment = await getCompanyAssessment(assessmentId);
-      const nextSections = assessment.sections.map(s => ({
-        id: s.id,
-        name: s.name,
-        type: s.type,
-        question_count:
-          s.question_count ??
-          (s.type === "MCQ"
-            ? s.mcq_questions?.length
-            : s.type === "CODING_TASK"
-            ? s.coding_tasks?.length
-            : s.open_ended_questions?.length) ??
-          0,
-      }));
-      setSections(nextSections);
+      setSections(toSelectedSections(assessment));
+      // Adding a bundle rolls its estimated_duration_minutes into the
+      // assessment server-side, so the value typed on step 1 goes stale the
+      // moment a test is added. Mirroring the server's total back into
+      // Formik is what makes step 3's preview (which reads
+      // values.duration_minutes) show the real number.
+      if (typeof assessment.duration_minutes === "number") {
+        formikRef.current?.setFieldValue("duration_minutes", assessment.duration_minutes);
+      }
     } catch {
       // best-effort refresh; the recruiter can still see the section
       // they just added reflected on next successful fetch
@@ -81,7 +125,8 @@ const CreateAssessmentForm = ({ talentRoles }: { talentRoles: TalentRole[] }) =>
   return (
     <>
       <Formik
-        initialValues={detailsInitialValues}
+        innerRef={formikRef}
+        initialValues={initialValues}
         validationSchema={currentStep.validationSchema}
         onSubmit={async (values, { setSubmitting, setFieldError }) => {
           if (step === 0) {
@@ -92,12 +137,16 @@ const CreateAssessmentForm = ({ talentRoles }: { talentRoles: TalentRole[] }) =>
               setSubmitting(false);
               return;
             }
-            const { skillsets, duration_minutes, passing_grade, ...rest } = values;
+            const { skillsets, duration_minutes, passing_grade, start_at, end_at, ...rest } = values;
             const res = await createCompanyAssessment({
               ...rest,
               skillsets,
               duration_minutes: Number(duration_minutes),
               passing_grade: Number(passing_grade),
+              // The window is only meaningful with the toggle on, and DRF
+              // rejects "" for a nullable DateTimeField -- send null instead.
+              start_at: values.use_start_and_end_time && start_at ? start_at : null,
+              end_at: values.use_start_and_end_time && end_at ? end_at : null,
             });
             setSubmitting(false);
             if (!res.success) {
@@ -105,6 +154,7 @@ const CreateAssessmentForm = ({ talentRoles }: { talentRoles: TalentRole[] }) =>
               return;
             }
             setAssessmentId(res.data.id);
+            setAssessmentType(res.data.assessment_type || values.assessment_type);
             setStep(1);
             scrollToTop();
             return;
@@ -184,35 +234,13 @@ const CreateAssessmentForm = ({ talentRoles }: { talentRoles: TalentRole[] }) =>
                       touched={touched.skillsets}
                       className="md:w-[48%]"
                     >
-                      <div className="flex flex-wrap gap-2 p-3 border rounded-lg border-[#D0D5DD] max-h-48 overflow-y-auto">
-                        {talentRoles.map(role => {
-                          const roleId = String(role.id);
-                          const isSelected = values.skillsets.includes(roleId);
-                          return (
-                            <button
-                              key={roleId}
-                              type="button"
-                              onClick={() => {
-                                setFieldValue(
-                                  "skillsets",
-                                  isSelected
-                                    ? values.skillsets.filter(id => id !== roleId)
-                                    : [...values.skillsets, roleId]
-                                );
-                                setFieldTouched("skillsets", true);
-                              }}
-                              className={cn(
-                                "px-3 py-1.5 rounded-full text-sm font-medium border transition-colors",
-                                isSelected
-                                  ? "bg-primary text-white border-primary"
-                                  : "border-[#D0D5DD] text-[#344054] hover:border-primary"
-                              )}
-                            >
-                              {role.title}
-                            </button>
-                          );
-                        })}
-                      </div>
+                      <SkillsetAutocomplete
+                        roles={talentRoles}
+                        value={values.skillsets}
+                        hasError={!!errors.skillsets && !!touched.skillsets}
+                        onChange={next => setFieldValue("skillsets", next)}
+                        onTouched={() => setFieldTouched("skillsets", true)}
+                      />
                     </FormikField>
                     <FormikField
                       name="assessment_type"
@@ -271,21 +299,91 @@ const CreateAssessmentForm = ({ talentRoles }: { talentRoles: TalentRole[] }) =>
                     </label>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {booleanFields.map(field => (
-                        <label key={field.name} className="flex items-start gap-x-3">
-                          <input
-                            type="checkbox"
-                            name={field.name}
-                            checked={values[field.name] as boolean}
-                            onChange={handleChange}
-                            className="radio radio-primary radio-xs mt-1"
-                          />
-                          <div>
-                            <p className="text-sm text-[#343A40]">{field.label}</p>
-                            <p className="text-xs text-[#6C757D]">{field.description}</p>
+                      {booleanFields.map(field => {
+                        const showWindowInputs =
+                          field.name === "use_start_and_end_time" && values.use_start_and_end_time;
+                        return (
+                          <div
+                            key={field.name}
+                            className={cn(showWindowInputs && "md:col-span-2")}
+                          >
+                            <label className="flex items-start gap-x-3">
+                              <input
+                                type="checkbox"
+                                name={field.name}
+                                checked={values[field.name] as boolean}
+                                onChange={handleChange}
+                                className="radio radio-primary radio-xs mt-1"
+                              />
+                              <div>
+                                <p className="text-sm text-[#343A40]">{field.label}</p>
+                                <p className="text-xs text-[#6C757D]">{field.description}</p>
+                              </div>
+                            </label>
+
+                            {showWindowInputs && (
+                              <div className="mt-3 ml-7 grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-xl">
+                                <div className="form-control w-full">
+                                  <label
+                                    htmlFor="start_at"
+                                    className="label-text text-black font-medium font-onest mb-1"
+                                  >
+                                    Starts
+                                  </label>
+                                  <input
+                                    id="start_at"
+                                    name="start_at"
+                                    type="datetime-local"
+                                    value={values.start_at ?? ""}
+                                    onChange={handleChange}
+                                    onBlur={() => setFieldTouched("start_at", true)}
+                                    className={cn(
+                                      "input input-bordered border-[#D0D5DD] w-full bg-white",
+                                      errors.start_at && touched.start_at && "border-error"
+                                    )}
+                                  />
+                                  <p
+                                    className={cn(
+                                      "text-xs text-error m-0.5 mb-2 transition-opacity opacity-0",
+                                      errors.start_at && touched.start_at && "opacity-100"
+                                    )}
+                                  >
+                                    {errors.start_at || "error"}
+                                  </p>
+                                </div>
+                                <div className="form-control w-full">
+                                  <label
+                                    htmlFor="end_at"
+                                    className="label-text text-black font-medium font-onest mb-1"
+                                  >
+                                    Ends
+                                  </label>
+                                  <input
+                                    id="end_at"
+                                    name="end_at"
+                                    type="datetime-local"
+                                    value={values.end_at ?? ""}
+                                    onChange={handleChange}
+                                    onBlur={() => setFieldTouched("end_at", true)}
+                                    className={cn(
+                                      "input input-bordered border-[#D0D5DD] w-full bg-white",
+                                      errors.end_at && touched.end_at && "border-error"
+                                    )}
+                                  />
+                                  <p
+                                    className={cn(
+                                      "text-xs text-error m-0.5 mb-2 transition-opacity opacity-0",
+                                      errors.end_at && touched.end_at && "opacity-100"
+                                    )}
+                                  >
+                                    {errors.end_at || "error"}
+                                  </p>
+                                </div>
+                              </div>
+                            )}
                           </div>
-                        </label>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 </div>
@@ -296,7 +394,9 @@ const CreateAssessmentForm = ({ talentRoles }: { talentRoles: TalentRole[] }) =>
                   assessmentId={assessmentId}
                   talentRoles={talentRoles}
                   selectedSections={sections}
+                  totalDurationMinutes={Number(values.duration_minutes) || 0}
                   onSectionsChanged={refetchSections}
+                  onCreateCustomTest={() => setCustomSectionPanelOpen(true)}
                 />
               )}
 
@@ -338,7 +438,9 @@ const CreateAssessmentForm = ({ talentRoles }: { talentRoles: TalentRole[] }) =>
       {assessmentId && (
         <CustomSectionModal
           assessmentId={assessmentId}
-          modalRef={customSectionModalRef}
+          assessmentType={assessmentType}
+          open={customSectionPanelOpen}
+          onClose={() => setCustomSectionPanelOpen(false)}
           onAdded={refetchSections}
         />
       )}

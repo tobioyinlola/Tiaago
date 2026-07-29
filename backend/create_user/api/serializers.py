@@ -23,10 +23,12 @@ def get_mime_type(file_obj):
         return 'application/octet-stream'
 from django.contrib.auth.tokens import default_token_generator
 from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.utils.http import urlsafe_base64_decode
 from django.utils import timezone
 from django.db import transaction
 from rest_framework import serializers
+from allauth.account.adapter import get_adapter
 from dj_rest_auth.registration.serializers import RegisterSerializer
 from phonenumber_field.serializerfields import PhoneNumberField
 from create_user.serializers import SocialMediaLinkSerializer
@@ -39,7 +41,9 @@ from skill_assessment.models import CandidateAssessmentSubmission
 from subscriptions.models import FreePlan
 from subscriptions.billing_service import get_or_create_wallet
 
-from ..models import CustomUser, Company, SocialMediaLink, TalentProfile, Referral, ReferralWallet, WithdrawalRequest, CompanyTeamMember, CompanyTeamInvite
+from django.contrib.auth.hashers import make_password
+
+from ..models import CustomUser, Company, SocialMediaLink, TalentProfile, Referral, ReferralWallet, WithdrawalRequest, CompanyTeamMember, CompanyTeamInvite, OneTimePassword
 from ..utils import get_company_billing_type, get_active_subscription, get_wallet_balance
 from subscriptions.helper import convert_wallet_currency
 
@@ -172,9 +176,47 @@ class TalentSerializer(RegisterSerializer):
         # If we reached here, pass-through original upload
         return value
 
+    def _claim_guest_provisioned_user(self, user, request):
+        """`user` is an inert shadow account auto-provisioned from a guest
+        job application or ATS sync (unusable password, is_guest_provisioned
+        True) -- reuse it in place instead of going through
+        RegisterSerializer.save()'s new-user path, so their existing
+        TalentProfile/JobApplication history is preserved rather than
+        colliding on the unique `username` (= email) constraint.
+
+        Security-critical: this account already holds a real stranger's
+        data (resume, phone, LinkedIn, application history) from whoever
+        the guest application/ATS sync was actually for -- nothing at this
+        point has proven the person submitting *this* signup form owns
+        that inbox. So the submitted password is validated but NOT applied
+        here, and is_guest_provisioned is NOT cleared here either -- the
+        account stays exactly as unusable-password/login-blocked as it was
+        before. The hashed password is stashed on the OTP row that
+        CustomRegisterView.create() sends moments after this returns; only
+        ConfirmEmailView, once that code is verified, actually sets the
+        password and clears is_guest_provisioned. Until then this is a
+        no-op as far as anyone's ability to authenticate as this user."""
+        adapter = get_adapter()
+        cleaned_data = self.get_cleaned_data()
+        password1 = cleaned_data.get("password1", "")
+        if password1:
+            try:
+                adapter.clean_password(password1, user=user)
+            except DjangoValidationError as exc:
+                raise serializers.ValidationError(detail=serializers.as_serializer_error(exc))
+            OneTimePassword.objects.update_or_create(
+                user=user,
+                defaults={"pending_password": make_password(password1)},
+            )
+        return user
+
     @transaction.atomic
     def save(self, request):
-        user = super().save(request)
+        claimable = getattr(self, "_claimable_guest_user", None)
+        if claimable is not None:
+            user = self._claim_guest_provisioned_user(claimable, request)
+        else:
+            user = super().save(request)
         user.full_name = self.validated_data.get("full_name", "")
         parts = user.full_name.split()
         user.first_name = parts[0] if parts else ""
@@ -184,7 +226,7 @@ class TalentSerializer(RegisterSerializer):
 
         pic = self.validated_data.get("profile_pic")
         if pic:
-            user.profile_pic = pic  
+            user.profile_pic = pic
 
         # Handle profile picture upload
         if 'profile_pic' in request.FILES:
@@ -204,13 +246,25 @@ class TalentSerializer(RegisterSerializer):
         if referral_code:
             inviter = TalentProfile.objects.filter(referral_code=referral_code).first()
 
-        # Create TalentProfile
-        profile = TalentProfile.objects.create(
-            user=user,
-            role=role,
-            referral_code=generate_referral_code(),
-            referred_by=inviter,
-        )
+        # Create TalentProfile -- unless this signup is claiming a guest-
+        # provisioned account, which already has one (from the job
+        # application/ATS sync that provisioned it); reuse it so their
+        # existing application history stays linked, just filling in the
+        # role/referral now that they're actually signing up for real.
+        profile = TalentProfile.objects.filter(user=user).first()
+        if profile:
+            profile.role = role
+            profile.referred_by = profile.referred_by or inviter
+            if not profile.referral_code:
+                profile.referral_code = generate_referral_code()
+            profile.save(update_fields=["role", "referred_by", "referral_code"])
+        else:
+            profile = TalentProfile.objects.create(
+                user=user,
+                role=role,
+                referral_code=generate_referral_code(),
+                referred_by=inviter,
+            )
 
         # Handle resume upload
         if 'resume' in request.FILES:
@@ -238,8 +292,18 @@ class TalentSerializer(RegisterSerializer):
     def validate_email(self, value):
         """
         Check if the email already exists in the database.
+
+        Exception: a shadow account auto-provisioned from a guest job
+        application or ATS sync (is_guest_provisioned, unusable password)
+        was never actually signed up for -- let this signup claim it
+        instead of blocking on "already exists" (see save() ->
+        _claim_guest_provisioned_user).
         """
-        if User.objects.filter(email=value).exists():
+        existing = User.objects.filter(email__iexact=value).first()
+        if existing:
+            if existing.is_guest_provisioned and not existing.has_usable_password():
+                self._claimable_guest_user = existing
+                return value
             raise serializers.ValidationError("A user with this email already exists.")
         return value
 

@@ -33,21 +33,32 @@ def send_after_commit(fn, *args, **kwargs):
 User = get_user_model()
 
 
-def generate_otp(user):
+def generate_otp(user, pending_password=None):
+    """`pending_password` (an already-hashed password, e.g. from
+    django.contrib.auth.hashers.make_password) is only passed when this OTP
+    is standing in for proof-of-inbox-ownership on a guest-account claim --
+    ConfirmEmailView applies it to the user once the code is verified.
+    Omitted (None) for every ordinary OTP send, which leaves any
+    already-stored pending_password on the row untouched -- a plain
+    resend must not accidentally wipe out a pending claim."""
     otp_code = get_random_string(length=6, allowed_chars="0123456789")
     otp_expires = timezone.now() + timedelta(seconds=settings.OTP_EXPIRY_TIME)
 
+    defaults = {"code": otp_code, "otp_expires": otp_expires, "attempts": 0}
+    if pending_password is not None:
+        defaults["pending_password"] = pending_password
+
     otp, created = OneTimePassword.objects.update_or_create(
         user=user,
-        defaults={"code": otp_code, "otp_expires": otp_expires, "attempts": 0},
+        defaults=defaults,
     )
     return otp_code
 
 
-def send_otp_to_user(email):
+def send_otp_to_user(email, pending_password=None):
     subject = "Verify your email"
     user = CustomUser.objects.filter(email=email).first()
-    otp_code = generate_otp(user)
+    otp_code = generate_otp(user, pending_password=pending_password)
     context = {"code": list(otp_code)}
     if user:
         EmailHandler(email).send_mail(

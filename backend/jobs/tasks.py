@@ -359,7 +359,7 @@ def send_assessment_link(job_application_id, trials=0):
         job_difficulty = "beginner"
         coding_task_difficulty_level = "Easy"
         assessment_difficulty_level = SkillAssessmentDifficultyLevels.JUNIOR
-        if job.job_level == Job.JobLevel.JUNIOR:
+        if job.job_level == Job.JobLevel.INTERMEDIATE:
             job_difficulty = "intermediate"
             coding_task_difficulty_level = "Medium"
             assessment_difficulty_level = SkillAssessmentDifficultyLevels.INTERMEDIATE

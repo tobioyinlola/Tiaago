@@ -99,6 +99,7 @@ def convert_ats_candidate_to_application(candidate: AtsCandidate, job: Job) -> J
             user_type=CustomUser.USER_TYPE.TALENT,
             is_verified=False,
             password=None,
+            is_guest_provisioned=True,
         )
 
     talent_profile = TalentProfile.objects.filter(user=user).first()
