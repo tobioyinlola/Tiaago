@@ -1,31 +1,17 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ChevronLeft, ChevronRight, Users } from "lucide-react";
+import { ChevronLeft, Users } from "lucide-react";
 
 import { getAssessmentResultsList, getCompanyAssessment } from "@/app/common/services/assessment";
 import DisplayErrorMessages, {
   DisplayErrorMessagesProps,
 } from "@/app/common/components/DisplayErrorMessages";
-import { handleServerApiCallError, cn } from "@/app/common/utils";
+import { handleServerApiCallError } from "@/app/common/utils";
+import SubmissionsList from "./_components/SubmissionsList";
 
 type Props = {
   params: Promise<{ id: string }>;
 };
-
-const statusBadge: Record<string, string> = {
-  Marked: "bg-badge-green-bg text-badge-green-text",
-  "Awaiting Manual Review": "bg-badge-purple-bg text-badge-purple-text",
-  Pending: "bg-[#F5F6F7] text-secondary-black",
-  "Failed to Mark": "bg-destructive/10 text-destructive",
-};
-
-const initials = (name?: string | null) =>
-  (name || "?")
-    .split(" ")
-    .filter(Boolean)
-    .slice(0, 2)
-    .map(part => part[0]?.toUpperCase())
-    .join("");
 
 const AssessmentSubmissionsPage = async ({ params }: Props) => {
   const { id } = await params;
@@ -74,50 +60,11 @@ const AssessmentSubmissionsPage = async ({ params }: Props) => {
           </p>
         </div>
       ) : (
-        <div className='bg-white rounded-2lg border border-[#EAECF0] divide-y divide-[#EAECF0] overflow-hidden'>
-          {results.map(submission => (
-            <Link
-              key={submission.id}
-              href={{
-                pathname: `/recruiter/dashboard/assessments/submissions/${submission.id}`,
-                query: {
-                  name: submission.candidate_name || "",
-                  email: submission.candidate_email || "",
-                  score: submission.total_score ?? "",
-                  status: submission.mark_status || "",
-                  assessmentId: id,
-                },
-              }}
-              className='flex items-center justify-between px-6 py-4 hover:bg-[#F8FAFC] transition-colors'
-            >
-              <div className='flex items-center gap-3 min-w-0'>
-                <div className='w-9 h-9 rounded-full bg-primary/10 text-primary text-xs font-semibold flex items-center justify-center shrink-0'>
-                  {initials(submission.candidate_name)}
-                </div>
-                <div className='min-w-0'>
-                  <p className='text-sm font-medium text-primaryBlack truncate'>
-                    {submission.candidate_name || "Unknown candidate"}
-                  </p>
-                  <p className='text-xs text-secondary-black truncate'>{submission.candidate_email}</p>
-                </div>
-              </div>
-              <div className='flex items-center gap-4 shrink-0'>
-                <span className='text-sm font-medium text-primaryBlack'>
-                  {submission.total_score !== null ? `${submission.total_score}%` : "--"}
-                </span>
-                <span
-                  className={cn(
-                    "text-xs font-medium px-2.5 py-1 rounded-full whitespace-nowrap",
-                    statusBadge[submission.mark_status || "Pending"]
-                  )}
-                >
-                  {submission.mark_status}
-                </span>
-                <ChevronRight className='w-4 h-4 text-secondary-black' />
-              </div>
-            </Link>
-          ))}
-        </div>
+        <SubmissionsList
+          assessmentId={id}
+          submissions={results}
+          requiresApproval={!!assessment.display_review_and_approve_responses}
+        />
       )}
     </div>
   );

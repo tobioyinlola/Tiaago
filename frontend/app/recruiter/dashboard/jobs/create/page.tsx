@@ -19,7 +19,9 @@ export const metadata = {
 
 const PostAJob = async () => {
   const errors: DisplayErrorMessagesProps["errors"] = [];
-  const [{ currentUser }, teamRoleData, groupedCountries, talentRoles] = await Promise.all([
+  // getCurrentUser still runs for its recruiter auth/redirect side effect --
+  // the job form itself no longer needs anything off the profile.
+  const [, teamRoleData, groupedCountries, talentRoles] = await Promise.all([
     getCurrentUser("recruiter"),
     getTeamRole().catch(() => null),
     getCountries().catch(async e => {
@@ -61,7 +63,6 @@ const PostAJob = async () => {
       <CreateJobForm
         talentRoles={talentRoles}
         groupedCountries={groupedCountries}
-        recruiterCountry={currentUser.country}
       />
       <DisplayErrorMessages errors={errors} />
     </>

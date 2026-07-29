@@ -118,7 +118,6 @@ const EditJobPage = async ({
         job={job}
         talentRoles={talentRoles}
         groupedCountries={groupedCountries}
-        recruiterCountry={currentUser.country}
         hasAddedPaymentCard={hasAddedPaymentCard}
         usePaystack={usePaystack}
         // stripeClientSecret={stripeClientSecret}

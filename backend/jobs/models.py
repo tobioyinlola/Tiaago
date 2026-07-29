@@ -68,8 +68,8 @@ class Job(models.Model):
         )  # The job posting has expired, and no further applications are being accepted.
 
     class JobLevel(models.TextChoices):
-        ENTRY = "ENTRY", _("Entry")
         JUNIOR = "JUNIOR", _("Junior")
+        INTERMEDIATE = "INTERMEDIATE", _("Intermediate")
         SENIOR = "SENIOR", _("Senior")
 
     class PaymentCurrency(models.TextChoices):
@@ -103,7 +103,7 @@ class Job(models.Model):
     job_type = models.CharField(max_length=2, choices=JobType.choices)
     
     # Job level dropdown
-    job_level = models.CharField(max_length=6, choices=JobLevel.choices, default=JobLevel.ENTRY)
+    job_level = models.CharField(max_length=12, choices=JobLevel.choices, default=JobLevel.JUNIOR)
     
     # Location dropdown (Remote or Country)
     location = models.CharField(max_length=100, help_text="Remote or specific country", default="Remote")

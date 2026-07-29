@@ -8,7 +8,7 @@ from base.models import TimeStampedModel
 from django.contrib.auth import get_user_model
 from jobs.models import JobApplication, Job
 from quiz.models import QuizTaker
-from create_user.models import Company, TalentProfile
+from create_user.models import Company, CustomUser, TalentProfile
 from case_study_projects.models import TalentCaseStudyProject
 from roles.models import Role
 from skill_assessment.constants import (
@@ -160,6 +160,10 @@ class GeneralSkillAssessment(TimeStampedModel):
     shuffle_questions = models.BooleanField(default=False)
     use_public_link = models.BooleanField(default=False)
     use_start_and_end_time = models.BooleanField(default=False)
+    # Only read/enforced when use_start_and_end_time is True (see
+    # is_outside_attempt_window below and its callers).
+    start_at = models.DateTimeField(null=True, blank=True)
+    end_at = models.DateTimeField(null=True, blank=True)
     reference = models.CharField(
         max_length=100,
         help_text="Random text to identify this skill assessment",
@@ -231,6 +235,23 @@ class GeneralSkillAssessment(TimeStampedModel):
         from django.utils import timezone
 
         return timezone.now() > self.invite_deadline
+
+    @property
+    def attempt_window_error(self):
+        """None if a candidate may start/continue an attempt right now,
+        otherwise a human-readable reason why not. Only enforced when
+        use_start_and_end_time is on -- with it off, start_at/end_at (even
+        if set from a prior toggle-on period) are ignored entirely."""
+        if not self.use_start_and_end_time:
+            return None
+        from django.utils import timezone
+
+        now = timezone.now()
+        if self.start_at and now < self.start_at:
+            return "This assessment is not open yet."
+        if self.end_at and now > self.end_at:
+            return "This assessment is no longer accepting attempts."
+        return None
 
     #@@property
     #def sections(self):
@@ -612,6 +633,16 @@ class CandidateAssessmentSubmission(TimeStampedModel):
         max_length=40,
         choices=MarkStatusChoices.choices,
         default=MarkStatusChoices.PENDING,
+    )
+    # Set when a recruiter explicitly approves this submission for release
+    # to the candidate -- only consulted when the assessment has
+    # display_review_and_approve_responses enabled (see SubmissionSerializer
+    # .to_representation); otherwise results release immediately as before,
+    # governed only by show_results_to_candidate.
+    approved_at = models.DateTimeField(null=True, blank=True)
+    approved_by = models.ForeignKey(
+        CustomUser, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="approved_assessment_submissions",
     )
     candidate_display_name = models.CharField(
         max_length=255,

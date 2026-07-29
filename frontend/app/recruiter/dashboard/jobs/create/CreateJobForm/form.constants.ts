@@ -1,6 +1,6 @@
 import * as Yup from "yup";
 
-import { FormField, Job } from "@/app/common/types";
+import { FormField, Job, RichTextToolbar } from "@/app/common/types";
 import {
   handlePlural,
   jobSalaryTypeToLabel,
@@ -8,6 +8,23 @@ import {
 } from "@/app/common/utils";
 import { richtextValidationSchema } from "@/app/common/constants/validationSchemas";
 import { WORK_TYPE_OPTIONS } from "@/app/common/constants/talent-network";
+import {
+  JOB_LEVEL_OPTIONS,
+  JOB_LEVEL_VALUES,
+} from "@/app/common/constants/jobs";
+
+/** Quill toolbar for the job posting rich-text fields only (job requirement,
+ * job description, about company). Keeps the header dropdown, links, lists and
+ * clear-formatting, and deliberately drops bold/italic/underline and the rest
+ * of the character-level formatting so posted jobs stay visually consistent.
+ * Other rich-text fields in the app (talent bio, cover letter) don't pass a
+ * toolbar and keep Quill's full default one. */
+export const jobPostingRichTextToolbar: RichTextToolbar = [
+  [{ header: [false] }],
+  ["link"],
+  [{ list: "ordered" }, { list: "bullet" }],
+  ["clean"],
+];
 
 export const jobBasicDetailsValidationSchema = Yup.object().shape({
   role: Yup.string().required().label("Job title/position"),
@@ -21,15 +38,11 @@ export const jobBasicDetailsValidationSchema = Yup.object().shape({
   job_level: Yup.string()
     .required()
     .label("Job level")
-    .oneOf(
-      ["ENTRY", "JUNIOR", "SENIOR"],
-      "Please select a valid job level"
-    ),
+    .oneOf(JOB_LEVEL_VALUES, "Please select a valid job level"),
   salary_duration: Yup.string().required().label("Payment type"),
   payment_range: Yup.string().required().label("Payment range"),
   payment_currency: Yup.string().required().label("Currency"),
   experience: Yup.number().required().min(0).label("Experience"),
-  location: Yup.string().required().label("Location"),
   work_mode: Yup.string().label("Work mode"),
   country: Yup.string().label("Country"),
 });
@@ -86,17 +99,8 @@ export const jobBasicDetailsFormFields: FormField<JobBasicDetailsFormValues>[] =
       type: "select",
       className: "md:w-[48%] [&_input]:w-full",
       selectFieldProps: {
-        options: [
-          { label: "Entry", value: "ENTRY" },
-          { label: "Junior", value: "JUNIOR" },
-          { label: "Senior", value: "SENIOR" },
-        ],
+        options: JOB_LEVEL_OPTIONS,
       },
-    },
-    {
-      name: "location",
-      label: "Location",
-      className: "md:w-[48%] [&_input]:w-full",
     },
     {
       name: "country",
@@ -149,6 +153,7 @@ export const jobRequirementFormFields: FormField<JobRequirementFormValues>[] = [
     label: "",
     type: "richtext",
     placeholder: "Add your requirements",
+    richTextToolbar: jobPostingRichTextToolbar,
   },
 ];
 export const jobDescriptionFormFields: FormField<JobDescriptionFormValues>[] = [
@@ -157,6 +162,7 @@ export const jobDescriptionFormFields: FormField<JobDescriptionFormValues>[] = [
     label: "",
     type: "richtext",
     placeholder: "Add your description",
+    richTextToolbar: jobPostingRichTextToolbar,
   },
 ];
 
@@ -167,6 +173,7 @@ export const companyDescriptionFormFields: FormField<CompanyDescriptionFormValue
       label: "",
       type: "richtext",
       placeholder: "Add your company description",
+      richTextToolbar: jobPostingRichTextToolbar,
     },
   ];
 export const validationSchema = jobBasicDetailsValidationSchema
@@ -196,7 +203,6 @@ export const initialValues: InitialValues = {
   experience: 0,
   // @ts-ignore
   job_type: "",
-  location: "",
   // @ts-ignore
   work_mode: "",
   country: "",

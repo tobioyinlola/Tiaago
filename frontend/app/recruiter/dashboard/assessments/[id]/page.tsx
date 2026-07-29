@@ -56,8 +56,10 @@ const AssessmentDetailsPage = async ({ params }: Props) => {
     { title: "Questions", value: noOfQuestions, Icon: ListChecks },
     { title: "Duration", value: `${getAssessmentDurationInMinutes(assessment)}mins`, Icon: Timer },
     { title: "Passing Grade", value: `${assessment.passing_grade}%`, Icon: Target },
-    { title: "Attempts", value: 0, Icon: Users },
+    { title: "Attempts", value: assessment.attempts_count ?? 0, Icon: Users },
   ];
+
+  const resumeHref = `/recruiter/dashboard/assessments/add?assessmentId=${assessment.id}`;
 
   return (
     <div className='text-black max-w-7xl'>
@@ -76,12 +78,20 @@ const AssessmentDetailsPage = async ({ params }: Props) => {
         </div>
 
         <div className='flex items-center gap-4'>
-          {assessment.published && (
+          {assessment.published ? (
             <Link
               href={`/recruiter/dashboard/assessments/${assessment.id}/submissions`}
               className='flex items-center gap-1 text-sm text-primary font-medium hover:underline'
             >
               View Submissions
+              <ArrowRight className='w-3.5 h-3.5' />
+            </Link>
+          ) : (
+            <Link
+              href={resumeHref}
+              className='flex items-center gap-1 text-sm text-primary font-medium hover:underline'
+            >
+              Continue editing
               <ArrowRight className='w-3.5 h-3.5' />
             </Link>
           )}
@@ -151,9 +161,19 @@ const AssessmentDetailsPage = async ({ params }: Props) => {
               No questions added yet
             </p>
             <p className='text-secondary-black text-sm text-center'>
-              This draft was never finished in the wizard -- start a new assessment to add
-              sections.
+              {assessment.published
+                ? "This assessment was published without any sections."
+                : "This draft was never finished in the wizard -- pick up where you left off to add sections."}
             </p>
+            {!assessment.published && (
+              <Link
+                href={resumeHref}
+                className='btn btn-primary text-white gap-2 rounded-lg mt-4'
+              >
+                Continue editing
+                <ArrowRight className='w-4 h-4' />
+              </Link>
+            )}
           </div>
         ) : (
           <div className='bg-white rounded-2lg p-6 border border-[#EAECF0] space-y-3'>

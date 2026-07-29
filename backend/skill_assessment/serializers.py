@@ -49,7 +49,7 @@ from .constants import QuestionBankDifficultyLevels, SkillAssessmentDifficultyLe
 import os
 from utils.ai_service import AIService
 from django.db import transaction
-from django.db.models import Prefetch
+from django.db.models import Prefetch, Q
 class SkillAssessmentSerializer(serializers.ModelSerializer):
     quiz_id = serializers.SerializerMethodField()
     project_id = serializers.SerializerMethodField()
@@ -278,6 +278,8 @@ class GeneralSkillAssessmentCreateSerializer(serializers.ModelSerializer):
             "shuffle_questions",
             "use_public_link",
             "use_start_and_end_time",
+            "start_at",
+            "end_at",
             "show_results_to_candidate",
             "assessment_type",
         ]
@@ -342,6 +344,18 @@ class GeneralSkillAssessmentListSerializer(GeneralSkillAssessmentCreateSerialize
             fields = ["id", "title"]
 
     skillsets = ShortenedRoleSerializer(many=True)
+    attempts_count = serializers.SerializerMethodField()
+
+    def get_attempts_count(self, instance):
+        """Completed submissions against this assessment -- matches both the
+        older shared/public-link flow (submissions directly on this row) and
+        the per-candidate invite flow (submissions on clones with
+        source_template=this row), same matching GetSubmissionsForASkillAssessment
+        uses so this count and that submissions list always agree."""
+        return CandidateAssessmentSubmission.objects.filter(
+            Q(skill_assessment_id=instance.id) | Q(skill_assessment__source_template_id=instance.id),
+            is_completed=True,
+        ).count()
 
     def to_representation(self, instance):
         representation = super().to_representation(instance)
@@ -355,12 +369,25 @@ class GeneralSkillAssessmentListSerializer(GeneralSkillAssessmentCreateSerialize
             sections = GeneralSkillAssessmentSectionListSerializer(
                 instance.sections.all(), many=True, context=self.context
             ).data
+            # Shuffle question/section order for candidates taking the
+            # assessment (never for the recruiter/staff answer-key view,
+            # which always passes include_correct_answers=True) -- freshly
+            # reshuffled on every fetch, i.e. every attempt, matching what
+            # the "Shuffle questions" toggle promises.
+            if instance.shuffle_questions and not self.context.get("include_correct_answers"):
+                sections = list(sections)
+                random.shuffle(sections)
+                for section in sections:
+                    for key in ("mcq_questions", "coding_tasks", "open_ended_questions"):
+                        questions = section.get(key)
+                        if isinstance(questions, list):
+                            random.shuffle(questions)
             representation["sections"] = sections
         return representation
 
     class Meta:
         model = GeneralSkillAssessment
-        fields = GeneralSkillAssessmentCreateSerializer.Meta.fields + ["id", "published"]
+        fields = GeneralSkillAssessmentCreateSerializer.Meta.fields + ["id", "published", "attempts_count"]
 
 
 class AssessmentBundleSerializer(serializers.ModelSerializer):
@@ -877,6 +904,7 @@ class SubmissionSerializer(serializers.ModelSerializer):
             "mark_status",
             "is_passed",
             "is_completed",
+            "approved_at",
         ]
 
     def get_candidate_name(self, instance):
@@ -890,15 +918,35 @@ class SubmissionSerializer(serializers.ModelSerializer):
         # Only gate the candidate-facing view (context set by
         # SkillAssessmentResultAPIView) -- recruiter/staff views of the same
         # serializer (GetSubmissionsForASkillAssessment) always see the real
-        # score regardless of show_results_to_candidate.
+        # score/feedback regardless of these toggles.
         if self.context.get("gate_for_candidate"):
             assessment = instance.skill_assessment
             if assessment and not assessment.show_results_to_candidate:
                 data["total_score"] = None
                 data["stats"] = None
                 data["results_hidden"] = True
+                data["feedback_hidden"] = True
+                data["pending_review"] = False
+                return data
+            if assessment and assessment.display_review_and_approve_responses and not instance.approved_at:
+                data["total_score"] = None
+                data["stats"] = None
+                data["results_hidden"] = True
+                data["feedback_hidden"] = True
+                data["pending_review"] = True
+                return data
+            # "stats" is the section-by-section correct/attempted breakdown --
+            # the closest thing this model has to "the reason they fail or
+            # pass" that display_feedback's copy promises to withhold.
+            if assessment and not assessment.display_feedback:
+                data["stats"] = None
+                data["feedback_hidden"] = True
+                data["results_hidden"] = False
+                data["pending_review"] = False
                 return data
         data["results_hidden"] = False
+        data["feedback_hidden"] = False
+        data["pending_review"] = False
         return data
 
     def get_time_taken_formated(self, instance):
@@ -1585,6 +1633,8 @@ class AIFeedbackSerializer(serializers.Serializer):
     prescreening_feedback = serializers.CharField()
     assessment_score = serializers.FloatField()
     email = serializers.EmailField()
+    phone_number = serializers.CharField(allow_null=True)
+    linkedin_url = serializers.CharField(allow_null=True)
     profile_picture = serializers.URLField(allow_null=True)
     has_passed_tiaago_assessment = serializers.BooleanField()
     assessment_title = serializers.CharField()
@@ -1609,6 +1659,11 @@ class AIFeedbackSerializer(serializers.Serializer):
     resume_achievement_quality=serializers.CharField(allow_blank=True)
     time_taken=serializers.CharField()
     difficulty_level=serializers.CharField()
+    total_questions = serializers.IntegerField(allow_null=True)
+    duration_minutes = serializers.IntegerField(allow_null=True)
+    passing_grade = serializers.FloatField(allow_null=True)
+    is_passed = serializers.BooleanField(allow_null=True)
+    completed_at = serializers.DateTimeField(allow_null=True)
     submission_id = serializers.IntegerField(allow_null=True)
     proctoring_integrity_score = serializers.IntegerField(allow_null=True)
     proctoring_risk_level = serializers.CharField(allow_null=True)
@@ -1857,6 +1912,16 @@ class AssessmentInviteDetailSerializer(serializers.Serializer):
     deadline_formatted = serializers.SerializerMethodField()
     is_expired = serializers.BooleanField(source="is_invite_expired")
     is_standalone = serializers.SerializerMethodField()
+    window_error = serializers.SerializerMethodField()
+
+    def get_window_error(self, assessment):
+        """None if the candidate may start/continue right now. An attempt
+        already in progress may finish even if the window has since
+        closed -- only a fresh start is blocked."""
+        submission = self.context.get("existing_submission")
+        if submission and submission.started_at:
+            return None
+        return assessment.attempt_window_error
 
     def get_is_standalone(self, assessment):
         """True for a recruiter-built, account-less email invite (see

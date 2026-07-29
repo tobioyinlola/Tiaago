@@ -3,11 +3,14 @@ import {
   X,
   User,
   Mail,
+  Phone,
+  Linkedin,
   ExternalLink,
-  Building,
   Calendar,
-  GraduationCap,
   FileText,
+  Download,
+  MessageSquare,
+  ListChecks,
   Target,
   Brain,
   CheckCircle,
@@ -18,11 +21,8 @@ import {
   Clock,
   Award,
 } from "lucide-react";
-import { useEffect, useState } from "react";
 
 import { AiFeedbackItem } from "@/app/common/types";
-import { getTalentPortfolio } from "@/app/common/services/talents";
-import { usePortfolioStore } from "@/app/common/store/useWorkExperiences";
 import {
   fromSlug,
   getAssessmentDifficultyLevel,
@@ -127,30 +127,6 @@ const AIFeedbackModal: React.FC<AIFeedbackModalProps> = ({
   aiFeedback,
 }) => {
   const portfolioSlug = aiFeedback.portfolio_slug;
-  const [loadingPortfolio, setLoadingPortfolio] = useState(false);
-
-  const { portfolios, updatePortfolio, certificates, updateCertificates } =
-    usePortfolioStore();
-
-  useEffect(() => {
-    const fetcPortfolio = async () => {
-      setLoadingPortfolio(true);
-      const data = await getTalentPortfolio(portfolioSlug);
-      if (!data.success) {
-        console.log("Error fetching portfolio: ", data.error);
-      } else {
-        updatePortfolio(data.data!, portfolioSlug);
-      }
-      setLoadingPortfolio(false);
-    };
-    fetcPortfolio();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [portfolioSlug]);
-
-  const portfolioData = portfolios[portfolioSlug] ?? {};
-  const experiences = portfolioData.experience ?? [];
-  const education = portfolioData.education ?? [];
-  const userBio = portfolioData.about;
 
   // Parse the Python-style list strings into proper arrays
   const resumeStrengths = parsePythonListString(
@@ -215,23 +191,51 @@ const AIFeedbackModal: React.FC<AIFeedbackModalProps> = ({
               </div>
 
               <div className='grid grid-cols-1 lg:grid-cols-2 gap-6'>
-                <div className='space-y-4'>
-                  <div className='bg-white rounded-xl p-4 shadow-sm'>
-                    <h4 className='text-xl font-semibold text-gray-900 mb-2'>
-                      {aiFeedback.talent_name}
-                    </h4>
-                    <div className='space-y-2'>
-                      <div className='flex items-center text-gray-600'>
-                        <Mail className='w-4 h-4 mr-2' />
+                <div className='bg-white rounded-xl p-4 shadow-sm'>
+                  <h4 className='text-xl font-semibold text-gray-900 mb-2'>
+                    {aiFeedback.talent_name}
+                  </h4>
+                  <div className='space-y-2'>
+                    <div className='flex items-center text-gray-600'>
+                      <Mail className='w-4 h-4 mr-2 shrink-0' />
+                      <a
+                        href={`mailto:${aiFeedback.email}`}
+                        className='hover:text-blue-600 transition-colors truncate'
+                      >
+                        {aiFeedback.email}
+                      </a>
+                    </div>
+                    <div className='flex items-center text-gray-600'>
+                      <Phone className='w-4 h-4 mr-2 shrink-0' />
+                      {aiFeedback.phone_number ? (
                         <a
-                          href={`mailto:${aiFeedback.email}`}
+                          href={`tel:${aiFeedback.phone_number}`}
                           className='hover:text-blue-600 transition-colors'
                         >
-                          {aiFeedback.email}
+                          {aiFeedback.phone_number}
                         </a>
-                      </div>
+                      ) : (
+                        <span>N/A</span>
+                      )}
+                    </div>
+                    <div className='flex items-center text-gray-600'>
+                      <Linkedin className='w-4 h-4 mr-2 shrink-0' />
+                      {aiFeedback.linkedin_url ? (
+                        <a
+                          href={aiFeedback.linkedin_url}
+                          target='_blank'
+                          rel='noopener noreferrer'
+                          className='hover:text-blue-600 transition-colors truncate'
+                        >
+                          LinkedIn Profile
+                        </a>
+                      ) : (
+                        <span>N/A</span>
+                      )}
+                    </div>
+                    {aiFeedback.portfolio_slug && (
                       <div className='flex items-center text-gray-600'>
-                        <ExternalLink className='w-4 h-4 mr-2' />
+                        <ExternalLink className='w-4 h-4 mr-2 shrink-0' />
                         <a
                           href={`/talents/${aiFeedback.portfolio_slug}/portfolio`}
                           target='_blank'
@@ -241,20 +245,6 @@ const AIFeedbackModal: React.FC<AIFeedbackModalProps> = ({
                           Portfolio
                         </a>
                       </div>
-                    </div>
-                  </div>
-
-                  <div className='bg-white rounded-xl p-4 shadow-sm'>
-                    <h5 className='font-semibold text-gray-900 mb-2'>About</h5>
-                    {loadingPortfolio ? (
-                      <div className='flex items-center justify-center mt-4'>
-                        <div className='w-4 h-4 border-2 border-t-primary rounded-full animate-spin' />
-                      </div>
-                    ) : (
-                      <p
-                        className='text-gray-700 leading-relaxed'
-                        dangerouslySetInnerHTML={{ __html: userBio || "N/A" }}
-                      />
                     )}
                   </div>
                 </div>
@@ -262,71 +252,32 @@ const AIFeedbackModal: React.FC<AIFeedbackModalProps> = ({
                 <div className='space-y-4'>
                   <div className='bg-white rounded-xl p-4 shadow-sm'>
                     <h5 className='font-semibold text-gray-900 mb-3 flex items-center'>
-                      <Building className='w-4 h-4 mr-2' />
-                      Work Experience
+                      <FileText className='w-4 h-4 mr-2' />
+                      Resume
                     </h5>
-                    <div className='space-y-3'>
-                      {loadingPortfolio ? (
-                        <div className='flex items-center justify-center mt-4'>
-                          <div className='w-4 h-4 border-2 border-t-primary rounded-full animate-spin' />
-                        </div>
-                      ) : (
-                        experiences.map((exp, index) => (
-                          <div
-                            key={index}
-                            className='border-l-2 border-blue-200 pl-4'
-                          >
-                            <div className='font-medium text-gray-900'>
-                              {exp.title}
-                            </div>
-                            <div className='text-blue-600 text-sm'>
-                              {exp.company_name}
-                            </div>
-                            <div className='text-gray-500 text-xs flex items-center mt-1'>
-                              <Calendar className='w-3 h-3 mr-1' />
-                              {exp.start_date} - {exp.end_date || "Present"}
-                            </div>
-                            {/* <p className='text-gray-700 text-sm mt-2'>
-                            {exp.description}
-                          </p> */}
-                          </div>
-                        ))
-                      )}
-                      {!loadingPortfolio && !experiences.length && (
-                        <div className='font-medium text-gray-900'>N/A</div>
-                      )}
-                    </div>
+                    {aiFeedback.resume ? (
+                      <a
+                        href={aiFeedback.resume}
+                        target='_blank'
+                        rel='noopener noreferrer'
+                        className='inline-flex items-center text-blue-600 hover:text-blue-700 text-sm font-medium'
+                      >
+                        <Download className='w-4 h-4 mr-1.5' />
+                        View resume
+                      </a>
+                    ) : (
+                      <div className='font-medium text-gray-900'>N/A</div>
+                    )}
                   </div>
 
                   <div className='bg-white rounded-xl p-4 shadow-sm'>
-                    <h5 className='font-semibold text-gray-900 mb-3 flex items-center'>
-                      <GraduationCap className='w-4 h-4 mr-2' />
-                      Education
+                    <h5 className='font-semibold text-gray-900 mb-2 flex items-center'>
+                      <MessageSquare className='w-4 h-4 mr-2' />
+                      Cover Letter
                     </h5>
-                    <div className='space-y-2'>
-                      {loadingPortfolio ? (
-                        <div className='flex items-center justify-center mt-4'>
-                          <div className='w-4 h-4 border-2 border-t-primary rounded-full animate-spin' />
-                        </div>
-                      ) : (
-                        education.map((edu, index) => (
-                          <div key={index}>
-                            <div className='font-medium text-gray-900'>
-                              {edu.degree}
-                            </div>
-                            <div className='text-blue-600 text-sm'>
-                              {edu.school}
-                            </div>
-                            <div className='text-gray-500 text-xs'>
-                              {edu.start_date} - {edu.end_date || "Present"}
-                            </div>
-                          </div>
-                        ))
-                      )}
-                      {!loadingPortfolio && !education.length && (
-                        <div className='font-medium text-gray-900'>N/A</div>
-                      )}
-                    </div>
+                    <p className='text-gray-700 leading-relaxed text-sm whitespace-pre-wrap'>
+                      {aiFeedback.cover_letter || "No cover letter submitted."}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -571,181 +522,183 @@ const AIFeedbackModal: React.FC<AIFeedbackModalProps> = ({
             </div>
 
             {/* Assessment Results */}
-            <div className='relative overflow-hidden bg-blue-50 rounded-3xl p-8 border border-indigo-100 shadow-xl'>
-              {/* Background decoration */}
-              <div className='absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-indigo-200/30 to-blue-200/30 rounded-full -translate-y-16 translate-x-16'></div>
-              <div className='absolute bottom-0 left-0 w-24 h-24 bg-gradient-to-tr from-indigo-200/30 to-blue-200/30 rounded-full translate-y-12 -translate-x-12'></div>
+            {aiFeedback.submission_id != null ? (
+              <div className='relative overflow-hidden bg-blue-50 rounded-3xl p-8 border border-indigo-100 shadow-xl'>
+                {/* Background decoration */}
+                <div className='absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-indigo-200/30 to-blue-200/30 rounded-full -translate-y-16 translate-x-16'></div>
+                <div className='absolute bottom-0 left-0 w-24 h-24 bg-gradient-to-tr from-indigo-200/30 to-blue-200/30 rounded-full translate-y-12 -translate-x-12'></div>
 
-              <div className='flex items-center mb-6'>
-                <div className='w-16 h-16 bg-primary rounded-2xl flex items-center justify-center mr-6 shadow-lg'>
-                  <Brain className='w-6 h-6 text-white' />
+                <div className='flex items-center mb-6'>
+                  <div className='w-16 h-16 bg-primary rounded-2xl flex items-center justify-center mr-6 shadow-lg'>
+                    <Brain className='w-6 h-6 text-white' />
+                  </div>
+                  <div>
+                    <h3 className='text-3xl font-bold text-gray-900'>
+                      Assessment Results
+                    </h3>
+                    <p className='text-gray-600 mt-1'>
+                      Comprehensive skill evaluation
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className='text-3xl font-bold text-gray-900'>
-                    Assessment Results
-                  </h3>
-                  <p className='text-gray-600 mt-1'>
-                    Comprehensive skill evaluation
-                  </p>
-                </div>
-              </div>
 
-              <div className='grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8'>
-                {/* Main Score Display */}
-                <div className='flex justify-center lg:justify-start'>
-                  <div className='text-center'>
-                    <div className='relative'>
+                <div className='grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8'>
+                  {/* Main Score Display */}
+                  <div className='flex justify-center lg:justify-start'>
+                    <div className='text-center'>
                       <CircularProgress
                         percentage={aiFeedback.assessment_score}
                         size={160}
                         strokeWidth={12}
                         color='#8B5CF6'
                       />
-                      {/* <div className='absolute inset-0 flex items-center justify-center'>
-                        <div className='text-center'>
-                          <div className='text-4xl font-bold text-gray-900'>
-                            {aiFeedback.assessment_score}%
+                      <div className='mt-6'>
+                        <div className='text-xl font-bold text-gray-900'>
+                          Assessment Score
+                        </div>
+                        <div className='text-gray-600 mt-1'>
+                          {aiFeedback.assessment_title || "Comprehensive evaluation"}
+                        </div>
+
+                        {/* Score interpretation -- tied to the assessment's
+                            actual passing grade, not a guessed threshold */}
+                        <div className='mt-4 inline-flex items-center px-4 py-2 rounded-full text-sm font-medium bg-primary text-white border border-white'>
+                          {aiFeedback.is_passed ? (
+                            <>
+                              <CheckCircle className='w-4 h-4 mr-2' />
+                              Passed
+                            </>
+                          ) : (
+                            <>
+                              <AlertTriangle className='w-4 h-4 mr-2' />
+                              Needs Improvement
+                            </>
+                          )}
+                          {aiFeedback.passing_grade != null && (
+                            <span className='ml-1.5 opacity-80'>
+                              (pass mark {aiFeedback.passing_grade}%)
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Assessment Details */}
+                  <div className='space-y-4'>
+                    <h4 className='text-lg font-semibold text-gray-900 mb-4'>
+                      Assessment Details
+                    </h4>
+
+                    <div className='grid grid-cols-1 sm:grid-cols-2 gap-4'>
+                      <div className='bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-white/50'>
+                        <div className='flex items-center mb-3'>
+                          <div className='w-10 h-10 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-xl flex items-center justify-center mr-3'>
+                            <Clock className='w-5 h-5 text-white' />
                           </div>
-                          <div className='text-sm text-gray-600 mt-1'>
-                            Overall
+                          <div>
+                            <div className='text-2xl font-bold text-gray-900'>
+                              {aiFeedback.time_taken || 0} min
+                            </div>
+                            <div className='text-sm text-gray-600'>
+                              Time Taken
+                              {aiFeedback.duration_minutes != null &&
+                                ` of ${aiFeedback.duration_minutes} min`}
+                            </div>
                           </div>
                         </div>
-                      </div> */}
-                    </div>
-                    <div className='mt-6'>
-                      <div className='text-xl font-bold text-gray-900'>
-                        Assessment Score
-                      </div>
-                      <div className='text-gray-600 mt-1'>
-                        Comprehensive evaluation
                       </div>
 
-                      {/* Score interpretation */}
-                      <div className='mt-4 inline-flex items-center px-4 py-2 rounded-full text-sm font-medium bg-primary text-white border border-white'>
-                        {aiFeedback.assessment_score >= 90 ? (
-                          <>
-                            <Star className='w-4 h-4 mr-2' />
-                            Exceptional Performance
-                          </>
-                        ) : aiFeedback.assessment_score >= 80 ? (
-                          <>
-                            <CheckCircle className='w-4 h-4 mr-2' />
-                            Strong Performance
-                          </>
-                        ) : aiFeedback.assessment_score >= 70 ? (
-                          <>
-                            <Target className='w-4 h-4 mr-2' />
-                            Good Performance
-                          </>
-                        ) : (
-                          <>
-                            <AlertTriangle className='w-4 h-4 mr-2' />
-                            Needs Improvement
-                          </>
-                        )}
+                      <div className='bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-white/50'>
+                        <div className='flex items-center mb-3'>
+                          <div className='w-10 h-10 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl flex items-center justify-center mr-3'>
+                            <Award className='w-5 h-5 text-white' />
+                          </div>
+                          <div>
+                            <div className='text-2xl font-bold text-gray-900'>
+                              {getAssessmentDifficultyLevel(aiFeedback.difficulty_level)}
+                            </div>
+                            <div className='text-sm text-gray-600'>
+                              Difficulty
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className='bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-white/50'>
+                        <div className='flex items-center mb-3'>
+                          <div className='w-10 h-10 bg-gradient-to-r from-green-500 to-emerald-500 rounded-xl flex items-center justify-center mr-3'>
+                            <ListChecks className='w-5 h-5 text-white' />
+                          </div>
+                          <div>
+                            <div className='text-2xl font-bold text-gray-900'>
+                              {aiFeedback.total_questions ?? "N/A"}
+                            </div>
+                            <div className='text-sm text-gray-600'>
+                              Total Questions
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className='bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-white/50'>
+                        <div className='flex items-center mb-3'>
+                          <div className='w-10 h-10 bg-gradient-to-r from-orange-500 to-red-500 rounded-xl flex items-center justify-center mr-3'>
+                            <Calendar className='w-5 h-5 text-white' />
+                          </div>
+                          <div>
+                            <div className='text-2xl font-bold text-gray-900'>
+                              {aiFeedback.completed_at
+                                ? new Date(aiFeedback.completed_at).toLocaleDateString(undefined, {
+                                    year: "numeric",
+                                    month: "short",
+                                    day: "numeric",
+                                  })
+                                : "N/A"}
+                            </div>
+                            <div className='text-sm text-gray-600'>
+                              Completed On
+                            </div>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
 
-                {/* Assessment Statistics */}
-                <div className='space-y-4'>
-                  <h4 className='text-lg font-semibold text-gray-900 mb-4'>
-                    Assessment Details
+                {/* Assessment Feedback */}
+                <div className='bg-white/80 backdrop-blur-sm rounded-2xl p-8 shadow-lg border border-white/50'>
+                  <h4 className='text-xl font-bold text-gray-900 mb-6 flex items-center'>
+                    <div className='w-8 h-8 bg-primary rounded-lg flex items-center justify-center mr-3'>
+                      <Brain className='w-4 h-4 text-white' />
+                    </div>
+                    AI Assessment Feedback
                   </h4>
-
-                  <div className='grid grid-cols-1 sm:grid-cols-2 gap-4'>
-                    <div className='bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-white/50'>
-                      <div className='flex items-center mb-3'>
-                        <div className='w-10 h-10 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-xl flex items-center justify-center mr-3'>
-                          <Clock className='w-5 h-5 text-white' />
-                        </div>
-                        <div>
-                          <div className='text-2xl font-bold text-gray-900'>
-                            {+(aiFeedback.time_taken || "0") || 15} minutes
-                          </div>
-                          <div className='text-sm text-gray-600'>
-                            Time Taken
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* <div className='bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-white/50'>
-                      <div className='flex items-center mb-3'>
-                        <div className='w-10 h-10 bg-gradient-to-r from-green-500 to-emerald-500 rounded-xl flex items-center justify-center mr-3'>
-                          <Target className='w-5 h-5 text-white' />
-                        </div>
-                        <div>
-                          <div className='text-2xl font-bold text-gray-900'>
-                            {assessment.questions_correct}/
-                            {assessment.questions_attempted}
-                          </div>
-                          <div className='text-sm text-gray-600'>
-                            Questions Correct
-                          </div>
-                        </div>
-                      </div>
-                    </div> */}
-
-                    {/* <div className='bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-white/50'>
-                      <div className='flex items-center mb-3'>
-                        <div className='w-10 h-10 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl flex items-center justify-center mr-3'>
-                          <Award className='w-5 h-5 text-white' />
-                        </div>
-                        <div>
-                          <div className='text-2xl font-bold text-gray-900'>
-                            {getAssessmentDifficultyLevel(
-                              aiFeedback.difficulty_level || "Intermediate"
-                            )}
-                          </div>
-                          <div className='text-sm text-gray-600'>
-                            Difficulty
-                          </div>
-                        </div>
-                      </div>
-                    </div> */}
-
-                    {/* <div className='bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-white/50'>
-                      <div className='flex items-center mb-3'>
-                        <div className='w-10 h-10 bg-gradient-to-r from-orange-500 to-red-500 rounded-xl flex items-center justify-center mr-3'>
-                          <TrendingUp className='w-5 h-5 text-white' />
-                        </div>
-                        <div>
-                          <div className='text-2xl font-bold text-gray-900'>
-                            {Math.round(
-                              (assessment.questions_correct /
-                                assessment.questions_attempted) *
-                                100
-                            )}
-                            %
-                          </div>
-                          <div className='text-sm text-gray-600'>Accuracy</div>
-                        </div>
-                      </div>
-                    </div> */}
+                  <div className='bg-blue-50 rounded-xl p-6 border border-purple-100'>
+                    <p className='text-gray-700 leading-relaxed text-lg'>
+                      Scored {aiFeedback.assessment_score.toFixed(1)}%
+                      {aiFeedback.assessment_title && ` on "${aiFeedback.assessment_title}"`}
+                      {aiFeedback.passing_grade != null &&
+                        ` against a ${aiFeedback.passing_grade}% pass mark`}
+                      , {aiFeedback.is_passed ? "meeting" : "falling short of"} the bar for this
+                      role.
+                    </p>
                   </div>
                 </div>
               </div>
-
-              {/* Assessment Feedback */}
-              <div className='bg-white/80 backdrop-blur-sm rounded-2xl p-8 shadow-lg border border-white/50'>
-                <h4 className='text-xl font-bold text-gray-900 mb-6 flex items-center'>
-                  <div className='w-8 h-8 bg-primary rounded-lg flex items-center justify-center mr-3'>
-                    <Brain className='w-4 h-4 text-white' />
-                  </div>
-                  AI Assessment Feedback
-                </h4>
-                <div className='bg-blue-50 rounded-xl p-6 border border-purple-100'>
-                  <p className='text-gray-700 leading-relaxed text-lg'>
-                    {/* {assessment.assessment_feedback} */}
-                    Achieved {aiFeedback.assessment_score.toFixed(1)}%,
-                    showcasing core skills in {aiFeedback.assessment_title}{" "}
-                    essential to the role.
-                  </p>
+            ) : (
+              <div className='bg-blue-50 rounded-3xl p-8 border border-indigo-100 text-center'>
+                <div className='w-14 h-14 bg-primary rounded-2xl flex items-center justify-center mx-auto mb-4'>
+                  <Brain className='w-6 h-6 text-white' />
                 </div>
+                <h3 className='text-xl font-bold text-gray-900 mb-1'>
+                  Assessment Results
+                </h3>
+                <p className='text-gray-600'>
+                  This candidate has not completed a skill assessment yet.
+                </p>
               </div>
-            </div>
+            )}
           </div>
           </TabsContent>
 

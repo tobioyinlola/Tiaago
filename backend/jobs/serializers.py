@@ -13,6 +13,7 @@ from create_user.api.serializers import (
 from create_user.models import Company, CustomUser, TalentProfile
 
 from roles.models import Role
+from talent_network.choices import TalentNetworkWorkMode
 from .models import (
     Job,
     JobApplication,
@@ -27,6 +28,17 @@ from .models import (
     JobAssessmentTemplateQuestion,
     JobInterviewAvailabilitySlot,
 )
+
+
+def _derive_job_location(work_mode, country):
+    """`location` (free-text "Remote or specific country", still used by
+    search/filtering and JobCard/JobDetailsCard display) is no longer a
+    field recruiters fill in directly -- it's derived from work_mode +
+    country instead, so that data keeps flowing without asking for the
+    same information twice on the job-posting form."""
+    if country and work_mode != TalentNetworkWorkMode.REMOTE:
+        return country
+    return "Remote"
 
 
 class JobSerializer(serializers.ModelSerializer):
@@ -171,6 +183,10 @@ class JobSerializer(serializers.ModelSerializer):
         if not self.instance:
             attrs['job_status'] = Job.JobStatus.ACTIVE
 
+        work_mode = attrs.get("work_mode", getattr(self.instance, "work_mode", "") or "")
+        country = attrs.get("country", getattr(self.instance, "country", "") or "")
+        attrs["location"] = _derive_job_location(work_mode, country)
+
         return attrs
 
     def _create_related_objects(self, job, assessment_questions, interview_slots):
@@ -294,6 +310,15 @@ class JobUpdateSerializer(serializers.ModelSerializer):
         ]:
             raise serializers.ValidationError("Invalid job status")
         return value
+
+    def validate(self, attrs):
+        # location is derived, not recruiter-set -- only recompute it when
+        # this partial update actually touches one of its inputs.
+        if "work_mode" in attrs or "country" in attrs:
+            work_mode = attrs.get("work_mode", getattr(self.instance, "work_mode", "") or "")
+            country = attrs.get("country", getattr(self.instance, "country", "") or "")
+            attrs["location"] = _derive_job_location(work_mode, country)
+        return attrs
 
     def get_role_title(self, obj):
         return obj.role or ""
@@ -446,6 +471,7 @@ class GuestJobApplicationSerializer(serializers.Serializer):
                     user_type=CustomUser.USER_TYPE.TALENT,
                     is_verified=False,
                     password=None,
+                    is_guest_provisioned=True,
                 )
 
             # Never overwrite an existing account's profile from this

@@ -180,6 +180,25 @@ class GeneralSkillAssessmentAPIView(APIView, PaginationHandlerMixin):
         if data.is_valid():
             validated_data = data.validated_data
             skillsets = validated_data.pop("skillsets")
+
+            # Guard against a double-submit (double click / slow-network
+            # retry on the wizard's first "Continue") creating two rows for
+            # one logical click: reuse a just-created, still-empty draft
+            # with the same title instead of making a second one.
+            dupe_window = timezone.now() - timedelta(seconds=15)
+            existing = GeneralSkillAssessment.objects.filter(
+                company=company,
+                title=validated_data.get("title"),
+                published=False,
+                created_at__gte=dupe_window,
+                sections__isnull=True,
+            ).order_by("-created_at").first()
+            if existing:
+                return Response(
+                    status=200,
+                    data=GeneralSkillAssessmentListSerializer(existing).data,
+                )
+
             unique_id = str(uuid.uuid4().hex)[:15]
             company_skill_assessment = GeneralSkillAssessment.objects.create(
                 **validated_data, company=company, reference=unique_id
@@ -420,6 +439,14 @@ class AddBundleSectionAPIView(APIView):
                         )
                         section.open_ended_questions.add(new_q)
                     created_sections.append(section)
+            # Roll the bundle's own declared duration into the assessment's
+            # total -- the recruiter picked a duration for each standalone
+            # test in the library; the composed assessment should reflect
+            # what was actually added rather than staying at whatever was
+            # typed on step 1 before any tests were chosen.
+            if created_sections:
+                assessment.duration_minutes = (assessment.duration_minutes or 0) + bundle.estimated_duration_minutes
+                assessment.save(update_fields=["duration_minutes"])
         except Exception as e:
             logger.exception("Failed to add bundle section: %s", e)
             return Response(status=500, data={"error": "Failed to add bundle to assessment"})
@@ -427,7 +454,28 @@ class AddBundleSectionAPIView(APIView):
         return Response(status=200, data={
             "message": f"Added {len(created_sections)} section(s) from '{bundle.name}'",
             "section_ids": [s.id for s in created_sections],
+            "duration_minutes": assessment.duration_minutes,
         })
+
+
+class RemoveSectionAPIView(APIView):
+    """DELETE /company-assessments/<id>/sections/<section_id>/ -- removes a
+    single section (bundle-added or hand-authored custom) from a still-draft
+    assessment. Mirrors AddBundleSectionAPIView's ownership/draft checks."""
+
+    permission_classes = [IsCompanyRepUser]
+
+    def delete(self, request, skill_assessment_id, section_id):
+        assessment, error = _get_owned_company_assessment(request, skill_assessment_id, require_draft=True)
+        if error:
+            return error
+
+        section = assessment.sections.filter(id=section_id).first()
+        if not section:
+            return Response(status=404, data={"error": "Section not found on this assessment."})
+
+        section.delete()
+        return Response(status=200, data={"message": "Section removed."})
 
 
 class BundleListAPIView(APIView, PaginationHandlerMixin):
@@ -867,6 +915,10 @@ def _clone_standalone_assessment_for_candidate(template, email, name):
         display_feedback=template.display_feedback,
         shuffle_questions=template.shuffle_questions,
         show_results_to_candidate=template.show_results_to_candidate,
+        use_public_link=template.use_public_link,
+        use_start_and_end_time=template.use_start_and_end_time,
+        start_at=template.start_at,
+        end_at=template.end_at,
         reference=str(uuid.uuid4().hex)[:15],
         assessment_type=template.assessment_type,
         assessment_stack=template.assessment_stack,
@@ -1568,6 +1620,9 @@ class AssessmentInviteConfirmView(APIView):
         ).exists()
         if assessment.is_invite_expired and not already_started:
             return _expired_response()
+        window_error = assessment.attempt_window_error
+        if window_error and not already_started:
+            return Response(status=403, data={"error": window_error})
 
         submission, _created = CandidateAssessmentSubmission.objects.get_or_create(
             candidate=talent, skill_assessment=assessment, defaults={"is_completed": False}
@@ -1605,6 +1660,11 @@ class AssessmentInviteQuestionsView(APIView):
         ).first()
         if assessment.is_invite_expired and not submission:
             return _expired_response()
+        # An attempt already in progress may finish even if the window has
+        # since closed -- only block a fresh start outside the window.
+        window_error = assessment.attempt_window_error
+        if window_error and not (submission and submission.started_at):
+            return Response(status=403, data={"error": window_error})
 
         assessment_id = assessment.id
         assessment = _assessment_detail_base_qs().filter(id=assessment_id).first()
@@ -2256,6 +2316,34 @@ class SkillAssessmentResultAPIView(APIView):
         return Response(data)
 
 
+class ApproveSubmissionAPIView(APIView):
+    """POST /skill-assessments/submissions/<id>/approve/ -- recruiter marks a
+    submission as reviewed. Only actually changes anything the candidate
+    sees when the assessment has display_review_and_approve_responses
+    enabled (SubmissionSerializer.to_representation gates on approved_at in
+    that case); harmless no-op release otherwise."""
+
+    permission_classes = [IsCompanyRepOrStaffUser]
+
+    def post(self, request, submission_id):
+        submission = CandidateAssessmentSubmission.objects.select_related("skill_assessment").filter(
+            id=submission_id
+        ).first()
+        if not submission:
+            return Response(status=404, data={"error": "Submission not found."})
+
+        assessment = submission.skill_assessment
+        if not request.user.is_staff:
+            company = get_user_company(request.user)
+            if not assessment or not company or assessment.company_id != company.id:
+                return Response(status=403, data={"error": "You do not have permission to review this submission."})
+
+        submission.approved_at = timezone.now()
+        submission.approved_by = request.user
+        submission.save(update_fields=["approved_at", "approved_by"])
+        return Response(status=200, data=SubmissionSerializer(submission).data)
+
+
 class GetSubmissionsForASkillAssessment(APIView, PaginationHandlerMixin):
     """Endpoint to retrieve the submissions for a Skill Assessment.
 
@@ -2531,6 +2619,17 @@ class AIOperationsFeedback(APIView, PaginationHandlerMixin):
             .prefetch_related("events")
         }
 
+        # Prefetched (not per-row queried) so the question count for each
+        # assessment's "Assessment Details" card doesn't add N+1 queries.
+        question_count_map = {}
+        for a in GeneralSkillAssessment.objects.filter(id__in=assessment_ids).prefetch_related(
+            "sections__mcq_questions_new", "sections__coding_tasks", "sections__open_ended_questions"
+        ):
+            question_count_map[a.id] = sum(
+                len(s.mcq_questions_new.all()) + len(s.coding_tasks.all()) + len(s.open_ended_questions.all())
+                for s in a.sections.all()
+            )
+
         feedback = []
         for job_apps in job_applications:
             resume = resume_map.get(job_apps.id)
@@ -2540,9 +2639,11 @@ class AIOperationsFeedback(APIView, PaginationHandlerMixin):
             cover_letter = job_apps.cover_letter
             time_taken=submission.time_taken if submission and submission.time_taken is not None else 0
             difficulty_level=assessment.difficulty_level if assessment and assessment.difficulty_level else ''
-           
-            #mcq_question=submission.skill_assessment.sections.filter(type=SkillAssessmentTypes.MCQ).first().mcq_questions.count() if assessment and assessment.sections.filter(type=SkillAssessmentTypes.MCQ).exists() else 0
-            #coding_tasks_count=assessment.sections.filter(type=SkillAssessmentTypes.CODING_TASK).first().coding_tasks.count() if assessment and assessment.sections.filter(type=SkillAssessmentTypes.CODING_TASK).exists() else 0   
+            total_questions = question_count_map.get(assessment.id) if assessment else None
+            duration_minutes = assessment.duration_minutes if assessment else None
+            passing_grade = assessment.passing_grade if assessment else None
+            is_passed = submission.is_passed if submission else None
+            completed_at = submission.completed_at if submission else None
            
             resume_score = resume.total_score if resume and resume.total_score is not None else 0
             cultural_score = prescreening.total_points if prescreening and prescreening.total_points is not None else 0
@@ -2572,6 +2673,8 @@ class AIOperationsFeedback(APIView, PaginationHandlerMixin):
                 "talent_name": job_apps.applicant.user.get_full_name,
                 "talent_id": job_apps.applicant.user.id,
                 "email": job_apps.applicant.user.email,
+                "phone_number": str(job_apps.applicant.user.phone_number) if job_apps.applicant.user.phone_number else None,
+                "linkedin_url": job_apps.applicant.linkedin_url or None,
                 "profile_picture": request.build_absolute_uri(job_apps.applicant.user.profile_pic.url) if job_apps.applicant.user.profile_pic else None,
                 "role": job_apps.job.role,
                 "resume_analysis_score": resume_score,
@@ -2602,6 +2705,11 @@ class AIOperationsFeedback(APIView, PaginationHandlerMixin):
                 "resume_achievement_quality": resume_achievement_quality,
                 "time_taken": time_taken,
                 "difficulty_level": difficulty_level,
+                "total_questions": total_questions,
+                "duration_minutes": duration_minutes,
+                "passing_grade": passing_grade,
+                "is_passed": is_passed,
+                "completed_at": completed_at,
                 "submission_id": submission.id if submission else None,
                 "proctoring_integrity_score": proctoring_session.integrity_score if proctoring_session else None,
                 "proctoring_risk_level": proctoring_session.risk_level if proctoring_session else None,

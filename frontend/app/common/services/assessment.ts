@@ -332,13 +332,35 @@ export const getBundleMcqQuestions = async (
 export const addBundleToAssessment = async (
   id: ID,
   bundle_id: ID
-): Promise<ApiResponse<{ message: string; section_ids: ID[] }>> => {
+): Promise<ApiResponse<{ message: string; section_ids: ID[]; duration_minutes: number }>> => {
   try {
     const result = await serverKyInstance
       .post(`skill-assessments/company-assessments/${id}/sections/from-bundle/`, {
         json: { bundle_id },
       })
-      .json<{ message: string; section_ids: ID[] }>();
+      // duration_minutes is the assessment's *new* total after the bundle's
+      // own estimated_duration_minutes was rolled in server-side -- the
+      // wizard mirrors it back into Formik so step 3's preview isn't stuck
+      // on whatever was typed on step 1.
+      .json<{ message: string; section_ids: ID[]; duration_minutes: number }>();
+    return { success: true, data: result };
+  } catch (error) {
+    const errMsg = await handleServerApiCallError(error);
+    return { success: false, error: errMsg };
+  }
+};
+
+/** Removes one section from a still-draft assessment. The backend refuses
+ * (403) once the assessment is published, or if it isn't owned by the
+ * caller's company; 404 when the section isn't on this assessment. */
+export const removeSectionFromAssessment = async (
+  id: ID,
+  sectionId: ID
+): Promise<ApiResponse<{ message: string }>> => {
+  try {
+    const result = await serverKyInstance
+      .delete(`skill-assessments/company-assessments/${id}/sections/${sectionId}/`)
+      .json<{ message: string }>();
     return { success: true, data: result };
   } catch (error) {
     const errMsg = await handleServerApiCallError(error);
@@ -825,6 +847,25 @@ export const uploadStaffBundleCsv = async (data: FormData): Promise<ApiResponse<
     const result = await serverKyInstance
       .post("skill-assessments/staff/bundles/csv-upload/", { body: data })
       .json<AssessmentBundleAdmin>();
+    return { success: true, data: result };
+  } catch (error) {
+    const errMsg = await handleServerApiCallError(error);
+    return { success: false, error: errMsg };
+  }
+};
+
+/** Recruiter marks a submission as reviewed, releasing its results to the
+ * candidate. Only meaningful when the parent assessment has
+ * display_review_and_approve_responses enabled -- otherwise results are
+ * already visible and there is nothing to approve. Returns the updated
+ * submission in the same shape the submissions list uses. */
+export const approveSubmission = async (
+  submissionId: ID
+): Promise<ApiResponse<SkillAssessmentResult>> => {
+  try {
+    const result = await serverKyInstance
+      .post(`skill-assessments/submissions/${submissionId}/approve/`)
+      .json<SkillAssessmentResult>();
     return { success: true, data: result };
   } catch (error) {
     const errMsg = await handleServerApiCallError(error);

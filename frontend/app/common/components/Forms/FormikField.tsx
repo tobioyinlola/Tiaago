@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { AiFillEye, AiFillEyeInvisible } from "react-icons/ai";
 
 import { cn } from "../../utils";
-import { FormField } from "../../types";
+import { FormField, RichTextToolbar } from "../../types";
 import PhoneInputField from "./PhoneInput";
 import PasswordHelpers from "./PasswordHelpers";
 import RichTextInputField from "./RichTextInput";
@@ -16,6 +16,9 @@ import FormikYearPickerField from "./FormikYearPickerField";
 type RichtextProps = {
   maxChars?: number;
   minHeight?: number;
+  /** Restricts the Quill toolbar. Left undefined, Quill renders its full
+   * default toolbar -- a field config's own `richTextToolbar` wins over this. */
+  toolbar?: RichTextToolbar;
 };
 
 export type FormikFieldProps = FormField & {
@@ -78,6 +81,7 @@ const FormikField = (props: FormikFieldProps) => {
     leftIcon,
     rightIcon,
     richtextProps,
+    richTextToolbar,
     disabled,
     autoFocus,
     inputContainerClassName,
@@ -102,6 +106,7 @@ const FormikField = (props: FormikFieldProps) => {
           {...{ name, placeholder }}
           maxChars={richtextProps?.maxChars}
           minHeight={richtextProps?.minHeight}
+          toolbar={richTextToolbar ?? richtextProps?.toolbar}
         />
       ) : props.type === "select" ? (
         <ValinnaFormikSelect
