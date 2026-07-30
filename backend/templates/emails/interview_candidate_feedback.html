@@ -1,0 +1,13 @@
+{% extends "emails/base.html" %}
+{% block title %}Feedback on your interview{% endblock %}
+{% block preheader %}{{ company_name|default:"The team" }} shared feedback on your interview for {{ job_title|default:"the role" }}.{% endblock %}
+{% block content %}
+  <h1 class="h1" style="margin:0 0 14px; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:33px; line-height:1.15; letter-spacing:-0.6px; font-weight:800; color:#0F172A;">Interview feedback</h1>
+
+  <p style="margin:0 0 24px; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:16px; line-height:1.65; color:#475569;">Hi {{ first_name|default:"there" }}, {{ company_name|default:"the team" }} shared this feedback on your interview for {{ job_title|default:"the role" }}.</p>
+
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 28px; background-color:#F8FAFC; border:1px solid #E2E8F0; border-radius:0;">
+    <tr><td style="padding:18px 22px 4px; font-family:'Inter',Arial,sans-serif; font-size:11px; font-weight:700; letter-spacing:1.2px; text-transform:uppercase; color:#64748B;">{{ company_name|default:"Interviewer" }}</td></tr>
+    <tr><td style="padding:6px 22px 22px; font-family:'Inter',Arial,sans-serif; font-size:15px; line-height:1.65; color:#0F172A; white-space:pre-line;">{{ feedback_content|default:"" }}</td></tr>
+  </table>
+{% endblock %}

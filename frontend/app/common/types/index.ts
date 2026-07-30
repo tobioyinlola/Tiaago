@@ -660,6 +660,293 @@ export type ScheduledMeeting = {
   accepted: boolean;
 };
 
+export type RecruiterInterviewTab =
+  | "upcoming"
+  | "live"
+  | "needs_review"
+  | "completed";
+
+/** Scheduler.Status. Named for the recruiter list to stay out of the way of
+ * the candidate-facing `InterviewStatus` in services/interview.ts, which
+ * covers a narrower set of states. */
+export type RecruiterInterviewStatus =
+  | "SCHEDULED"
+  | "ROOM_CREATED"
+  | "IN_PROGRESS"
+  | "COMPLETED"
+  | "CANCELLED"
+  | "NO_SHOW";
+
+export type InterviewRecommendation =
+  | "STRONG_YES"
+  | "YES"
+  | "MAYBE"
+  | "NO"
+  | "STRONG_NO";
+
+/** One row of GET schedulers/interviews/. A few fields are only serialized
+ * for the tab they're relevant to (see scheduler/list_views.py), so they are
+ * all optional here -- read them behind the matching tab. */
+export type RecruiterInterview = {
+  id: ID;
+  candidate_name: string;
+  job_title: string;
+  /** "YYYY-MM-DD" */
+  meeting_date: string;
+  /** "HH:MM:SS" */
+  start_time: string;
+  duration_minutes: number;
+  status: RecruiterInterviewStatus;
+  interview_type: "IN_HOUSE" | "GOOGLE_MEET";
+  recording_enabled: boolean;
+  prep_ready: boolean;
+  /** tab=live only */
+  candidate_waiting?: boolean;
+  /** tab=needs_review only -- ISO timestamp */
+  ended_at?: string | null;
+  /** tab=completed only */
+  recommendation?: InterviewRecommendation | null;
+  /** tab=completed only. Serialized from a DecimalField, so it can arrive as
+   * either a number or a string depending on the renderer. */
+  overall_score?: number | string | null;
+};
+
+/** The list view builds its response with DRF's own paginator rather than
+ * PaginationHandlerMixin, so `current` isn't part of the payload (unlike most
+ * other paginated resources in this app) -- callers supply it themselves. */
+export type RecruiterInterviewsResponse = Omit<
+  PagedResource<RecruiterInterview>,
+  "current"
+> & {
+  current?: number;
+  tab: RecruiterInterviewTab;
+  tab_counts: Record<RecruiterInterviewTab, number>;
+};
+
+// -- Interview preparation brief (GET/PATCH schedulers/{id}/preparation/) --
+
+export type PreparationGenerationStatus =
+  | "PENDING"
+  | "GENERATING"
+  | "READY"
+  | "FAILED";
+
+export type QuestionType =
+  | "OPENER"
+  | "BEHAVIOURAL"
+  | "SITUATIONAL"
+  | "TECHNICAL"
+  | "CLOSER";
+
+export type EvidenceSource = "RESUME" | "ASSESSMENT" | "BOTH";
+
+export type CareerTimelineEntry = {
+  date: string;
+  role: string;
+  company: string;
+  duration: string;
+  gap: boolean;
+  gap_duration: string | null;
+};
+
+export type PreparationStrength = {
+  text: string;
+  source: EvidenceSource;
+  evidence: string;
+};
+
+export type PreparationWatchArea = {
+  text: string;
+  source: EvidenceSource;
+  suggested_probe: string;
+};
+
+export type AssessmentHighlights = {
+  overall_score: number | null;
+  strong_areas: string[];
+  weak_areas: string[];
+  concerns: string[];
+};
+
+export type InterviewCompetency = {
+  id: string;
+  name: string;
+  required: boolean;
+  weight: number;
+};
+
+export type PreparationQuestion = {
+  id: string;
+  number: number;
+  text: string;
+  type: QuestionType;
+  competency_id: string | null;
+  intent: string;
+  good_answer_indicators: string[];
+  followup_prompts: string[];
+  was_asked: boolean;
+  timestamp: string | null;
+};
+
+export type InterviewPrepHeader = {
+  candidate_name: string;
+  job_title: string;
+  application_date: string | null;
+  /** Real, DB-backed score -- independent of assessment_highlights.overall_score
+   * (the AI's own restatement), available even while generation_status is
+   * still GENERATING. */
+  assessment_score: number | null;
+  scheduled_at: string;
+  duration_minutes: number;
+};
+
+export type InterviewPreparation = {
+  generation_status: PreparationGenerationStatus;
+  candidate_snapshot: string[];
+  career_timeline: CareerTimelineEntry[];
+  strengths: PreparationStrength[];
+  watch_areas: PreparationWatchArea[];
+  suggested_focus: string[];
+  assessment_highlights: AssessmentHighlights;
+  competencies: InterviewCompetency[];
+  questions: PreparationQuestion[];
+  generated_at: string | null;
+  model_used: string;
+  recruiter_edited_at: string | null;
+  /** Only present on the GET response, not PATCH/regenerate. */
+  interview?: InterviewPrepHeader;
+};
+
+// -- Interview workspace (Part B) --
+
+export type StartInterviewResponse = {
+  roomUrl: string;
+  participantToken: string;
+  billing: {
+    success: boolean;
+    reason: "already_charged" | "free_allowance" | "charged" | "insufficient_funds";
+    amount_charged: number;
+  };
+  transcriptionWebsocketUrl: string;
+};
+
+export type TranscriptSpeaker = "RECRUITER" | "CANDIDATE" | "UNKNOWN";
+
+export type TranscriptSegment = {
+  id: string;
+  speaker: TranscriptSpeaker;
+  text: string;
+  start_ms: number;
+  end_ms: number;
+  confidence: number;
+};
+
+export type CopilotEventType =
+  | "FOLLOWUP_QUESTION"
+  | "MISSING_COMPETENCY"
+  | "RESUME_CONTRADICTION"
+  | "TIME_WARNING"
+  | "EVIDENCE_CAPTURED";
+
+export type CopilotSuggestionEvent = {
+  id: string;
+  event_type: CopilotEventType;
+  content: string;
+  confidence: number;
+};
+
+export type CompetencyEvidence = {
+  quote: string;
+  strength: "WEAK" | "MODERATE" | "STRONG";
+  captured_at: string;
+};
+
+export type InterviewRecommendationValue = "STRONG_YES" | "YES" | "MAYBE" | "NO" | "STRONG_NO";
+export type InterviewConfidenceValue = "LOW" | "MEDIUM" | "HIGH";
+export type SummaryGenerationStatus = "PENDING" | "GENERATING" | "READY" | "FAILED";
+export type FeedbackDeliveryStatus = "DRAFT" | "SENT" | "DELIVERED" | "FAILED";
+
+export type InterviewSummaryConcern = { text: string; severity: "LOW" | "MEDIUM" | "HIGH" };
+
+export type InterviewSummaryData = {
+  executive_summary: string;
+  strengths: string[];
+  concerns: InterviewSummaryConcern[];
+  recommendation: InterviewRecommendationValue | null;
+  confidence: InterviewConfidenceValue | null;
+  overall_score: number | null;
+  action_items: string[];
+  generation_status: SummaryGenerationStatus;
+  ai_generated_at: string | null;
+  recruiter_edited_at: string | null;
+  submitted_at: string | null;
+};
+
+export type InterviewCandidateFeedbackData = {
+  content: string;
+  delivery_status: FeedbackDeliveryStatus;
+  sent_at: string | null;
+};
+
+export type InterviewReview = {
+  candidate_name: string;
+  job_title: string;
+  company_name: string;
+  meeting_date: string;
+  start_time: string;
+  duration_minutes: number;
+  actual_duration_seconds: number | null;
+  status: string;
+  recording_enabled: boolean;
+  recording_status: "NONE" | "UPLOADING" | "READY" | "FAILED";
+  recording_url: string | null;
+  transcription_status: PipelineStepStatus;
+  summary: InterviewSummaryData | null;
+  feedback: InterviewCandidateFeedbackData | null;
+  has_candidate_email: boolean;
+};
+
+export type InterviewNotesData = {
+  content_rich: string;
+  content_plain: string;
+  last_edited_at: string | null;
+  auto_saved_at?: string | null;
+};
+
+export type CompetencyScoreType = "NUMERIC" | "STAR" | "PASS_FAIL" | "PERCENT";
+
+export type CompetencyScore = {
+  id: ID;
+  competency_id: string;
+  competency_name: string;
+  required: boolean;
+  score_type: CompetencyScoreType;
+  weight: number;
+  score_raw: number | null;
+  score_normalised: number | null;
+  ai_suggested_score: number | null;
+  ai_evidence: unknown[];
+  recruiter_notes: string | null;
+  scored_at: string | null;
+};
+
+export type PipelineStepStatus = "PENDING" | "PROCESSING" | "GENERATING" | "READY" | "FAILED";
+
+export type InterviewProcessingStatus = {
+  interview_status: string;
+  transcription_status: PipelineStepStatus;
+  summary_status: PipelineStepStatus;
+  feedback_status: PipelineStepStatus;
+  all_done: boolean;
+};
+
+export type InterviewScorecard = {
+  competencies: CompetencyScore[];
+  overall_score: number | null;
+  scored_count: number;
+  total_count: number;
+};
+
 export type SkillAssessment = {
   id: ID;
   quiz_id: ID;

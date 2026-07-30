@@ -17,6 +17,7 @@ import {
   IoPeopleOutline,
   IoPersonAddOutline,
   IoChatbubblesOutline,
+  IoVideocamOutline,
 } from "react-icons/io5";
 
 const baseHref = "/admin";
@@ -109,6 +110,12 @@ export const navItems: DashboardNavItemV3[] = [
     href: `${baseHref}/system`,
     Icon: IoPulseOutline,
     section: "system_health",
+  },
+  {
+    name: "interviews",
+    href: `${baseHref}/interviews`,
+    Icon: IoVideocamOutline,
+    section: "interviews",
   },
   {
     name: "marketing",

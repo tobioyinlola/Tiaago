@@ -129,3 +129,8 @@ class SystemHealthAPIView(_AnalyticsBaseView):
 
     def get(self, request):
         return Response(status=200, data=utils.get_system_health_summary())
+
+
+class InterviewAnalyticsAPIView(_AnalyticsBaseView):
+    def get(self, request):
+        return Response(status=200, data=utils.get_interview_analytics_summary())

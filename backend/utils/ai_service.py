@@ -417,6 +417,167 @@ class AIServiceHandler:
                 print(str(e))
                 return None
 
+    def extract_resume_text(self, resume_path, resume_name: str) -> Optional[str]:
+        """Plain-text extraction only, no AI call. Shares analyze_resume's
+        file-resolution logic (FieldFile / remote URL / local path) since a
+        candidate's resume can live on any of Tiaago's configured storage
+        backends (local, Cloudinary, Bunny)."""
+        if not resume_path:
+            return None
+
+        if hasattr(resume_path, 'url'):
+            resume_url = resume_path.url
+        else:
+            resume_url = str(resume_path)
+
+        if not resume_url.startswith(("http://", "https://", "/")):
+            from django.conf import settings
+            media_url = getattr(settings, 'MEDIA_URL', '/media/')
+            if media_url.startswith("http"):
+                resume_url = media_url + resume_url
+            else:
+                resume_url = os.path.join(str(settings.MEDIA_ROOT), resume_url)
+
+        downloaded = resume_url.startswith("http://") or resume_url.startswith("https://")
+        if downloaded:
+            r = requests.get(resume_url)
+            r.raise_for_status()
+            tmp_file = NamedTemporaryFile(delete=False, suffix=os.path.splitext(resume_name)[1])
+            tmp_file.write(r.content)
+            tmp_file.close()
+            local_path = tmp_file.name
+        elif hasattr(resume_path, 'path'):
+            local_path = resume_path.path
+        else:
+            local_path = resume_url
+
+        try:
+            with open(local_path, "rb") as f:
+                files = {"resume_file": (resume_name, f)}
+                response = self.post("/extract-resume-text", files=files)
+            if response is not None and response.ok:
+                return response.json().get("text")
+            logger.warning(f"extract_resume_text failed: {getattr(response, 'status_code', None)} {getattr(response, 'text', '')}")
+            return None
+        except Exception as e:
+            logger.error(f"extract_resume_text error: {e}")
+            return None
+        finally:
+            if downloaded:
+                os.unlink(local_path)
+
+    def generate_interview_preparation(self, payload: dict) -> Optional[dict]:
+        """`payload` matches ai/app/models/interview_prep.InterviewPreparationRequest
+        -- job_title, job_description, job_requirement, resume_text,
+        assessment_score, assessment_results, previous_notes. Returns the
+        parsed JSON brief (candidate_snapshot, career_timeline, strengths,
+        watch_areas, suggested_focus, assessment_highlights, competencies,
+        questions, model_used) or None on failure."""
+        try:
+            response = self.post("/generate-interview-preparation", json=payload)
+        except Exception as e:
+            logger.error(f"generate_interview_preparation request error: {e}")
+            return None
+
+        if response is None or not response.ok:
+            logger.warning(
+                f"generate_interview_preparation failed: "
+                f"{getattr(response, 'status_code', None)} {getattr(response, 'text', '')}"
+            )
+            return None
+        try:
+            return response.json()
+        except Exception as e:
+            logger.error(f"generate_interview_preparation response parse error: {e}")
+            return None
+
+    def transcribe_audio(self, audio_bytes: bytes, filename: str = "chunk.wav") -> Optional[dict]:
+        """`audio_bytes` is a short (~10s) single-speaker WAV chunk decoded
+        from the base64 payload a WebSocket consumer received. Returns
+        {text, confidence, no_speech} or None on failure -- the consumer
+        treats a failed/empty chunk as a dropped chunk, not a fatal error."""
+        try:
+            files = {"audio_file": (filename, audio_bytes, "audio/wav")}
+            response = self.post("/transcribe-audio", files=files, timeout=30)
+        except Exception as e:
+            logger.error(f"transcribe_audio request error: {e}")
+            return None
+
+        if response is None or not response.ok:
+            logger.warning(
+                f"transcribe_audio failed: {getattr(response, 'status_code', None)} {getattr(response, 'text', '')}"
+            )
+            return None
+        try:
+            return response.json()
+        except Exception as e:
+            logger.error(f"transcribe_audio response parse error: {e}")
+            return None
+
+    def generate_copilot_suggestion(self, payload: dict) -> Optional[dict]:
+        """`payload` matches ai/app/models/interview_live.CopilotSuggestionRequest.
+        Returns {has_suggestion, suggestions, evidence} or None on failure --
+        the consumer treats a failed call as "no suggestion this cycle"."""
+        try:
+            response = self.post("/generate-copilot-suggestion", json=payload, timeout=15)
+        except Exception as e:
+            logger.error(f"generate_copilot_suggestion request error: {e}")
+            return None
+
+        if response is None or not response.ok:
+            logger.warning(
+                f"generate_copilot_suggestion failed: "
+                f"{getattr(response, 'status_code', None)} {getattr(response, 'text', '')}"
+            )
+            return None
+        try:
+            return response.json()
+        except Exception as e:
+            logger.error(f"generate_copilot_suggestion response parse error: {e}")
+            return None
+
+    def generate_interview_summary(self, payload: dict) -> Optional[dict]:
+        """`payload` matches ai/app/models/interview_summary.InterviewSummaryRequest.
+        Returns the parsed JSON summary or None on failure."""
+        try:
+            response = self.post("/generate-interview-summary", json=payload, timeout=120)
+        except Exception as e:
+            logger.error(f"generate_interview_summary request error: {e}")
+            return None
+
+        if response is None or not response.ok:
+            logger.warning(
+                f"generate_interview_summary failed: "
+                f"{getattr(response, 'status_code', None)} {getattr(response, 'text', '')}"
+            )
+            return None
+        try:
+            return response.json()
+        except Exception as e:
+            logger.error(f"generate_interview_summary response parse error: {e}")
+            return None
+
+    def generate_candidate_feedback(self, payload: dict) -> Optional[dict]:
+        """`payload` matches ai/app/models/interview_summary.CandidateFeedbackRequest.
+        Returns {content, model_used} or None on failure."""
+        try:
+            response = self.post("/generate-candidate-feedback", json=payload, timeout=60)
+        except Exception as e:
+            logger.error(f"generate_candidate_feedback request error: {e}")
+            return None
+
+        if response is None or not response.ok:
+            logger.warning(
+                f"generate_candidate_feedback failed: "
+                f"{getattr(response, 'status_code', None)} {getattr(response, 'text', '')}"
+            )
+            return None
+        try:
+            return response.json()
+        except Exception as e:
+            logger.error(f"generate_candidate_feedback response parse error: {e}")
+            return None
+
     def _coerce_score(self, val, default=0.0):
         try:
             s = float(val)

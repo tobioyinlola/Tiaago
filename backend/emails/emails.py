@@ -28,6 +28,7 @@ EmailType = Literal[
     "job_reactivated",
     "talent_assessment_pass_mail",
     "recruiter_interview_acceptance_mail",
+    "recruiter_interview_reminder_mail",
     "talent_vetting_pass",
     "talent_vetting_fail",
     "application_received",
@@ -42,6 +43,8 @@ EmailType = Literal[
     "free_tier_exhausted",
     "wallet_topup_confirmed",
     "wallet_topup_failed",
+    "interview_candidate_feedback_mail",
+    "interview_summary_ready_mail",
 ]
 
 EMAIL_TYPE_TO_ENUM = {
@@ -271,6 +274,34 @@ def get_email_template_and_context(
             "role": md.get("title", ""),
             "pipeline_url": settings.TIAAGO_STARTUP_LOGIN_URL,
             **meeting_ctx,
+        }
+
+    elif email_type == "recruiter_interview_reminder_mail":
+        md = kwargs.get("meeting_details") or {}
+        meeting_ctx = _flatten_meeting(md, kwargs.get("company_name"))
+        template_file = "emails/interview_reminder_recruiter.html"
+        context = {
+            "candidate_name": kwargs.get("candidate_name") or "the candidate",
+            "role": md.get("title", ""),
+            "countdown": kwargs.get("countdown", "in 30 minutes"),
+            **meeting_ctx,
+        }
+
+    elif email_type == "interview_candidate_feedback_mail":
+        template_file = "emails/interview_candidate_feedback.html"
+        context = {
+            "first_name": user.first_name,
+            "job_title": kwargs.get("job_title", ""),
+            "company_name": kwargs.get("company_name", ""),
+            "feedback_content": kwargs.get("feedback_content", ""),
+        }
+
+    elif email_type == "interview_summary_ready_mail":
+        template_file = "emails/interview_summary_ready.html"
+        context = {
+            "first_name": user.first_name,
+            "candidate_name": kwargs.get("candidate_name", ""),
+            "review_url": kwargs.get("review_url", ""),
         }
 
     elif email_type == "talent_vetting_pass":
@@ -567,6 +598,55 @@ def recruiter_interview_acceptance_mail(user, company_name, meeting_details):
     return _send_with_latest_flow(
         user.email, "Interview accepted", template, ctx,
         email_type="recruiter_interview_acceptance_mail",
+    )
+
+
+def recruiter_interview_reminder_mail(user, candidate_name, company_name, meeting_details):
+    """30-minutes-before reminder to the recruiter -- `user` is the company
+    rep being emailed; `candidate_name` is passed explicitly since `user`
+    here is not the candidate (matching the pattern to the confusingly-
+    named `candidate_name` context var over in recruiter_interview_acceptance_mail,
+    which is actually populated from the recruiter's own name -- that's an
+    existing quirk in this codebase, not repeated here)."""
+    template, ctx = get_email_template_and_context(
+        user, "recruiter_interview_reminder_mail", company_name=company_name,
+        candidate_name=candidate_name, meeting_details=meeting_details,
+    )
+    if not template:
+        return None
+    return _send_with_latest_flow(
+        user.email, "Your interview starts in 30 minutes", template, ctx,
+        email_type="recruiter_interview_reminder_mail",
+    )
+
+
+def interview_candidate_feedback_mail(user, job_title, company_name, feedback_content):
+    """`user` is the candidate's own account (InterviewCandidateFeedback.candidate.user)
+    -- feedback_content is the recruiter-reviewed, AI-drafted text from the
+    review page, sent verbatim."""
+    template, ctx = get_email_template_and_context(
+        user, "interview_candidate_feedback_mail", job_title=job_title,
+        company_name=company_name, feedback_content=feedback_content,
+    )
+    if not template:
+        return None
+    return _send_with_latest_flow(
+        user.email, f"Feedback on your interview for {job_title}", template, ctx,
+        email_type="interview_candidate_feedback_mail",
+    )
+
+
+def interview_summary_ready_mail(user, candidate_name, review_url):
+    """Notifies the recruiter that the AI-generated post-interview summary
+    for `candidate_name` finished processing and is ready to review."""
+    template, ctx = get_email_template_and_context(
+        user, "interview_summary_ready_mail", candidate_name=candidate_name, review_url=review_url,
+    )
+    if not template:
+        return None
+    return _send_with_latest_flow(
+        user.email, f"Your interview summary for {candidate_name} is ready", template, ctx,
+        email_type="interview_summary_ready_mail",
     )
 
 

@@ -15,6 +15,10 @@ class AIUsageLog(TimeStampedModel):
         RESUME_ANALYSIS = "resume_analysis", "Resume Analysis"
         MCQ_GENERATION = "mcq_generation", "MCQ Generation"
         CODING_ASSESSMENT = "coding_assessment", "Coding Assessment Generation"
+        INTERVIEW_PREP = "interview_prep", "Interview Preparation Brief"
+        AI_COPILOT_SUGGESTION = "ai_copilot_suggestion", "AI Copilot Suggestion"
+        INTERVIEW_SUMMARY = "interview_summary", "Interview Summary"
+        CANDIDATE_FEEDBACK = "candidate_feedback", "Candidate Feedback Draft"
 
     service_type = models.CharField(max_length=30, choices=ServiceType.choices, db_index=True)
     job_application = models.ForeignKey(

@@ -45,11 +45,12 @@ const Nav = ({
         searchKey='global'
       />
 
-      <div className='flex items-center gap-4 lg:gap-6 max-lg:hidden'>
-        {/* Notifications */}
+      <div className='flex items-center gap-4 lg:gap-6'>
+        {/* Notifications -- visible at every breakpoint; the sidebar has no
+            equivalent entry point on mobile, so this is the only way in. */}
         {!isStaff && <NotificationBell viewAllHref={`${dashboardLink}/notifications`} />}
         {/* Avatar */}
-        <Link href={`${dashboardLink}/settings?tab=profile`}>
+        <Link href={`${dashboardLink}/settings?tab=profile`} className='max-lg:hidden'>
           <UserAvatar forCurrentUser {...userAvatarProps} />
         </Link>
       </div>
