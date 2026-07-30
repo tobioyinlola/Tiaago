@@ -15,6 +15,7 @@ from channels.auth import AuthMiddlewareStack
 from .auth_middleware import JWTAuthMiddleware
 import chats.routing
 import skill_assessment.routing
+import scheduler.routing
 
 def debug_router(router):
     async def inner(scope, receive, send):
@@ -32,6 +33,7 @@ websocket_router = debug_router(
     URLRouter([
         *chats.routing.websocket_urlpatterns,
         *skill_assessment.routing.websocket_urlpatterns,
+        *scheduler.routing.websocket_urlpatterns,
     ])
 )
 

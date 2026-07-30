@@ -12,6 +12,7 @@ class Notification(models.Model):
         MAINTENANCE = "MAINTENANCE", "Maintenance"
         FEATURE_UPDATE = "FEATURE_UPDATE", "Feature Update"
         BILLING_ALERT = "BILLING_ALERT", "Billing Alert"
+        INTERVIEW = "INTERVIEW", "Interview"
         GENERAL = "GENERAL", "General"
 
     class TargetScope(models.TextChoices):

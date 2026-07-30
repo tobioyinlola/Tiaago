@@ -1,4 +1,6 @@
 import logging
+import secrets
+from datetime import datetime, timedelta
 from warnings import filters
 from django.db import transaction
 from django.db.models import Prefetch
@@ -97,7 +99,14 @@ from utils.ai_service import AIService
 from roles.models import Role
 from scheduler.models import Scheduler
 from scheduler.services import provision_daily_room, DailyRoomProvisioningError
-from scheduler.tasks import recruiter_interview_acceptance_mail
+from scheduler.tasks import (
+    recruiter_interview_acceptance_mail,
+    recruiter_interview_reminder_mail,
+    retry_room_creation,
+    send_meeting_reminder,
+)
+from notifications.models import Notification
+from notifications.utils import notify_user
 from skill_assessment.models import CandidateAssessmentSubmission
 
 logger = logging.getLogger(__name__)
@@ -498,6 +507,10 @@ class JobInterviewSlotClaimView(APIView):
                 )
 
             job = slot.job
+            duration_minutes = int(
+                (datetime.combine(slot.date, slot.end_time) - datetime.combine(slot.date, slot.start_time))
+                .total_seconds() // 60
+            )
             meeting = Scheduler.objects.create(
                 title=f"Interview for {job.title}",
                 meeting_date=slot.date,
@@ -507,19 +520,32 @@ class JobInterviewSlotClaimView(APIView):
                 company=job.company,
                 accepted=True,
                 description=f"Interview for {job.title} at {job.company.company_name}",
+                duration_minutes=duration_minutes or 45,
             )
 
+            room_created = False
             try:
                 room = provision_daily_room(slot.date, slot.start_time, slot.end_time)
                 meeting.room_id = room["room_id"]
                 meeting.room_name = room["room_name"]
                 meeting.room_url = room["room_url"]
                 meeting.token = room["token"]
-                meeting.save(update_fields=["room_id", "room_name", "room_url", "token"])
+                meeting.status = Scheduler.Status.ROOM_CREATED
+                meeting.recruiter_join_token = secrets.token_urlsafe(32)
+                meeting.candidate_join_token = secrets.token_urlsafe(32)
+                meeting.save(update_fields=[
+                    "room_id", "room_name", "room_url", "token", "status",
+                    "recruiter_join_token", "candidate_join_token",
+                ])
+                room_created = True
             except DailyRoomProvisioningError as e:
                 # The meeting is still confirmed even if video-room provisioning fails --
-                # this can be retried/fixed operationally rather than blocking the booking.
+                # status stays SCHEDULED (its default) and a single retry is scheduled 5
+                # minutes out. Never blocks the candidate's booking confirmation.
                 logger.error(f"Daily.co provisioning failed for claimed slot {slot.id}: {e.detail}")
+                retry_task = retry_room_creation.apply_async((str(meeting.id),), countdown=300)
+                meeting.retry_room_creation_task_id = retry_task.id
+                meeting.save(update_fields=["retry_room_creation_task_id"])
 
             slot.is_claimed = True
             slot.claimed_by_application = job_application
@@ -542,6 +568,49 @@ class JobInterviewSlotClaimView(APIView):
                 )
         except Exception as e:
             logger.error(f"Failed to send interview acceptance email: {e}")
+
+        if room_created and job.company.company_rep_id:
+            try:
+                notify_user(
+                    job.company.company_rep,
+                    title="Interview room ready",
+                    message=(
+                        f"Interview room ready for {profile.full_name}. "
+                        f"Interview scheduled for {slot.date} {slot.start_time.strftime('%H:%M')}."
+                    ),
+                    notification_type=Notification.Type.INTERVIEW,
+                    link_path="recruiter/dashboard/interviews",
+                    link_label="View interview",
+                )
+            except Exception:
+                logger.exception(f"Failed to create room-ready notification for meeting {meeting.id}")
+
+        # 30-minutes-before reminders -- candidate gets email only (reusing
+        # the existing talent-facing reminder task), recruiter gets email +
+        # in-app (see recruiter_interview_reminder_mail). Scheduled
+        # regardless of whether room provisioning succeeded above: if the
+        # retry also fails, the recruiter still gets reminded to sort it out.
+        try:
+            meeting_time = timezone.make_aware(datetime.combine(slot.date, slot.start_time))
+            reminder_eta = meeting_time - timedelta(minutes=30)
+
+            candidate_reminder = send_meeting_reminder.apply_async(
+                (request.user.id, job.company.company_name, str(meeting.id)), eta=reminder_eta
+            )
+            update_fields = ["candidate_reminder_task_id"]
+            meeting.candidate_reminder_task_id = candidate_reminder.id
+
+            if job.company.company_rep_id:
+                recruiter_reminder = recruiter_interview_reminder_mail.apply_async(
+                    (job.company.company_rep_id, profile.full_name, job.company.company_name, str(meeting.id)),
+                    eta=reminder_eta,
+                )
+                meeting.recruiter_reminder_task_id = recruiter_reminder.id
+                update_fields.append("recruiter_reminder_task_id")
+
+            meeting.save(update_fields=update_fields)
+        except Exception:
+            logger.exception(f"Failed to schedule 30-minute reminders for meeting {meeting.id}")
 
         return Response(JobInterviewAvailabilitySlotSerializer(slot).data, status=HTTP_200_OK)
 

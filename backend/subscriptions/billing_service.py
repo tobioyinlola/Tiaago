@@ -24,7 +24,7 @@ from emails import emails
 from notifications.models import Notification
 from notifications.utils import notify_user
 
-from .helper import COUNTRY_CURRENCY_MAP, get_action_price, get_pricing_int
+from .helper import COUNTRY_CURRENCY_MAP, get_action_price, get_pricing_int, get_pricing_decimal
 from .models import CandidateBillingRecord, Wallet, WalletTransaction
 
 logger = logging.getLogger(__name__)
@@ -286,3 +286,94 @@ class BillingService:
             _notify_free_tier_exhausted(organisation)
 
         return result
+
+    @staticmethod
+    def charge_interview_package(organisation, interview, includes_recording):
+        """Charges the flat interview-package fee when a recruiter starts an
+        interview, plus the recording add-on if enabled. This is a
+        separate allowance from free_credits_remaining (which
+        process_resume_candidate_screening/process_assessment_charge use)
+        -- an organisation's first 3 *charged* interviews (counted from
+        Scheduler.interview_package_charged) are free instead, tracked via
+        Scheduler.free_allowance_used.
+
+        Pricing is flat NGN regardless of wallet currency, per spec --
+        revisit if this feature needs multi-currency support later.
+
+        Returns {"success": bool,
+                 "reason": "already_charged"|"free_allowance"|"charged"|"insufficient_funds",
+                 "amount_charged": Decimal}."""
+        from scheduler.models import Scheduler
+
+        with transaction.atomic():
+            interview = Scheduler.objects.select_for_update().get(pk=interview.pk)
+            if interview.interview_package_charged:
+                return {"success": True, "reason": "already_charged", "amount_charged": Decimal("0.00")}
+
+            free_allowance = Scheduler.objects.filter(
+                company=organisation, interview_package_charged=True
+            ).count() < 3
+
+            package_price = get_pricing_decimal("interview_package_price_ngn", "1500.00")
+            recording_price = (
+                get_pricing_decimal("interview_recording_addon_price_ngn", "1000.00")
+                if includes_recording else Decimal("0.00")
+            )
+            total_due = package_price + recording_price
+
+            wallet = get_or_create_wallet(organisation)
+            wallet = Wallet.objects.select_for_update().get(pk=wallet.pk)
+
+            if not free_allowance and wallet.balance < total_due:
+                return {"success": False, "reason": "insufficient_funds", "amount_charged": Decimal("0.00")}
+
+            job_application = interview.get_job_application()
+            job = job_application.job if job_application else None
+            candidate = interview.talent
+            candidate_name = candidate.full_name if candidate else "the candidate"
+            job_title = job.title if job else interview.title
+
+            if not free_allowance:
+                wallet.debit(
+                    amount=package_price,
+                    description=f"Interview package — {candidate_name} for {job_title}",
+                    currency=wallet.currency,
+                    service_type=WalletTransaction.ServiceType.INTERVIEW,
+                    job=job,
+                    candidate=candidate,
+                    metadata={"scheduler_id": str(interview.id)},
+                )
+                if includes_recording:
+                    wallet.debit(
+                        amount=recording_price,
+                        description=f"Interview recording — {candidate_name} for {job_title}",
+                        currency=wallet.currency,
+                        service_type=WalletTransaction.ServiceType.INTERVIEW,
+                        job=job,
+                        candidate=candidate,
+                        metadata={"scheduler_id": str(interview.id), "addon": "recording"},
+                    )
+            else:
+                logger.info(f"Interview {interview.id} covered by free allowance for company {organisation.id}")
+
+            interview.interview_package_charged = True
+            interview.interview_package_amount = package_price
+            interview.free_allowance_used = free_allowance
+            update_fields = ["interview_package_charged", "interview_package_amount", "free_allowance_used"]
+            if includes_recording:
+                interview.recording_addon_charged = True
+                interview.recording_addon_amount = recording_price
+                update_fields += ["recording_addon_charged", "recording_addon_amount"]
+            interview.save(update_fields=update_fields)
+
+            amount_charged = Decimal("0.00") if free_allowance else total_due
+
+        if not free_allowance:
+            wallet = get_or_create_wallet(organisation)
+            BillingService.check_and_send_low_balance_alert(wallet)
+
+        return {
+            "success": True,
+            "reason": "free_allowance" if free_allowance else "charged",
+            "amount_charged": amount_charged,
+        }

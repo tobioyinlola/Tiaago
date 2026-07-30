@@ -1,6 +1,7 @@
 import TeamMembersTab from "./Team";
 import ProfileTab from "./ProfileTab";
 import EmailIntegrationTab from "./EmailIntegrationTab";
+import InterviewSettingsTab from "./InterviewSettingsTab";
 import { settingsTabs } from "../../constants";
 import { useRecruiterStore } from "../../../store";
 import SecurityTab from "@/app/common/components/SecurityTab";
@@ -28,6 +29,7 @@ const Tab = ({ tab, groupedCountries, recruiterRoles }: TabProps) => {
     security: <SecurityTab />,
     email: <EmailIntegrationTab />,
     team: <TeamMembersTab />,
+    interviews: <InterviewSettingsTab />,
   };
   return (
     <div

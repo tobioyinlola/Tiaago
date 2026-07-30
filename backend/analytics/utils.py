@@ -1150,3 +1150,107 @@ def get_system_health_summary():
     }
     cache.set(cache_key, result, timeout=CACHE_TIMEOUT)
     return result
+
+
+def get_interview_analytics_summary():
+    """AI Interview Copilot admin board (/admin/interviews): totals,
+    recommendation/status breakdowns, top orgs by interview volume, AI
+    copilot usage/use-rate, and this month's package+recording revenue.
+    Per-call OpenAI cost stays unavailable -- same reason as
+    get_system_health_summary's infra_cost: AIUsageLog.estimated_cost_usd
+    is never populated anywhere in this codebase yet."""
+    cache_key = "analytics_interview_summary"
+    cached = cache.get(cache_key)
+    if cached:
+        return cached
+
+    from analytics.models import AIUsageLog
+    from scheduler.models import Scheduler, InterviewSummary
+
+    now = timezone.now()
+    month_start = now.replace(hour=0, minute=0, second=0, microsecond=0, day=1)
+
+    base = Scheduler.objects.exclude(status=Scheduler.Status.CANCELLED)
+    total_interviews = base.count()
+    completed = base.filter(status=Scheduler.Status.COMPLETED).count()
+
+    status_breakdown = list(
+        base.values("status").annotate(count=Count("id")).order_by("-count")
+    )
+
+    recommendation_breakdown = list(
+        InterviewSummary.objects.exclude(recommendation__isnull=True)
+        .values("recommendation")
+        .annotate(count=Count("id"))
+        .order_by("-count")
+    )
+
+    top_orgs = list(
+        base.values("company__company_name")
+        .annotate(count=Count("id"))
+        .order_by("-count")[:10]
+    )
+
+    copilot_calls_month = AIUsageLog.objects.filter(
+        service_type=AIUsageLog.ServiceType.AI_COPILOT_SUGGESTION, created_at__gte=month_start,
+    )
+    copilot_calls_total = copilot_calls_month.count()
+    copilot_calls_succeeded = copilot_calls_month.filter(succeeded=True).count()
+    copilot_use_rate_pct = (
+        round((copilot_calls_succeeded / copilot_calls_total) * 100, 1) if copilot_calls_total else None
+    )
+    interviews_with_copilot_month = base.filter(
+        started_at__gte=month_start, copilot_enabled=True
+    ).count()
+
+    revenue_month = base.filter(started_at__gte=month_start).aggregate(
+        package=Sum("interview_package_amount", filter=Q(interview_package_charged=True)),
+        recording=Sum("recording_addon_amount", filter=Q(recording_addon_charged=True)),
+    )
+    package_total = revenue_month["package"] or 0
+    recording_total = revenue_month["recording"] or 0
+
+    recent = list(
+        base.select_related("talent", "company")
+        .order_by("-meeting_date", "-start_time")[:20]
+        .values(
+            "id", "meeting_date", "status", "company__company_name",
+            "talent__user__first_name", "talent__user__last_name",
+        )
+    )
+
+    result = {
+        "total_interviews": total_interviews,
+        "completed_interviews": completed,
+        "status_breakdown": status_breakdown,
+        "recommendation_breakdown": recommendation_breakdown,
+        "top_organisations": [
+            {"company_name": r["company__company_name"] or "Unknown", "interview_count": r["count"]}
+            for r in top_orgs
+        ],
+        "ai_copilot": {
+            "calls_this_month": copilot_calls_total,
+            "use_rate_pct": copilot_use_rate_pct,
+            "interviews_with_copilot_this_month": interviews_with_copilot_month,
+        },
+        "revenue_this_month_ngn": {
+            "interview_packages": float(package_total),
+            "recording_addons": float(recording_total),
+            "total": float(package_total + recording_total),
+        },
+        "openai_cost_this_month": {"available": False},
+        "recent_interviews": [
+            {
+                "id": str(r["id"]),
+                "meeting_date": r["meeting_date"].isoformat() if r["meeting_date"] else None,
+                "status": r["status"],
+                "company_name": r["company__company_name"] or "Unknown",
+                "candidate_name": " ".join(
+                    filter(None, [r["talent__user__first_name"], r["talent__user__last_name"]])
+                ) or "Unknown",
+            }
+            for r in recent
+        ],
+    }
+    cache.set(cache_key, result, timeout=CACHE_TIMEOUT)
+    return result

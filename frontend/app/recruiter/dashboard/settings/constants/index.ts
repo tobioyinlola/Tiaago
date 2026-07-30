@@ -15,4 +15,8 @@ export const settingsTabs = [
     name: "team" as const,
     label: "Team",
   },
+  {
+    name: "interviews" as const,
+    label: "Interview Copilot",
+  },
 ];

@@ -13,4 +13,5 @@ urlpatterns = [
     path("growth/", views.GrowthAPIView.as_view(), name="analytics-growth"),
     path("assessments/", views.AssessmentIntelligenceAPIView.as_view(), name="analytics-assessments"),
     path("system/", views.SystemHealthAPIView.as_view(), name="analytics-system"),
+    path("interviews/", views.InterviewAnalyticsAPIView.as_view(), name="analytics-interviews"),
 ]

@@ -4,6 +4,7 @@ import { settingsTabs } from "../constants";
 import ProfileTab from "./Tabs/ProfileTab";
 import TeamMembersTab from "./Tabs/Team";
 import EmailIntegrationTab from "./Tabs/EmailIntegrationTab";
+import InterviewSettingsTab from "./Tabs/InterviewSettingsTab";
 import SecurityTab from "@/app/common/components/SecurityTab";
 import ClientTabs from "@/app/common/components/ClientTabs";
 import { useRecruiterStore } from "../../store";
@@ -42,6 +43,8 @@ const SettingsContent = ({
             return <EmailIntegrationTab />;
           case "team":
             return <TeamMembersTab />;
+          case "interviews":
+            return <InterviewSettingsTab />;
           default:
             return null;
         }

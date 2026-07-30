@@ -3,6 +3,21 @@ from fastapi.responses import JSONResponse
 from typing import List, Optional
 from app.services.assessment_service import assess_candidate, grade_coding_assessment, grade_single_coding_question, generate_culture_fit_questions, create_technical_multi_stage_assessment, create_non_technical_assessment, evaluate_stage_progression, get_assessment_by_id, get_current_stage_data, complete_assessment_stage, generate_overall_feedback, create_categorized_mcq_assessment, check_code_plagiarism, suggest_open_ended_grade
 from app.services.resume_analyzer import analyze_resume
+from app.services.interview_prep_service import generate_interview_preparation
+from app.services.interview_live_service import transcribe_audio_chunk, generate_copilot_suggestion
+from app.services.interview_summary_service import generate_interview_summary, generate_candidate_feedback
+from app.models.interview_prep import InterviewPreparationRequest, InterviewPreparationResult
+from app.models.interview_live import (
+    CopilotSuggestionRequest,
+    CopilotSuggestionResult,
+    TranscribeAudioResult,
+)
+from app.models.interview_summary import (
+    CandidateFeedbackRequest,
+    CandidateFeedbackResult,
+    InterviewSummaryRequest,
+    InterviewSummaryResult,
+)
 from app.models.assessment import (
     AssessmentResult, Question, CodingAnswer, MCQAnswer, GradingResult,
     CultureFitQuestion, CultureFitAssessment, AssessmentSubmission,
@@ -18,8 +33,10 @@ from pydantic import BaseModel
 import datetime
 import platform
 import sys
+import logging
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 @router.get("/", response_model=dict, tags=["System"])
 async def root():
@@ -735,6 +752,124 @@ async def analyze(
         logger.error(f"Error in analyze endpoint: {str(e)}")
         logger.error(f"Traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=f"Error analyzing resume: {str(e)}")
+
+
+@router.post("/extract-resume-text", response_model=dict, tags=["Interview Copilot"])
+async def extract_resume_text_endpoint(
+    resume_file: UploadFile = File(..., description="Resume file (PDF, DOCX, or TXT)")
+):
+    """Plain text extraction, no AI call -- reuses the same parser
+    /analyze-resume uses. Interview-prep generation needs the candidate's
+    resume as plain text to embed in its own prompt; re-running a full paid
+    resume analysis just to get the text back out would be wasteful."""
+    try:
+        text = await read_resume_file(resume_file)
+        return {"text": text}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error extracting resume text: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error extracting resume text: {str(e)}")
+
+
+@router.post("/generate-interview-preparation", response_model=InterviewPreparationResult, tags=["Interview Copilot"])
+async def generate_interview_preparation_endpoint(request: InterviewPreparationRequest):
+    """
+    Generate an AI interview-preparation brief: candidate snapshot, career
+    timeline, strengths/watch-areas, an inferred competency set, and a
+    tailored 8-10 question interview guide.
+
+    The caller (Django) is responsible for assembling `request` from the
+    candidate's resume text, job details, assessment results, and any prior
+    interview notes -- this endpoint is stateless and does no DB access.
+    """
+    try:
+        result = generate_interview_preparation(request)
+        return result
+    except ValueError as e:
+        # OPENAI_API_KEY missing, or the model didn't return valid JSON.
+        logger.error(f"Interview prep generation config/parse error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e:
+        import traceback
+        logger.error(f"Error generating interview preparation: {str(e)}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Error generating interview preparation: {str(e)}")
+
+
+@router.post("/transcribe-audio", response_model=TranscribeAudioResult, tags=["Interview Copilot"])
+async def transcribe_audio_endpoint(
+    audio_file: UploadFile = File(..., description="~10s WAV chunk of one speaker's audio")
+):
+    """Transcribes one short audio chunk via Whisper. Called every ~10s per
+    speaker track while an interview is live, so this stays a thin wrapper
+    with no retries/backoff -- a dropped chunk is just a gap in the live
+    transcript, not worth stalling the interview over."""
+    try:
+        audio_bytes = await audio_file.read()
+        result = transcribe_audio_chunk(audio_bytes, audio_file.filename or "chunk.wav")
+        return result
+    except ValueError as e:
+        logger.error(f"Transcription config error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error transcribing audio chunk: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error transcribing audio chunk: {str(e)}")
+
+
+@router.post("/generate-copilot-suggestion", response_model=CopilotSuggestionResult, tags=["Interview Copilot"])
+async def generate_copilot_suggestion_endpoint(request: CopilotSuggestionRequest):
+    """Generates (at most) a couple of live suggestions/evidence items from a
+    short window of recent conversation. The caller (Django) rate-limits how
+    often this is called per interview -- this endpoint itself does no
+    rate-limiting or persistence, it is stateless like generate-interview-preparation."""
+    try:
+        result = generate_copilot_suggestion(request)
+        return result
+    except ValueError as e:
+        logger.error(f"Copilot suggestion config/parse error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e:
+        import traceback
+        logger.error(f"Error generating copilot suggestion: {str(e)}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Error generating copilot suggestion: {str(e)}")
+
+
+@router.post("/generate-interview-summary", response_model=InterviewSummaryResult, tags=["Interview Copilot"])
+async def generate_interview_summary_endpoint(request: InterviewSummaryRequest):
+    """Generates the post-interview executive summary, strengths/concerns,
+    hiring recommendation, confidence, overall score, and action items from
+    the compiled transcript, recruiter notes, and competency scores. Stateless,
+    no DB access -- Django assembles `request` and persists the result."""
+    try:
+        result = generate_interview_summary(request)
+        return result
+    except ValueError as e:
+        logger.error(f"Interview summary generation config/parse error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e:
+        import traceback
+        logger.error(f"Error generating interview summary: {str(e)}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Error generating interview summary: {str(e)}")
+
+
+@router.post("/generate-candidate-feedback", response_model=CandidateFeedbackResult, tags=["Interview Copilot"])
+async def generate_candidate_feedback_endpoint(request: CandidateFeedbackRequest):
+    """Generates a draft candidate-feedback email body (plain text). The
+    recruiter reviews/edits it on the review page before it's ever sent --
+    this endpoint never sends anything itself."""
+    try:
+        result = generate_candidate_feedback(request)
+        return result
+    except ValueError as e:
+        logger.error(f"Candidate feedback generation config error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error generating candidate feedback: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error generating candidate feedback: {str(e)}")
+
 
 @router.get("/test-resume-analysis-serialization", response_model=ResumeAnalysis, tags=["System"])
 async def test_resume_analysis_serialization():

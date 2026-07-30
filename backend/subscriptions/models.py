@@ -458,6 +458,7 @@ class WalletTransaction(models.Model):
         ASSESSMENT = "assessment", "Assessment"
         WALLET_TOPUP = "wallet_topup", "Wallet Top-up"
         FREE_CREDIT = "free_credit", "Free Credit"
+        INTERVIEW = "interview", "Interview"
         OTHER = "other", "Other"
 
     class Status(models.TextChoices):
