@@ -45,6 +45,8 @@ EmailType = Literal[
     "wallet_topup_failed",
     "interview_candidate_feedback_mail",
     "interview_summary_ready_mail",
+    "public_contact_received",
+    "public_contact_admin_replied",
 ]
 
 EMAIL_TYPE_TO_ENUM = {
@@ -868,6 +870,41 @@ def ticket_resolved_mail(user, ticket):
         return None
     return _send_with_latest_flow(
         user.email, subject, template, ctx, email_type="ticket_resolved",
+    )
+
+
+def public_contact_received_mail(name, email, ticket):
+    """Sent to a public /contact form submitter -- no CustomUser exists for
+    them (see SupportTicket.Source.PUBLIC_CONTACT_FORM), so this builds the
+    template context directly instead of going through
+    get_email_template_and_context, matching standalone_assessment_invite_mail's
+    account-less pattern."""
+    if not ticket:
+        return None
+    subject = f"We've received your message — {getattr(ticket, 'display_number', '')}"
+    context = {
+        "first_name": (name or "").split(" ")[0] or "there",
+        "ticket_number": getattr(ticket, "display_number", ""),
+    }
+    return _send_with_latest_flow(
+        email, subject, "emails/public_contact_received.html", context, email_type="public_contact_received",
+    )
+
+
+def public_contact_admin_replied_mail(name, email, ticket, reply):
+    """Sent to a public /contact form submitter when the support team
+    replies -- they have no account/login, so unlike ticket_admin_replied_mail
+    this has no 'view ticket' CTA, just the reply itself."""
+    if not ticket:
+        return None
+    subject = f"Tiaago Support replied to your message — {getattr(ticket, 'display_number', '')}"
+    context = {
+        "first_name": (name or "").split(" ")[0] or "there",
+        "ticket_number": getattr(ticket, "display_number", ""),
+        "reply_message": getattr(reply, "message", "") if reply else "",
+    }
+    return _send_with_latest_flow(
+        email, subject, "emails/public_contact_admin_replied.html", context, email_type="public_contact_admin_replied",
     )
 
 

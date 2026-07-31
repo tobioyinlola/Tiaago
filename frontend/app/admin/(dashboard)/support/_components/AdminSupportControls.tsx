@@ -9,7 +9,7 @@ import { cn } from "@/app/common/utils";
 
 const STATUSES = ["OPEN", "IN_PROGRESS", "RESOLVED", "CLOSED"];
 const PRIORITIES = ["LOW", "MEDIUM", "HIGH", "URGENT"];
-const CATEGORIES = ["BILLING", "TECHNICAL", "ACCOUNT", "ASSESSMENTS", "PIPELINE", "OTHER"];
+const CATEGORIES = ["BILLING", "TECHNICAL", "ACCOUNT", "ASSESSMENTS", "PIPELINE", "GENERAL", "OTHER"];
 
 const AdminSupportControlsContent = () => {
   const router = useRouter();

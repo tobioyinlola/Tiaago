@@ -58,6 +58,7 @@ const categoryLabelMap: Record<TicketCategory, string> = {
   ACCOUNT: "Account and access",
   ASSESSMENTS: "Assessments",
   PIPELINE: "Pipeline",
+  GENERAL: "General inquiry",
   OTHER: "Other",
 };
 

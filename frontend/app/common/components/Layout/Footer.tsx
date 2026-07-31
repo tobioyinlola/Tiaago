@@ -10,7 +10,6 @@ const footerLists = [
     title: "Platform",
     items: [
       { name: "Recruiters", href: "/" },
-      { name: "Talents", href: "/talents" },
       { name: "Talent Network", href: "/talent-network" },
       { name: "Comparison", href: "/comparison" },
     ],

@@ -13,6 +13,7 @@ class SupportTicket(models.Model):
         ACCOUNT = "ACCOUNT", "Account and access"
         ASSESSMENTS = "ASSESSMENTS", "Assessments"
         PIPELINE = "PIPELINE", "Pipeline"
+        GENERAL = "GENERAL", "General inquiry"
         OTHER = "OTHER", "Other"
 
     class Status(models.TextChoices):
@@ -27,16 +28,27 @@ class SupportTicket(models.Model):
         HIGH = "HIGH", "High"
         URGENT = "URGENT", "Urgent"
 
+    class Source(models.TextChoices):
+        APP = "APP", "In-app"
+        PUBLIC_CONTACT_FORM = "PUBLIC_CONTACT_FORM", "Public contact form"
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     # A separate human-readable sequence (TKT-00042) from a dedicated Postgres
     # sequence (see migration) -- atomic under concurrent creation, unlike a
     # naive Max()+1 read-then-write.
     ticket_number = models.PositiveIntegerField(unique=True, editable=False, null=True, blank=True)
 
-    company = models.ForeignKey(Company, related_name="support_tickets", on_delete=models.CASCADE)
+    # Both null for a public contact-form submission -- there's no company/
+    # account behind an anonymous website visitor. contact_name/contact_email
+    # are the identity for that case; see source.
+    company = models.ForeignKey(Company, related_name="support_tickets", on_delete=models.CASCADE, null=True, blank=True)
     submitted_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL, related_name="submitted_support_tickets", on_delete=models.CASCADE
+        settings.AUTH_USER_MODEL, related_name="submitted_support_tickets", on_delete=models.CASCADE,
+        null=True, blank=True,
     )
+    source = models.CharField(max_length=25, choices=Source.choices, default=Source.APP)
+    contact_name = models.CharField(max_length=150, blank=True, default="")
+    contact_email = models.EmailField(blank=True, default="")
 
     title = models.CharField(max_length=120)
     message = models.TextField()

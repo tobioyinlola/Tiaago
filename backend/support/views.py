@@ -6,6 +6,7 @@ from rest_framework import generics
 from rest_framework.filters import SearchFilter, OrderingFilter
 from rest_framework.views import APIView
 from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework import status
 
@@ -19,6 +20,7 @@ from notifications.models import Notification
 from notifications.utils import notify_user
 from .models import SupportTicket
 from .serializers import (
+    PublicContactSubmissionSerializer,
     SupportTicketCreateSerializer,
     SupportTicketReplyCreateSerializer,
     SupportTicketAdminUpdateSerializer,
@@ -77,6 +79,39 @@ class TicketListCreateView(APIView, PaginationHandlerMixin):
             status=status.HTTP_201_CREATED,
             data=SupportTicketDetailSerializer(ticket).data,
         )
+
+
+class PublicContactSubmissionView(APIView):
+    """POST /api/support/contact/ -- the public site's /contact form. No
+    account/company required; creates a SupportTicket with company/
+    submitted_by null and source=PUBLIC_CONTACT_FORM (see the model's own
+    note on why). Shows up in the same admin support inbox as in-app
+    tickets -- AdminTicketListView has no company filter."""
+
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = PublicContactSubmissionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        full_name = f"{data['first_name']} {data['last_name']}".strip()
+        ticket = SupportTicket.objects.create(
+            source=SupportTicket.Source.PUBLIC_CONTACT_FORM,
+            contact_name=full_name,
+            contact_email=data["email"],
+            title=f"Website contact form: {full_name}"[:120],
+            message=data["message"],
+            category=SupportTicket.Category.GENERAL,
+        )
+
+        from emails import emails
+        try:
+            emails.public_contact_received_mail(full_name, data["email"], ticket)
+        except Exception:
+            logger.exception("Failed to send public_contact_received email for %s", ticket.id)
+
+        return Response(status=status.HTTP_201_CREATED, data={"id": str(ticket.id)})
 
 
 class TicketDetailView(APIView):
@@ -273,23 +308,32 @@ class AdminTicketReplyView(APIView):
 
         if not is_internal_note:
             from emails import emails
-            try:
-                emails.ticket_admin_replied_mail(ticket.submitted_by, ticket, reply)
-            except Exception:
-                logger.exception("Failed to send ticket_admin_replied email for %s", ticket.id)
 
-            try:
-                notify_user(
-                    ticket.submitted_by,
-                    title=f"New reply on {ticket.display_number}",
-                    message=reply.message[:200],
-                    notification_type=Notification.Type.GENERAL,
-                    link_path=f"recruiter/dashboard/support/tickets/{ticket.id}",
-                    link_label="View ticket",
-                    sent_by=request.user,
-                )
-            except Exception:
-                logger.exception("Failed to create in-app notification for ticket %s", ticket.id)
+            if ticket.submitted_by:
+                try:
+                    emails.ticket_admin_replied_mail(ticket.submitted_by, ticket, reply)
+                except Exception:
+                    logger.exception("Failed to send ticket_admin_replied email for %s", ticket.id)
+
+                try:
+                    notify_user(
+                        ticket.submitted_by,
+                        title=f"New reply on {ticket.display_number}",
+                        message=reply.message[:200],
+                        notification_type=Notification.Type.GENERAL,
+                        link_path=f"recruiter/dashboard/support/tickets/{ticket.id}",
+                        link_label="View ticket",
+                        sent_by=request.user,
+                    )
+                except Exception:
+                    logger.exception("Failed to create in-app notification for ticket %s", ticket.id)
+            elif ticket.contact_email:
+                # Public contact-form ticket -- no account to notify in-app,
+                # email the address they submitted with instead.
+                try:
+                    emails.public_contact_admin_replied_mail(ticket.contact_name, ticket.contact_email, ticket, reply)
+                except Exception:
+                    logger.exception("Failed to send public_contact_admin_replied email for %s", ticket.id)
 
         log_staff_activity(
             request.user,

@@ -99,22 +99,33 @@ class SupportTicketListSerializer(serializers.ModelSerializer):
 
 
 class SupportTicketAdminListSerializer(SupportTicketListSerializer):
-    company_name = serializers.CharField(source="company.company_name", read_only=True)
-    company_id = serializers.IntegerField(source="company.id", read_only=True)
+    # company/submitted_by are null for a public contact-form ticket (see
+    # SupportTicket.Source) -- source="company.company_name" would raise
+    # AttributeError on a null company (DRF only guards ObjectDoesNotExist,
+    # not None traversal), so these are plain methods instead.
+    company_name = serializers.SerializerMethodField()
+    company_id = serializers.IntegerField(read_only=True, allow_null=True)
     submitted_by = _UserNameSerializer(read_only=True)
     assigned_to = _UserNameSerializer(read_only=True)
+    source = serializers.CharField(read_only=True)
+    contact_name = serializers.CharField(read_only=True)
+    contact_email = serializers.CharField(read_only=True)
 
     class Meta(SupportTicketListSerializer.Meta):
         fields = SupportTicketListSerializer.Meta.fields + (
             "company_id", "company_name", "submitted_by", "assigned_to",
+            "source", "contact_name", "contact_email",
         )
+
+    def get_company_name(self, obj):
+        return obj.company.company_name if obj.company else ""
 
 
 class SupportTicketDetailSerializer(serializers.ModelSerializer):
     ticket_number = serializers.CharField(source="display_number", read_only=True)
     submitted_by = _UserNameSerializer(read_only=True)
     assigned_to = _UserNameSerializer(read_only=True)
-    company_name = serializers.CharField(source="company.company_name", read_only=True)
+    company_name = serializers.SerializerMethodField()
     attachments = serializers.SerializerMethodField()
     replies = serializers.SerializerMethodField()
 
@@ -122,10 +133,13 @@ class SupportTicketDetailSerializer(serializers.ModelSerializer):
         model = SupportTicket
         fields = (
             "id", "ticket_number", "title", "message", "category", "status", "priority",
-            "company_name", "submitted_by", "assigned_to",
+            "company_name", "submitted_by", "assigned_to", "source", "contact_name", "contact_email",
             "created_at", "updated_at", "resolved_at", "closed_at",
             "attachments", "replies",
         )
+
+    def get_company_name(self, obj):
+        return obj.company.company_name if obj.company else ""
 
     def get_attachments(self, obj):
         # Original-submission attachments only (reply=None); reply attachments
@@ -138,6 +152,16 @@ class SupportTicketDetailSerializer(serializers.ModelSerializer):
         if not self.context.get("include_internal_notes"):
             qs = qs.filter(is_internal_note=False)
         return SupportTicketReplySerializer(qs, many=True, context=self.context).data
+
+
+class PublicContactSubmissionSerializer(serializers.Serializer):
+    """Public contact-form submission (no account) -- creates a SupportTicket
+    with company/submitted_by left null; see SupportTicket.Source."""
+
+    first_name = serializers.CharField(max_length=75)
+    last_name = serializers.CharField(max_length=75)
+    email = serializers.EmailField()
+    message = serializers.CharField(min_length=10, max_length=5000)
 
 
 class SupportTicketCreateSerializer(serializers.Serializer):

@@ -41,6 +41,7 @@ const AttachmentLink = ({ attachment }: { attachment: TicketDetail["attachments"
 
 const AdminTicketThread = ({ ticket }: { ticket: TicketDetail }) => {
   const router = useRouter();
+  const submitterName = ticket.submitted_by?.name ?? ticket.contact_name;
   const [replyMessage, setReplyMessage] = useState("");
   const [replyFiles, setReplyFiles] = useState<File[]>([]);
   const [isInternalNote, setIsInternalNote] = useState(false);
@@ -75,10 +76,13 @@ const AdminTicketThread = ({ ticket }: { ticket: TicketDetail }) => {
       <div className="flex flex-col gap-4 mb-6">
         {/* Original message */}
         <div className="flex items-start gap-3">
-          <Initials name={ticket.submitted_by.name} />
+          <Initials name={submitterName} />
           <div className="max-w-[85%]">
             <div className="rounded-lg rounded-tl-none bg-gray-100 px-4 py-3">
-              <p className="text-xs font-medium text-secondary-black mb-1">{ticket.submitted_by.name}</p>
+              <p className="text-xs font-medium text-secondary-black mb-1">
+                {submitterName}
+                {!ticket.submitted_by && ticket.contact_email ? ` · ${ticket.contact_email}` : ""}
+              </p>
               <p className="text-sm text-primary-black whitespace-pre-line">{ticket.message}</p>
             </div>
             {!!ticket.attachments.length && (

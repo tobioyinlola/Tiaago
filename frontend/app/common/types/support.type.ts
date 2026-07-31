@@ -1,6 +1,7 @@
 export type TicketStatus = "OPEN" | "IN_PROGRESS" | "RESOLVED" | "CLOSED";
 export type TicketPriority = "LOW" | "MEDIUM" | "HIGH" | "URGENT";
-export type TicketCategory = "BILLING" | "TECHNICAL" | "ACCOUNT" | "ASSESSMENTS" | "PIPELINE" | "OTHER";
+export type TicketCategory = "BILLING" | "TECHNICAL" | "ACCOUNT" | "ASSESSMENTS" | "PIPELINE" | "GENERAL" | "OTHER";
+export type TicketSource = "APP" | "PUBLIC_CONTACT_FORM";
 
 export type TicketAttachment = {
   id: string;
@@ -40,10 +41,16 @@ export type TicketListItem = {
 };
 
 export type AdminTicketListItem = TicketListItem & {
-  company_id: number;
+  // Both null for a public-contact-form ticket -- there's no account/company
+  // behind an anonymous website visitor. contact_name/contact_email are the
+  // identity for that case; see source.
+  company_id: number | null;
   company_name: string;
-  submitted_by: TicketReplyUser;
+  submitted_by: TicketReplyUser | null;
   assigned_to: TicketReplyUser | null;
+  source: TicketSource;
+  contact_name: string;
+  contact_email: string;
 };
 
 export type TicketDetail = {
@@ -55,8 +62,11 @@ export type TicketDetail = {
   status: TicketStatus;
   priority: TicketPriority;
   company_name: string;
-  submitted_by: TicketReplyUser;
+  submitted_by: TicketReplyUser | null;
   assigned_to: TicketReplyUser | null;
+  source: TicketSource;
+  contact_name: string;
+  contact_email: string;
   created_at: string;
   updated_at: string;
   resolved_at: string | null;

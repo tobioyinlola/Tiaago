@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
-import { ChevronDown, Menu, X } from "lucide-react";
+import { Menu, X } from "lucide-react";
 
 import NavLink from "../../NavLink";
 import { cn } from "@/app/common/utils";
@@ -14,11 +14,7 @@ import { useUserStore } from "@/app/common/store/useUser";
 export const navLinks = [
   {
     name: "Use Cases",
-    href: "#",
-    dropdownItems: [
-      { name: "Recruiters", href: "/" },
-      { name: "Talent", href: "/talents" },
-    ],
+    href: "/",
   },
   {
     name: "Pricing",
@@ -32,13 +28,8 @@ export const navLinks = [
 
 const Navbar = ({ scrollElId = "", hideAuthButtons = false }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [openDropdown, setOpenDropdown] = useState<string | null>(null);
 
   const currentUser = useUserStore(s => s.profile);
-
-  const toggleDropdown = (linkName: string) => {
-    setOpenDropdown(openDropdown === linkName ? null : linkName);
-  };
 
   const pathname = usePathname();
   const isOnHomePage = pathname === "/";
@@ -70,54 +61,19 @@ const Navbar = ({ scrollElId = "", hideAuthButtons = false }) => {
               <nav className='hidden md:flex items-center space-x-8'>
                 {navLinks.map(link => (
                   <div key={link.name} className='relative group'>
-                    {link.dropdownItems ? (
-                      <div className='dropdown dropdown-hover'>
-                        <div
-                          tabIndex={0}
-                          role='button'
-                          className={cn(
-                            "flex items-center cursor-pointer text-gray-700 hover:text-primary font-onest text-sm",
-                            isOnHomePage && "text-white/70 hover:text-white"
-                          )}
-                        >
-                          {link.name}
-                          <ChevronDown className='ml-1 w-4 h-4' />
-                        </div>
-                        <ul
-                          tabIndex={0}
-                          className='dropdown-content menu bg-base-100 rounded-box z-1 w-52 p-2 shadow-sm'
-                          // className='absolute hidden group-hover:block top-full left-0 bg-white shadow-lg rounded-lg p-4 min-w-[200px] mt-2 z-50'
-                        >
-                          {link.dropdownItems.map(item => (
-                            <li key={item.name}>
-                              <NavLink
-                                href={item.href}
-                                className='block py-2 text-gray-700 hover:text-primary transition-colors font-onest text-sm'
-                                activeClassName='text-primary font-medium'
-                                exact
-                                colsesDropdown
-                              >
-                                {item.name}
-                              </NavLink>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    ) : (
-                      <NavLink
-                        href={link.href}
-                        className={cn(
-                          "text-gray-700 hover:text-primary transition-colors font-onest text-sm",
-                          isOnHomePage && "text-white/70 hover:text-white"
-                        )}
-                        activeClassName={cn(
-                          "text-primary font-medium",
-                          isOnHomePage && "text-white"
-                        )}
-                      >
-                        {link.name}
-                      </NavLink>
-                    )}
+                    <NavLink
+                      href={link.href}
+                      className={cn(
+                        "text-gray-700 hover:text-primary transition-colors font-onest text-sm",
+                        isOnHomePage && "text-white/70 hover:text-white"
+                      )}
+                      activeClassName={cn(
+                        "text-primary font-medium",
+                        isOnHomePage && "text-white"
+                      )}
+                    >
+                      {link.name}
+                    </NavLink>
                   </div>
                 ))}
               </nav>
@@ -184,46 +140,14 @@ const Navbar = ({ scrollElId = "", hideAuthButtons = false }) => {
             <nav className='flex flex-col space-y-4'>
               {navLinks.map(link => (
                 <div key={link.name}>
-                  {link.dropdownItems ? (
-                    <div>
-                      <button
-                        onClick={() => toggleDropdown(link.name)}
-                        className='flex items-center justify-between w-full font-medium text-gray-700 py-2 font-onest text-sm'
-                      >
-                        {link.name}
-                        <ChevronDown
-                          className={`w-4 h-4 transition-transform ${
-                            openDropdown === link.name ? "rotate-180" : ""
-                          }`}
-                        />
-                      </button>
-                      {openDropdown === link.name && (
-                        <div className='ml-4 mt-2 space-y-2 pb-2'>
-                          {link.dropdownItems.map(item => (
-                            <NavLink
-                              key={item.name}
-                              href={item.href}
-                              className='block text-gray-600 hover:text-primary py-1 transition-colors font-onest text-sm'
-                              activeClassName='text-primary font-medium'
-                              colsesMobileDrawer
-                              // onClick={() => setIsMenuOpen(false)}
-                            >
-                              {item.name}
-                            </NavLink>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <NavLink
-                      href={link.href}
-                      className='block text-gray-700 hover:text-primary py-2 transition-colors font-onest text-sm'
-                      activeClassName='text-primary font-medium'
-                      colsesMobileDrawer
-                    >
-                      {link.name}
-                    </NavLink>
-                  )}
+                  <NavLink
+                    href={link.href}
+                    className='block text-gray-700 hover:text-primary py-2 transition-colors font-onest text-sm'
+                    activeClassName='text-primary font-medium'
+                    colsesMobileDrawer
+                  >
+                    {link.name}
+                  </NavLink>
                 </div>
               ))}
             </nav>
