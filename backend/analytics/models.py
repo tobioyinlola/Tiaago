@@ -42,3 +42,26 @@ class AIUsageLog(TimeStampedModel):
     def __str__(self):
         status = "OK" if self.succeeded else "FAILED"
         return f"{self.service_type} [{status}] {self.created_at}"
+
+
+class PageView(models.Model):
+    """One row per (session, day) on the public site -- deliberately coarse
+    (see get_or_create in views.TrackVisitAPIView) so refreshes/repeat page
+    loads in the same session don't inflate the count. Good enough for a
+    daily/monthly traffic trend, not built for bot-filtering or per-page
+    analytics."""
+
+    session_key = models.CharField(max_length=64, db_index=True)
+    visited_date = models.DateField(db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["session_key", "visited_date"], name="unique_session_per_day"),
+        ]
+        indexes = [
+            models.Index(fields=["visited_date"]),
+        ]
+
+    def __str__(self):
+        return f"{self.session_key} on {self.visited_date}"
