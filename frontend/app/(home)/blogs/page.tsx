@@ -144,7 +144,7 @@ const BlogsPage = async ({ searchParams }: Props) => {
           </div>
         )}
       </main>
-      <Footer noBorder />
+      <Footer />
     </>
   );
 };

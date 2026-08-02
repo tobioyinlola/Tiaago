@@ -299,12 +299,12 @@ const Talent = () => {
               variants={fadeInUp}
               className='flex gap-3 md:gap-4 items-center'
             >
-              <CustomAuthButton className='text-sm font-onest py-2.5 px-4 rounded-lg border border-[#0A0A0A29]'>
+              <CustomAuthButton className='!rounded-full font-semibold text-sm font-onest py-2.5 px-4'>
                 Get Verified Today
               </CustomAuthButton>
               <CustomButton
                 variant='outline'
-                className='text-sm font-onest py-2.5 px-4 rounded-lg border border-[#0A0A0A29]'
+                className='!rounded-full font-semibold text-sm font-onest py-2.5 px-4'
               >
                 Watch Demo
               </CustomButton>
@@ -446,7 +446,7 @@ const Talent = () => {
                 </div>
               ))}
 
-              <CustomAuthButton className='w-full mt-11 text-sm py-4 rounded-xl border border-[#0A0A0A29]'>
+              <CustomAuthButton className='w-full mt-11 !rounded-full font-semibold text-sm py-4'>
                 Start for free <ArrowRight className='w-5 ml-2.5' />
               </CustomAuthButton>
             </div>
@@ -502,20 +502,20 @@ const Talent = () => {
 
               <div className='space-y-3 mb-8'>
                 <div className='flex items-center text-[#0A0A0AB2] font-onest text-sm border-b border-[#0A0A0A1A] pb-3'>
-                  <Check className='w-5 h-5 text-[#6BAD0D] mr-2.5' />
+                  <Check className='w-5 h-5 text-[#5465FF] mr-2.5' />
                   No hidden fees
                 </div>
                 <div className='flex items-center text-[#0A0A0AB2] font-onest text-sm border-b border-[#0A0A0A1A] pb-3'>
-                  <Check className='w-5 h-5 text-[#6BAD0D] mr-2.5' />
+                  <Check className='w-5 h-5 text-[#5465FF] mr-2.5' />
                   No subscriptions
                 </div>
                 <div className='flex items-center text-[#0A0A0AB2] font-onest text-sm border-b border-[#0A0A0A1A] pb-3'>
-                  <Check className='w-5 h-5 text-[#6BAD0D] mr-2.5' />
+                  <Check className='w-5 h-5 text-[#5465FF] mr-2.5' />
                   Pure access to opportunities
                 </div>
               </div>
 
-              <CustomAuthButton className='w-full mt-10 text-sm py-4 rounded-xl border border-[#0A0A0A29]'>
+              <CustomAuthButton className='w-full mt-10 !rounded-full font-semibold text-sm py-4'>
                 Start for free <ArrowRight className='w-5 ml-2.5' />
               </CustomAuthButton>
             </m.div>
@@ -639,7 +639,7 @@ const Talent = () => {
               Join thousands of verified talents who are landing their dream
               jobs through skill-based hiring.
             </m.p>
-            <CustomAuthButton className='text-sm font-onest py-2.5 px-4 rounded-lg border border-[#0A0A0A29]'>
+            <CustomAuthButton className='!rounded-full font-semibold text-sm font-onest py-2.5 px-4'>
               Get Verified Today
             </CustomAuthButton>
           </div>

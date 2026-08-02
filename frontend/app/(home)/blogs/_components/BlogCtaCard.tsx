@@ -10,7 +10,7 @@ const BlogCtaCard = () => {
       <CustomAuthButton
         variant='ghost'
         fullWidth
-        className='rounded-lg bg-white text-[#5465FF] font-semibold hover:bg-gray-50'
+        className='rounded-full bg-white text-[#5465FF] font-semibold hover:bg-gray-50'
       >
         Get Started
       </CustomAuthButton>

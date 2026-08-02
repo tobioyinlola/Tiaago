@@ -37,11 +37,11 @@ const JobApplicationCompletePage = async ({
           <strong>{job.company?.company_name}</strong>.
         </p>
 
-        <div className='bg-green-50 border border-green-200 rounded-lg p-6 mb-8'>
-          <h2 className='text-xl font-semibold text-green-900 mb-3'>
+        <div className='bg-primary/5 border border-primary/20 rounded-lg p-6 mb-8'>
+          <h2 className='text-xl font-semibold text-primary-dark mb-3'>
             What happens next?
           </h2>
-          <ul className='text-left text-green-800 space-y-2'>
+          <ul className='text-left text-primary-dark space-y-2'>
             <li>
               • Your application and assessment results have been submitted
             </li>
@@ -54,7 +54,7 @@ const JobApplicationCompletePage = async ({
         <div className='space-y-4'>
           <Link
             href='/talents/applications'
-            className='inline-block bg-primary text-white py-3 px-8 rounded-lg font-semibold hover:bg-primary-dark transition-colors'
+            className='inline-block bg-primary text-white py-3 px-8 rounded-full font-semibold hover:bg-primary-dark transition-colors'
           >
             View My Applications
           </Link>
@@ -62,7 +62,7 @@ const JobApplicationCompletePage = async ({
           <div>
             <Link
               href='/talents/jobs/search'
-              className='text-blue-600 hover:text-blue-800 font-medium'
+              className='text-primary hover:text-primary-dark font-medium'
             >
               Browse More Jobs
             </Link>

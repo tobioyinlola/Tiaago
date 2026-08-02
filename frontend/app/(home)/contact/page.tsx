@@ -76,7 +76,7 @@ const Contact: React.FC = () => {
 
               <CustomButton
                 variant='outline'
-                className='bg-white text-sm font-onest py-2.5 px-4 rounded-lg'
+                className='bg-white text-sm font-onest py-2.5 px-4 rounded-full'
               >
                 <a
                   href='https://cal.com/tiaago/book-a-demo-tiaago-ai-hiring-platform'
@@ -313,15 +313,15 @@ const Contact: React.FC = () => {
                   <button
                     type='submit'
                     disabled={isSubmitting}
-                    className='w-full bg-primary text-white py-3 px-6 rounded-lg hover:bg-primary-dark transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 text-base font-semibold font-onest mt-8 disabled:opacity-60'
+                    className='w-full bg-primary text-white py-3 px-6 rounded-full hover:bg-primary-dark transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 text-base font-semibold font-onest mt-8 disabled:opacity-60'
                   >
                     {isSubmitting ? "Sending..." : "Send message"}
                   </button>
                 </form>
               ) : (
                 <div className='text-center py-8'>
-                  <div className='w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4'>
-                    <CheckCircle className='w-8 h-8 text-green-600' />
+                  <div className='w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4'>
+                    <CheckCircle className='w-8 h-8 text-primary' />
                   </div>
                   <h3 className='text-xl font-semibold font-onest text-gray-900 mb-2'>
                     Message Sent!

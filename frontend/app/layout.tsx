@@ -14,6 +14,7 @@ import "./globals.css";
 import { cn } from "./common/utils";
 import Providers from "./common/components/Layout/Providers";
 import { TailwindIndicator } from "./common/components/TailwindIndicator";
+import CookieConsent from "./common/components/CookieConsent";
 
 const title = "TIAAGO";
 const description =
@@ -77,6 +78,7 @@ const RootLayout = ({ children }: PropsWithChildren<{}>) => {
             id='dropdown-close-helper'
             className='h-0 w-0 absolute z-[-1]'
           />
+          <CookieConsent />
           <TailwindIndicator />
         </Providers>
       </body>

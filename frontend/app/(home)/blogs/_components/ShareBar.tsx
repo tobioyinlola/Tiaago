@@ -66,7 +66,7 @@ const ShareBar = ({
         className={iconClass}
         aria-label="Copy link"
       >
-        {copied ? <Check className="h-4 w-4 text-[#00B849]" /> : <Link2 className="h-4 w-4" />}
+        {copied ? <Check className="h-4 w-4 text-[#5465FF]" /> : <Link2 className="h-4 w-4" />}
       </button>
     </div>
   );

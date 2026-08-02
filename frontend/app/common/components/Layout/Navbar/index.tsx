@@ -14,7 +14,7 @@ import { useUserStore } from "@/app/common/store/useUser";
 export const navLinks = [
   {
     name: "Use Cases",
-    href: "/",
+    href: "/use-cases",
   },
   {
     name: "Pricing",
@@ -36,19 +36,9 @@ const Navbar = ({ scrollElId = "", hideAuthButtons = false }) => {
   const isOnTalentRelatedPage = pathname.includes("talent");
 
   const isJobDetailsPage = pathname.includes("/jobs/");
-  const isOnApplyPage = pathname.includes("/apply");
-  // The blog (list and individual post) pages should blend seamlessly into
-  // the header/footer with no demarcation line.
-  const isOnBlogPage = /^\/blogs(\/.*)?$/.test(pathname);
 
   return (
-    <header
-      className={cn(
-        "absolute top-0 left-0 right-0 z-10 border-b border-[#DEE1E3] lg:px-6 xl:px-8 bg-transparent py-3 md:py-7",
-        isOnHomePage && "border-b border-white/10",
-        (isOnApplyPage || isOnBlogPage) && "border-b-0"
-      )}
-    >
+    <header className='absolute top-0 left-0 right-0 z-10 lg:px-6 xl:px-8 bg-transparent py-3 md:py-7'>
       <div className='md:container mx-auto px-4'>
         <div className='flex items-center justify-between'>
           <div className='flex items-center'>
@@ -165,7 +155,7 @@ const Navbar = ({ scrollElId = "", hideAuthButtons = false }) => {
                     Log in
                   </Link>
                 )}
-                <AuthButton className='btn btn-primary w-full font-medium min-h-[40px] h-10' />
+                <AuthButton className='btn btn-primary rounded-full w-full font-medium min-h-[40px] h-10' />
               </div>
             )}
           </div>

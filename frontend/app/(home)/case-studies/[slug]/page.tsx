@@ -322,7 +322,7 @@ const CaseStudyDetail = async ({ params }: Props) => {
                 Join {study.company} and hundreds of other companies using
                 Tiaago.
               </p>
-              <CustomAuthButton size='lg'>Start Free Trial</CustomAuthButton>
+              <CustomAuthButton size='lg' className='!rounded-full font-semibold'>Start Free Trial</CustomAuthButton>
             </div>
           </div>
         </div>
