@@ -37,20 +37,25 @@ class PipelineCandidateSerializer(serializers.ModelSerializer):
 
 
 class AddToPipelineSerializer(serializers.Serializer):
+    # allow_blank=True throughout: every caller (sourcing search results, job
+    # applicants, bulk-add) may legitimately have an empty value for any of
+    # these optional fields -- default="" only covers the key being absent,
+    # not present-but-empty, so without allow_blank a caller sending "" (the
+    # only sane placeholder for "unknown") gets a 400.
     name = serializers.CharField(max_length=255)
-    email = serializers.CharField(max_length=255, required=False, default="")
-    phone_number = serializers.CharField(max_length=50, required=False, default="")
-    role = serializers.CharField(max_length=255, required=False, default="")
-    country = serializers.CharField(max_length=100, required=False, default="")
+    email = serializers.CharField(max_length=255, required=False, allow_blank=True, default="")
+    phone_number = serializers.CharField(max_length=50, required=False, allow_blank=True, default="")
+    role = serializers.CharField(max_length=255, required=False, allow_blank=True, default="")
+    country = serializers.CharField(max_length=100, required=False, allow_blank=True, default="")
     years_of_expr = serializers.IntegerField(required=False, default=0)
-    linkdIn_profile = serializers.CharField(max_length=500, required=False, default="")
-    linkedin_profile = serializers.CharField(max_length=500, required=False, default="")
+    linkdIn_profile = serializers.CharField(max_length=500, required=False, allow_blank=True, default="")
+    linkedin_profile = serializers.CharField(max_length=500, required=False, allow_blank=True, default="")
     summary = serializers.CharField(required=False, allow_blank=True, allow_null=True, default="")
-    current_company = serializers.CharField(max_length=255, required=False, default="")
+    current_company = serializers.CharField(max_length=255, required=False, allow_blank=True, default="")
     education = serializers.CharField(required=False, allow_blank=True, default="")
     skills = serializers.ListField(child=serializers.CharField(), required=False, default=list)
     experience = serializers.ListField(required=False, default=list)
-    avatar = serializers.CharField(max_length=500, required=False, default="")
+    avatar = serializers.CharField(max_length=500, required=False, allow_blank=True, default="")
     category = serializers.IntegerField(required=False, allow_null=True, default=None)
 
     def create(self, validated_data):

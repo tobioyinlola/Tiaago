@@ -1668,6 +1668,8 @@ class AIFeedbackSerializer(serializers.Serializer):
     proctoring_integrity_score = serializers.IntegerField(allow_null=True)
     proctoring_risk_level = serializers.CharField(allow_null=True)
     proctoring_has_violation = serializers.BooleanField()
+    country = serializers.CharField(allow_null=True, allow_blank=True)
+    current_company = serializers.CharField(allow_null=True, allow_blank=True)
 
 
 

@@ -1,5 +1,5 @@
 import type { IconBaseProps } from "react-icons";
-import { PiDownload, PiEye, PiFile } from "react-icons/pi";
+import { PiDownload, PiEye, PiFile, PiUserPlus } from "react-icons/pi";
 
 import CalendarIcon from "@/app/common/icons/CalendarIcon";
 
@@ -66,5 +66,9 @@ export const jobApplicationMenuItems = [
   {
     label: "View Cover Letter" as const,
     Icon: PiFile,
+  },
+  {
+    label: "Add to Pipeline" as const,
+    Icon: PiUserPlus,
   },
 ];
