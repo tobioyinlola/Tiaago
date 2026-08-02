@@ -51,7 +51,8 @@ from .tasks import (
     send_referral_invite_email,
 )
 from .utils import generate_referral_code, send_otp_to_user, send_welcome_mail, send_invite_to_user, send_invite_email, build_invite_link, send_after_commit
-from utils.email_handler import EmailHandler, EmailTypes
+from utils.email_handler import EmailTypes
+from emails_app.tasks import send_email_task
 from django.core.cache import cache
 from django.conf import settings as django_settings
 from .models import CustomUser, Company, TalentProfile, OneTimePassword, Referral, ReferralWallet, WithdrawalRequest, CompanyTeamInvite, CompanyTeamMember
@@ -512,7 +513,8 @@ class CustomPasswordResetView(APIView):
             "email": user.email,
             "reset_url": reset_url,
         }
-        EmailHandler(user.email).send_mail(
+        send_email_task.delay(
+            recipients=user.email,
             subject="Reset your password",
             context=context,
             template="emails/password_reset.html",

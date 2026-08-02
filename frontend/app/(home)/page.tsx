@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { FileSearch, ClipboardCheck, Mic, Radar, Plug, BarChart3 } from "lucide-react";
 
 import FAQ from "./_components/FAQ";
 import { cn } from "../common/utils";
@@ -8,6 +9,7 @@ import CustomButton from "@/app/common/components/CustomButton";
 import { CustomAuthButton } from "@/app/common/components/AuthButton";
 import AnimatedList from "./_components/AnimatedList";
 import AnimatedOtherInterestingFeatures from "./_components/AnimatedOtherinterestingFeatures";
+import IntegrationsMarquee from "./_components/IntegrationsMarquee";
 
 // export const metadata = {
 //   title: "Recruiters",
@@ -136,13 +138,15 @@ const features = {
     },
   ],
   others: [
-    { title: "AI Recommendation Engine", color: "#FF2F2F" },
-    { title: "Job Management", color: "#5E6AD2" },
-    { title: "Recruiter Public Page", color: "#F2BE00" },
-    { title: "Assessment Module", color: "#8A43E1" },
-    { title: "Recruiter Dashboard", color: "#5DC983" },
+    { title: "AI Recommendation Engine", color: "#5465FF" },
+    { title: "Job Management", color: "#5465FF" },
+    { title: "Recruiter Public Page", color: "#5465FF" },
+    { title: "Assessment Module", color: "#5465FF" },
+    { title: "Recruiter Dashboard", color: "#5465FF" },
   ],
 };
+
+const CORE_FEATURE_ICONS = [FileSearch, ClipboardCheck, Mic, Radar, Plug, BarChart3];
 
 const Recruiters = () => {
   return (
@@ -173,12 +177,12 @@ const Recruiters = () => {
               </p>
 
               <div className='flex gap-3 sm:gap-4 justify-center'>
-                <CustomAuthButton className='text-sm font-onest py-2.5 px-4 rounded-lg border border-[#0A0A0A29]'>
+                <CustomAuthButton className='!rounded-full font-semibold text-sm font-onest py-2.5 px-4'>
                   Sign up for Free
                 </CustomAuthButton>
                 <CustomButton
                   variant='outline'
-                  className='bg-white text-sm font-onest py-2.5 px-4 rounded-lg'
+                  className='!rounded-full bg-white text-sm font-onest py-2.5 px-4'
                 >
                   <a
                     href='https://cal.com/tiaago/book-a-demo-tiaago-ai-hiring-platform'
@@ -380,45 +384,37 @@ const Recruiters = () => {
 
           <div className='md:container mx-auto px-4 lg:px-6 xl:px-8 relative'>
             <div className='max-w-2xl mx-auto flex flex-col items-center'>
-              <div className='p-px bg-[linear-gradient(90deg,#5465FF_0%,#EF7B16_100%)] w-fit rounded'>
-                <div className='text-[10px] md:text-sm text-white font-jetbrains-mono px-2 py-1 bg-[#1E1E1E] rounded'>
-                  CORE FEATURES
-                </div>
-              </div>
-              <h2 className='text-2xl md:text-5xl mt-3 md:mt-1 font-semibold text-white text-center mb-2 font-onest'>
-                One Dashboard, Endless Opportunities
+              <h2 className='text-3xl md:text-5xl font-semibold text-white text-center mb-4 font-onest'>
+                Empower Your Workflow with Tiaago
               </h2>
               <p className='text-[#BDC3C7] text-center font-onest font-medium text-sm md:text-base'>
                 Manage multiple roles from one dashboard and showcase them on
                 your dedicated public page. Each recruiter gets a shareable link
                 to display all active positions
               </p>
-              <CustomAuthButton
-                variant='outline'
-                className='bg-white text-base font-onest py-2.5 px-4 rounded-lg mt-5 md:mt-3 text-[#1D1D1D]'
-              >
+              <CustomAuthButton className='!rounded-full font-semibold text-base font-onest py-2.5 px-4 mt-5 md:mt-3'>
                 Get Started
               </CustomAuthButton>
             </div>
 
-            <div className='grid md:grid-cols-3 gap-8 md:gap-20 my-[95px] md:my-[100px]'>
-              {features.core.map((feature, index) => (
-                <div key={index} className='pt-3.5 relative'>
-                  {/* Vertical divider */}
+            <div className='grid sm:grid-cols-2 lg:grid-cols-3 gap-5 my-[95px] md:my-[100px]'>
+              {features.core.map((feature, index) => {
+                const Icon = CORE_FEATURE_ICONS[index];
+                return (
                   <div
-                    className={cn(
-                      "absolute -left-10 top-0 h-full w-[1px] bg-[linear-gradient(180deg,#3D3D3D_0%,#111111_100%)] max-md:hidden",
-                      index % 3 === 0 && "hidden"
-                    )}
-                  />
-                  <h3 className='text-white mb-3 font-onest font-medium text-base md:text-xl'>
-                    {feature.title}
-                  </h3>
-                  <p className='text-[#7E8285] text-sm font-onest'>
-                    {feature.description}
-                  </p>
-                </div>
-              ))}
+                    key={index}
+                    className='rounded-2xl border border-white/10 bg-[#0B0F1A] p-6 transition-colors hover:border-primary/40'
+                  >
+                    <div className='flex h-10 w-10 items-center justify-center rounded-lg bg-primary/15 mb-5'>
+                      <Icon className='h-5 w-5 text-primary' />
+                    </div>
+                    <h3 className='text-white mb-2 font-onest font-medium text-base md:text-lg'>
+                      {feature.title}
+                    </h3>
+                    <p className='text-[#9CA3AF] text-sm font-onest'>{feature.description}</p>
+                  </div>
+                );
+              })}
             </div>
 
             {/* Other Features */}
@@ -427,7 +423,7 @@ const Recruiters = () => {
                 <hr className='flex-1 h-[1px] border-white/10' />
                 <div className='w-2 h-2 bg-[#2E2E2E] rounded-full' />
               </div>
-              <div className='p-px bg-[linear-gradient(90deg,#5465FF_0%,#EF7B16_100%)] w-fit rounded-lg'>
+              <div className='p-px bg-primary w-fit rounded-lg'>
                 <div className='text-xs md:text-sm font-medium text-white font-jetbrains-mono px-3.5 py-2.5 bg-[#1E1E1E] rounded-lg'>
                   Other Interesting Features
                 </div>
@@ -456,31 +452,10 @@ const Recruiters = () => {
               <p className='text-sm text-[#0A0A0AB2] font-onest max-w-3xl mx-auto px-4 sm:px-0'>
                 Tiaago connects with the tools recruiters already use:
               </p>
-
-              <CustomButton
-                variant='outline'
-                className='bg-white text-sm font-onest py-2.5 px-4 rounded-lg mt-6'
-                disabled
-              >
-                Coming Soon
-              </CustomButton>
             </div>
 
-            <div className='mt-20 pb-7 rounded-xl integrations-shadow bg-[radial-gradient(75%_89%_at_47.3%_26.4%,rgba(255,255,255,0.7)_62.36%,#F4F5FF_100%)]'>
-              <Image
-                src='/assets/images/home/Integrations.png'
-                alt='Integrations'
-                className='object-cover mx-auto max-md:hidden'
-                width={400}
-                height={285}
-              />
-              <Image
-                src='/assets/images/home/Integrations.png'
-                alt='Integrations'
-                className='object-cover mx-auto md:hidden'
-                width={200}
-                height={103}
-              />
+            <div className='mt-20 pb-7 rounded-xl integrations-shadow bg-[radial-gradient(75%_89%_at_47.3%_26.4%,rgba(255,255,255,0.7)_62.36%,#F4F5FF_100%)] flex justify-center'>
+              <IntegrationsMarquee />
             </div>
           </div>
         </section>
@@ -523,11 +498,11 @@ const Recruiters = () => {
                   Automate with TIAAGO
                 </h6>
               </div>
-              <h3 className='text-2xl md:text-[40px] font-medium font-onest text-[#22242A] mt-1 mb-4 w-[260px] md:w-[610px] text-center'>
+              <h3 className='text-2xl md:text-[40px] font-medium font-onest text-[#22242A] mt-5 mb-4 w-[260px] md:w-[610px] text-center'>
                 The modern hiring infrastructure recruiters have been waiting
                 for
               </h3>
-              <CustomAuthButton className='text-sm font-onest py-2.5 px-4 rounded-lg border border-[#0A0A0A29]'>
+              <CustomAuthButton className='!rounded-full font-semibold text-sm font-onest py-2.5 px-4'>
                 Sign up for Free
               </CustomAuthButton>
             </div>

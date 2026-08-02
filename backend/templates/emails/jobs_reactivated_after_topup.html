@@ -1,0 +1,27 @@
+{% extends "emails/base.html" %}
+{% block title %}Your jobs are active again{% endblock %}
+{% block preheader %}Your wallet has been topped up, so your paused job listings are accepting applications again.{% endblock %}
+{% block content %}
+  <h1 class="h1" style="margin:0 0 14px; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:33px; line-height:1.15; letter-spacing:-0.6px; font-weight:800; color:#0F172A;">Your jobs are active again</h1>
+
+  <p style="margin:0 0 24px; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:16px; line-height:1.65; color:#475569;">Hi {{ first_name|default:"there" }}, thanks for funding your Tiaago wallet -- the following jobs are active again and accepting applications:</p>
+
+  {% if job_titles %}
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:24px;">
+    {% for job_title in job_titles %}
+    <tr>
+      <td valign="top" width="22" style="padding:5px 0;"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td bgcolor="#5465FF" width="7" height="7" style="background-color:#5465FF; width:7px; height:7px; border-radius:0; font-size:0; line-height:0;">&nbsp;</td></tr></table></td>
+      <td style="padding:0 0 10px; font-family:'Inter',Arial,sans-serif; font-size:15px; line-height:1.6; color:#475569;">{{ job_title }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% endif %}
+
+  <p style="margin:0 0 24px; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:16px; line-height:1.65; color:#475569;">Resume screening and assessments will resume for new candidates on these jobs.</p>
+
+  <!-- CTA -->
+  <table role="presentation" class="cta-table" cellpadding="0" cellspacing="0" border="0"><tr>
+    <td align="center" bgcolor="#1C3477" style="background-color:#1C3477; border-radius:0;"><a href="{{ wallet_url|default:'https://app.tiaago.com/recruiter/dashboard/billing' }}" target="_blank" class="cta-a" style="display:inline-block; padding:15px 30px; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:15px; font-weight:700; line-height:20px; color:#FFFFFF; text-decoration:none; border-radius:0;">View wallet&nbsp;&rarr;</a></td>
+  </tr></table>
+
+{% endblock %}

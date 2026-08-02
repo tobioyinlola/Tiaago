@@ -10,9 +10,11 @@ import EmptyState, {
 import {
   AiFeedbackItem,
   JobApplication,
+  ServerCandidate,
   TalentRole,
   User,
 } from "@/app/common/types";
+import { addToPipeline } from "@/app/common/services/sourcing";
 import AIFeedbackModal from "./AIFeedbackModal";
 import { IntegrityScoreBadge, ProctoringViolationFlag } from "@/app/common/components/dashboard/ProctoringBadges";
 import JsFileDownloader from "js-file-downloader";
@@ -103,6 +105,22 @@ const JobApplicationGrid = ({
 
 export default JobApplicationGrid;
 
+const applicantToPipelineCandidate = (item: AiFeedbackItem): ServerCandidate => ({
+  name: item.talent_name,
+  role: item.role,
+  country: item.country || "",
+  years_of_expr: 0,
+  email: item.email,
+  phone_number: item.phone_number || "",
+  linkedin_profile: item.linkedin_url || "",
+  summary: "",
+  current_company: item.current_company || "",
+  education: "",
+  skills: [],
+  experience: [],
+  resume: item.resume || "",
+});
+
 type JobApplicationsTableProps = PropsWithChildren<{
   data: AiFeedbackItem[];
   className?: string;
@@ -118,8 +136,26 @@ export const JobApplicationsTable = ({
   const [activeApplicant, setActiveApplicant] = useState<AiFeedbackItem>(
     data[0]
   );
+  const [addingToPipelineId, setAddingToPipelineId] = useState<
+    AiFeedbackItem["application_id"] | null
+  >(null);
   // const profileModalRef = useRef<HTMLDialogElement>(null);
   const coverLetterModalRef = useRef<HTMLDialogElement>(null);
+  const handleAddToPipeline = async (item: AiFeedbackItem) => {
+    if (addingToPipelineId != null) return;
+    setAddingToPipelineId(item.application_id);
+    toast.loading("Adding to pipeline...");
+    const res = await addToPipeline(applicantToPipelineCandidate(item));
+    toast.dismiss();
+    if (res.success) {
+      toast.success("Added to Pipeline", {
+        description: `${item.talent_name} has been added to your pipeline.`,
+      });
+    } else {
+      toast.error(res.error);
+    }
+    setAddingToPipelineId(null);
+  };
   const handleClick = (
     action: (typeof jobApplicationMenuItems)[number]["label"],
     item: AiFeedbackItem
@@ -146,6 +182,9 @@ export const JobApplicationsTable = ({
         break;
       case "Schedule Interview":
         openModal("schedule-meeting");
+        break;
+      case "Add to Pipeline":
+        handleAddToPipeline(item);
         break;
       default:
         toast.info("Coming soon...");

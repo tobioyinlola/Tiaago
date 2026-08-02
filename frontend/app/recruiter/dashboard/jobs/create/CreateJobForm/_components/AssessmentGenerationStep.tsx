@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Loader2, RefreshCw, ShieldCheck, Sparkles, FolderOpen } from "lucide-react";
 import { FormikErrors, FormikTouched } from "formik";
@@ -9,9 +9,11 @@ import { cn } from "@/app/common/utils";
 import { AssessmentQuestionSection } from "@/app/common/types";
 import FormikField from "@/app/common/components/Forms/FormikField";
 import { Switch } from "@/app/common/components/ui/switch";
-import { generateAssessmentQuestions } from "@/app/common/services/jobs";
+import { startAssessmentGeneration, getAssessmentGenerationStatus } from "@/app/common/services/jobs";
 import { AssessmentGenerationFormValues } from "../wizard.constants";
 import AssessmentSourcePicker from "./AssessmentSourcePicker";
+
+const POLL_INTERVAL_MS = 3000;
 
 const INTEGRITY_LEVELS = [
   { min: 0, label: "Minimal", className: "bg-[#EAECF0] text-secondary-black w-1/3" },
@@ -50,6 +52,7 @@ const AssessmentGenerationStep = ({
   const [status, setStatus] = useState<"idle" | "generating" | "error">("idle");
   const [errorMessage, setErrorMessage] = useState("");
   const [sourcePickerOpen, setSourcePickerOpen] = useState(false);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const hasQuestions = (values.assessment_questions || []).length > 0;
 
@@ -58,23 +61,60 @@ const AssessmentGenerationStep = ({
     return [...INTEGRITY_LEVELS].reverse().find(level => activeCount >= level.min) ?? INTEGRITY_LEVELS[0];
   }, [values]);
 
+  useEffect(() => {
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
+  }, []);
+
   const handleGenerate = async () => {
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
     setStatus("generating");
     setErrorMessage("");
-    const result = await generateAssessmentQuestions({
+
+    const started = await startAssessmentGeneration({
       role: values.role,
       description: values.description,
       job_requirement: values.job_requirement,
       job_level: values.job_level,
     });
-    if (result.success) {
-      setFieldValue("assessment_questions", result.data.sections);
-      setStatus("idle");
-      toast.success("Assessment questions generated");
-    } else {
+    if (!started.success) {
       setStatus("error");
-      setErrorMessage(result.error || "Failed to generate assessment questions");
+      setErrorMessage(started.error || "Failed to generate assessment questions");
+      return;
     }
+
+    const requestId = started.data.request_id;
+
+    const poll = async () => {
+      const result = await getAssessmentGenerationStatus(requestId);
+      if (!result.success) {
+        if (pollRef.current) clearInterval(pollRef.current);
+        pollRef.current = null;
+        setStatus("error");
+        setErrorMessage(result.error || "Failed to generate assessment questions");
+        return;
+      }
+      if (result.data.status === "READY") {
+        if (pollRef.current) clearInterval(pollRef.current);
+        pollRef.current = null;
+        setFieldValue("assessment_questions", result.data.sections);
+        setStatus("idle");
+        toast.success("Assessment questions generated");
+      } else if (result.data.status === "FAILED") {
+        if (pollRef.current) clearInterval(pollRef.current);
+        pollRef.current = null;
+        setStatus("error");
+        setErrorMessage(result.data.error || "Failed to generate assessment questions");
+      }
+      // PENDING/GENERATING -- keep polling
+    };
+
+    poll();
+    pollRef.current = setInterval(poll, POLL_INTERVAL_MS);
   };
 
   const handleUseSource = (sections: AssessmentQuestionSection[]) => {

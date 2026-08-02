@@ -1,10 +1,12 @@
+from django.utils import timezone
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework import status
+from rest_framework import permissions, status
 
 from subscriptions.permissions import IsStaffUser
 from staff.permissions import requirePermission
 from . import utils
+from .models import PageView
 
 
 class _AnalyticsBaseView(APIView):
@@ -134,3 +136,26 @@ class SystemHealthAPIView(_AnalyticsBaseView):
 class InterviewAnalyticsAPIView(_AnalyticsBaseView):
     def get(self, request):
         return Response(status=200, data=utils.get_interview_analytics_summary())
+
+
+class TrackVisitAPIView(APIView):
+    """Public, unauthenticated beacon the marketing site pings once per
+    (browser session, day) -- see app/common/components/VisitBeacon.tsx.
+    Deliberately minimal: no bot filtering, just a bounded, deduped counter."""
+
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        session_key = request.data.get("session_key")
+        if not isinstance(session_key, str) or not (0 < len(session_key) <= 64):
+            return Response(status=status.HTTP_400_BAD_REQUEST, data={"error": "Invalid session_key"})
+        PageView.objects.get_or_create(session_key=session_key, visited_date=timezone.now().date())
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class TrafficAPIView(_AnalyticsBaseView):
+    def get(self, request):
+        return Response(status=200, data={
+            "website_visits": utils.get_website_visits_summary(),
+            "daily_signups": utils.get_daily_signups_summary(),
+        })

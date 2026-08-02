@@ -71,6 +71,8 @@ const TalentNetworkAdminPage = async ({ searchParams }: Props) => {
         <StatCard label="New This Week" value={overview?.new_this_week} unavailableText="Unavailable" />
         <StatCard label="Countries" value={overview?.countries} unavailableText="Unavailable" />
         <StatCard label="Email Subscribers" value={overview?.email_subscribers} unavailableText="Unavailable" />
+        <StatCard label="Page Views" value={overview?.total_page_views} unavailableText="Unavailable" />
+        <StatCard label="Page Views This Week" value={overview?.page_views_this_week} unavailableText="Unavailable" />
         <StatCard
           label="Top Role"
           value={overview?.top_roles?.[0]?.role?.replaceAll("_", " ") || "—"}

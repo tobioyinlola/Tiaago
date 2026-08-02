@@ -21,6 +21,35 @@ export type SubmitTicketPayload = {
   attachments: File[];
 };
 
+export type SubmitContactFormPayload = {
+  firstName: string;
+  lastName: string;
+  email: string;
+  message: string;
+};
+
+/** Public /contact page form -- no account required. Creates a SupportTicket
+ * (source=PUBLIC_CONTACT_FORM) that shows up in the same admin support inbox
+ * as in-app tickets. */
+export const submitContactForm = async (payload: SubmitContactFormPayload) => {
+  try {
+    await serverKyInstance
+      .post("support/contact/", {
+        json: {
+          first_name: payload.firstName,
+          last_name: payload.lastName,
+          email: payload.email,
+          message: payload.message,
+        },
+      })
+      .json<{ id: string }>();
+    return { success: true as const };
+  } catch (error) {
+    const errMsg = await handleServerApiCallError(error);
+    return { success: false as const, error: errMsg };
+  }
+};
+
 export const submitTicket = async (payload: SubmitTicketPayload) => {
   try {
     const formData = new FormData();

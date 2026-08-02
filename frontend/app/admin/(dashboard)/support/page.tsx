@@ -54,14 +54,21 @@ const AdminSupportPage = async ({
     {
       key: "company_name",
       header: "Organisation",
-      render: row => (
-        <Link href={`/admin/organisations/${row.company_id}`} className="text-primary hover:underline">
-          {row.company_name}
-        </Link>
-      ),
+      render: row =>
+        row.company_id ? (
+          <Link href={`/admin/organisations/${row.company_id}`} className="text-primary hover:underline">
+            {row.company_name}
+          </Link>
+        ) : (
+          <span className="text-secondary-black">Website visitor</span>
+        ),
       className: "text-left",
     },
-    { key: "submitted_by", header: "Submitted by", render: row => row.submitted_by?.name },
+    {
+      key: "submitted_by",
+      header: "Submitted by",
+      render: row => row.submitted_by?.name ?? row.contact_name,
+    },
     { key: "title", header: "Title", render: row => row.title, className: "text-left" },
     { key: "category", header: "Category", render: row => <TicketCategoryBadge category={row.category} /> },
     { key: "status", header: "Status", render: row => <TicketStatusBadge status={row.status} /> },

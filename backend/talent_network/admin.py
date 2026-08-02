@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import JobMatchNotification, TalentNetworkAuditLog, TalentNetworkMember
+from .models import JobMatchNotification, TalentNetworkAuditLog, TalentNetworkMember, TalentNetworkPageView
 
 
 @admin.register(TalentNetworkMember)
@@ -22,3 +22,10 @@ class TalentNetworkAuditLogAdmin(admin.ModelAdmin):
     list_display = ("id", "action", "target_member", "actor", "created_at")
     list_filter = ("action",)
     readonly_fields = [f.name for f in TalentNetworkAuditLog._meta.fields]
+
+
+@admin.register(TalentNetworkPageView)
+class TalentNetworkPageViewAdmin(admin.ModelAdmin):
+    list_display = ("session_key", "visited_date", "created_at")
+    list_filter = ("visited_date",)
+    search_fields = ("session_key",)

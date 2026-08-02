@@ -1,7 +1,7 @@
 import { Metadata } from "next";
 
 import { getCurrentUser } from "@/app/common/services/profile";
-import { getOverviewMetrics } from "@/app/common/services/overview";
+import { getOverviewMetrics, getTrafficSummary } from "@/app/common/services/overview";
 import MorningDigest from "@/app/common/components/dashboard/MorningDigest";
 import StatCard from "@/app/common/components/dashboard/StatCard";
 import ChartContainer from "@/app/common/components/dashboard/charts/ChartContainer";
@@ -13,12 +13,22 @@ export const metadata: Metadata = {
 };
 
 const AdminDashboard = async () => {
-  const [{ currentUser }, overview] = await Promise.all([
+  const [{ currentUser }, overview, traffic] = await Promise.all([
     getCurrentUser("staff"),
     getOverviewMetrics(),
+    getTrafficSummary(),
   ]);
 
   const dayLabels = overview.daily_revenue_30d.map(d =>
+    new Date(d.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })
+  );
+  const visitDayLabels = traffic.website_visits.daily.map(d =>
+    new Date(d.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })
+  );
+  const visitMonthLabels = traffic.website_visits.monthly.map(d =>
+    new Date(`${d.month}-01`).toLocaleDateString("en-US", { month: "short", year: "2-digit" })
+  );
+  const signupDayLabels = traffic.daily_signups.daily.map(d =>
     new Date(d.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })
   );
 
@@ -94,6 +104,39 @@ const AdminDashboard = async () => {
             <DashboardBarChart
               labels={dayLabels}
               data={overview.daily_active_organisations_30d.map(d => d.count)}
+            />
+          </div>
+        </section>
+
+        <section className='mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6'>
+          <div className='rounded-lg border bg-card p-6 shadow-sm'>
+            <h4 className='text-gray-900 text-base font-medium mb-4'>
+              Website visits (last 30 days)
+            </h4>
+            <DashboardLineChart
+              labels={visitDayLabels}
+              data={traffic.website_visits.daily.map(d => d.count)}
+            />
+          </div>
+          <div className='rounded-lg border bg-card p-6 shadow-sm'>
+            <h4 className='text-gray-900 text-base font-medium mb-4'>
+              Website visits (last 12 months)
+            </h4>
+            <DashboardBarChart
+              labels={visitMonthLabels}
+              data={traffic.website_visits.monthly.map(d => d.count)}
+            />
+          </div>
+        </section>
+
+        <section className='mt-6 grid grid-cols-1 gap-6'>
+          <div className='rounded-lg border bg-card p-6 shadow-sm'>
+            <h4 className='text-gray-900 text-base font-medium mb-4'>
+              Daily sign-ups (last 30 days)
+            </h4>
+            <DashboardBarChart
+              labels={signupDayLabels}
+              data={traffic.daily_signups.daily.map(d => d.count)}
             />
           </div>
         </section>

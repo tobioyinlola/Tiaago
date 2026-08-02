@@ -96,6 +96,68 @@ def _notify_free_tier_exhausted(organisation):
         logger.exception("Failed to send free-tier-exhausted email for company %s", organisation.id)
 
 
+def _pause_company_jobs_for_wallet_exhaustion(organisation):
+    """Pauses every ACTIVE job for this company the moment a resume-screening
+    or assessment charge can't be covered -- the wallet is shared per
+    company, so if it can't cover one candidate's charge right now it can't
+    cover any other job's either.
+
+    Naturally idempotent: once nothing is ACTIVE, later insufficient_funds
+    hits from other candidates (or other jobs) find nothing left to pause,
+    so this never re-pauses or re-emails on repeat calls."""
+    from jobs.models import Job
+    from jobs.tasks import notify_jobs_paused_for_billing
+
+    with transaction.atomic():
+        active_job_ids = list(
+            Job.objects.select_for_update()
+            .filter(company=organisation, job_status=Job.JobStatus.ACTIVE)
+            .values_list("id", flat=True)
+        )
+        if not active_job_ids:
+            return
+        Job.objects.filter(id__in=active_job_ids).update(
+            job_status=Job.JobStatus.ON_HOLD,
+            paused_for_billing=True,
+            billing_paused_at=timezone.now(),
+        )
+
+    notify_jobs_paused_for_billing.delay(organisation.id, active_job_ids)
+    _notify_billing_alert(
+        organisation, "Your jobs have been paused",
+        "Your wallet balance is exhausted, so all of your active job listings have been paused "
+        "and are no longer accepting applications. Fund your wallet to reopen them.",
+    )
+
+
+def _resume_company_jobs_after_wallet_topup(organisation):
+    """Auto-resumes exactly the jobs _pause_company_jobs_for_wallet_exhaustion
+    paused. Filtered on paused_for_billing=True so a recruiter's own manual
+    ON_HOLD is never flipped back to ACTIVE by a wallet top-up."""
+    from jobs.models import Job
+    from jobs.tasks import notify_jobs_reactivated_after_topup
+
+    with transaction.atomic():
+        paused_job_ids = list(
+            Job.objects.select_for_update()
+            .filter(company=organisation, job_status=Job.JobStatus.ON_HOLD, paused_for_billing=True)
+            .values_list("id", flat=True)
+        )
+        if not paused_job_ids:
+            return
+        Job.objects.filter(id__in=paused_job_ids).update(
+            job_status=Job.JobStatus.ACTIVE,
+            paused_for_billing=False,
+            billing_paused_at=None,
+        )
+
+    notify_jobs_reactivated_after_topup.delay(organisation.id, paused_job_ids)
+    _notify_billing_alert(
+        organisation, "Your jobs are active again",
+        "Your wallet has been topped up, and your paused job listings are accepting applications again.",
+    )
+
+
 class BillingService:
 
     @staticmethod
@@ -206,6 +268,8 @@ class BillingService:
         wallet = get_or_create_wallet(organisation)
         if result["reason"] in ("charged", "insufficient_funds"):
             BillingService.check_and_send_low_balance_alert(wallet)
+            if result["reason"] == "insufficient_funds":
+                _pause_company_jobs_for_wallet_exhaustion(organisation)
         elif result["reason"] == "free_credit" and just_exhausted:
             _notify_free_tier_exhausted(organisation)
 
@@ -282,6 +346,8 @@ class BillingService:
         wallet = get_or_create_wallet(organisation)
         if result["reason"] in ("charged", "insufficient_funds"):
             BillingService.check_and_send_low_balance_alert(wallet)
+            if result["reason"] == "insufficient_funds":
+                _pause_company_jobs_for_wallet_exhaustion(organisation)
         elif result["reason"] == "free_credit" and just_exhausted:
             _notify_free_tier_exhausted(organisation)
 

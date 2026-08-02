@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { getPublicJob } from "@/app/common/services/jobs";
 import GuestApplyForm from "./_components/GuestApplyForm";
+import JobClosedNotice from "../_components/JobClosedNotice";
 
 type Props = { params: Promise<{ job_id: string }> };
 
@@ -17,6 +18,7 @@ const ApplyPage = async ({ params }: Props) => {
   const { job_id } = await params;
   const job = await getPublicJob(job_id).catch(() => null);
   if (!job) return notFound();
+  if (job.job_status !== "ACTIVE") return <JobClosedNotice />;
 
   return <GuestApplyForm job={job} />;
 };

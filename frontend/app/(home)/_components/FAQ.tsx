@@ -36,7 +36,7 @@ const faqData = [
     id: 5,
     question: "How much does it cost to use TIAAGO?",
     answer:
-      "Your first 10 candidates are completely free. After that, we use usage-based pricing starting from $0.048 per resume screening. Check our pricing page for full details on our transparent, pay-as-you-use model.",
+      "Your first 20 candidates are completely free. After that, we use usage-based pricing starting from $0.03 per resume screening. Check our pricing page for full details on our transparent, pay-as-you-use model.",
     category: "Pricing",
   },
 ];

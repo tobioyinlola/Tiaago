@@ -31,6 +31,18 @@ export type OverviewMetrics = {
   daily_active_organisations_30d: DailyCountPoint[];
 };
 
+export type MonthlyCountPoint = { month: string; count: number };
+
+export type TrafficSummary = {
+  website_visits: {
+    daily: DailyCountPoint[];
+    monthly: MonthlyCountPoint[];
+  };
+  daily_signups: {
+    daily: DailyCountPoint[];
+  };
+};
+
 export type OrganisationStatus = "active" | "dormant" | "churned" | "free_credits";
 
 export type OrganisationRow = {

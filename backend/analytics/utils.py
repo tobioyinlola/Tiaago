@@ -1254,3 +1254,70 @@ def get_interview_analytics_summary():
     }
     cache.set(cache_key, result, timeout=CACHE_TIMEOUT)
     return result
+
+
+def get_website_visits_summary():
+    """Daily (last 30 days) and monthly (last 12 months) counts of PageView
+    rows -- one row per (session, day), see analytics.models.PageView."""
+    cache_key = "analytics_website_visits_summary"
+    cached = cache.get(cache_key)
+    if cached:
+        return cached
+
+    from analytics.models import PageView
+
+    today_start = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
+
+    daily = []
+    for i in range(29, -1, -1):
+        day_start = today_start - timedelta(days=i)
+        day_end = day_start + timedelta(days=1)
+        count = PageView.objects.filter(
+            visited_date__gte=day_start.date(), visited_date__lt=day_end.date()
+        ).count()
+        daily.append({"date": day_start.date().isoformat(), "count": count})
+
+    monthly = []
+    month_cursor = today_start.replace(day=1)
+    month_starts = [month_cursor]
+    for _ in range(11):
+        month_cursor = (month_cursor - timedelta(days=1)).replace(day=1)
+        month_starts.append(month_cursor)
+    month_starts.reverse()
+    for idx, month_start in enumerate(month_starts):
+        if idx + 1 < len(month_starts):
+            month_end = month_starts[idx + 1]
+        else:
+            next_month = (month_start + timedelta(days=32)).replace(day=1)
+            month_end = next_month
+        count = PageView.objects.filter(
+            visited_date__gte=month_start.date(), visited_date__lt=month_end.date()
+        ).count()
+        monthly.append({"month": month_start.date().isoformat()[:7], "count": count})
+
+    result = {"daily": daily, "monthly": monthly}
+    cache.set(cache_key, result, timeout=CACHE_TIMEOUT)
+    return result
+
+
+def get_daily_signups_summary():
+    """Daily (last 30 days) count of new organisation signups (Company rows
+    created that day) -- matches the same 'signup' definition already used
+    for new_this_week/new_last_week in get_overview_metrics."""
+    cache_key = "analytics_daily_signups_summary"
+    cached = cache.get(cache_key)
+    if cached:
+        return cached
+
+    today_start = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
+
+    daily = []
+    for i in range(29, -1, -1):
+        day_start = today_start - timedelta(days=i)
+        day_end = day_start + timedelta(days=1)
+        count = Company.objects.filter(created_at__gte=day_start, created_at__lt=day_end).count()
+        daily.append({"date": day_start.date().isoformat(), "count": count})
+
+    result = {"daily": daily}
+    cache.set(cache_key, result, timeout=CACHE_TIMEOUT)
+    return result

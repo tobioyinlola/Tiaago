@@ -50,7 +50,7 @@ const roleCategories = [
     title: "Software Engineering",
     description: "Full-stack, frontend, backend, and mobile developers",
     icon: <Code className='w-8 h-8' />,
-    color: "from-blue-500 to-blue-700",
+    color: "from-primary to-primary-dark",
     roles: [
       "Full Stack Developer",
       "Frontend Engineer",
@@ -68,7 +68,7 @@ const roleCategories = [
     title: "Product & Design",
     description: "Product managers, UI/UX designers, and design specialists",
     icon: <Palette className='w-8 h-8' />,
-    color: "from-purple-500 to-purple-700",
+    color: "from-primary to-primary-dark",
     roles: [
       "Product Manager",
       "UI/UX Designer",
@@ -93,7 +93,7 @@ const roleCategories = [
     title: "Data & AI",
     description: "Data scientists, ML engineers, and AI specialists",
     icon: <Brain className='w-8 h-8' />,
-    color: "from-green-500 to-green-700",
+    color: "from-primary to-primary-dark",
     roles: [
       "Data Scientist",
       "ML Engineer",
@@ -119,7 +119,7 @@ const roleCategories = [
     description:
       "Growth marketers, content creators, and marketing specialists",
     icon: <TrendingUp className='w-8 h-8' />,
-    color: "from-orange-500 to-orange-700",
+    color: "from-primary to-primary-dark",
     roles: [
       "Growth Marketer",
       "Content Creator",
@@ -209,7 +209,7 @@ const vettingProcess = [
     description:
       "Comprehensive coding challenges and real-world problem solving",
     icon: <Code className='w-6 h-6' />,
-    color: "from-blue-500 to-blue-600",
+    color: "from-primary to-primary-dark",
     details: [
       "Live coding sessions",
       "System design challenges",
@@ -222,7 +222,7 @@ const vettingProcess = [
     title: "Non-Technical Evaluation",
     description: "Communication, problem-solving, and cultural fit assessment",
     icon: <MessageSquare className='w-6 h-6' />,
-    color: "from-green-500 to-green-600",
+    color: "from-primary to-primary-dark",
     details: [
       "Communication skills",
       "Problem-solving approach",
@@ -236,7 +236,7 @@ const vettingProcess = [
     description:
       "In-depth analysis of past projects and professional experience",
     icon: <Briefcase className='w-6 h-6' />,
-    color: "from-purple-500 to-purple-600",
+    color: "from-primary to-primary-dark",
     details: [
       "Project portfolio review",
       "Client testimonials",
@@ -621,7 +621,7 @@ const Companies = () => {
                 >
                   <CustomAuthButton
                     size='lg'
-                    className='bg-gradient-to-r from-primary to-secondary-2 hover:from-primary-dark hover:to-secondary-2-dark text-white border-0 shadow-xl group transform hover:scale-105 transition-all duration-300'
+                    className='!bg-primary hover:!bg-primary-dark !rounded-full text-white font-semibold border-0 shadow-xl group transform hover:scale-105 transition-all duration-300'
                   >
                     <m.div
                       animate={{ x: [0, 5, 0] }}
@@ -635,7 +635,7 @@ const Companies = () => {
                   <Button
                     variant='outline'
                     size='lg'
-                    className='border-primary/30 text-primary hover:bg-primary/5 shadow-lg'
+                    className='!rounded-full border-primary/30 text-primary hover:bg-primary/5 shadow-lg'
                   >
                     <Play className='mr-3 h-5 w-5' />
                     Watch Demo
@@ -843,14 +843,14 @@ const Companies = () => {
                             {Array.from({ length: node.rating }).map((_, i) => (
                               <Star
                                 key={i}
-                                className='w-3 h-3 text-yellow-400 fill-yellow-400'
+                                className='w-3 h-3 text-primary fill-primary'
                               />
                             ))}
                           </div>
                           <div
                             className={`w-3 h-3 rounded-full ${
                               activeNode === index
-                                ? "bg-green-400"
+                                ? "bg-primary"
                                 : "bg-gray-300"
                             }`}
                           />
@@ -933,7 +933,7 @@ const Companies = () => {
                 >
                   <div className='bg-white rounded-xl p-4 shadow-xl border border-gray-200'>
                     <div className='flex items-center space-x-2'>
-                      <Shield className='w-6 h-6 text-green-500' />
+                      <Shield className='w-6 h-6 text-primary' />
                       <div>
                         <div className='text-lg font-bold text-gray-900'>
                           99.8%
@@ -1185,7 +1185,7 @@ const Companies = () => {
                             key={idx}
                             className='text-sm text-gray-600 flex items-center'
                           >
-                            <Check className='w-4 h-4 text-green-500 mr-2 flex-shrink-0' />
+                            <Check className='w-4 h-4 text-primary mr-2 flex-shrink-0' />
                             {detail}
                           </li>
                         ))}
@@ -1300,7 +1300,7 @@ const Companies = () => {
                               key={idx}
                               className='text-sm text-gray-500 flex items-center'
                             >
-                              <Check className='w-3 h-3 text-green-500 mr-2 flex-shrink-0' />
+                              <Check className='w-3 h-3 text-primary mr-2 flex-shrink-0' />
                               {detail}
                             </li>
                           ))}
@@ -1328,7 +1328,7 @@ const Companies = () => {
                     No contracts, no commitments.
                   </p>
                   <CustomAuthButton
-                    className='bg-white !text-primary hover:bg-gray-100'
+                    className='!rounded-full bg-white !text-primary font-semibold hover:bg-gray-100'
                     size='lg'
                   >
                     Start Free Trial
@@ -1372,7 +1372,7 @@ const Companies = () => {
                           }).map((_, i) => (
                             <Star
                               key={i}
-                              className='w-6 h-6 text-yellow-400 fill-yellow-400'
+                              className='w-6 h-6 text-primary fill-primary'
                             />
                           ))}
                         </div>
@@ -1404,22 +1404,22 @@ const Companies = () => {
                       </div>
 
                       <div className='space-y-4'>
-                        <div className='bg-green-50 rounded-lg p-4 border border-green-100'>
-                          <div className='flex items-center text-green-700 mb-2'>
+                        <div className='bg-primary/5 rounded-lg p-4 border border-primary/10'>
+                          <div className='flex items-center text-primary mb-2'>
                             <TrendingUp className='w-5 h-5 mr-2' />
                             <span className='font-medium'>Results</span>
                           </div>
-                          <div className='text-green-800 font-bold'>
+                          <div className='text-primary-dark font-bold'>
                             {testimonials[activeTestimonial].results}
                           </div>
                         </div>
 
-                        <div className='bg-blue-50 rounded-lg p-4 border border-blue-100'>
-                          <div className='flex items-center text-blue-700 mb-2'>
+                        <div className='bg-primary/5 rounded-lg p-4 border border-primary/10'>
+                          <div className='flex items-center text-primary mb-2'>
                             <DollarSign className='w-5 h-5 mr-2' />
                             <span className='font-medium'>Savings</span>
                           </div>
-                          <div className='text-blue-800 font-bold'>
+                          <div className='text-primary-dark font-bold'>
                             {testimonials[activeTestimonial].savings}
                           </div>
                         </div>
@@ -1513,7 +1513,7 @@ const Companies = () => {
                 <div className='flex flex-col sm:flex-row gap-4 justify-center'>
                   <CustomAuthButton
                     size='lg'
-                    className='bg-white !text-primary hover:bg-gray-100 shadow-lg group'
+                    className='!rounded-full bg-white !text-primary font-semibold hover:bg-gray-100 shadow-lg group'
                   >
                     Start Free Trial
                     <ArrowRight className='ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform' />
@@ -1521,7 +1521,7 @@ const Companies = () => {
                   <Button
                     variant='outline'
                     size='lg'
-                    className='border-white text-white hover:bg-white/10 shadow-lg'
+                    className='!rounded-full border-white text-white hover:bg-white/10 shadow-lg'
                   >
                     <a
                       href='https://cal.com/tiaago/book-a-demo-tiaago-ai-hiring-platform'

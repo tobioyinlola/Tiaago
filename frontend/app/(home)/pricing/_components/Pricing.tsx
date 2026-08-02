@@ -7,7 +7,9 @@ import { Gift, ArrowRight } from "lucide-react";
 import {
   pricingTiers,
   currencyRates,
+  FREE_TIER_LIMIT,
   type Currency,
+  type PricingTier,
 } from "../constants";
 
 import { formatPrice as formatPriceUtil } from "@/app/common/utils";
@@ -18,19 +20,17 @@ import { CustomAuthButton } from "@/app/common/components/AuthButton";
 const Pricing = () => {
   const [usage, setUsage] = useState<{ [key: string]: number }>({
     "Resume Screening": 100,
-    "Non-Technical Assessment": 30,
-    "Technical Assessment": 30,
-    "Pre-screening Interview": 15,
+    Assessment: 60,
   });
 
   const [selectedCurrency, setSelectedCurrency] = useState<Currency>("USD");
 
-  const convertPrice = (priceUSD: number) => {
-    const convertedPrice = priceUSD * currencyRates[selectedCurrency];
-    return selectedCurrency === "NGN"
-      ? convertedPrice.toFixed(0)
-      : convertedPrice.toFixed(3);
-  };
+  // NGN uses the real backend price per tier directly (not derived via
+  // currencyRates.NGN -- see the comment on PricingTier.pricePerUnitNGN).
+  const getUnitPrice = (tier: PricingTier) =>
+    selectedCurrency === "NGN"
+      ? tier.pricePerUnitNGN
+      : tier.pricePerUnit * currencyRates[selectedCurrency];
 
   const formatPrice = (price: string | number) => {
     return formatPriceUtil({
@@ -46,12 +46,12 @@ const Pricing = () => {
 
   const getFreeCandidates = () => {
     const totalCandidates = getTotalCandidates();
-    return Math.min(totalCandidates, 10);
+    return Math.min(totalCandidates, FREE_TIER_LIMIT);
   };
 
   const getPaidCandidates = () => {
     const totalCandidates = getTotalCandidates();
-    return Math.max(totalCandidates - 10, 0);
+    return Math.max(totalCandidates - FREE_TIER_LIMIT, 0);
   };
 
   const calculatePaidCost = () => {
@@ -59,19 +59,17 @@ const Pricing = () => {
     if (paidCandidates === 0) return "0.00";
 
     const totalCandidates = getTotalCandidates();
-    const totalCostUSD = Object.entries(usage).reduce(
+    const totalCost = Object.entries(usage).reduce(
       (total, [tierName, count]) => {
         const tier = pricingTiers.find(t => t.name === tierName);
-        const paidCount = Math.max(count - (10 * count) / totalCandidates, 0);
-        return total + (tier?.pricePerUnit || 0) * paidCount;
+        if (!tier) return total;
+        const paidCount = Math.max(count - (FREE_TIER_LIMIT * count) / totalCandidates, 0);
+        return total + getUnitPrice(tier) * paidCount;
       },
       0
     );
 
-    const converted = totalCostUSD * currencyRates[selectedCurrency];
-    return selectedCurrency === "NGN"
-      ? converted.toFixed(0)
-      : converted.toFixed(2);
+    return selectedCurrency === "NGN" ? totalCost.toFixed(0) : totalCost.toFixed(2);
   };
 
   const handleUsageChange = (tierName: string, value: string) => {
@@ -155,7 +153,7 @@ const Pricing = () => {
                             </div> */}
                           </label>
                           <span className='text-xs md:text-sm text-primary/50 font-onest bg-[#EEEFFF] py-0.5 px-2 rounded-full w-fit'>
-                            {formatPrice(convertPrice(tier.pricePerUnit))}{" "}
+                            {formatPrice(getUnitPrice(tier))}{" "}
                             /candidate
                           </span>
                         </div>
@@ -175,12 +173,8 @@ const Pricing = () => {
                               Costs:{" "}
                             </span>
                             {usage[tier.name]} ×{" "}
-                            {formatPrice(convertPrice(tier.pricePerUnit))} ={" "}
-                            {formatPrice(
-                              tier.pricePerUnit *
-                                usage[tier.name] *
-                                currencyRates[selectedCurrency]
-                            )}
+                            {formatPrice(getUnitPrice(tier))} ={" "}
+                            {formatPrice(getUnitPrice(tier) * usage[tier.name])}
                           </p>
                         )}
                       </div>
@@ -194,7 +188,7 @@ const Pricing = () => {
                   </h3>
 
                   {/* Free Trial Section */}
-                  <div className='bg-[linear-gradient(270deg,#FFC28C_0%,#A1708B_32.93%,#5465FF_100%)] text-white border-[1.5px] border-[#027A4826] rounded-lg p-3 mb-8'>
+                  <div className='bg-primary text-white border-[1.5px] border-primary rounded-lg p-3 mb-8'>
                     <div className='flex items-center mb-2'>
                       <Gift className='w-5 h-5 mr-2' />
                       <span className='text-sm font-onest font-bold'>
@@ -216,12 +210,8 @@ const Pricing = () => {
                         <h6 className='truncate pr-2'>{tier.name}</h6>
                         <span className='sm:text-right max-sm:opacity-75'>
                           {usage[tier.name]} ×{" "}
-                          {formatPrice(convertPrice(tier.pricePerUnit))} ={" "}
-                          {formatPrice(
-                            tier.pricePerUnit *
-                              usage[tier.name] *
-                              currencyRates[selectedCurrency]
-                          )}
+                          {formatPrice(getUnitPrice(tier))} ={" "}
+                          {formatPrice(getUnitPrice(tier) * usage[tier.name])}
                         </span>
                       </div>
                     ))}
@@ -250,7 +240,7 @@ const Pricing = () => {
                   </div>
 
                   <div className='mt-6 sm:mt-8'>
-                    <CustomAuthButton fullWidth size='lg'>
+                    <CustomAuthButton fullWidth size='lg' className='!rounded-full font-semibold'>
                       Start for free <ArrowRight className='w-5 ml-2.5' />
                     </CustomAuthButton>
                   </div>

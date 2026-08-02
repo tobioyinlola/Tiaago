@@ -29,6 +29,7 @@ from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.status import (
     HTTP_201_CREATED,
     HTTP_200_OK,
+    HTTP_202_ACCEPTED,
     HTTP_204_NO_CONTENT,
     HTTP_404_NOT_FOUND,
     HTTP_400_BAD_REQUEST,
@@ -46,6 +47,7 @@ from create_user.utils import send_otp_to_user
 from base.permissions import IsTalentUser
 
 from .models import (
+    AssessmentQuestionGenerationRequest,
     Job,
     JobApplication,
     Portfolio,
@@ -83,7 +85,7 @@ from .serializers import (
     JobInterviewAvailabilitySlotSerializer,
     JobDraftSerializer,
 )
-from .tasks import carry_out_resume_analysis
+from .tasks import carry_out_resume_analysis, generate_job_assessment_questions_task
 from emails import emails
 from rest_framework.permissions import AllowAny
 from payments.models import PaymentMethod
@@ -95,8 +97,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
 from django_filters import rest_framework as filters
 from rest_framework.exceptions import ValidationError
-from utils.ai_service import AIService
-from roles.models import Role
+from rest_framework.throttling import ScopedRateThrottle
 from scheduler.models import Scheduler
 from scheduler.services import provision_daily_room, DailyRoomProvisioningError
 from scheduler.tasks import (
@@ -113,11 +114,6 @@ logger = logging.getLogger(__name__)
 
 User = get_user_model()
 
-NON_TECHNICAL_ASSESSMENT_CATEGORIES = ["Role Knowledge", "Practical Scenarios", "Problem Solving"]
-# Technical roles get a 4th "Coding" category -- still MCQ (question/options/correct_option_index),
-# but the questions embed real code snippets (see generate_categorized_mcq_batch's
-# CODING_CATEGORY_NAMES branch in the ai/ service) instead of plain-text scenarios.
-TECHNICAL_ASSESSMENT_CATEGORIES = ["Technical Knowledge", "Practical Scenarios", "Problem Solving", "Coding"]
 
 
 class JobPagination(PageNumberPagination):
@@ -378,14 +374,19 @@ class JobDraftSaveView(GenericAPIView):
 
 
 class GenerateAssessmentQuestionsView(APIView):
-    """Stateless live-generation endpoint used by the job-creation wizard's Step 3.
+    """Async-dispatch endpoint used by the job-creation wizard's Step 3.
 
-    No Job row needs to exist yet -- takes the Step 1 job details directly in the
-    request body and returns a categorized MCQ question set for the recruiter to
-    review/edit before final job submit persists it via JobSerializer.create().
+    No Job row needs to exist yet -- takes the Step 1 job details directly in
+    the request body. The actual AI call (up to ~4min for technical roles,
+    sequential across categories) now runs in generate_job_assessment_questions_task
+    instead of blocking this request; the frontend polls
+    JobAssessmentGenerationStatusView for the result, which it then feeds into
+    final job submit via JobSerializer.create().
     """
 
     permission_classes = [permissions.IsAuthenticated]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "assessment_generation"
 
     def post(self, request, *args, **kwargs):
         description = (request.data.get("description") or "").strip()
@@ -402,39 +403,56 @@ class GenerateAssessmentQuestionsView(APIView):
                 status=HTTP_400_BAD_REQUEST,
             )
 
-        job_description = "\n\n".join(part for part in [description, job_requirement] if part)
+        company = get_user_company(request.user)
+        if not company:
+            return Response({"detail": "The user does not have an associated company"}, status=HTTP_400_BAD_REQUEST)
 
-        is_technical = True
-        if role_id:
-            if isinstance(role_id, int) or (isinstance(role_id, str) and role_id.strip().isdigit()):
-                role = Role.objects.filter(id=int(role_id)).first()
-            else:
-                role = Role.objects.filter(title__iexact=str(role_id).strip()).first()
-            if role:
-                is_technical = role.is_technical
-
-        categories = (
-            TECHNICAL_ASSESSMENT_CATEGORIES if is_technical else NON_TECHNICAL_ASSESSMENT_CATEGORIES
+        request_row = AssessmentQuestionGenerationRequest.objects.create(
+            company=company, requested_by=request.user,
         )
-
+        # .delay() can itself raise -- a broker hiccup, or (only under
+        # CELERY_TASK_ALWAYS_EAGER, i.e. local dev) the task's own retry
+        # propagating synchronously since there's no real worker to catch it.
+        # Either way this must never 500 the request: the row already exists,
+        # so mark it FAILED and let the frontend's first poll discover that
+        # immediately instead of crashing the endpoint that's supposed to be
+        # the reliable, non-blocking one.
         try:
-            sections = AIService.get_categorized_mcq_questions(
-                job_description=job_description,
-                categories=categories,
-                questions_per_category=10,
-                role_type="technical" if is_technical else "non-technical",
+            generate_job_assessment_questions_task.delay(
+                str(request_row.id), description, job_requirement, role_id
             )
         except Exception:
-            logger.exception("AI service call failed while generating assessment questions")
-            sections = None
+            logger.exception("Failed to dispatch assessment generation task for request %s", request_row.id)
+            request_row.status = AssessmentQuestionGenerationRequest.GenerationStatus.FAILED
+            request_row.error = "Failed to start assessment generation. Please try again."
+            request_row.save(update_fields=["status", "error"])
 
-        if not sections:
-            return Response(
-                {"detail": "Failed to generate assessment questions. Please try again."},
-                status=HTTP_500_INTERNAL_SERVER_ERROR,
-            )
+        return Response({"request_id": str(request_row.id)}, status=HTTP_202_ACCEPTED)
 
-        return Response({"sections": sections}, status=HTTP_200_OK)
+
+class JobAssessmentGenerationStatusView(APIView):
+    """GET, polled every ~3s by AssessmentGenerationStep.tsx after it kicks off
+    GenerateAssessmentQuestionsView -- mirrors InterviewProcessingStatusView's
+    polling shape (scheduler/copilot_views.py)."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, request_id, *args, **kwargs):
+        company = get_user_company(request.user)
+        if not company:
+            return Response({"detail": "The user does not have an associated company"}, status=HTTP_400_BAD_REQUEST)
+
+        request_row = AssessmentQuestionGenerationRequest.objects.filter(
+            id=request_id, company=company,
+        ).first()
+        if not request_row:
+            return Response({"detail": "Not found"}, status=HTTP_404_NOT_FOUND)
+
+        return Response({
+            "status": request_row.status,
+            "sections": request_row.sections,
+            "error": request_row.error,
+        })
 
 
 def _get_passing_job_application(user, job_id):
@@ -755,6 +773,8 @@ class JobApplyView(CreateAPIView):
     """Endpoint to apply for a job"""
     serializer_class = JobApplicationSerializer
     permission_classes = [permissions.IsAuthenticated]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "job_apply"
 
 
     def create(self, request, *args, **kwargs):
@@ -836,6 +856,8 @@ class ValidateJobTokenView(GenericAPIView):
 class ExternalJobApplicationView(CreateAPIView):
     serializer_class = ExternalJobApplicationSerializer
     permission_classes = [permissions.IsAuthenticated]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "job_apply"
 
     def create(self, request, *args, **kwargs):
         user = request.user
@@ -1106,6 +1128,8 @@ class JobApplyByIdView(APIView):
 
     permission_classes = [AllowAny]
     parser_classes = [MultiPartParser, FormParser]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "job_apply"
 
     def post(self, request, apply_token):
         try:
@@ -1142,6 +1166,8 @@ class JobApplyByIdView(APIView):
 
 class JobApplyByTokenView(APIView):
     permission_classes = [permissions.IsAuthenticated]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "job_apply"
     def post(self, request, apply_token):
         user = request.user
         try:
@@ -1164,6 +1190,11 @@ class JobApplyByTokenView(APIView):
             job = Job.objects.get(apply_token=apply_token)
         except Job.DoesNotExist:
             return Response({'error': 'Job not found'}, status=HTTP_404_NOT_FOUND)
+        if job.job_status != Job.JobStatus.ACTIVE:
+            return Response(
+                {'error': f'This job is currently {job.get_job_status_display().lower()} and not accepting applications'},
+                status=HTTP_400_BAD_REQUEST,
+            )
         if JobApplication.objects.filter(applicant=user.profile, job=job).exists():
             return Response({'error': 'Already applied to this job'}, status=HTTP_400_BAD_REQUEST)
         

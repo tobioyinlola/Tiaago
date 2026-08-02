@@ -28,7 +28,8 @@ const AdminTicketDetailPage = async ({ params }: { params: Promise<{ id: string 
           <TicketCategoryBadge category={ticket.category} />
         </div>
         <h4 className="text-foreground text-sm md:text-base">
-          {ticket.title} · {ticket.company_name} · {ticket.submitted_by.name} · Submitted{" "}
+          {ticket.title} · {ticket.company_name || "Website visitor"} ·{" "}
+          {ticket.submitted_by?.name ?? ticket.contact_name} · Submitted{" "}
           {format(new Date(ticket.created_at), "MMM dd, yyyy")}
         </h4>
       </div>

@@ -76,7 +76,7 @@ const AuthFormPageWrapper = ({
       />
       <div className={cn("relative grid md:grid-cols-2 max-md:items-start", formScrollOnly && "md:h-[100svh]")}>
         <div className={cn("pl-5 py-[30px] flex max-md:hidden", formScrollOnly && "md:h-[100svh]")}>
-          <div className='bg-black rounded-[30px] flex-1 pt-[65px] pb-20 px-[60px] relative'>
+          <div className='bg-black rounded-[30px] flex-1 min-w-0 pt-[65px] pb-20 px-[60px] relative'>
             <Image
               src='/assets/images/Auth Background pattern.png'
               alt='Bg pattern'
@@ -91,7 +91,7 @@ const AuthFormPageWrapper = ({
                   containerClassName='block w-fit'
                 />
 
-                <h2 className='text-white font-onest font-semibold text-[60px] leading-[110%] max-w-[562px] mt-[60px] mb-8'>
+                <h2 className='text-white font-onest font-semibold text-[60px] leading-[110%] max-w-[562px] mt-[60px] mb-8 break-words'>
                   {heroHeadline ??
                     (as === "talent"
                       ? "Get Verified. Get Discovered. Get Hired"

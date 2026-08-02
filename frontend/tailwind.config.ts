@@ -46,6 +46,12 @@ const config: Config = {
           light: "#E8F4FC",
           dark: "#2A7AB2",
         },
+        // Secondary brand palette (navy/green) -- already used as raw hex in
+        // email-campaign templates (TemplateStep.tsx, BlockEditor.tsx); named
+        // here for the /use-cases marketing pages, which lean on this pair
+        // instead of the primary indigo used elsewhere on the site.
+        "brand-navy": "#1A3C5E",
+        "brand-green": "#1D9E75",
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
         card: {

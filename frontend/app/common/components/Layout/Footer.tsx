@@ -10,7 +10,6 @@ const footerLists = [
     title: "Platform",
     items: [
       { name: "Recruiters", href: "/" },
-      { name: "Talents", href: "/talents" },
       { name: "Talent Network", href: "/talent-network" },
       { name: "Comparison", href: "/comparison" },
     ],
@@ -32,9 +31,9 @@ const footerLists = [
   },
 ];
 
-const Footer = ({ noBorder = false }: { noBorder?: boolean }) => {
+const Footer = () => {
   return (
-    <footer className={`pt-12 sm:pt-16 pb-8 sm:pb-12 ${noBorder ? "" : "border-t border-[#0A0A0A1A]"}`}>
+    <footer className='pt-12 sm:pt-16 pb-8 sm:pb-12'>
       <div className='md:container mx-auto px-4 sm:px-6 lg:px-8'>
         <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6 sm:gap-8'>
           {/* Company Info */}
@@ -116,7 +115,7 @@ const Footer = ({ noBorder = false }: { noBorder?: boolean }) => {
           ))}
         </div>
       </div>
-      <div className='border-t border-[#0A0A0A1A] mt-8 sm:mt-12 pt-6 sm:pt-8'>
+      <div className='mt-8 sm:mt-12 pt-6 sm:pt-8'>
         <div className='md:container mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row justify-between items-center'>
           <p className='text-[#0A0A0A73] text-sm'>
             &copy; {new Date().getFullYear()} Tiaago. All rights reserved.

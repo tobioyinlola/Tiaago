@@ -11,11 +11,13 @@ import {
   CheckCircle,
 } from "lucide-react";
 import { useState } from "react";
+import { toast } from "sonner";
 
 import Footer from "@/app/common/components/Layout/Footer";
 import Link from "next/link";
 import Image from "next/image";
 import CustomButton from "@/app/common/components/CustomButton";
+import { submitContactForm } from "@/app/common/services/support";
 import {
   CONTACT_EMAIL,
   CONTACT_PHONE,
@@ -27,29 +29,27 @@ const Contact: React.FC = () => {
     firstName: "",
     lastName: "",
     email: "",
-    company: "",
-    subject: "",
     message: "",
-    consent: false,
   });
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleInputChange = (
-    e: React.ChangeEvent<
-      HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
-    >
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
   ) => {
-    const { name, value, type } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]:
-        type === "checkbox" ? (e.target as HTMLInputElement).checked : value,
-    }));
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Simulate form submission
+    setIsSubmitting(true);
+    const result = await submitContactForm(formData);
+    setIsSubmitting(false);
+    if (!result.success) {
+      toast.error(result.error || "Could not send your message. Please try again.");
+      return;
+    }
     setIsSubmitted(true);
   };
 
@@ -76,7 +76,7 @@ const Contact: React.FC = () => {
 
               <CustomButton
                 variant='outline'
-                className='bg-white text-sm font-onest py-2.5 px-4 rounded-lg'
+                className='bg-white text-sm font-onest py-2.5 px-4 rounded-full'
               >
                 <a
                   href='https://cal.com/tiaago/book-a-demo-tiaago-ai-hiring-platform'
@@ -312,15 +312,16 @@ const Contact: React.FC = () => {
 
                   <button
                     type='submit'
-                    className='w-full bg-primary text-white py-3 px-6 rounded-lg hover:bg-primary-dark transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 text-base font-semibold font-onest mt-8'
+                    disabled={isSubmitting}
+                    className='w-full bg-primary text-white py-3 px-6 rounded-full hover:bg-primary-dark transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 text-base font-semibold font-onest mt-8 disabled:opacity-60'
                   >
-                    Send message
+                    {isSubmitting ? "Sending..." : "Send message"}
                   </button>
                 </form>
               ) : (
                 <div className='text-center py-8'>
-                  <div className='w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4'>
-                    <CheckCircle className='w-8 h-8 text-green-600' />
+                  <div className='w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4'>
+                    <CheckCircle className='w-8 h-8 text-primary' />
                   </div>
                   <h3 className='text-xl font-semibold font-onest text-gray-900 mb-2'>
                     Message Sent!
@@ -336,10 +337,7 @@ const Contact: React.FC = () => {
                         firstName: "",
                         lastName: "",
                         email: "",
-                        company: "",
-                        subject: "",
                         message: "",
-                        consent: false,
                       });
                     }}
                     className='text-primary hover:text-primary-dark font-semibold text-base font-onest'

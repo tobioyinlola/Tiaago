@@ -41,6 +41,8 @@ class EmailTypes:
     FREE_TIER_EXHAUSTED = "Free Tier Exhausted"
     WALLET_TOPUP_CONFIRMED = "Wallet Topup Confirmed"
     WALLET_TOPUP_FAILED = "Wallet Topup Failed"
+    JOBS_PAUSED_FOR_BILLING = "Jobs Paused For Billing"
+    JOBS_REACTIVATED_AFTER_TOPUP = "Jobs Reactivated After Topup"
 
 MAILGUN_DOMAIN = os.getenv("MAILGUN_DOMAIN")  # e.g. "mg.yourdomain.com"
 MAILGUN_API_KEY = os.getenv("MAILGUN_API_KEY")

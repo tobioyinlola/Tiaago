@@ -106,7 +106,7 @@ const CaseStudiesPage = () => {
                 Join these successful companies and revolutionize your hiring
                 process with AI.
               </p>
-              <CustomAuthButton size='lg'>
+              <CustomAuthButton size='lg' className='!rounded-full font-semibold'>
                 Get Started Free
                 <ArrowRight className='ml-2 h-5 w-5' />
               </CustomAuthButton>

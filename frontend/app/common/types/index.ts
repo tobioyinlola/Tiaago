@@ -1284,6 +1284,8 @@ export type AiFeedbackItem = {
   proctoring_integrity_score: number | null;
   proctoring_risk_level: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL" | null;
   proctoring_has_violation: boolean;
+  country: string | null;
+  current_company: string | null;
 };
 
 export type SubmissionAnswerMCQQuestion = {

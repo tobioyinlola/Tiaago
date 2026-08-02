@@ -195,3 +195,23 @@ class TalentNetworkSmtpConfig(TimeStampedModel):
     def app_password(self, value):
         from utils.encryption import encrypt_value
         self.encrypted_app_password = encrypt_value(value)
+
+
+class TalentNetworkPageView(models.Model):
+    """One row per (session, day) on the public /talent-network join page --
+    same coarse (session_key, visited_date) dedup as analytics.PageView, kept
+    as its own model so this app's page-view count is independent of (and
+    never risks regressing) the separate site-wide visit tracker."""
+
+    session_key = models.CharField(max_length=64, db_index=True)
+    visited_date = models.DateField(db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["session_key", "visited_date"], name="unique_tn_session_per_day")
+        ]
+        indexes = [models.Index(fields=["visited_date"])]
+
+    def __str__(self):
+        return f"{self.session_key} @ {self.visited_date}"

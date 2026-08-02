@@ -3,6 +3,7 @@ from django.urls import path
 from .views import (
     JobListCreateView,
     GenerateAssessmentQuestionsView,
+    JobAssessmentGenerationStatusView,
     JobInterviewSlotListView,
     JobInterviewSlotClaimView,
     JobApplicationListView,
@@ -43,6 +44,11 @@ urlpatterns = [
     path("", JobListCreateView.as_view(), name="job-list-create"),
     path("draft/", JobDraftSaveView.as_view(), name="job-draft-save"),
     path("generate-assessment-questions/", GenerateAssessmentQuestionsView.as_view(), name="generate-assessment-questions"),
+    path(
+        "generate-assessment-questions/<uuid:request_id>/status/",
+        JobAssessmentGenerationStatusView.as_view(),
+        name="assessment-generation-status",
+    ),
     path("job-detail/<int:pk>", JobDetailView.as_view(), name="generic-job-detail"),
     path("job-detail/by-public-id/<str:public_id>", JobDetailByPublicIdView.as_view(), name="generic-job-detail-by-public-id"),
     path(

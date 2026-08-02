@@ -45,6 +45,10 @@ EmailType = Literal[
     "wallet_topup_failed",
     "interview_candidate_feedback_mail",
     "interview_summary_ready_mail",
+    "public_contact_received",
+    "public_contact_admin_replied",
+    "jobs_paused_for_billing",
+    "jobs_reactivated_after_topup",
 ]
 
 EMAIL_TYPE_TO_ENUM = {
@@ -55,6 +59,8 @@ EMAIL_TYPE_TO_ENUM = {
     "free_tier_exhausted": EmailTypes.FREE_TIER_EXHAUSTED,
     "wallet_topup_confirmed": EmailTypes.WALLET_TOPUP_CONFIRMED,
     "wallet_topup_failed": EmailTypes.WALLET_TOPUP_FAILED,
+    "jobs_paused_for_billing": EmailTypes.JOBS_PAUSED_FOR_BILLING,
+    "jobs_reactivated_after_topup": EmailTypes.JOBS_REACTIVATED_AFTER_TOPUP,
 }
 
 
@@ -441,6 +447,22 @@ def get_email_template_and_context(
             "first_name": user.first_name,
             "amount": _format_money(kwargs.get("amount"), kwargs.get("currency")),
             "failure_reason": kwargs.get("failure_reason", ""),
+            "wallet_url": kwargs.get("wallet_url", ""),
+        }
+
+    elif email_type == "jobs_paused_for_billing":
+        template_file = "emails/jobs_paused_for_billing.html"
+        context = {
+            "first_name": user.first_name,
+            "job_titles": kwargs.get("job_titles") or [],
+            "wallet_url": kwargs.get("wallet_url", ""),
+        }
+
+    elif email_type == "jobs_reactivated_after_topup":
+        template_file = "emails/jobs_reactivated_after_topup.html"
+        context = {
+            "first_name": user.first_name,
+            "job_titles": kwargs.get("job_titles") or [],
             "wallet_url": kwargs.get("wallet_url", ""),
         }
 
@@ -832,6 +854,38 @@ def wallet_topup_failed_mail(user, amount, currency, failure_reason, wallet_url)
     )
 
 
+def jobs_paused_for_billing_mail(user, job_titles, wallet_url):
+    """Sent when a company's wallet can no longer cover resume screening/
+    assessment charges -- all of the company's ACTIVE jobs are paused at once
+    (see subscriptions.billing_service._pause_company_jobs_for_wallet_exhaustion),
+    so this tells every recipient which jobs stopped accepting applications
+    and links them to fund the wallet."""
+    subject = "Your jobs are paused -- wallet balance exhausted"
+    template, ctx = get_email_template_and_context(
+        user, "jobs_paused_for_billing", job_titles=job_titles, wallet_url=wallet_url,
+    )
+    if not template:
+        return None
+    return _send_with_latest_flow(
+        user.email, subject, template, ctx, email_type="jobs_paused_for_billing",
+    )
+
+
+def jobs_reactivated_after_topup_mail(user, job_titles, wallet_url):
+    """Sent when a wallet top-up auto-resumes jobs that were paused for
+    billing (see subscriptions.billing_service._resume_company_jobs_after_wallet_topup).
+    Never fires for a recruiter's own manual ON_HOLD -- those don't auto-resume."""
+    subject = "Your jobs are active again"
+    template, ctx = get_email_template_and_context(
+        user, "jobs_reactivated_after_topup", job_titles=job_titles, wallet_url=wallet_url,
+    )
+    if not template:
+        return None
+    return _send_with_latest_flow(
+        user.email, subject, template, ctx, email_type="jobs_reactivated_after_topup",
+    )
+
+
 def ticket_received_mail(user, ticket):
     """Sent to the submitting user immediately after a support ticket is created."""
     if not ticket:
@@ -868,6 +922,41 @@ def ticket_resolved_mail(user, ticket):
         return None
     return _send_with_latest_flow(
         user.email, subject, template, ctx, email_type="ticket_resolved",
+    )
+
+
+def public_contact_received_mail(name, email, ticket):
+    """Sent to a public /contact form submitter -- no CustomUser exists for
+    them (see SupportTicket.Source.PUBLIC_CONTACT_FORM), so this builds the
+    template context directly instead of going through
+    get_email_template_and_context, matching standalone_assessment_invite_mail's
+    account-less pattern."""
+    if not ticket:
+        return None
+    subject = f"We've received your message — {getattr(ticket, 'display_number', '')}"
+    context = {
+        "first_name": (name or "").split(" ")[0] or "there",
+        "ticket_number": getattr(ticket, "display_number", ""),
+    }
+    return _send_with_latest_flow(
+        email, subject, "emails/public_contact_received.html", context, email_type="public_contact_received",
+    )
+
+
+def public_contact_admin_replied_mail(name, email, ticket, reply):
+    """Sent to a public /contact form submitter when the support team
+    replies -- they have no account/login, so unlike ticket_admin_replied_mail
+    this has no 'view ticket' CTA, just the reply itself."""
+    if not ticket:
+        return None
+    subject = f"Tiaago Support replied to your message — {getattr(ticket, 'display_number', '')}"
+    context = {
+        "first_name": (name or "").split(" ")[0] or "there",
+        "ticket_number": getattr(ticket, "display_number", ""),
+        "reply_message": getattr(reply, "message", "") if reply else "",
+    }
+    return _send_with_latest_flow(
+        email, subject, "emails/public_contact_admin_replied.html", context, email_type="public_contact_admin_replied",
     )
 
 
