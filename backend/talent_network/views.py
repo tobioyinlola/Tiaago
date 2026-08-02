@@ -20,7 +20,13 @@ from utils.gmail_smtp import test_smtp_connection
 
 from .audit import log_audit
 from .choices import TalentNetworkMemberStatus
-from .models import JobMatchNotification, TalentNetworkAuditLog, TalentNetworkMember, TalentNetworkSmtpConfig
+from .models import (
+    JobMatchNotification,
+    TalentNetworkAuditLog,
+    TalentNetworkMember,
+    TalentNetworkPageView,
+    TalentNetworkSmtpConfig,
+)
 from .serializers import (
     JobMatchNotificationSerializer,
     TalentNetworkJoinSerializer,
@@ -92,6 +98,24 @@ class TalentNetworkConfirmView(APIView):
         return Response({"message": "You're officially part of the TIAAGO Talent Network.", "status": member.status})
 
 
+class TalentNetworkTrackViewView(APIView):
+    """POST /api/talent-network/track-view/ -- public, unauthenticated beacon
+    the join page pings once per (browser session, day). Deliberately
+    minimal, mirroring analytics.views.TrackVisitAPIView's own
+    session_key-only, bounded/deduped counter -- kept as this app's own
+    endpoint/model (TalentNetworkPageView) rather than reusing that one, so
+    this count is independent of the site-wide visit tracker."""
+
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        session_key = request.data.get("session_key")
+        if not isinstance(session_key, str) or not (0 < len(session_key) <= 64):
+            return Response(status=status.HTTP_400_BAD_REQUEST, data={"error": "Invalid session_key"})
+        TalentNetworkPageView.objects.get_or_create(session_key=session_key, visited_date=timezone.now().date())
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
 # ── Public: email tracking ─────────────────────────────────────────────────
 
 _TRANSPARENT_PIXEL_GIF = (
@@ -161,6 +185,8 @@ class TalentNetworkOverviewView(APIView):
             "top_roles": [{"role": r, "count": c} for r, c in top_roles_list],
             "top_communities": [{"community": c, "count": n} for c, n in top_communities_list],
             "email_subscribers": members.exclude(email_frequency="").count(),
+            "total_page_views": TalentNetworkPageView.objects.count(),
+            "page_views_this_week": TalentNetworkPageView.objects.filter(visited_date__gte=week_ago.date()).count(),
         })
 
 

@@ -48,6 +48,8 @@ export type TalentNetworkOverview = {
   top_roles: { role: string; count: number }[];
   top_communities: { community: string; count: number }[];
   email_subscribers: number;
+  total_page_views: number;
+  page_views_this_week: number;
 };
 
 export type TalentNetworkAnalytics = {

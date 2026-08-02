@@ -10,6 +10,7 @@ from .views import (
     TalentNetworkOverviewView,
     TalentNetworkSmtpConfigView,
     TalentNetworkSmtpVerifyView,
+    TalentNetworkTrackViewView,
     TrackClickView,
     TrackOpenView,
 )
@@ -18,6 +19,7 @@ urlpatterns = [
     # Public
     path("join/", TalentNetworkJoinView.as_view(), name="talent-network-join"),
     path("confirm/<uuid:token>/", TalentNetworkConfirmView.as_view(), name="talent-network-confirm"),
+    path("track-view/", TalentNetworkTrackViewView.as_view(), name="talent-network-track-view"),
     path("track/open/<int:notification_id>/", TrackOpenView.as_view(), name="talent-network-track-open"),
     path("track/click/<int:notification_id>/", TrackClickView.as_view(), name="talent-network-track-click"),
     # Admin
