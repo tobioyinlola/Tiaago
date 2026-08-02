@@ -11,7 +11,7 @@ const FeaturedPost = ({ post }: { post: BlogPostSummary }) => {
       href={`/blogs/${post.slug}`}
       className='group grid md:grid-cols-2 gap-8 items-center bg-white rounded-2xl border border-gray-200 shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden'
     >
-      <div className='relative w-full aspect-[16/10] md:aspect-square bg-gray-100'>
+      <div className='relative w-full aspect-[16/10] bg-gray-100'>
         {post.featured_image ? (
           <Image
             src={post.featured_image}

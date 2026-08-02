@@ -100,7 +100,13 @@ def notify_member_of_job(notification: JobMatchNotification) -> bool:
     job = notification.job
     company = job.company
 
-    tracking_base = f"{settings.FRONTEND_URL.rstrip('/')}/api/talent-network/track"
+    # BASE_URL is the Django backend's own public origin -- distinct from
+    # FRONTEND_URL (the Next.js app). TrackClickView/TrackOpenView are
+    # backend API routes (api/talent-network/track/...), so they must use
+    # this, not the frontend origin, or "Apply" 404s on the frontend
+    # (same fix as campaigns.send_renderer._backend_base_url).
+    backend_base = getattr(settings, "BASE_URL", None) or "http://localhost:8000"
+    tracking_base = f"{backend_base.rstrip('/')}/api/talent-network/track"
     subject = f"A new {job.role} opportunity matches your profile"
 
     context = _base_email_context({
