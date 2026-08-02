@@ -69,6 +69,9 @@ REST_FRAMEWORK_OVERRIDES = {
         # See prod_settings.py for why these are repeated here.
         "talent_network_join": "5/hour",
         "talent_network_confirm": "20/hour",
+        "job_apply": "20/hour",
+        "assessment_generation": "10/hour",
+        "question_bank_generation": "10/hour",
     },
 }
 

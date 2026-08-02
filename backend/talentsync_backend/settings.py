@@ -324,6 +324,13 @@ REST_FRAMEWORK = {
     "DEFAULT_THROTTLE_RATES": {
         "talent_network_join": "5/hour",
         "talent_network_confirm": "20/hour",
+        # Guest/candidate-facing apply endpoints and the AI-heavy assessment
+        # generation endpoints -- abuse-prone and otherwise unthrottled beyond
+        # whatever blanket anon/user rate prod/staging apply. See
+        # prod_settings.py/staging_settings.py for why these are repeated there.
+        "job_apply": "20/hour",
+        "assessment_generation": "10/hour",
+        "question_bank_generation": "10/hour",
     },
 }
 

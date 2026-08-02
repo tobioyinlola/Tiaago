@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 
 import { getPublicJob, trackJobView } from "@/app/common/services/jobs";
 import JobDetails from "@/app/common/components/dashboard/JobDetails";
+import JobClosedNotice from "./_components/JobClosedNotice";
 
 type Props = { params: Promise<{ job_id: string }> };
 
@@ -34,6 +35,8 @@ const JobDetailsPage = async ({ params }: { params: Promise<{ job_id: string }> 
   // here, not on the apply/complete pages, so one candidate's full journey
   // doesn't inflate the view count.
   await trackJobView(resolvedParams.job_id);
+  if (job.job_status !== "ACTIVE") return <JobClosedNotice />;
+
   return (
     <main className='p-5 pt-20'>
       <div className='px-4 md:px-6 py-[18px] rounded-t-xl bg-[#EBECEE] md:mx-16'>
@@ -47,7 +50,7 @@ const JobDetailsPage = async ({ params }: { params: Promise<{ job_id: string }> 
         <div className='mt-11 flex justify-end'>
           <Link
             href={job.get_apply_url || "#"}
-            className='btn btn-primary text-white min-w-[156px] rounded-lg min-h-11 h-11 font-inter'
+            className='btn btn-primary text-white min-w-[156px] rounded-full min-h-11 h-11 font-inter font-semibold'
           >
             Apply
           </Link>

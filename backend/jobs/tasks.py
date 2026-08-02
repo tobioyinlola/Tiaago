@@ -4,8 +4,11 @@ from datetime import timedelta
 from django.db import transaction
 from django.contrib.auth import get_user_model
 from celery import shared_task
+from celery.exceptions import Retry
 from emails import emails
+from jobs.constants import NON_TECHNICAL_ASSESSMENT_CATEGORIES, TECHNICAL_ASSESSMENT_CATEGORIES
 from jobs.models import (
+    AssessmentQuestionGenerationRequest,
     CandidateResumeScreening,
     Job,
     JobApplication,
@@ -276,6 +279,67 @@ def send_job_status_notification(job_id, new_status):
                 logger.exception("Failed to send deactivation email to %s", user.email)
 
     logger.info("Job status notification sent for job %s (%s) to %d recipients", job_id, new_status, len(recipient_users))
+
+
+def _billing_notification_recipients(company):
+    """Every company team member plus company_rep, deduped -- shared by the
+    wallet-exhaustion pause/resume notify tasks below."""
+    from create_user.models import CompanyTeamMember
+
+    members = CompanyTeamMember.objects.select_related("user").filter(company=company)
+    recipients = {m.user for m in members if m.user and m.user.email}
+    company_rep = getattr(company, "company_rep", None)
+    if company_rep and company_rep.email:
+        recipients.add(company_rep)
+    return list(recipients)
+
+
+@shared_task(name="notify_jobs_paused_for_billing")
+def notify_jobs_paused_for_billing(company_id, job_ids):
+    """Emails every recipient that their jobs were auto-paused because the
+    company's wallet ran out -- see
+    subscriptions.billing_service._pause_company_jobs_for_wallet_exhaustion."""
+    from create_user.models import Company
+
+    company = Company.objects.filter(id=company_id).first()
+    if not company:
+        logger.error("notify_jobs_paused_for_billing: company %s not found", company_id)
+        return
+
+    job_titles = [job.title for job in Job.objects.filter(id__in=job_ids)]
+    if not job_titles:
+        return
+
+    wallet_url = f"{str(settings.FRONTEND_URL).rstrip('/')}/recruiter/dashboard/billing"
+    for user in _billing_notification_recipients(company):
+        try:
+            emails.jobs_paused_for_billing_mail(user, job_titles, wallet_url)
+        except Exception:
+            logger.exception("Failed to send jobs-paused-for-billing email to %s", user.email)
+
+
+@shared_task(name="notify_jobs_reactivated_after_topup")
+def notify_jobs_reactivated_after_topup(company_id, job_ids):
+    """Emails every recipient that their auto-paused jobs are active again
+    after a wallet top-up -- see
+    subscriptions.billing_service._resume_company_jobs_after_wallet_topup."""
+    from create_user.models import Company
+
+    company = Company.objects.filter(id=company_id).first()
+    if not company:
+        logger.error("notify_jobs_reactivated_after_topup: company %s not found", company_id)
+        return
+
+    job_titles = [job.title for job in Job.objects.filter(id__in=job_ids)]
+    if not job_titles:
+        return
+
+    wallet_url = f"{str(settings.FRONTEND_URL).rstrip('/')}/recruiter/dashboard/billing"
+    for user in _billing_notification_recipients(company):
+        try:
+            emails.jobs_reactivated_after_topup_mail(user, job_titles, wallet_url)
+        except Exception:
+            logger.exception("Failed to send jobs-reactivated-after-topup email to %s", user.email)
 
 
 @shared_task
@@ -831,4 +895,61 @@ def carry_out_pending_resume_analyses():
                     flow_status.error_message = ""
                 flow_status.save()
 
-                
+
+@shared_task(bind=True, name="generate_job_assessment_questions_task", max_retries=2)
+def generate_job_assessment_questions_task(self, request_id, description, job_requirement, role_id):
+    """Runs the job-creation wizard's Step 3 AI question generation out of
+    band -- see jobs.views.GenerateAssessmentQuestionsView, which used to make
+    this call synchronously (up to the AI service's 240s ceiling) inside the
+    request/response cycle. Retries on transport failures the same way
+    skill_assessment.tasks.create_talent_coding_assessment_task_v2 does."""
+    request_row = AssessmentQuestionGenerationRequest.objects.filter(id=request_id).first()
+    if not request_row:
+        logger.warning("AssessmentQuestionGenerationRequest %s not found", request_id)
+        return
+
+    request_row.status = AssessmentQuestionGenerationRequest.GenerationStatus.GENERATING
+    request_row.save(update_fields=["status"])
+
+    job_description = "\n\n".join(part for part in [description, job_requirement] if part)
+
+    is_technical = True
+    if role_id:
+        if isinstance(role_id, int) or (isinstance(role_id, str) and str(role_id).strip().isdigit()):
+            role = Role.objects.filter(id=int(role_id)).first()
+        else:
+            role = Role.objects.filter(title__iexact=str(role_id).strip()).first()
+        if role:
+            is_technical = role.is_technical
+
+    categories = TECHNICAL_ASSESSMENT_CATEGORIES if is_technical else NON_TECHNICAL_ASSESSMENT_CATEGORIES
+
+    try:
+        sections = AIService.get_categorized_mcq_questions(
+            job_description=job_description,
+            categories=categories,
+            questions_per_category=10,
+            role_type="technical" if is_technical else "non-technical",
+        )
+    except Exception as e:
+        if self.request.retries < self.max_retries:
+            countdown = 30 * (self.request.retries + 1)
+            logger.warning(
+                "Assessment question generation failed for request %s -- retry %s in %ss: %s",
+                request_id, self.request.retries + 1, countdown, e,
+            )
+            raise self.retry(exc=e, countdown=countdown)
+        logger.exception("Assessment question generation failed after max retries for request %s", request_id)
+        sections = None
+
+    if not sections:
+        request_row.status = AssessmentQuestionGenerationRequest.GenerationStatus.FAILED
+        request_row.error = "Failed to generate assessment questions. Please try again."
+        request_row.save(update_fields=["status", "error"])
+        return {"status": "failed", "id": str(request_id)}
+
+    request_row.status = AssessmentQuestionGenerationRequest.GenerationStatus.READY
+    request_row.sections = sections
+    request_row.save(update_fields=["status", "sections"])
+    return {"status": "ready", "id": str(request_id)}
+

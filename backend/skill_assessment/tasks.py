@@ -21,6 +21,7 @@ from .models import (
     TechStack,
     TestCase
 )
+from celery.exceptions import Retry
 from django.db import IntegrityError, OperationalError, transaction
 from skill_assessment.models import GeneralSkillAssessment
 from utils.ai_service import AIService
@@ -434,16 +435,28 @@ def mark_skill_assessment_submission(self, skill_assessment_submission_id: int):
                 logger.exception("MCQ marking failed for section %s, submission %s", section.id, submission.id)
                 return {"status": "failed_to_mark", "id": submission.id, "error": f"MCQ: {e}"}
 
-            # Coding part
+            # Coding part -- grading calls the AI service (via mark_coding_task ->
+            # AIService.grade_coding_assessment), which after AIServiceHandler's own
+            # 3-attempt transport retry (ai_service.py) can still surface a
+            # transient failure here. Give it a bounded task-level retry, mirroring
+            # create_talent_coding_assessment_task_v2's manual-retry pattern, before
+            # giving up and marking the submission FAILED_TO_MARK.
             try:
                 if section.coding_tasks.exists():
                     code_pct, error = mark_coding_task(section, submission)
                     if error:
-                        submission.mark_status = CandidateAssessmentSubmission.MarkStatusChoices.FAILED_TO_MARK
-                        submission.save(update_fields=["mark_status"])
-                        return {"status": "failed_to_mark", "id": submission.id, "error": str(error)}
+                        raise RuntimeError(error)
                     code_section_scores.append(_to_score(code_pct))
+            except Retry:
+                raise
             except Exception as e:
+                if self.request.retries < self.max_retries:
+                    countdown = 30 * (self.request.retries + 1)
+                    logger.warning(
+                        "Coding grading failed for section %s, submission %s -- retry %s in %ss: %s",
+                        section.id, submission.id, self.request.retries + 1, countdown, e,
+                    )
+                    raise self.retry(exc=e, countdown=countdown)
                 submission.mark_status = CandidateAssessmentSubmission.MarkStatusChoices.FAILED_TO_MARK
                 submission.save(update_fields=["mark_status"])
                 logger.exception("Coding marking failed for section %s, submission %s", section.id, submission.id)
@@ -490,6 +503,8 @@ def mark_skill_assessment_submission(self, skill_assessment_submission_id: int):
 
         return _finalize_submission_score(submission, assessment, total_score, is_passed, pass_mark)
 
+    except Retry:
+        raise
     except Exception as e:
         try:
             submission.mark_status = CandidateAssessmentSubmission.MarkStatusChoices.FAILED_TO_MARK

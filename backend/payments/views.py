@@ -22,7 +22,8 @@ from rest_framework import status
 from contract.models import Contract
 from utils.paystack_handler import paystack_handler
 from utils.flutterwave_handler import flutterwave_handler
-from utils.email_handler import EmailHandler
+from utils.email_handler import EmailTypes
+from emails_app.tasks import send_basic_email_task
 from .utils import (
     generate_transaction_reference,
     calculate_fees,
@@ -670,22 +671,22 @@ class ChargeAndVerifyCard(generics.GenericAPIView):
                     )
                     if verification_response["data"]["status"] == "success":
                         # Notify recruiter and talent
-                        EmailHandler(
-                            [company_email, contract.talent.user.email]
-                        ).send_basic_email(
+                        send_basic_email_task.delay(
+                            [company_email, contract.talent.user.email],
                             "Payment Successful",
                             f"The payment of {salary:.2f} was successful and {tiaago_fees:.2f} was deducted as platform fees. Payment is pending approval. {net_amount:.2f} will be credited into talent's wallet once approved",
+                            email_type=EmailTypes.BILLING_NOTIFICATION,
                         )
                         return Response(
                             {"message": "Payment charged and verified successfully"},
                             status=status.HTTP_200_OK,
                         )
                     else:
-                        EmailHandler(
-                            [company_email, contract.talent.user.email]
-                        ).send_basic_email(
+                        send_basic_email_task.delay(
+                            [company_email, contract.talent.user.email],
                             "Payment Failed",
                             f"The payment attempt for {salary:.2f} failed. We will retry on the 25th.",
+                            email_type=EmailTypes.BILLING_NOTIFICATION,
                         )
                         return Response(
                             {"message": "Payment verification failed"},
@@ -724,13 +725,17 @@ class ChargeAndVerifyCard(generics.GenericAPIView):
                     wallet=talent_wallet,
                     amount=net_amount,
                 )
-                EmailHandler([contract.talent.user.email]).send_basic_email(
+                send_basic_email_task.delay(
+                    [contract.talent.user.email],
                     "Payment Successful",
                     f"The payment of {salary:.2f} was successful and {tiaago_fees:.2f} was deducted as platform fees. {net_amount:.2f} has been credited into your wallet",
+                    email_type=EmailTypes.BILLING_NOTIFICATION,
                 )
-                EmailHandler(company_email).send_basic_email(
+                send_basic_email_task.delay(
+                    company_email,
                     "Wallet DebitSuccessful",
                     f"The sum of {salary:.2f} for {contract.talent.user.first_name}'s salary was deducted from your wallet",
+                    email_type=EmailTypes.BILLING_NOTIFICATION,
                 )
                 return Response(
                     {"message": "Talent wallet funded successfully"},
@@ -826,9 +831,11 @@ class ApprovePaymentView(generics.GenericAPIView):
         )
 
         # Trigger notification to talent
-        EmailHandler(talent.user.email).send_basic_email(
+        send_basic_email_task.delay(
+            talent.user.email,
             "Payment Approved",
             f"Your payment of {amount} has been approved and is now available in your wallet.",
+            email_type=EmailTypes.BILLING_NOTIFICATION,
         )
         return Response(
             {"message": "Payment approved successfully."}, status=status.HTTP_200_OK
@@ -1489,13 +1496,15 @@ def handle_paid_invoice(invoice_data):
         billed_at=timezone.now(),
         external_id=invoice_data['id']
     )
-    EmailHandler(user.email).send_basic_email(
+    send_basic_email_task.delay(
+        user.email,
         subject="Payment received – thank you!",
         message=f"""
                 Your payment of ₦{invoice_data['amount_paid'] / 100} was successful.View your invoice: {invoice_data.get('invoice_pdf')}
                 Thanks for using Tiaago!
-                """
-            )
+                """,
+        email_type=EmailTypes.BILLING_NOTIFICATION,
+    )
 
 def handle_payment_failed(invoice_data):
     try:
@@ -1511,13 +1520,15 @@ def handle_payment_failed(invoice_data):
         invoice_pdf=invoice_data.get('invoice_pdf'),
         created_at=timezone.now()
     )
-    EmailHandler(user.email).send_basic_email(
+    send_basic_email_task.delay(
+        user.email,
         subject="Payment failed!",
         message=f"""
                 Your payment of ₦{invoice_data['amount_paid'] / 100} was successful.View your invoice:{invoice_data.get('invoice_pdf')}
                 Thanks for using Tiaago!
-                """
-            )
+                """,
+        email_type=EmailTypes.BILLING_NOTIFICATION,
+    )
 def handle_checkout_success(session):
     reference = session['id'] 
     coupon_code = session.get("metadata", {}).get("coupon_code") 

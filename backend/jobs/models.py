@@ -162,6 +162,13 @@ class Job(models.Model):
     job_status = models.CharField(
         max_length=10, choices=JobStatus.choices, default=JobStatus.ACTIVE, db_index=True
     )
+    # True if this job was auto-paused (job_status flipped to ON_HOLD) because
+    # the company's wallet ran out of funds to cover resume screening/assessment
+    # charges, as opposed to a recruiter manually putting it ON_HOLD. Lets the
+    # wallet-topup auto-resume hook (subscriptions.billing_service) only
+    # reactivate jobs it paused itself -- a manual hold must never auto-resume.
+    paused_for_billing = models.BooleanField(default=False)
+    billing_paused_at = models.DateTimeField(null=True, blank=True)
     date_created = models.DateTimeField(auto_now_add=True)
     last_updated = models.DateTimeField(auto_now=True)
     # Raw job-creation-wizard form state for an unpublished DRAFT job (every
@@ -310,6 +317,41 @@ class Job(models.Model):
             if not Job.objects.filter(public_id=code).exists():
                 return code
         raise RuntimeError("Could not generate a unique job public_id after 10 attempts.")
+
+
+class AssessmentQuestionGenerationRequest(TimeStampedModel):
+    """Tracks one async AI question-generation request from the job-creation
+    wizard's Step 3 (GenerateAssessmentQuestionsView).
+
+    Deliberately not tied to a Job -- the wizard's live-generation step runs
+    before any Job row necessarily exists (the recruiter may regenerate or
+    abandon the wizard before ever submitting), so this is its own
+    disposable tracking row rather than overloading Job or
+    JobAssessmentTemplate (which is only created once the job itself is
+    submitted, from the recruiter's final edited question set).
+    """
+
+    class GenerationStatus(models.TextChoices):
+        PENDING = "PENDING", _("Pending")
+        GENERATING = "GENERATING", _("Generating")
+        READY = "READY", _("Ready")
+        FAILED = "FAILED", _("Failed")
+
+    id = models.UUIDField(primary_key=True, editable=False, default=uuid4)
+    company = models.ForeignKey(
+        Company, on_delete=models.CASCADE, related_name="assessment_generation_requests"
+    )
+    requested_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True
+    )
+    status = models.CharField(
+        max_length=10, choices=GenerationStatus.choices, default=GenerationStatus.PENDING
+    )
+    sections = models.JSONField(null=True, blank=True)
+    error = models.TextField(blank=True, default="")
+
+    def __str__(self):
+        return f"Assessment generation request {self.id} ({self.status})"
 
 
 class JobAssessmentTemplate(TimeStampedModel):

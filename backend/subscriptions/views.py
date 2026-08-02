@@ -61,7 +61,7 @@ from .serializers import (
     SubscriptionTransactionSerializer,
 )
 from .helper import determine_plan_usage, determine_free_plan_usage, get_pricing_decimal, get_action_price, COUNTRY_CURRENCY_MAP
-from .billing_service import get_or_create_wallet
+from .billing_service import get_or_create_wallet, _resume_company_jobs_after_wallet_topup
 from emails import emails
 from utils.stripe_sub_handler import create_stripe_product_price, create_checkout_session, stripe_api_key, fund_wallet_stripe
 import stripe
@@ -1396,6 +1396,11 @@ def paystack_wallet_fund_webhook(request):
                 # credit wallet
                 txn = wallet.credit(amount=amount, reference=reference, description="Wallet funding via Paystack", currency="NGN", service_type=WalletTransaction.ServiceType.WALLET_TOPUP)
 
+                try:
+                    _resume_company_jobs_after_wallet_topup(company)
+                except Exception:
+                    logger.exception("Failed to auto-resume billing-paused jobs for company %s", company.id)
+
                 if topup:
                     topup.status = WalletTopup.Status.COMPLETED
                     topup.provider_status = event_type
@@ -1531,6 +1536,11 @@ def stripe_wallet_fund_webhook(request):
                 # credit wallet
                 txn = wallet.credit(amount=amount_total, reference=reference, description="Wallet funding via Stripe", currency="USD", service_type=WalletTransaction.ServiceType.WALLET_TOPUP)
                 logger.info(f"Wallet funded successfully via Stripe for company: {company.company_email}")
+
+                try:
+                    _resume_company_jobs_after_wallet_topup(company)
+                except Exception:
+                    logger.exception("Failed to auto-resume billing-paused jobs for company %s", company.id)
 
                 if topup:
                     topup.status = WalletTopup.Status.COMPLETED

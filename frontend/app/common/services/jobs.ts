@@ -10,6 +10,7 @@ import {
   Job,
   JobApplication,
   PagedResource,
+  PipelineStepStatus,
 } from "../types";
 import { InitialValues as JobFormPayload } from "@/app/recruiter/dashboard/jobs/create/CreateJobForm/form.constants";
 
@@ -168,33 +169,53 @@ export const deleteJobDraft = async () => {
   }
 };
 
-export const generateAssessmentQuestions = async (details: {
+/** Kicks off async assessment-question generation (job-creation wizard Step 3)
+ * and returns immediately with a request_id -- the AI call itself (up to ~4min
+ * across sequential categories for technical roles) now runs in a Celery task
+ * instead of blocking this request. Poll getAssessmentGenerationStatus with the
+ * returned request_id until status is READY/FAILED. */
+export const startAssessmentGeneration = async (details: {
   role: ID;
   description: string;
   job_requirement: string;
   job_level?: string;
-}): Promise<ApiResponse<{ sections: AssessmentQuestionSection[] }>> => {
+}): Promise<ApiResponse<{ request_id: string }>> => {
   try {
-    // A live LLM call generating questions across up to 4 sequential categories
-    // (technical roles add a "Coding" category) can take a while -- well beyond
-    // serverKyInstance's default 25s timeout.
     const data = await serverKyInstance
-      .post("jobs/generate-assessment-questions/", {
-        json: details,
-        timeout: 260000,
-      })
-      .json<{ sections: AssessmentQuestionSection[] }>();
+      .post("jobs/generate-assessment-questions/", { json: details })
+      .json<{ request_id: string }>();
     return {
       success: true,
       data,
     };
   } catch (error) {
     const errMsg = await handleServerApiCallError(error);
-    console.log("generateAssessmentQuestions Error: ", errMsg);
+    console.log("startAssessmentGeneration Error: ", errMsg);
     return {
       success: false,
       error: errMsg,
     };
+  }
+};
+
+export type AssessmentGenerationStatus = {
+  status: PipelineStepStatus;
+  sections: AssessmentQuestionSection[] | null;
+  error: string;
+};
+
+export const getAssessmentGenerationStatus = async (
+  requestId: string
+): Promise<ApiResponse<AssessmentGenerationStatus>> => {
+  try {
+    const data = await serverKyInstance
+      .get(`jobs/generate-assessment-questions/${requestId}/status/`)
+      .json<AssessmentGenerationStatus>();
+    return { success: true, data };
+  } catch (error) {
+    const errMsg = await handleServerApiCallError(error);
+    console.log("getAssessmentGenerationStatus Error: ", errMsg);
+    return { success: false, error: errMsg };
   }
 };
 

@@ -19,6 +19,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.permissions import AllowAny
 from rest_framework.exceptions import NotFound
+from rest_framework.throttling import ScopedRateThrottle
 from django.core.files.uploadhandler import TemporaryFileUploadHandler
 
 from base.mixins.pagination import PaginationHandlerMixin, TiaagoPagination
@@ -114,7 +115,7 @@ from subscriptions.permissions import (
 from utils.ai_service import AIService
 from utils.elevenlabs_handler import elevenlabs_handler
 from .services import queue_or_start_session, complete_session, activate_next_queued_session
-from jobs.models import JobApplication, Portfolio, Job
+from jobs.models import JobApplication, Portfolio, Job, Experience
 from emails import emails
 from payments.utils import initiate_stripe_payment,initiate_paystack_payment
 from loguru import logger
@@ -1014,6 +1015,8 @@ class QuestionBankQuestionsAPIView(APIView, PaginationHandlerMixin):
     """
 
     permission_classes = [IsCompanyRepUser]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "question_bank_generation"
 
     def post(self, request):
         # Company reps must be Admin or Recruiter to request question bank questions
@@ -2630,6 +2633,25 @@ class AIOperationsFeedback(APIView, PaginationHandlerMixin):
                 for s in a.sections.all()
             )
 
+        # Bulk-fetched (not per-row queried) current-company lookup, keyed by
+        # talent id -- prefers an ongoing role (end_date is null), else falls
+        # back to the most recently started one. Feeds "Add to Pipeline" (see
+        # AddToPipelineSerializer), which otherwise has no source for this
+        # field on a job applicant (unlike sourcing-search candidates, who
+        # already carry it from the enrichment provider).
+        applicant_ids = [job_apps.applicant_id for job_apps in job_applications]
+        experiences = Experience.objects.filter(
+            portfolio__talent_id__in=applicant_ids
+        ).select_related("portfolio").order_by("-start_date")
+        latest_company_map = {}
+        ongoing_company_map = {}
+        for exp in experiences:
+            talent_id = exp.portfolio.talent_id
+            latest_company_map.setdefault(talent_id, exp.company_name)
+            if exp.end_date is None:
+                ongoing_company_map.setdefault(talent_id, exp.company_name)
+        current_company_map = {**latest_company_map, **ongoing_company_map}
+
         feedback = []
         for job_apps in job_applications:
             resume = resume_map.get(job_apps.id)
@@ -2716,6 +2738,8 @@ class AIOperationsFeedback(APIView, PaginationHandlerMixin):
                 "proctoring_has_violation": bool(
                     proctoring_session and any(e.severity == "VIOLATION" for e in proctoring_session.events.all())
                 ),
+                "country": job_apps.applicant.country or "",
+                "current_company": current_company_map.get(job_apps.applicant_id, ""),
             })
 
         #return leaderbord in descending order

@@ -7,6 +7,7 @@ from typing import Literal, List, Optional, TypedDict
 import requests as requester
 from django.db import models
 from loguru import logger
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 DifficultyLevels = Literal["beginner", "intermediate", "senior"]
 
@@ -119,6 +120,35 @@ def _(path):
     return BASE_URL + path
 
 
+# Applied to every AI-service call that doesn't pass its own timeout (e.g.
+# get_categorized_mcq_questions's 240s override still wins). Without this,
+# requests has no default and a hung AI service can block a request/Celery
+# task forever.
+DEFAULT_AI_TIMEOUT = 30
+
+# Only transport-level failures (connection refused/reset, read timeout) are
+# retried -- a parsed HTTP error response from the AI service (4xx/5xx) is
+# not transient and is left to the caller's existing except-Exception
+# fallback instead of being retried here.
+_TRANSIENT_AI_ERRORS = (requests.exceptions.Timeout, requests.exceptions.ConnectionError)
+
+
+def _rewind_files_kwarg(retry_state):
+    """Callers like analyze_resume() pass an open file handle via files=.
+    A read-timeout happens *after* the file has already been fully sent, so
+    without this a retry would upload an empty file instead of the resume."""
+    files = retry_state.kwargs.get("files")
+    if not files:
+        return
+    for value in files.values():
+        f = value[1] if isinstance(value, tuple) else value
+        if hasattr(f, "seek"):
+            try:
+                f.seek(0)
+            except (OSError, ValueError):
+                pass
+
+
 class AIServiceHandler:
     """AI Service Handler. Logs every request and reesponse to logs/ai.log"""
 
@@ -135,7 +165,15 @@ class AIServiceHandler:
     def get(self, url: str):
         return self.requests.get(_(url))
 
+    @retry(
+        retry=retry_if_exception_type(_TRANSIENT_AI_ERRORS),
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=1, max=8),
+        before=_rewind_files_kwarg,
+        reraise=True,
+    )
     def post(self, url, payload: dict | None=None, **kwargs):
+        kwargs.setdefault("timeout", DEFAULT_AI_TIMEOUT)
         return self.requests.post(_(url), data=payload, **kwargs)
 
     def clean_option(self, option):
@@ -400,8 +438,11 @@ class AIServiceHandler:
                 files = {
                     "resume_file": (resume_name, f)
                 }
+                # Runs inside a Celery task (never inline in an HTTP request),
+                # so it can afford more headroom than DEFAULT_AI_TIMEOUT --
+                # resume parsing + AI analysis is slower than a plain MCQ call.
                 ai_service_response = self.post(
-                    "/analyze-resume", files=files, params=params
+                    "/analyze-resume", files=files, params=params, timeout=60
                 )
                 response = ai_service_response
         finally:
