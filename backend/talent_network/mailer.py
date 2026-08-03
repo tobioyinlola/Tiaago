@@ -1,15 +1,17 @@
-"""Sends Talent Network emails. Job-match notifications prefer the job's own
-company's connected Gmail (sourcing.models.GmailSmtpConfig -- the same
-"Email Integration" recruiters already use to message pipeline candidates)
-so the notification reads as a direct, personal invite from that company.
-Everything else (the double opt-in welcome/confirmation email, and the
-job-match fallback when a company hasn't connected its own Gmail) sends
-through the platform-wide TalentNetworkSmtpConfig (Admin > Settings > Email
-Integration), falling back further to the platform's existing Resend-based
-sender (utils.email_handler) only if that hasn't been configured either --
-so the feature keeps working out of the box before an admin sets up SMTP.
-Every path is logged to the existing management.models.EmailTrack table for
-platform-wide visibility.
+"""Sends Talent Network emails. Every Talent Network email -- job-match
+notifications and the double opt-in welcome/confirmation email alike --
+sends through the platform-wide TalentNetworkSmtpConfig (Admin > Settings >
+Email Integration), i.e. the single Google account an admin has connected
+for the Talent Network specifically. It deliberately never uses a
+recruiter's own connected Gmail (sourcing.models.GmailSmtpConfig, the
+"Email Integration" recruiters use to message pipeline candidates) -- the
+Talent Network is a platform-wide list the member opted into, not any one
+company's, so it must always come from the platform's own address, not a
+recruiter's personal inbox. Falls back further to the platform's existing
+Resend-based sender (utils.email_handler) only if TalentNetworkSmtpConfig
+hasn't been configured either -- so the feature keeps working out of the
+box before an admin sets up SMTP. Every path is logged to the existing
+management.models.EmailTrack table for platform-wide visibility.
 """
 
 import logging
@@ -119,35 +121,17 @@ def notify_member_of_job(notification: JobMatchNotification) -> bool:
         "unsubscribe_url": f"{settings.FRONTEND_URL.rstrip('/')}/unsubscribe?token={member.unsubscribe_token}",
     })
 
-    html_body = render_to_string("emails/talent_network_job_match.html", context)
-
-    smtp_config = getattr(company, "smtp_config", None) if company else None
-    if smtp_config is not None and smtp_config.is_verified:
-        success, error = send_gmail_email(
-            smtp_config=smtp_config,
-            from_name=company.company_name or "Tiaago",
-            to_email=member.email,
-            subject=subject,
-            html_body=html_body,
-        )
-        notification.send_channel = JobMatchNotification.SendChannel.COMPANY_GMAIL
-    else:
-        # The company hasn't connected its own Gmail -- fall back to the
-        # platform-wide TalentNetworkSmtpConfig (Admin > Settings), and
-        # further to EmailHandler/Resend if that isn't configured either.
-        success, error = _send_via_platform_smtp_or_fallback(
-            to_email=member.email,
-            subject=subject,
-            template="emails/talent_network_job_match.html",
-            context=context,
-            email_type=EMAIL_TYPE_JOB_MATCH,
-        )
-        notification.send_channel = JobMatchNotification.SendChannel.PLATFORM_DEFAULT
-
-    if smtp_config is not None and smtp_config.is_verified:
-        # Only the direct-SMTP path needs a manual EmailTrack row --
-        # EmailHandler.send_mail already logs one internally.
-        _log_email_track(member.email, EMAIL_TYPE_JOB_MATCH, success)
+    # Always the platform's admin-linked Google account (TalentNetworkSmtpConfig),
+    # never the recruiter/company's own Gmail -- see module docstring. A
+    # company's connected Gmail is intentionally not consulted here.
+    success, error = _send_via_platform_smtp_or_fallback(
+        to_email=member.email,
+        subject=subject,
+        template="emails/talent_network_job_match.html",
+        context=context,
+        email_type=EMAIL_TYPE_JOB_MATCH,
+    )
+    notification.send_channel = JobMatchNotification.SendChannel.PLATFORM_DEFAULT
 
     if success:
         notification.status = JobMatchNotification.Status.SENT

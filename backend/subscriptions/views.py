@@ -963,14 +963,23 @@ def handle_webhook_event(request):
     # ----------------------------------------
     try:
         if event_type == 'charge.success':
-            subscription_auth = data["metadata"]["type"]
-            
-            if subscription_auth != "subscription_auth":
-                log_entry.notes = f"Ignored charge.success event for non-subscription"
+            charge_type = data["metadata"]["type"]
+
+            if charge_type == "wallet_funding":
+                # Paystack only supports one configured webhook URL per
+                # integration, and this app exposes two (this one and
+                # paystack-wallet-fund-webhook/ below). Whichever URL isn't
+                # the one actually registered with Paystack would otherwise
+                # silently drop wallet-funding charge.success events here,
+                # so both endpoints delegate to the same crediting logic.
+                return _credit_wallet_from_paystack_charge(data, log_entry, event_type)
+
+            if charge_type != "subscription_auth":
+                log_entry.notes = f"Ignored charge.success event for unrecognized type: {charge_type}"
                 log_entry.processed = True
                 log_entry.save()
                 return JsonResponse({'status': 'ignored'}, status=200)
-            
+
             customer_email = data['customer']['email']
             customer_code = data['customer']['customer_code']
             plan_code = data['plan']['plan_code']
@@ -1319,6 +1328,74 @@ def stripe_webhook(request):
 
     return JsonResponse({'status': 'success'}, status=200)
 
+def _credit_wallet_from_paystack_charge(data, log_entry, event_type):
+    """Credits a company's wallet from a Paystack charge.success event.
+    Shared by handle_webhook_event and paystack_wallet_fund_webhook so
+    wallet top-ups are credited regardless of which of the two URLs is
+    actually registered as the webhook endpoint in Paystack's dashboard --
+    see the comment where this is called from handle_webhook_event."""
+    try:
+        reference = data['reference']
+        amount = Decimal(str(data['amount'])) / Decimal('100')
+        customer_email = data['customer']['email']
+
+        company = Company.objects.filter(company_email=customer_email).first()
+
+        if not company:
+            logger.error(f"Company not found for wallet funding with reference: {reference}")
+            return JsonResponse({'error': 'Company not found'}, status=400)
+
+        wallet = get_or_create_wallet(company)
+
+        # Idempotency: Paystack retries webhooks — never credit the
+        # same reference twice. Checked against both the topup
+        # record (provider_payment_id) and the transaction
+        # reference, since older topups pre-date WalletTopup.
+        topup = WalletTopup.objects.filter(provider_payment_id=reference).first()
+        already_credited = (topup and topup.status == WalletTopup.Status.COMPLETED) or (
+            WalletTransaction.objects.filter(
+                wallet=wallet, transaction_type="credit", reference=reference
+            ).exists()
+        )
+        if already_credited:
+            log_entry.processed = True
+            log_entry.notes = f"Duplicate webhook ignored for reference: {reference}"
+            log_entry.save()
+            return JsonResponse({'status': 'already processed'}, status=200)
+
+        # credit wallet
+        txn = wallet.credit(amount=amount, reference=reference, description="Wallet funding via Paystack", currency="NGN", service_type=WalletTransaction.ServiceType.WALLET_TOPUP)
+
+        try:
+            _resume_company_jobs_after_wallet_topup(company)
+        except Exception:
+            logger.exception("Failed to auto-resume billing-paused jobs for company %s", company.id)
+
+        if topup:
+            topup.status = WalletTopup.Status.COMPLETED
+            topup.provider_status = event_type
+            topup.completed_at = timezone.now()
+            topup.save(update_fields=["status", "provider_status", "completed_at"])
+
+        try:
+            emails.wallet_topup_confirmed_mail(
+                company.company_rep, amount, txn.balance_after, "NGN", _wallet_url()
+            )
+        except Exception:
+            logger.exception("Failed to send wallet-topup-confirmed email for company %s", company.id)
+
+        from tags.tasks import evaluate_company_tags
+        evaluate_company_tags.delay(company.id)
+
+        log_entry.processed = True
+        log_entry.notes = "Wallet funded successfully."
+        log_entry.save()
+        return JsonResponse({'status': 'wallet funded successfully'}, status=200)
+    except Exception as e:
+        logger.error(f"Error processing wallet funding webhook: {e}")
+        return JsonResponse({'error': 'Error processing event'}, status=500)
+
+
 # paystack wallet funding webhook
 @csrf_exempt
 @api_view(['POST'])
@@ -1356,78 +1433,16 @@ def paystack_wallet_fund_webhook(request):
     # ----------------------------------------
     
     if event_type == 'charge.success':
-        try:
-            reference = data['reference']
-            wallet_funding = data["metadata"]["type"]
-            # print the event
-            # print(json.dumps(event, indent=2))
-            
-            if wallet_funding != 'wallet_funding':
-                log_entry.notes = f"Ignored charge.success event for non-wallet funding: {reference}"
-                log_entry.processed = True
-                log_entry.save()
-                return JsonResponse({'status': 'ignored'}, status=200)
-            
-            amount = Decimal(str(data['amount'])) / Decimal('100')
-            customer_email = data['customer']['email']
-            
-            # get company
-            company = Company.objects.filter(company_email=customer_email).first()
-            
-            if company:
-                wallet = get_or_create_wallet(company)
+        reference = data.get('reference')
+        wallet_funding = data.get("metadata", {}).get("type")
 
-                # Idempotency: Paystack retries webhooks — never credit the
-                # same reference twice. Checked against both the topup
-                # record (provider_payment_id) and the transaction
-                # reference, since older topups pre-date WalletTopup.
-                topup = WalletTopup.objects.filter(provider_payment_id=reference).first()
-                already_credited = (topup and topup.status == WalletTopup.Status.COMPLETED) or (
-                    WalletTransaction.objects.filter(
-                        wallet=wallet, transaction_type="credit", reference=reference
-                    ).exists()
-                )
-                if already_credited:
-                    log_entry.processed = True
-                    log_entry.notes = f"Duplicate webhook ignored for reference: {reference}"
-                    log_entry.save()
-                    return JsonResponse({'status': 'already processed'}, status=200)
+        if wallet_funding != 'wallet_funding':
+            log_entry.notes = f"Ignored charge.success event for non-wallet funding: {reference}"
+            log_entry.processed = True
+            log_entry.save()
+            return JsonResponse({'status': 'ignored'}, status=200)
 
-                # credit wallet
-                txn = wallet.credit(amount=amount, reference=reference, description="Wallet funding via Paystack", currency="NGN", service_type=WalletTransaction.ServiceType.WALLET_TOPUP)
-
-                try:
-                    _resume_company_jobs_after_wallet_topup(company)
-                except Exception:
-                    logger.exception("Failed to auto-resume billing-paused jobs for company %s", company.id)
-
-                if topup:
-                    topup.status = WalletTopup.Status.COMPLETED
-                    topup.provider_status = event_type
-                    topup.completed_at = timezone.now()
-                    topup.save(update_fields=["status", "provider_status", "completed_at"])
-
-                try:
-                    emails.wallet_topup_confirmed_mail(
-                        company.company_rep, amount, txn.balance_after, "NGN", _wallet_url()
-                    )
-                except Exception:
-                    logger.exception("Failed to send wallet-topup-confirmed email for company %s", company.id)
-
-                from tags.tasks import evaluate_company_tags
-                evaluate_company_tags.delay(company.id)
-
-                # log entry
-                log_entry.processed = True
-                log_entry.notes = "Wallet funded successfully."
-                log_entry.save()
-                return JsonResponse({'status': 'wallet funded successfully'}, status=200)
-            else:
-                logger.error(f"Company not found for wallet funding with reference: {reference}")
-                return JsonResponse({'error': 'Company not found'}, status=400)
-        except Exception as e:
-            logger.error(f"Error processing wallet funding webhook: {e}")
-            return JsonResponse({'error': 'Error processing event'}, status=500)
+        return _credit_wallet_from_paystack_charge(data, log_entry, event_type)
     elif event_type == 'charge.failed':
         try:
             reference = data['reference']

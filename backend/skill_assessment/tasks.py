@@ -1,4 +1,4 @@
-from datetime import timezone
+from datetime import timedelta, timezone
 import json
 import uuid
 from celery import shared_task
@@ -252,9 +252,15 @@ def _finalize_submission_score(submission, assessment, total_score, is_passed, p
             flow_status.error_message = ""
             flow_status.save(update_fields=["status", "error_message"])
 
-    # Completion notification -- candidate confirmation + recruiter notice.
-    # Fires exactly once (guarded by completion_email_sent, set before
-    # sending so a task retry never double-sends).
+    # Completion notification -- candidate confirmation + scored result +
+    # recruiter notice. Fires exactly once (guarded by completion_email_sent,
+    # set before sending so a task retry never double-sends). The scored
+    # pass/fail email used to be sent from a post_save signal on
+    # CandidateAssessmentSubmission (skill_assessment/signals.py) with no
+    # dedup guard of its own -- every save() of a MARKED+completed submission
+    # (there are at least two, right here: this block's own save calls) fired
+    # it again, sending the candidate 2-3 duplicate score emails. Moved here,
+    # inside the one guarded completion block, so it only ever fires once.
     if not submission.completion_email_sent:
         if assessment.job_application_id:
             # Job-application-backed flow: candidate always has a real
@@ -264,20 +270,66 @@ def _finalize_submission_score(submission, assessment, total_score, is_passed, p
             submission.save(update_fields=["completion_email_sent"])
 
             job = assessment.job_application.job
+            candidate = submission.candidate
+            candidate_name = (
+                submission.candidate_display_name
+                or candidate.full_name
+                or candidate.user.get_full_name()
+                or candidate.user.username
+            )
+
             try:
-                emails.assessment_submitted_mail(submission.candidate.user, job)
+                emails.assessment_submitted_mail(candidate.user, job)
             except Exception:
                 logger.exception("assessment_submitted_mail failed for submission %s", submission.id)
 
+            # Scored pass/fail email -- only if the recruiter has opted to
+            # show results to the candidate at all (same flag the results
+            # page/serializer already honors, see
+            # skill_assessment.serializers:924).
+            if getattr(assessment, "show_results_to_candidate", True):
+                is_tiaago = getattr(assessment, "is_tiaago_skill_assessment", False)
+                job_title = getattr(job, "title", None) or assessment.title
+                company_name = getattr(job.company, "company_name", None) if job and job.company_id else None
+                try:
+                    if is_passed:
+                        emails.send_assessment_pass_via_handler(
+                            to_email=candidate.user.email,
+                            talent_name=candidate_name,
+                            total_score=total_score,
+                            assessment=assessment,
+                            submission=submission,
+                            job_title=job_title,
+                            company_name=company_name,
+                            is_tiaago=is_tiaago,
+                        )
+                    else:
+                        from .models import AssessmentCooldown
+
+                        AssessmentCooldown.objects.update_or_create(
+                            talent=candidate,
+                            skill_assessment=assessment,
+                            defaults={
+                                "cooldown_ends_at": tz_now() + timedelta(days=14),
+                                "failed_at": tz_now(),
+                            },
+                        )
+                        retake_link = f"{str(FRONTEND_URL).rstrip('/')}/assessments/retake/{assessment.id}"
+                        emails.send_assessment_failure_via_handler(
+                            to_email=candidate.user.email,
+                            talent_name=candidate_name,
+                            total_score=total_score,
+                            retake_days=14,
+                            retake_link=retake_link,
+                            job_title=job_title,
+                            company_name=company_name,
+                            is_tiaago=is_tiaago,
+                        )
+                except Exception:
+                    logger.exception("Scored result email failed for submission %s", submission.id)
+
             company_rep = getattr(job.company, "company_rep", None) if job and job.company_id else None
             if company_rep and company_rep.email:
-                candidate = submission.candidate
-                candidate_name = (
-                    submission.candidate_display_name
-                    or candidate.full_name
-                    or candidate.user.get_full_name()
-                    or candidate.user.username
-                )
                 results_url = f"{str(FRONTEND_URL).rstrip('/')}/recruiter/dashboard/jobs/jobs-posted/{job.public_id}/applications"
                 try:
                     emails.assessment_completed_recruiter_notice_mail(
