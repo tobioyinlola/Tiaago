@@ -627,7 +627,7 @@ const UserBilling = ({
                   <div>
                     <div className='flex items-center justify-between mb-3'>
                       <div className='flex items-center gap-2'>
-                        <div className='w-3 h-3 rounded-full bg-gradient-to-br from-primary/80 to-primary shadow-sm'></div>
+                        <div className='w-3 h-3 rounded-full bg-gradient-to-br from-primary to-primary-dark shadow-sm'></div>
                         <span className='text-sm font-medium text-gray-700'>
                           Resume Screenings
                         </span>
@@ -638,7 +638,7 @@ const UserBilling = ({
                     </div>
                     <div className='bg-gray-100 rounded-full h-2.5 overflow-hidden'>
                       <div
-                        className='bg-gradient-to-r from-primary/80 to-primary h-2.5 rounded-full transition-all duration-1000 ease-out shadow-sm'
+                        className='bg-gradient-to-r from-primary to-primary-dark h-2.5 rounded-full transition-all duration-1000 ease-out shadow-sm'
                         style={{ width: `${screeningsPercentage}%` }}
                       ></div>
                     </div>

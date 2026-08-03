@@ -38,7 +38,7 @@ const TicketSubmitForm = () => {
 
   if (submittedTicket) {
     return (
-      <div className="max-w-xl rounded-lg border border-[#EAECEE] bg-white p-8 text-center">
+      <div className="max-w-xl p-8 text-center">
         <div className="mx-auto w-14 h-14 rounded-full bg-success/10 flex items-center justify-center mb-5">
           <CheckCircle2 className="h-7 w-7 text-success" />
         </div>

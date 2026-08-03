@@ -11,11 +11,7 @@ Here are some areas to focus on:
   - {{ area }}
 {% endfor %}
 {% endif %}
-Do not let this stop you. There are other opportunities that may be a better
-fit for your skills.
-
-Browse open roles:
-{{ jobs_url|default:"https://app.tiaago.com/jobs" }}
+Do not let this stop you. We wish you the best in your search.
 
 --
 Tiaago - AI-powered end-to-end hiring platform for modern teams.

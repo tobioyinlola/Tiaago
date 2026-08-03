@@ -281,21 +281,23 @@ class FreePlan(models.Model):
         return f"Free Plan for {self.company.company_name}"
     
     def check_and_update_cycle(self):
-        """Check if the free plan cycle has ended and update status accordingly."""
+        """Starts the plan's one-time cycle on first check, then expires it
+        for good once that cycle ends. Deliberately does NOT renew month
+        over month -- the free plan is a one-time grant (or, after a paid
+        subscription lapses, a one-time grace period), not a recurring
+        monthly allowance. See helper.has_active_subscription_capacity for
+        why real billing no longer keys off this model at all; this only
+        governs the legacy resume_limit/assessment_limit display."""
         now = timezone.now()
-        
-        if self.end_at is None or now > self.end_at:
-            usage = getattr(self.company, 'usage', None)
-            if usage:
-                usage.resumes_used = 0
-                usage.assessments_used = 0
-                usage.last_reset = now
-                usage.save(update_fields=['resumes_used', 'assessments_used', 'last_reset'])
-            
-            # Renew plan for another month
+
+        if self.end_at is None:
+            # First check: start the one cycle this plan ever gets.
             self.end_at = now + relativedelta(months=1)
             self.status = "active"
             self.save(update_fields=['end_at', 'status'])
+        elif now > self.end_at and self.status != "expired":
+            self.status = "expired"
+            self.save(update_fields=['status'])
     
 
 # Model to track user usage
