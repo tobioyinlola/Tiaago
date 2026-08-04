@@ -309,7 +309,7 @@ class Command(BaseCommand):
                         company_skill_assessment=skill_assessment,
                         type=SkillAssessmentTypes.MCQ,
                     )
-                    mcq_section.mcq_questions.set(mcq_questions)
+                    mcq_section.mcq_questions_new.set(mcq_questions)
 
                     # Set skillsets
                     skillsets = Role.objects.filter(title__icontains=skillsets_name)

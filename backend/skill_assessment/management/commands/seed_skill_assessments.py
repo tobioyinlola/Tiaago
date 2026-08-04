@@ -97,7 +97,7 @@ class Command(BaseCommand):
             company_skill_assessment=assessment,
             type="MCQ",
         )
-        section.mcq_questions.add(question)
+        section.mcq_questions_new.add(question)
 
         for i in range(1, 8):
             email = f"talent{i}@test.com"

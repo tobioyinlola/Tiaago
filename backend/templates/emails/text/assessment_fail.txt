@@ -8,12 +8,6 @@ assessment. Unfortunately, you did not reach the passing threshold this time.
   Assessment score: {{ score|default:"58%" }}
   Status: Did not pass
 
-You can retake this assessment in {{ retake_days|default:"7" }} days. Use the
-time to strengthen your skills and come back stronger.
-
-View results:
-{{ retake_url|default:"https://app.tiaago.com/assessments" }}
-
 Questions about your results? Reach us at support@tiaago.com.
 
 --
