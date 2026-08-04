@@ -43,6 +43,11 @@ class EmailTypes:
     WALLET_TOPUP_FAILED = "Wallet Topup Failed"
     JOBS_PAUSED_FOR_BILLING = "Jobs Paused For Billing"
     JOBS_REACTIVATED_AFTER_TOPUP = "Jobs Reactivated After Topup"
+    AI_INTERVIEW_INVITE_MAIL = "AI Interview Invite Mail"
+    AI_INTERVIEW_COMPLETE_RECRUITER_MAIL = "AI Interview Complete Recruiter Mail"
+    AI_INTERVIEW_CANDIDATE_FEEDBACK_MAIL = "AI Interview Candidate Feedback Mail"
+    AI_INTERVIEW_REMINDER_MAIL = "AI Interview Reminder Mail"
+    AI_INTERVIEW_NO_SHOW_FOLLOWUP_MAIL = "AI Interview No Show Followup Mail"
 
 MAILGUN_DOMAIN = os.getenv("MAILGUN_DOMAIN")  # e.g. "mg.yourdomain.com"
 MAILGUN_API_KEY = os.getenv("MAILGUN_API_KEY")

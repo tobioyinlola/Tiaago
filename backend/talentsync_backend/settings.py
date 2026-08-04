@@ -80,6 +80,7 @@ INSTALLED_APPS = [
     "staff.apps.StaffConfig",
     "ats_integrations.apps.AtsIntegrationsConfig",
     "talent_network.apps.TalentNetworkConfig",
+    "ai_interviews.apps.AiInterviewsConfig",
     # 3rd party apps
     "allauth",
     "allauth.account",
@@ -407,6 +408,18 @@ DAILY_API_TOKEN = env("DAILY_API_TOKEN", default="")
 ELEVENLABS_API_KEY = env("ELEVENLABS_API_KEY", default="")
 OPENAI_API_KEY = env('OPENAI_API_KEY', default="")
 DEEPGRAM_API_KEY = env('DEEPGRAM_API_KEY', default="")
+
+# LiveKit -- used by ai_interviews.views to create rooms and mint candidate
+# access tokens for the AI interview feature (Python livekit-api SDK, not
+# the Node livekit-server-sdk).
+LIVEKIT_URL = env("LIVEKIT_URL", default="")
+LIVEKIT_API_KEY = env("LIVEKIT_API_KEY", default="")
+LIVEKIT_API_SECRET = env("LIVEKIT_API_SECRET", default="")
+
+# Shared secret the standalone interview_agent/ LiveKit process authenticates
+# with when calling Django's internal ai_interviews endpoints (agent-data,
+# segment, status, complete) -- see ai_interviews.permissions.HasInternalServiceKey.
+INTERNAL_API_KEY = env("INTERNAL_API_KEY", default="")
 
 # Server-side only -- used by ats_integrations.nango_client to call Nango's
 # REST API (create connect sessions, proxy ATS requests, delete connections

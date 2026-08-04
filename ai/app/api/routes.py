@@ -6,6 +6,8 @@ from app.services.resume_analyzer import analyze_resume
 from app.services.interview_prep_service import generate_interview_preparation
 from app.services.interview_live_service import transcribe_audio_chunk, generate_copilot_suggestion
 from app.services.interview_summary_service import generate_interview_summary, generate_candidate_feedback
+from app.services.interview_questions_service import generate_interview_questions
+from app.services.interview_scoring_service import score_interview
 from app.models.interview_prep import InterviewPreparationRequest, InterviewPreparationResult
 from app.models.interview_live import (
     CopilotSuggestionRequest,
@@ -18,6 +20,8 @@ from app.models.interview_summary import (
     InterviewSummaryRequest,
     InterviewSummaryResult,
 )
+from app.models.interview_questions import InterviewQuestionsRequest, InterviewQuestionsResult
+from app.models.interview_scoring import InterviewScoringRequest, InterviewScoringResult
 from app.models.assessment import (
     AssessmentResult, Question, CodingAnswer, MCQAnswer, GradingResult,
     CultureFitQuestion, CultureFitAssessment, AssessmentSubmission,
@@ -869,6 +873,44 @@ async def generate_candidate_feedback_endpoint(request: CandidateFeedbackRequest
     except Exception as e:
         logger.error(f"Error generating candidate feedback: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error generating candidate feedback: {str(e)}")
+
+
+@router.post("/generate-interview-questions", response_model=InterviewQuestionsResult, tags=["AI Interview"])
+async def generate_interview_questions_endpoint(request: InterviewQuestionsRequest):
+    """Generates the structured question set for one AI voice interview
+    (opener/motivation/experience/situational/challenge/closing, per
+    questions_count). Stateless, no DB access -- Django persists the result
+    onto AIInterviewQuestion rows."""
+    try:
+        result = generate_interview_questions(request)
+        return result
+    except ValueError as e:
+        logger.error(f"Interview question generation config/parse error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e:
+        import traceback
+        logger.error(f"Error generating interview questions: {str(e)}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Error generating interview questions: {str(e)}")
+
+
+@router.post("/score-ai-interview", response_model=InterviewScoringResult, tags=["AI Interview"])
+async def score_ai_interview_endpoint(request: InterviewScoringRequest):
+    """Scores a completed AI interview transcript: per-question scores,
+    category scores, hiring recommendation + flags, and a draft candidate
+    feedback message. Stateless, no DB access -- Django persists the result
+    onto AIInterview/AIInterviewQuestion rows."""
+    try:
+        result = score_interview(request)
+        return result
+    except ValueError as e:
+        logger.error(f"AI interview scoring config/parse error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e:
+        import traceback
+        logger.error(f"Error scoring AI interview: {str(e)}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Error scoring AI interview: {str(e)}")
 
 
 @router.get("/test-resume-analysis-serialization", response_model=ResumeAnalysis, tags=["System"])

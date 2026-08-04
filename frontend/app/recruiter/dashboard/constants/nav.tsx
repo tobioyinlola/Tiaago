@@ -5,7 +5,7 @@ import { IoSearch, IoSettingsOutline, IoHelpCircleOutline, IoLinkOutline } from 
 import { DashboardNavItemV3 } from "@/app/common/types";
 import MoneyBagIcon from "@/app/common/icons/MoneyBagIcon";
 import { IS_CHAT_HIDDEN } from "@/app/common/constants";
-import { LuFolderKanban } from "react-icons/lu";
+import { LuFolderKanban, LuBot } from "react-icons/lu";
 
 const baseHref = "/recruiter/dashboard";
 
@@ -122,6 +122,11 @@ export const recruiterNavItems: DashboardNavItemV3[] = [
         />
       </svg>
     ),
+  },
+  {
+    name: "ai-interviews",
+    href: `${baseHref}/ai-interviews`,
+    Icon: LuBot,
   },
   // {
   //   name: "Question Bank",

@@ -80,6 +80,17 @@ services:
     restart: unless-stopped
     logging: *logtail-logging
 
+  interview-agent:
+    build:
+      context: ./interview_agent
+      dockerfile: Dockerfile
+    env_file: ./interview_agent/.env
+    depends_on:
+      - web
+      - vector
+    restart: unless-stopped
+    logging: *logtail-logging
+
   vector:
     image: timberio/vector:0.41.1-alpine
     volumes:

@@ -6,6 +6,7 @@ on:
     paths:
       - 'backend/**'
       - 'ai/**'
+      - 'interview_agent/**'
       - 'docker-compose.yml'
       - 'nginx/**'
 
