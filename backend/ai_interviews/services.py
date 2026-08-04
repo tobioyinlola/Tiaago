@@ -14,22 +14,32 @@ logger = logging.getLogger(__name__)
 def provision_ai_interview(job, job_application):
     """Creates the AIInterview row for a candidate on a job with
     ai_interview_enabled=True, then hands off to Celery for question
-    generation + the invitation email. Returns the created AIInterview (or
-    the existing one, if this job_application was already provisioned --
-    e.g. a retried Celery task re-marking the same submission, or a
-    recruiter re-triggering a manual test send).
+    generation + the invitation email. Returns the existing AIInterview
+    instead of creating a new one only while that interview is still
+    "in flight" (invited/scheduled/waiting/in-progress, and not past its
+    window) -- once it reaches any terminal state (completed, no-show,
+    abandoned, failed) or its window has expired, a fresh row (new token,
+    new window) is created instead of silently handing back a dead link.
 
     Called from two places: automatically when a candidate passes their
     assessment (skill_assessment.tasks._finalize_submission_score), and
-    manually by a recruiter testing the feature (views.TriggerAIInterviewView)."""
+    manually by a recruiter testing the feature (views.TriggerAIInterviewView,
+    where a recruiter re-clicking "generate join link" after a prior test
+    run finished should always get a fresh, usable interview)."""
     from .models import AIInterview
     from .tasks import generate_questions_and_invite_task
 
     candidate = job_application.applicant
     organisation = job.company
 
+    in_flight_statuses = (
+        AIInterview.Status.INVITED, AIInterview.Status.SCHEDULED,
+        AIInterview.Status.WAITING, AIInterview.Status.IN_PROGRESS,
+    )
     existing = AIInterview.objects.filter(job=job, candidate=candidate, organisation=organisation).first()
-    if existing:
+    if existing and existing.status in in_flight_statuses and (
+        existing.status == AIInterview.Status.IN_PROGRESS or timezone.now() <= existing.window_end_at
+    ):
         return existing
 
     interview = AIInterview.objects.create(
