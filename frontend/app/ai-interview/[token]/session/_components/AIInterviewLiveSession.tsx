@@ -13,7 +13,7 @@ import {
   type RemoteTrackPublication,
   type TranscriptionSegment,
 } from "livekit-client";
-import { Mic, MicOff, Video, X } from "lucide-react";
+import { Mic, MicOff, Phone, Video, X } from "lucide-react";
 
 import Modal from "@/app/common/components/Modal";
 import DaisyButton from "@/app/common/components/DaisyButton";
@@ -45,7 +45,6 @@ const AIInterviewLiveSession = ({ token }: { token: string }) => {
   const [elapsed, setElapsed] = useState(0);
   const [reconnectingLong, setReconnectingLong] = useState(false);
   const [showEndConfirm, setShowEndConfirm] = useState(false);
-  const [canEnd, setCanEnd] = useState(false);
 
   const roomRef = useRef<Room | null>(null);
   const alexAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -174,16 +173,12 @@ const AIInterviewLiveSession = ({ token }: { token: string }) => {
     };
   }, [session]);
 
-  // Elapsed timer + "allow ending" grace period once the call is actually live.
+  // Elapsed timer while the call is actually live.
   useEffect(() => {
     if (phase !== "live") return;
     const interval = setInterval(() => setElapsed(prev => prev + 1), 1000);
     return () => clearInterval(interval);
   }, [phase]);
-
-  useEffect(() => {
-    if (elapsed >= 120 && !canEnd) setCanEnd(true);
-  }, [elapsed, canEnd]);
 
   const toggleMute = () => {
     const room = roomRef.current;
@@ -335,12 +330,12 @@ const AIInterviewLiveSession = ({ token }: { token: string }) => {
       )}
 
       {/* Controls */}
-      <div className='shrink-0 flex items-center justify-center gap-3 py-4 px-4 relative border-t border-[#EAECF0]'>
+      <div className='shrink-0 flex items-center justify-center gap-5 py-5 px-4 relative border-t border-[#EAECF0] bg-white/80 backdrop-blur-sm'>
         <button
           type='button'
           onClick={toggleMute}
           className={cn(
-            "h-12 w-12 rounded-full flex items-center justify-center transition-colors",
+            "h-12 w-12 rounded-full flex items-center justify-center shadow-sm transition-all hover:scale-105 active:scale-95",
             muted ? "bg-error text-white" : "bg-primary/10 text-primary-black hover:bg-primary/20"
           )}
           aria-label={muted ? "Unmute" : "Mute"}
@@ -348,11 +343,14 @@ const AIInterviewLiveSession = ({ token }: { token: string }) => {
           {muted ? <MicOff className='h-5 w-5' /> : <Mic className='h-5 w-5' />}
         </button>
 
-        {canEnd && (
-          <DaisyButton color='neutral' variant='outline' onClick={() => setShowEndConfirm(true)}>
-            End interview
-          </DaisyButton>
-        )}
+        <button
+          type='button'
+          onClick={() => setShowEndConfirm(true)}
+          className='h-14 w-14 rounded-full bg-error text-white flex items-center justify-center shadow-lg shadow-error/30 transition-all hover:scale-105 hover:bg-error/90 active:scale-95'
+          aria-label='End interview'
+        >
+          <Phone className='h-6 w-6 rotate-[135deg]' fill='currentColor' />
+        </button>
 
         <button
           type='button'
