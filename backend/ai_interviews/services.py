@@ -55,6 +55,43 @@ def provision_ai_interview(job, job_application):
     return interview
 
 
+def provision_preview_ai_interview(job, user):
+    """Creates a candidate-less AIInterview so a recruiter can experience
+    the candidate-facing join/session flow for one of their own
+    ai_interview_enabled jobs -- join, talk to Alex, end it -- without a
+    real candidate, billing charge, or any emails going out. Always a
+    fresh row (no reuse-existing check): a recruiter previewing repeatedly
+    should always get a live, unused room."""
+    from .models import AIInterview
+    from .tasks import generate_preview_questions_task
+
+    interview = AIInterview.objects.create(
+        job=job,
+        candidate=None,
+        organisation=job.company,
+        is_preview=True,
+        created_by=user,
+        livekit_room_name=f"tiaago-ai-preview-{uuid.uuid4()}",
+        candidate_identity=f"preview-{user.id}-{uuid.uuid4().hex[:8]}",
+        questions_total=job.ai_interview_questions_count,
+        window_end_at=timezone.now() + timezone.timedelta(hours=24),
+    )
+    generate_preview_questions_task.delay(str(interview.id))
+    return interview
+
+
+def display_first_name(interview):
+    """Candidate's first name for prompts/emails/UI copy, falling back to
+    the previewing recruiter's first name (or "there") when this is a
+    candidate-less preview interview."""
+    candidate = interview.candidate
+    if candidate:
+        return candidate.user.first_name or (candidate.full_name.split(" ")[0] if candidate.full_name else "")
+    if interview.created_by:
+        return interview.created_by.first_name or "there"
+    return "there"
+
+
 def get_job_application_for(job, candidate):
     return job.job_applications.filter(applicant=candidate).first()
 

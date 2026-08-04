@@ -6,7 +6,7 @@ import StatCard from "../assessments/_components/StatCard";
 import { getRecruiterAIInterviews } from "@/app/common/services/ai-interviews";
 import AIInterviewCard from "./_components/AIInterviewCard";
 import AIInterviewTabs from "./_components/AIInterviewTabs";
-import StartTestInterviewModal from "./_components/StartTestInterviewModal";
+import PreviewInterviewModal from "./_components/PreviewInterviewModal";
 import { emptyStateSubText, emptyStateText, parseAIInterviewTab } from "./ai-interviews.constants";
 
 export const metadata = {
@@ -37,7 +37,7 @@ const AIInterviewsPage = async ({ searchParams }: { searchParams: Promise<Record
               Review AI-conducted interviews and decide who moves forward
             </p>
           </div>
-          <StartTestInterviewModal />
+          <PreviewInterviewModal />
         </div>
 
         <div className='grid grid-cols-2 lg:grid-cols-4 gap-4'>

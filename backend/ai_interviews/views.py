@@ -53,9 +53,10 @@ def _get_owned_ai_interview(request, pk):
 
 
 def _candidate_details(interview):
-    candidate = interview.candidate
+    from .services import display_first_name
+
     return {
-        "candidate_first_name": candidate.user.first_name or (candidate.full_name.split(" ")[0] if candidate.full_name else ""),
+        "candidate_first_name": display_first_name(interview),
         "job_title": interview.job.title,
         "company_name": interview.organisation.company_name,
         "duration_minutes": interview.job.ai_interview_duration_minutes,
@@ -114,31 +115,35 @@ class AIInterviewStartSessionView(APIView):
                 {"error": "This interview isn't ready yet. Please try again shortly."}, status=HTTP_400_BAD_REQUEST
             )
 
-        billing_result = BillingService.charge_ai_interview(interview.organisation, interview)
-        if not billing_result["success"]:
-            recipient = getattr(interview.organisation, "company_rep", None)
-            if recipient:
-                try:
-                    notify_user(
-                        recipient,
-                        title="Insufficient wallet balance",
-                        message="A candidate tried to start an AI interview but your wallet balance is too "
-                        "low to cover it. Please top up to let them continue.",
-                        notification_type=Notification.Type.BILLING_ALERT,
-                        link_path="recruiter/dashboard/billing",
-                        link_label="Fund wallet",
-                    )
-                except Exception:
-                    logger.exception(f"Failed to send insufficient-funds notification for AI interview {interview.id}")
-            return Response(
-                {"error": "This interview isn't available right now. Please try again later."},
-                status=HTTP_402_PAYMENT_REQUIRED,
-            )
+        # Preview interviews (a recruiter testing the candidate-facing
+        # experience) are never billed -- no real candidate, no charge.
+        if not interview.is_preview:
+            billing_result = BillingService.charge_ai_interview(interview.organisation, interview)
+            if not billing_result["success"]:
+                recipient = getattr(interview.organisation, "company_rep", None)
+                if recipient:
+                    try:
+                        notify_user(
+                            recipient,
+                            title="Insufficient wallet balance",
+                            message="A candidate tried to start an AI interview but your wallet balance is too "
+                            "low to cover it. Please top up to let them continue.",
+                            notification_type=Notification.Type.BILLING_ALERT,
+                            link_path="recruiter/dashboard/billing",
+                            link_label="Fund wallet",
+                        )
+                    except Exception:
+                        logger.exception(f"Failed to send insufficient-funds notification for AI interview {interview.id}")
+                return Response(
+                    {"error": "This interview isn't available right now. Please try again later."},
+                    status=HTTP_402_PAYMENT_REQUIRED,
+                )
 
+        participant_name = interview.candidate.full_name if interview.candidate else "Preview"
         try:
             create_ai_interview_room(interview.livekit_room_name, interview.id)
             candidate_token = mint_candidate_token(
-                interview.livekit_room_name, interview.candidate_identity, interview.candidate.full_name,
+                interview.livekit_room_name, interview.candidate_identity, participant_name,
             )
         except LiveKitProvisioningError as e:
             logger.error(f"Failed to provision LiveKit session for AI interview {interview.id}: {e.detail}")
@@ -180,18 +185,20 @@ class AIInterviewAgentDataView(APIView):
             for q in interview.questions.order_by("question_number")
         ]
 
-        from .services import get_candidate_context, get_job_application_for
+        from .services import display_first_name, get_candidate_context, get_job_application_for
 
         candidate = interview.candidate
-        job_application = get_job_application_for(interview.job, candidate)
-        resume_summary, assessment_score = get_candidate_context(interview.job, candidate, job_application)
+        resume_summary, assessment_score = "", None
+        if candidate:
+            job_application = get_job_application_for(interview.job, candidate)
+            resume_summary, assessment_score = get_candidate_context(interview.job, candidate, job_application)
 
         return Response({
             "id": str(interview.id),
             "duration_minutes": interview.job.ai_interview_duration_minutes,
             "job_title": interview.job.title,
             "company_name": interview.organisation.company_name,
-            "candidate_first_name": candidate.user.first_name or (candidate.full_name.split(" ")[0] if candidate.full_name else "there"),
+            "candidate_first_name": display_first_name(interview),
             "resume_summary": resume_summary[:3000],
             "assessment_score": assessment_score,
             "questions": questions,
@@ -272,11 +279,13 @@ def _serialize_question(question):
 
 
 def _serialize_interview_detail(interview):
+    from .services import display_first_name
+
     candidate = interview.candidate
     return {
         "id": str(interview.id),
         "status": interview.status,
-        "candidate_name": candidate.full_name or candidate.user.get_full_name(),
+        "candidate_name": (candidate.full_name or candidate.user.get_full_name()) if candidate else f"{display_first_name(interview)} (preview)",
         "job_title": interview.job.title,
         "company_name": interview.organisation.company_name,
         "duration_seconds": interview.duration_seconds,
@@ -392,7 +401,11 @@ class RecruiterAIInterviewListView(APIView):
         if not company:
             return Response({"error": "No company found for this user."}, status=HTTP_403_FORBIDDEN)
 
-        base_qs = AIInterview.objects.filter(organisation=company).select_related("job", "candidate__user")
+        # Preview interviews (recruiter test runs, no real candidate) never
+        # appear in the real pipeline dashboard.
+        base_qs = AIInterview.objects.filter(organisation=company, is_preview=False).select_related(
+            "job", "candidate__user"
+        )
 
         stats = {tab: filter_fn(base_qs).count() for tab, filter_fn in TAB_FILTERS.items()}
 
@@ -419,73 +432,54 @@ class RecruiterAIInterviewListView(APIView):
         return Response({"stats": stats, "results": results}, status=HTTP_200_OK)
 
 
-class EligibleAIInterviewApplicationsView(APIView):
-    """GET /api/ai-interviews/eligible-applications/ -- for the recruiter
-    dashboard's "start a test interview" flow: every job application on one
-    of this recruiter's ai_interview_enabled jobs, so they can pick one and
-    generate a real join link without waiting for that candidate to
-    actually pass an assessment."""
+class EligiblePreviewJobsView(APIView):
+    """GET /api/ai-interviews/eligible-preview-jobs/ -- every
+    ai_interview_enabled job this recruiter's company owns, for the
+    dashboard's "preview the candidate experience" flow. No candidate
+    involved: the recruiter picks a job and gets a join link for
+    themselves to test."""
 
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        from jobs.models import JobApplication
-
         company = get_user_company(request.user)
         if not company:
             return Response({"error": "No company found for this user."}, status=HTTP_403_FORBIDDEN)
 
-        applications = (
-            JobApplication.objects.filter(job__company=company, job__ai_interview_enabled=True)
-            .select_related("job", "applicant__user")
-            .order_by("-applied_date")[:200]
-        )
+        from jobs.models import Job
 
-        existing_interview_keys = set(
-            AIInterview.objects.filter(organisation=company).values_list("job_id", "candidate_id")
-        )
-
-        results = [
-            {
-                "job_application_id": application.id,
-                "job_id": application.job_id,
-                "job_title": application.job.title,
-                "candidate_name": application.applicant.full_name or application.applicant.user.get_full_name(),
-                "already_has_interview": (application.job_id, application.applicant_id) in existing_interview_keys,
-            }
-            for application in applications
-        ]
+        jobs = Job.objects.filter(company=company, ai_interview_enabled=True).order_by("-date_created")[:100]
+        results = [{"job_id": job.id, "job_title": job.title} for job in jobs]
         return Response({"results": results}, status=HTTP_200_OK)
 
 
-class TriggerAIInterviewView(APIView):
-    """POST /api/ai-interviews/trigger/ -- { job_application_id } -> creates
-    (or returns the existing) AIInterview for that application and hands
-    back its join URL. Recruiter-only manual equivalent of the automatic
-    assessment-pass trigger (skill_assessment.tasks._finalize_submission_score),
-    for testing the feature without running a candidate through a full
-    assessment first."""
+class TriggerAIInterviewPreviewView(APIView):
+    """POST /api/ai-interviews/trigger-preview/ -- { job_id } -> creates a
+    candidate-less preview AIInterview for that job and hands back its
+    join URL, so a recruiter can join it themselves, talk to Alex, and end
+    it -- exactly what a candidate would see, with no candidate attached,
+    no billing charge, and no emails sent."""
 
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        from jobs.models import JobApplication
+        from jobs.models import Job
 
-        from .services import provision_ai_interview
+        from .services import provision_preview_ai_interview
 
-        job_application_id = request.data.get("job_application_id")
-        application = JobApplication.objects.filter(pk=job_application_id).select_related("job", "applicant__user").first()
-        if not application:
-            return Response({"error": "Application not found."}, status=HTTP_404_NOT_FOUND)
+        job_id = request.data.get("job_id")
+        job = Job.objects.filter(pk=job_id).select_related("company").first()
+        if not job:
+            return Response({"error": "Job not found."}, status=HTTP_404_NOT_FOUND)
 
         company = get_user_company(request.user)
-        if not company or application.job.company_id != company.id:
-            return Response({"error": "You do not have permission to trigger this interview."}, status=HTTP_403_FORBIDDEN)
+        if not company or job.company_id != company.id:
+            return Response({"error": "You do not have permission to preview this job."}, status=HTTP_403_FORBIDDEN)
 
-        if not application.job.ai_interview_enabled:
+        if not job.ai_interview_enabled:
             return Response({"error": "AI interview is not enabled on this job."}, status=HTTP_400_BAD_REQUEST)
 
-        interview = provision_ai_interview(application.job, application)
+        interview = provision_preview_ai_interview(job, request.user)
         return Response({
             "id": str(interview.id),
             "status": interview.status,

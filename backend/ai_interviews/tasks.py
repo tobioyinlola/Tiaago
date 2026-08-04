@@ -99,6 +99,67 @@ def generate_questions_and_invite_task(self, interview_id):
     )
 
 
+@shared_task(bind=True, name="generate_preview_questions_task", max_retries=2)
+def generate_preview_questions_task(self, interview_id):
+    """Question generation for a recruiter's candidate-less preview
+    interview (see services.provision_preview_ai_interview) -- same AI
+    call as generate_questions_and_invite_task, minus everything that
+    needs a real candidate (resume/assessment context, invite email,
+    reminders). Nothing more to do once questions are saved: the
+    recruiter already has the join link from the trigger response."""
+    from .models import AIInterview, AIInterviewQuestion
+
+    interview = AIInterview.objects.select_related("job", "organisation").filter(id=interview_id).first()
+    if not interview:
+        logger.warning("AIInterview %s not found", interview_id)
+        return
+
+    job = interview.job
+    payload = {
+        "job_title": job.title,
+        "company_name": interview.organisation.company_name,
+        "description": job.description,
+        "requirements": job.job_requirement,
+        "resume_summary": "",
+        "assessment_score": None,
+        "weak_areas": [],
+        "duration_minutes": job.ai_interview_duration_minutes,
+        "questions_count": job.ai_interview_questions_count,
+    }
+
+    try:
+        result = AIService.generate_ai_interview_questions(payload)
+    except Exception as e:
+        if self.request.retries < self.max_retries:
+            raise self.retry(exc=e, countdown=30 * (self.request.retries + 1))
+        result = None
+
+    if not result or not result.get("questions"):
+        interview.status = AIInterview.Status.FAILED
+        interview.save(update_fields=["status"])
+        logger.error("Preview question generation failed for AIInterview %s", interview_id)
+        return
+
+    AIInterviewQuestion.objects.bulk_create(
+        [
+            AIInterviewQuestion(
+                interview=interview,
+                question_number=q["number"],
+                question_text=q["text"],
+                question_type=q["type"],
+                expected_duration_seconds=q.get("expected_duration_seconds", 90),
+                followup_if_vague=q.get("followup_if_vague", ""),
+                good_signals=q.get("good_signals", []),
+                concern_signals=q.get("concern_signals", []),
+                transition_phrase=q.get("transition_phrase", ""),
+            )
+            for q in result["questions"]
+        ]
+    )
+    interview.invitation_sent_at = timezone.now()
+    interview.save(update_fields=["invitation_sent_at"])
+
+
 def _send_invitation_email(interview, job, candidate):
     candidate_email = candidate.user.email
     first_name = candidate.user.first_name or (candidate.full_name.split(" ")[0] if candidate.full_name else "")
@@ -171,6 +232,8 @@ def process_completed_ai_interview_task(self, interview_id):
         "completed_at", "status", "summary_status",
     ])
 
+    from .services import display_first_name
+
     questions = list(interview.questions.order_by("question_number"))
     job = interview.job
     candidate = interview.candidate
@@ -179,7 +242,7 @@ def process_completed_ai_interview_task(self, interview_id):
         "job_title": job.title,
         "company_name": interview.organisation.company_name,
         "requirements": job.job_requirement,
-        "candidate_name": candidate.full_name or "",
+        "candidate_name": candidate.full_name if candidate else display_first_name(interview),
         "transcript": transcript_raw,
         "questions": [
             {
@@ -234,8 +297,11 @@ def process_completed_ai_interview_task(self, interview_id):
         question.candidate_response = ps.get("candidate_response_summary", "")
         question.save(update_fields=["score", "signal_strength", "ai_notes", "candidate_response"])
 
-    _notify_recruiter_ready(interview, job, candidate)
-    _send_candidate_feedback(interview, job, candidate)
+    # Preview interviews have no real candidate to email and the recruiter
+    # already knows the result (they're the one who ran it) -- skip both.
+    if not interview.is_preview:
+        _notify_recruiter_ready(interview, job, candidate)
+        _send_candidate_feedback(interview, job, candidate)
 
 
 def _notify_recruiter_ready(interview, job, candidate):

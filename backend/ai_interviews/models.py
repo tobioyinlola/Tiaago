@@ -58,8 +58,21 @@ class AIInterview(TimeStampedModel):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     job = models.ForeignKey(Job, on_delete=models.CASCADE, related_name="ai_interviews")
-    candidate = models.ForeignKey(TalentProfile, on_delete=models.CASCADE, related_name="ai_interviews")
+    # Null only for is_preview=True rows -- a recruiter previewing the
+    # candidate-facing experience for a job, with no real candidate/
+    # TalentProfile attached (see services.provision_preview_ai_interview).
+    candidate = models.ForeignKey(
+        TalentProfile, on_delete=models.CASCADE, related_name="ai_interviews", null=True, blank=True
+    )
     organisation = models.ForeignKey(Company, on_delete=models.CASCADE, related_name="ai_interviews")
+
+    # True for a recruiter's own "see what the candidate would see" test
+    # run -- never billed, never emailed, excluded from the real AI
+    # Interviews recruiter dashboard list.
+    is_preview = models.BooleanField(default=False)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="ai_interview_previews_created"
+    )
 
     livekit_room_name = models.CharField(max_length=100, unique=True)
     candidate_identity = models.CharField(max_length=100)

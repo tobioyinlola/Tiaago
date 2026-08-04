@@ -1,20 +1,20 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { Copy, ExternalLink, Sparkles } from "lucide-react";
 
 import DaisyButton from "@/app/common/components/DaisyButton";
 import Modal from "@/app/common/components/Modal";
 import {
-  getEligibleAIInterviewApplications,
-  triggerAIInterview,
-  type EligibleAIInterviewApplication,
+  getEligiblePreviewJobs,
+  triggerAIInterviewPreview,
+  type EligiblePreviewJob,
 } from "@/app/common/services/ai-interviews";
 
-const StartTestInterviewModal = () => {
+const PreviewInterviewModal = () => {
   const modalRef = useRef<HTMLDialogElement>(null);
-  const [applications, setApplications] = useState<EligibleAIInterviewApplication[] | null>(null);
+  const [jobs, setJobs] = useState<EligiblePreviewJob[] | null>(null);
   const [selected, setSelected] = useState("");
   const [loading, setLoading] = useState(false);
   const [triggering, setTriggering] = useState(false);
@@ -24,20 +24,20 @@ const StartTestInterviewModal = () => {
     modalRef.current?.showModal();
     setJoinUrl("");
     setLoading(true);
-    const res = await getEligibleAIInterviewApplications();
+    const res = await getEligiblePreviewJobs();
     setLoading(false);
     if (!res.success) {
       toast.error(res.error);
       return;
     }
-    setApplications(res.data.results);
-    setSelected(res.data.results[0]?.job_application_id ? String(res.data.results[0].job_application_id) : "");
+    setJobs(res.data.results);
+    setSelected(res.data.results[0]?.job_id ? String(res.data.results[0].job_id) : "");
   };
 
   const handleTrigger = async () => {
     if (!selected) return;
     setTriggering(true);
-    const res = await triggerAIInterview(selected);
+    const res = await triggerAIInterviewPreview(selected);
     setTriggering(false);
     if (!res.success) {
       toast.error(res.error);
@@ -55,25 +55,25 @@ const StartTestInterviewModal = () => {
     <>
       <DaisyButton color="primary" className="text-white gap-1.5" onClick={open}>
         <Sparkles className="w-4 h-4" />
-        Start test interview
+        Preview candidate experience
       </DaisyButton>
 
-      <Modal id="start-test-interview-modal" modalRef={modalRef}>
+      <Modal id="preview-interview-modal" modalRef={modalRef}>
         <div className="bg-white rounded-xl p-6">
-          <h3 className="text-lg font-bold text-primaryBlack mb-1">Start a test AI interview</h3>
+          <h3 className="text-lg font-bold text-primaryBlack mb-1">See what a candidate would see</h3>
           <p className="text-sm text-secondary-black mb-5">
-            Generates a real join link for a candidate on one of your AI-interview-enabled jobs, without
-            waiting for them to pass an assessment first.
+            Generates a join link for one of your AI-interview-enabled jobs -- no candidate attached, nothing
+            billed, no emails sent. Join it yourself, talk to Alex, and end it whenever you&apos;re done.
           </p>
 
           {loading ? (
             <div className="flex justify-center py-8">
               <span className="loading loading-spinner loading-md text-primary" />
             </div>
-          ) : !applications || applications.length === 0 ? (
+          ) : !jobs || jobs.length === 0 ? (
             <p className="text-sm text-secondary-black py-4">
-              No applications found on a job with AI interview enabled yet. Turn it on in the job wizard&apos;s
-              Criteria &amp; Availability step, then have someone apply.
+              No jobs have AI interview enabled yet. Turn it on in the job wizard&apos;s Criteria &amp;
+              Availability step.
             </p>
           ) : (
             <>
@@ -85,10 +85,9 @@ const StartTestInterviewModal = () => {
                   setJoinUrl("");
                 }}
               >
-                {applications.map(application => (
-                  <option key={application.job_application_id} value={application.job_application_id}>
-                    {application.candidate_name} &middot; {application.job_title}
-                    {application.already_has_interview ? " (already has an interview)" : ""}
+                {jobs.map(job => (
+                  <option key={job.job_id} value={job.job_id}>
+                    {job.job_title}
                   </option>
                 ))}
               </select>
@@ -121,4 +120,4 @@ const StartTestInterviewModal = () => {
   );
 };
 
-export default StartTestInterviewModal;
+export default PreviewInterviewModal;

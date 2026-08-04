@@ -207,49 +207,45 @@ export const submitAIInterviewDecision = async (
   }
 };
 
-export type EligibleAIInterviewApplication = {
-  job_application_id: ID;
+export type EligiblePreviewJob = {
   job_id: ID;
   job_title: string;
-  candidate_name: string;
-  already_has_interview: boolean;
 };
 
-/** Recruiter dashboard, session authenticated -- every application on one
- * of this recruiter's ai_interview_enabled jobs, for the "start a test
- * interview" flow. */
-export const getEligibleAIInterviewApplications = async (): Promise<
-  ApiResponse<{ results: EligibleAIInterviewApplication[] }>
-> => {
+/** Recruiter dashboard, session authenticated -- every ai_interview_enabled
+ * job this recruiter's company owns, for the "preview the candidate
+ * experience" flow (no candidate involved). */
+export const getEligiblePreviewJobs = async (): Promise<ApiResponse<{ results: EligiblePreviewJob[] }>> => {
   try {
     const data = await serverKyInstance
-      .get("ai-interviews/eligible-applications/")
-      .json<{ results: EligibleAIInterviewApplication[] }>();
+      .get("ai-interviews/eligible-preview-jobs/")
+      .json<{ results: EligiblePreviewJob[] }>();
     return { success: true, data };
   } catch (error) {
     const [errMsg] = await _handleServerApiCallError(error);
-    console.log("getEligibleAIInterviewApplications Error: ", errMsg);
+    console.log("getEligiblePreviewJobs Error: ", errMsg);
     return { success: false, error: errMsg };
   }
 };
 
-export type TriggerAIInterviewResult = { id: ID; status: AIInterviewStatus; join_url: string };
+export type TriggerAIInterviewPreviewResult = { id: ID; status: AIInterviewStatus; join_url: string };
 
-/** Recruiter dashboard, session authenticated -- manually provisions an
- * AIInterview for a given application and returns its join link, without
- * needing the candidate to have actually passed an assessment. */
-export const triggerAIInterview = async (
-  jobApplicationId: ID
-): Promise<ApiResponse<TriggerAIInterviewResult>> => {
+/** Recruiter dashboard, session authenticated -- provisions a
+ * candidate-less preview AIInterview for a job and returns its join link,
+ * so the recruiter can join it themselves and see exactly what a
+ * candidate would see. Never billed, never emailed. */
+export const triggerAIInterviewPreview = async (
+  jobId: ID
+): Promise<ApiResponse<TriggerAIInterviewPreviewResult>> => {
   try {
     const data = await serverKyInstance
-      .post("ai-interviews/trigger/", { json: { job_application_id: jobApplicationId } })
-      .json<TriggerAIInterviewResult>();
+      .post("ai-interviews/trigger-preview/", { json: { job_id: jobId } })
+      .json<TriggerAIInterviewPreviewResult>();
     return { success: true, data };
   } catch (error) {
     const [errMsg, errorMap] = await _handleServerApiCallError(error);
     const message = typeof errorMap?.error === "string" ? errorMap.error : errMsg;
-    console.log("triggerAIInterview Error: ", message);
+    console.log("triggerAIInterviewPreview Error: ", message);
     return { success: false, error: message };
   }
 };

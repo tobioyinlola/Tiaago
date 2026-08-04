@@ -7,12 +7,12 @@ from .views import (
     AIInterviewSegmentView,
     AIInterviewStartSessionView,
     AIInterviewStatusView,
-    EligibleAIInterviewApplicationsView,
+    EligiblePreviewJobsView,
     RecruiterAIInterviewDecisionView,
     RecruiterAIInterviewDetailView,
     RecruiterAIInterviewListView,
     RecruiterAIInterviewTranscriptView,
-    TriggerAIInterviewView,
+    TriggerAIInterviewPreviewView,
 )
 
 urlpatterns = [
@@ -27,8 +27,8 @@ urlpatterns = [
     path("<uuid:pk>/complete/", AIInterviewCompleteView.as_view(), name="ai-interview-complete"),
 
     # Recruiter dashboard, session authenticated.
-    path("eligible-applications/", EligibleAIInterviewApplicationsView.as_view(), name="ai-interview-eligible-applications"),
-    path("trigger/", TriggerAIInterviewView.as_view(), name="ai-interview-trigger"),
+    path("eligible-preview-jobs/", EligiblePreviewJobsView.as_view(), name="ai-interview-eligible-preview-jobs"),
+    path("trigger-preview/", TriggerAIInterviewPreviewView.as_view(), name="ai-interview-trigger-preview"),
     path("", RecruiterAIInterviewListView.as_view(), name="ai-interview-list"),
     path("<uuid:pk>/", RecruiterAIInterviewDetailView.as_view(), name="ai-interview-detail"),
     path("<uuid:pk>/transcript/", RecruiterAIInterviewTranscriptView.as_view(), name="ai-interview-transcript"),
