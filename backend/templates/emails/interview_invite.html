@@ -4,7 +4,7 @@
 {% block content %}
   <h1 class="h1" style="margin:0 0 14px; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:33px; line-height:1.15; letter-spacing:-0.6px; font-weight:800; color:#0F172A;">You're interviewing with {{ company|default:"The hiring team" }}</h1>
 
-  <p style="margin:0 0 14px; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:16px; line-height:1.65; color:#475569;">Great news, {{ first_name|default:"Amara" }}. Your profile stood out and the team would like to meet you. Here are the details for your live, AI-assisted interview.</p>
+  <p style="margin:0 0 14px; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:16px; line-height:1.65; color:#475569;">Great news, {{ first_name|default:"there" }}. Your profile stood out and the team would like to meet you.{% if when %} Here are the details for your interview.{% else %} Follow the link below for next steps.{% endif %}</p>
 
   <!-- detail box -->
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:24px 0 28px; background-color:#F8FAFC; border:1px solid #E2E8F0; border-radius:0;">
@@ -13,20 +13,24 @@
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
         <tr>
           <td style="padding:10px 0; font-family:'Inter',Arial,sans-serif; font-size:14px; color:#64748B; border-bottom:1px solid #EAEEF5;">Role</td>
-          <td align="right" style="padding:10px 0; font-family:'Inter',Arial,sans-serif; font-size:14px; font-weight:600; color:#0F172A; border-bottom:1px solid #EAEEF5;">{{ role|default:"Senior Frontend Engineer" }}</td>
+          <td align="right" style="padding:10px 0; font-family:'Inter',Arial,sans-serif; font-size:14px; font-weight:600; color:#0F172A; border-bottom:1px solid #EAEEF5;">{{ role|default:"the role" }}</td>
         </tr>
         <tr>
-          <td style="padding:10px 0; font-family:'Inter',Arial,sans-serif; font-size:14px; color:#64748B; border-bottom:1px solid #EAEEF5;">Company</td>
-          <td align="right" style="padding:10px 0; font-family:'Inter',Arial,sans-serif; font-size:14px; font-weight:600; color:#0F172A; border-bottom:1px solid #EAEEF5;">{{ company|default:"The hiring team" }}</td>
+          <td style="padding:10px 0; font-family:'Inter',Arial,sans-serif; font-size:14px; color:#64748B;{% if when or format %} border-bottom:1px solid #EAEEF5;{% endif %}">Company</td>
+          <td align="right" style="padding:10px 0; font-family:'Inter',Arial,sans-serif; font-size:14px; font-weight:600; color:#0F172A;{% if when or format %} border-bottom:1px solid #EAEEF5;{% endif %}">{{ company|default:"The hiring team" }}</td>
         </tr>
+        {% if when %}
         <tr>
-          <td style="padding:10px 0; font-family:'Inter',Arial,sans-serif; font-size:14px; color:#64748B; border-bottom:1px solid #EAEEF5;">When</td>
-          <td align="right" style="padding:10px 0; font-family:'Inter',Arial,sans-serif; font-size:14px; font-weight:600; color:#0F172A; border-bottom:1px solid #EAEEF5;">{{ when|default:"Thu, Jun 19 &middot; 2:00 PM WAT" }}</td>
+          <td style="padding:10px 0; font-family:'Inter',Arial,sans-serif; font-size:14px; color:#64748B;{% if format %} border-bottom:1px solid #EAEEF5;{% endif %}">When</td>
+          <td align="right" style="padding:10px 0; font-family:'Inter',Arial,sans-serif; font-size:14px; font-weight:600; color:#0F172A;{% if format %} border-bottom:1px solid #EAEEF5;{% endif %}">{{ when }}</td>
         </tr>
+        {% endif %}
+        {% if format %}
         <tr>
           <td style="padding:10px 0 18px; font-family:'Inter',Arial,sans-serif; font-size:14px; color:#64748B;">Format</td>
-          <td align="right" style="padding:10px 0 18px; font-family:'Inter',Arial,sans-serif; font-size:14px; font-weight:600; color:#0F172A;">{{ format|default:"Live AI interview &middot; 45 min" }}</td>
+          <td align="right" style="padding:10px 0 18px; font-family:'Inter',Arial,sans-serif; font-size:14px; font-weight:600; color:#0F172A;">{{ format }}</td>
         </tr>
+        {% endif %}
       </table>
     </td></tr>
   </table>

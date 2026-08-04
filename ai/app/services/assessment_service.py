@@ -1273,7 +1273,7 @@ def generate_mcq_batch(job_description: str, num_questions: int, batch_num: int,
         chat = ChatOpenAI(
             api_key=api_key,
             model_name=model_name,
-            temperature=0,
+            temperature=0.7,  # was 0 (fully deterministic) -- regenerating for the same/similar job description produced near-identical questions every time
             timeout=60,  # Shorter timeout for batch generation
             max_retries=1,  # Fewer retries for batch generation
             max_tokens=max_tokens,
@@ -1469,7 +1469,7 @@ def generate_categorized_mcq_batch(job_description: str, category: str, num_ques
         chat = ChatOpenAI(
             api_key=api_key,
             model_name=model_name,
-            temperature=0,
+            temperature=0.7,  # was 0 (fully deterministic) -- regenerating for the same/similar job description produced near-identical questions every time
             timeout=60,
             # No automatic retries here -- a client-level retry silently doubles
             # token spend on every transient hiccup. The wizard's UI already gives
@@ -2072,7 +2072,7 @@ def generate_technical_mcq_batch(job_description: str, num_questions: int, batch
         chat = ChatOpenAI(
             api_key=api_key,
             model_name=model_name,
-            temperature=0,
+            temperature=0.7,  # was 0 (fully deterministic) -- regenerating for the same/similar job description produced near-identical questions every time
             timeout=60,  # Shorter timeout for batch generation
             max_retries=1,  # Fewer retries for batch generation
             max_tokens=max_tokens,

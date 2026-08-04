@@ -1658,6 +1658,7 @@ class AIFeedbackSerializer(serializers.Serializer):
     resume_experience_relevance_score= serializers.IntegerField(allow_null=True) 
     resume_achievement_quality=serializers.CharField(allow_blank=True)
     time_taken=serializers.CharField()
+    topics_tested = serializers.ListField(child=serializers.CharField(), allow_empty=True)
     difficulty_level=serializers.CharField()
     total_questions = serializers.IntegerField(allow_null=True)
     duration_minutes = serializers.IntegerField(allow_null=True)

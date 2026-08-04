@@ -232,12 +232,20 @@ def _finalize_submission_score(submission, assessment, total_score, is_passed, p
         submission.is_passed = is_passed
         submission.mark_status = CandidateAssessmentSubmission.MarkStatusChoices.MARKED
 
-        if not submission.is_completed:
-            submission.is_completed = True
+        # completed_at/time_taken must be set here regardless of is_completed's
+        # current value -- several submit-answer code paths in views.py flip
+        # is_completed=True eagerly (before this task even runs), which used
+        # to skip this block entirely (it was gated on `if not is_completed`)
+        # and left completed_at permanently NULL for those flows.
+        submission.is_completed = True
+        if submission.completed_at is None:
             submission.completed_at = tz_now()
+        if submission.time_taken is None and submission.started_at:
+            elapsed_minutes = int((submission.completed_at - submission.started_at).total_seconds() // 60)
+            submission.time_taken = max(elapsed_minutes, 0)
 
         submission.save(update_fields=[
-            "total_score", "is_passed", "mark_status", "is_completed", "completed_at"
+            "total_score", "is_passed", "mark_status", "is_completed", "completed_at", "time_taken"
         ])
 
         if assessment.company_id:
@@ -552,8 +560,12 @@ def mark_skill_assessment_submission(self, skill_assessment_submission_id: int):
                     "mcq_avg": mcq_avg, "code_avg": code_avg,
                     "has_mcq": bool(mcq_section_scores), "has_coding": has_coding,
                 }
-                if not submission.is_completed:
-                    submission.is_completed = True
+                # Same fix as _finalize_submission_score below: completed_at
+                # must be set here regardless of is_completed's current value,
+                # since views.py flips is_completed=True eagerly before this
+                # task runs.
+                submission.is_completed = True
+                if submission.completed_at is None:
                     submission.completed_at = tz_now()
                 submission.save(update_fields=[
                     "mark_status", "pending_score_breakdown", "is_completed", "completed_at",

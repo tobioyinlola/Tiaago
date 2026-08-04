@@ -2624,14 +2624,26 @@ class AIOperationsFeedback(APIView, PaginationHandlerMixin):
 
         # Prefetched (not per-row queried) so the question count for each
         # assessment's "Assessment Details" card doesn't add N+1 queries.
+        # topics_tested_map is built in the same pass -- section names (e.g.
+        # "React Fundamentals") plus the assessment's tech stack are the
+        # existing, already-categorized signal for "what was this candidate
+        # actually tested on", no new AI call needed.
         question_count_map = {}
-        for a in GeneralSkillAssessment.objects.filter(id__in=assessment_ids).prefetch_related(
+        topics_tested_map = {}
+        for a in GeneralSkillAssessment.objects.filter(id__in=assessment_ids).select_related(
+            "assessment_stack"
+        ).prefetch_related(
             "sections__mcq_questions_new", "sections__coding_tasks", "sections__open_ended_questions"
         ):
             question_count_map[a.id] = sum(
                 len(s.mcq_questions_new.all()) + len(s.coding_tasks.all()) + len(s.open_ended_questions.all())
                 for s in a.sections.all()
             )
+            topics = [s.name for s in a.sections.all() if s.name]
+            if a.assessment_stack_id and a.assessment_stack.stack:
+                topics = [a.assessment_stack.stack] + topics
+            # Dedup while preserving order.
+            topics_tested_map[a.id] = list(dict.fromkeys(topics))
 
         # Bulk-fetched (not per-row queried) current-company lookup, keyed by
         # talent id -- prefers an ongoing role (end_date is null), else falls
@@ -2726,6 +2738,7 @@ class AIOperationsFeedback(APIView, PaginationHandlerMixin):
                 "resume_experience_relevance_score": resume_experience_relevance_score, 
                 "resume_achievement_quality": resume_achievement_quality,
                 "time_taken": time_taken,
+                "topics_tested": topics_tested_map.get(assessment.id, []) if assessment else [],
                 "difficulty_level": difficulty_level,
                 "total_questions": total_questions,
                 "duration_minutes": duration_minutes,

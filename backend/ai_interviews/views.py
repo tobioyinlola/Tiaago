@@ -115,6 +115,22 @@ class AIInterviewStartSessionView(APIView):
                 {"error": "This interview isn't ready yet. Please try again shortly."}, status=HTTP_400_BAD_REQUEST
             )
 
+        # Capacity gate -- the interview_agent fleet can only run so many
+        # concurrent LiveKit sessions. Past that, don't create a room no
+        # agent can join; tell the candidate to wait and let the frontend
+        # poll this same endpoint (see AIInterviewSetupCheck) until a slot
+        # frees up. Interviews are short, so a coarse "check again shortly"
+        # loop is enough -- no persistent queue table needed.
+        max_concurrent = settings.AI_INTERVIEW_MAX_CONCURRENT_SESSIONS
+        active_sessions = AIInterview.objects.filter(
+            status__in=(AIInterview.Status.WAITING, AIInterview.Status.IN_PROGRESS)
+        ).exclude(pk=interview.pk).count()
+        if active_sessions >= max_concurrent:
+            return Response({
+                "queued": True,
+                "position": active_sessions - max_concurrent + 1,
+            }, status=HTTP_200_OK)
+
         # Preview interviews (a recruiter testing the candidate-facing
         # experience) are never billed -- no real candidate, no charge.
         if not interview.is_preview:
@@ -157,6 +173,7 @@ class AIInterviewStartSessionView(APIView):
         interview.save(update_fields=update_fields)
 
         return Response({
+            "queued": False,
             "token": candidate_token,
             "roomName": interview.livekit_room_name,
             "livekitUrl": settings.LIVEKIT_URL,

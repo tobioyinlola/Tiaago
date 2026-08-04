@@ -119,7 +119,11 @@ def _flatten_meeting(meeting_details, company_name=None):
     md = meeting_details
     when = f"{md.get('date', '')} · {md.get('start_time', '')}"
     duration_mins = md.get("duration")
-    fmt = f"Live AI interview · {duration_mins} min" if duration_mins else "Live AI interview"
+    # This is the human/Interview-Copilot meeting flow, not the separate
+    # ai_interviews app -- "Live AI interview" here mislabeled every human
+    # interview and reads as a real bug now that a genuine AI-conducted
+    # interview also exists in the product.
+    fmt = f"Live interview · {duration_mins} min" if duration_mins else "Live interview"
     return {
         "meeting_title": md.get("title", ""),
         "when": when,
@@ -271,12 +275,29 @@ def get_email_template_and_context(
             "profile_url": settings.TIAAGO_TALENT_LOGIN_URL,
         }
 
+    elif email_type == "candidate_interview_confirmation_mail":
+        # Reuses interview_invite.html (which now only shows When/Format if
+        # actually provided, see _flatten_meeting) -- there was previously no
+        # candidate-facing confirmation at all once they picked a slot.
+        md = kwargs.get("meeting_details") or {}
+        meeting_ctx = _flatten_meeting(md, kwargs.get("company_name"))
+        template_file = "emails/interview_invite.html"
+        context = {
+            "first_name": user.first_name,
+            "role": md.get("title", ""),
+            **meeting_ctx,
+        }
+
     elif email_type == "recruiter_interview_acceptance_mail":
         md = kwargs.get("meeting_details") or {}
         meeting_ctx = _flatten_meeting(md, kwargs.get("company_name"))
         template_file = "emails/interview_accepted.html"
         context = {
-            "candidate_name": user.get_full_name(),
+            # `user` here is the recruiter being emailed, not the candidate --
+            # callers now pass the real candidate_name explicitly; falling
+            # back to user.get_full_name() only if a caller doesn't (matches
+            # the old, buggy behavior rather than showing a blank name).
+            "candidate_name": kwargs.get("candidate_name") or user.get_full_name(),
             "role": md.get("title", ""),
             "pipeline_url": settings.TIAAGO_STARTUP_LOGIN_URL,
             **meeting_ctx,
@@ -610,10 +631,26 @@ def talent_assessment_pass_mail(user):
     )
 
 
-def recruiter_interview_acceptance_mail(user, company_name, meeting_details):
+def candidate_interview_confirmation_mail(user, company_name, meeting_details):
+    """Candidate-side confirmation once they've picked an interview slot --
+    previously only the recruiter got a confirmation email; the candidate
+    got nothing beyond the synchronous API response."""
+    template, ctx = get_email_template_and_context(
+        user, "candidate_interview_confirmation_mail", company_name=company_name,
+        meeting_details=meeting_details,
+    )
+    if not template:
+        return None
+    return _send_with_latest_flow(
+        user.email, "Your interview is confirmed", template, ctx,
+        email_type="candidate_interview_confirmation_mail",
+    )
+
+
+def recruiter_interview_acceptance_mail(user, company_name, meeting_details, candidate_name=None):
     template, ctx = get_email_template_and_context(
         user, "recruiter_interview_acceptance_mail", company_name=company_name,
-        meeting_details=meeting_details,
+        meeting_details=meeting_details, candidate_name=candidate_name,
     )
     if not template:
         return None
