@@ -243,6 +243,15 @@ class Job(models.Model):
     devtools_detection_enabled = models.BooleanField(default=True)
     force_submit_on_critical_violation = models.BooleanField(default=False)
 
+    # AI interview settings -- when enabled, a candidate who passes this
+    # job's assessment is invited to a fully-automated LiveKit/OpenAI voice
+    # interview (see ai_interviews app) instead of the human-interview
+    # slot-selection flow below (interview_availability_slots).
+    ai_interview_enabled = models.BooleanField(default=False)
+    ai_interview_duration_minutes = models.PositiveSmallIntegerField(default=10)
+    ai_interview_questions_count = models.PositiveSmallIntegerField(default=6)
+    ai_interview_window_hours = models.PositiveSmallIntegerField(default=72)
+
     class Meta:
         indexes = [
             models.Index(fields=["role", "company"], name="jobs_job_role_company_idx"),

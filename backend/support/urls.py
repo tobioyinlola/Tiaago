@@ -10,6 +10,7 @@ urlpatterns = [
     path("tickets/<uuid:ticket_id>/reopen/", views.TicketReopenView.as_view(), name="support-ticket-reopen"),
     path("admin/staff/", views.AdminStaffListView.as_view(), name="support-admin-staff"),
     path("admin/tickets/", views.AdminTicketListView.as_view(), name="support-admin-tickets"),
+    path("admin/tickets/unread-count/", views.AdminTicketUnreadCountView.as_view(), name="support-admin-tickets-unread-count"),
     path("admin/tickets/<uuid:ticket_id>/", views.AdminTicketDetailView.as_view(), name="support-admin-ticket-detail"),
     path("admin/tickets/<uuid:ticket_id>/replies/", views.AdminTicketReplyView.as_view(), name="support-admin-ticket-reply"),
 ]

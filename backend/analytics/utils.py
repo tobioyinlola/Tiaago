@@ -299,9 +299,13 @@ def _build_org_row(company, signals, tags_map=None):
     wallet_balance = float(signals["wallet_balances"].get(company.id) or 0)
     total_spend = float(signals["total_spend"].get(company.id) or 0)
     spend_3mo = float(signals["spend_3mo"].get(company.id) or 0)
+    company_rep = company.company_rep
     return {
         "id": company.id,
         "company_name": company.company_name,
+        "company_email": company.company_email,
+        "contact_name": (company_rep.get_full_name() or company_rep.username) if company_rep else "",
+        "phone_number": str(company_rep.phone_number) if company_rep and company_rep.phone_number else "",
         "date_joined": company.created_at.isoformat(),
         "status": status,
         "wallet_balance_ngn": wallet_balance,
@@ -324,7 +328,7 @@ def get_organisation_list(page=1, page_size=20, search=None, status_filter=None,
                            tag_slugs=None, tag_match="any"):
     from tags.models import OrganisationTag
 
-    companies = Company.objects.all()
+    companies = Company.objects.select_related("company_rep").all()
     if search:
         companies = companies.filter(Q(company_name__icontains=search) | Q(company_email__icontains=search))
     if joined_after:

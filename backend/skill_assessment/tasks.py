@@ -383,14 +383,22 @@ def _finalize_submission_score(submission, assessment, total_score, is_passed, p
 
         if assessment.job_application_id and assessment.company_id:
             job = assessment.job_application.job
-            has_published_slots = job.interview_availability_slots.filter(is_claimed=False).exists()
-            try:
-                if has_published_slots:
-                    send_interview_slot_selection_invite(submission, job)
-                else:
-                    send_interview_invite(submission)
-            except Exception:
-                logger.exception("Interview invite email failed for submission %s", submission.id)
+            if job.ai_interview_enabled:
+                try:
+                    from ai_interviews.services import provision_ai_interview
+
+                    provision_ai_interview(job, assessment.job_application)
+                except Exception:
+                    logger.exception("AI interview provisioning failed for submission %s", submission.id)
+            else:
+                has_published_slots = job.interview_availability_slots.filter(is_claimed=False).exists()
+                try:
+                    if has_published_slots:
+                        send_interview_slot_selection_invite(submission, job)
+                    else:
+                        send_interview_invite(submission)
+                except Exception:
+                    logger.exception("Interview invite email failed for submission %s", submission.id)
 
     return {
         "status": "marked",

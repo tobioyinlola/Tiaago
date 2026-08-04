@@ -48,6 +48,21 @@ const OrganisationDetailPage = async ({ params }: { params: Promise<{ id: string
         <OrgStatusBadge status={org.status} />
       </div>
 
+      <div className='flex flex-wrap gap-x-8 gap-y-1 text-sm text-foreground mb-8'>
+        <span>
+          <span className='text-muted-foreground'>Contact: </span>
+          {org.contact_name || <span className='text-muted-foreground'>—</span>}
+        </span>
+        <span>
+          <span className='text-muted-foreground'>Email: </span>
+          {org.company_email || <span className='text-muted-foreground'>—</span>}
+        </span>
+        <span>
+          <span className='text-muted-foreground'>Phone: </span>
+          {org.phone_number || <span className='text-muted-foreground'>—</span>}
+        </span>
+      </div>
+
       <div className='grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4 mb-8'>
         <StatCard
           label='Wallet balance'

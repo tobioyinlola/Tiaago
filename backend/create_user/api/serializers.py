@@ -538,6 +538,11 @@ class CompanyOnboardingSerializer(serializers.ModelSerializer):
         allow_null=True,
     )
     phone_number = PhoneNumberField(required=False, allow_blank=True, write_only=True)
+    # country lives on CustomUser (company_rep), not Company -- same field
+    # the standard email-signup path (CompanySerializer.save()) populates,
+    # so onboarding writes to the same canonical location, mirroring the
+    # phone_number passthrough above.
+    country = serializers.CharField(required=False, allow_blank=True, write_only=True)
     has_completed_onboarding = serializers.SerializerMethodField()
     has_skipped_onboarding = serializers.SerializerMethodField()
 
@@ -551,6 +556,7 @@ class CompanyOnboardingSerializer(serializers.ModelSerializer):
             "size",
             "role",
             "phone_number",
+            "country",
             "heard_from",
             "heard_from_other",
             "onboarding_notes",
@@ -575,13 +581,21 @@ class CompanyOnboardingSerializer(serializers.ModelSerializer):
         data = super().to_representation(instance)
         phone_number = instance.company_rep.phone_number
         data["phone_number"] = str(phone_number) if phone_number else ""
+        data["country"] = instance.company_rep.country or ""
         return data
 
     def update(self, instance, validated_data):
         phone_number = validated_data.pop("phone_number", None)
+        country = validated_data.pop("country", None)
+        rep_update_fields = []
         if phone_number:
             instance.company_rep.phone_number = phone_number
-            instance.company_rep.save(update_fields=["phone_number"])
+            rep_update_fields.append("phone_number")
+        if country:
+            instance.company_rep.country = country
+            rep_update_fields.append("country")
+        if rep_update_fields:
+            instance.company_rep.save(update_fields=rep_update_fields)
         return super().update(instance, validated_data)
 
 
@@ -634,6 +648,7 @@ class CustomUserSerializer(serializers.ModelSerializer):
             "staff_role",
             "permissions",
             "is_super_admin",
+            "auth_provider",
         )
         read_only_fields = (
             "pk",
@@ -643,6 +658,7 @@ class CustomUserSerializer(serializers.ModelSerializer):
             "is_superuser",
             "is_staff",
             "user_type",
+            "auth_provider",
         )
     
     def update(self, instance, validated_data):

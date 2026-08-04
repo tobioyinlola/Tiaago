@@ -1443,6 +1443,7 @@ export type CompanyOnboarding = {
   size: string | null;
   role: string | null;
   phone_number?: string;
+  country?: string;
   heard_from: string;
   heard_from_other: string;
   onboarding_notes: string;

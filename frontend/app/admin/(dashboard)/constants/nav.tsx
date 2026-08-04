@@ -3,15 +3,12 @@ import { PiExam } from "react-icons/pi";
 import type { DashboardNavItemV3 } from "@/app/common/types";
 import {
   IoBusinessOutline,
-  IoMailOutline,
   IoSettingsOutline,
   IoCashOutline,
   IoFunnelOutline,
   IoGitNetworkOutline,
   IoTrendingUpOutline,
-  IoAnalyticsOutline,
   IoPulseOutline,
-  IoShieldCheckmarkOutline,
   IoPricetagsOutline,
   IoCalculatorOutline,
   IoPeopleOutline,
@@ -28,13 +25,11 @@ export const navItems: DashboardNavItemV3[] = [
     name: "assessment",
     href: `${baseHref}/assessment/bundles`,
     Icon: PiExam,
-    section: "assessment_moderation",
-  },
-  {
-    name: "email logs",
-    href: `${baseHref}/email-logs`,
-    Icon: IoMailOutline,
-    section: "email_logs",
+    subLinks: [
+      { name: "Bundles", href: `${baseHref}/assessment/bundles`, section: "assessment_moderation" },
+      { name: "Assessment Intelligence", href: `${baseHref}/assessments`, section: "assessment_analytics" },
+      { name: "Proctoring", href: `${baseHref}/proctoring`, section: "proctoring" },
+    ],
   },
   {
     name: "jobs",
@@ -94,22 +89,13 @@ export const navItems: DashboardNavItemV3[] = [
     section: "growth",
   },
   {
-    name: "assessments",
-    href: `${baseHref}/assessments`,
-    Icon: IoAnalyticsOutline,
-    section: "assessment_analytics",
-  },
-  {
-    name: "proctoring",
-    href: `${baseHref}/proctoring`,
-    Icon: IoShieldCheckmarkOutline,
-    section: "proctoring",
-  },
-  {
     name: "system health",
     href: `${baseHref}/system`,
     Icon: IoPulseOutline,
-    section: "system_health",
+    subLinks: [
+      { name: "Overview", href: `${baseHref}/system`, section: "system_health" },
+      { name: "Email Logs", href: `${baseHref}/email-logs`, section: "email_logs" },
+    ],
   },
   {
     name: "interviews",

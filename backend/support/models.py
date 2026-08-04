@@ -67,6 +67,12 @@ class SupportTicket(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     resolved_at = models.DateTimeField(null=True, blank=True)
     closed_at = models.DateTimeField(null=True, blank=True)
+    # Set the moment a staff member opens this ticket (AdminTicketDetailView.get).
+    # Deliberately separate from updated_at, which changes on an admin's own
+    # status/priority edits too -- this only tracks "has staff looked at the
+    # current state of this ticket", which is what the unread-message
+    # counter on the admin nav is built on.
+    last_viewed_by_admin_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         ordering = ("-created_at",)

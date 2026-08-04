@@ -16,6 +16,7 @@ import AssessmentOpenEndedQuiz from "@/app/assessments/_components/AssessmentOpe
 import { submitAssessmentInviteAnswers } from "@/app/common/services/assessment-invite";
 import { completeProctoringSession } from "@/app/common/services/assessment-invite-client";
 import { useProctoring } from "@/app/common/hooks/useProctoring";
+import { useSnapshotCapture } from "@/app/common/hooks/useSnapshotCapture";
 import { useInviteFlow } from "./InviteFlowProvider";
 
 /** Drives a candidate through every section of the assessment, one at a time:
@@ -25,7 +26,13 @@ import { useInviteFlow } from "./InviteFlowProvider";
  * side), and only routes to /submitted once the last section is done. */
 const TakeAssessmentFlow = ({ assessment }: { assessment: CompanySkillAssessment }) => {
   const router = useRouter();
-  const { token, proctoring, proctoringSessionId } = useInviteFlow();
+  const { token, cameraStream, proctoring, proctoringSessionId } = useInviteFlow();
+
+  // Periodic webcam snapshots for the recruiter to review -- no-ops safely
+  // if cameraStream is null (denied, or not required for this assessment).
+  // cameraStream comes from the environment/device-check step and is held
+  // in InviteFlowProvider's context for the rest of this flow.
+  useSnapshotCapture(token, cameraStream);
 
   const {
     showViolationBanner,

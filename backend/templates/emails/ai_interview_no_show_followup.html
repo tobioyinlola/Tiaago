@@ -1,0 +1,11 @@
+{% extends "emails/base.html" %}
+{% block title %}Your AI interview window has closed{% endblock %}
+{% block preheader %}The window to complete your AI interview for {{ role|default:"the role" }} has closed.{% endblock %}
+{% block content %}
+  <h1 class="h1" style="margin:0 0 14px; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:33px; line-height:1.15; letter-spacing:-0.6px; font-weight:800; color:#0F172A;">We missed you, {{ first_name|default:"there" }}</h1>
+
+  <p style="margin:0 0 14px; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:16px; line-height:1.65; color:#475569;">The window to complete your AI interview for {{ role|default:"the role" }} at {{ company|default:"the company" }} has closed, so we weren't able to record a session for you.</p>
+
+  <p style="margin:0 0 14px; font-family:'Inter',Arial,sans-serif; font-size:14px; line-height:1.65; color:#475569;">If you'd still like to be considered, reply to this email and the hiring team will be in touch about next steps.</p>
+
+{% endblock %}

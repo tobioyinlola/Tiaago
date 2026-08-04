@@ -48,6 +48,9 @@ export type OrganisationStatus = "active" | "dormant" | "churned" | "free_credit
 export type OrganisationRow = {
   id: number;
   company_name: string;
+  company_email: string;
+  contact_name: string;
+  phone_number: string;
   date_joined: string;
   status: OrganisationStatus;
   wallet_balance_ngn: number;

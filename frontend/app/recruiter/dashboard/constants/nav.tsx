@@ -122,6 +122,16 @@ export const recruiterNavItems: DashboardNavItemV3[] = [
         />
       </svg>
     ),
+    subLinks: [
+      {
+        name: "Interviews",
+        href: `${baseHref}/interviews`,
+      },
+      {
+        name: "AI Interviews",
+        href: `${baseHref}/ai-interviews`,
+      },
+    ],
   },
   // {
   //   name: "Question Bank",

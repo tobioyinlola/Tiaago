@@ -26,23 +26,34 @@ export const criteriaAvailabilityValidationSchema = Yup.object().shape({
     .min(0, "Must be at least 0%")
     .max(100, "Must be at most 100%")
     .label("Assessment passing grade"),
-  interview_availability: Yup.object().shape({
-    days_of_week: Yup.array()
-      .of(Yup.number())
-      .min(1, "Select at least one day you're available")
-      .label("Interview availability days"),
-    start_time: Yup.string().required("Please set a start time"),
-    end_time: Yup.string()
-      .required("Please set an end time")
-      .test(
-        "is-after-start",
-        "End time must be after start time",
-        function (end_time) {
-          const { start_time } = this.parent;
-          return !start_time || !end_time || end_time > start_time;
-        }
-      ),
+  // Only required when AI interview is off -- an AI-interview-enabled job
+  // never surfaces these slots to candidates (see ai_interview_enabled below).
+  interview_availability: Yup.object().when("ai_interview_enabled", {
+    is: true,
+    then: schema => schema,
+    otherwise: schema =>
+      schema.shape({
+        days_of_week: Yup.array()
+          .of(Yup.number())
+          .min(1, "Select at least one day you're available")
+          .label("Interview availability days"),
+        start_time: Yup.string().required("Please set a start time"),
+        end_time: Yup.string()
+          .required("Please set an end time")
+          .test(
+            "is-after-start",
+            "End time must be after start time",
+            function (end_time) {
+              const { start_time } = this.parent;
+              return !start_time || !end_time || end_time > start_time;
+            }
+          ),
+      }),
   }),
+  ai_interview_enabled: Yup.boolean(),
+  ai_interview_duration_minutes: Yup.number().oneOf([5, 8, 10]).label("AI interview duration"),
+  ai_interview_questions_count: Yup.number().oneOf([4, 5, 6]).label("AI interview question count"),
+  ai_interview_window_hours: Yup.number().oneOf([48, 72]).label("AI interview window"),
 });
 
 export const assessmentGenerationValidationSchema = Yup.object().shape({
@@ -80,6 +91,10 @@ export type CriteriaAvailabilityFormValues = {
   screening_threshold: number | "";
   passing_grade: number | "";
   interview_availability: InterviewAvailabilityInput;
+  ai_interview_enabled: boolean;
+  ai_interview_duration_minutes: number;
+  ai_interview_questions_count: number;
+  ai_interview_window_hours: number;
 };
 
 export type AssessmentGenerationFormValues = {
@@ -105,6 +120,11 @@ export const criteriaAvailabilityInitialValues: CriteriaAvailabilityFormValues =
   // Days intentionally blank (recruiter must pick), but the time range
   // defaults to a normal 9-5 workday since that's the common case.
   interview_availability: { days_of_week: [], start_time: "09:00", end_time: "17:00" },
+  // Off by default -- matches Job.ai_interview_enabled's model default.
+  ai_interview_enabled: false,
+  ai_interview_duration_minutes: 10,
+  ai_interview_questions_count: 6,
+  ai_interview_window_hours: 72,
 };
 
 export const assessmentGenerationInitialValues: AssessmentGenerationFormValues = {

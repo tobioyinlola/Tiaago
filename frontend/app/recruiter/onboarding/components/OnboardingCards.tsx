@@ -2,6 +2,7 @@
 
 import { toast } from "sonner";
 import { useState } from "react";
+import { GroupBase } from "react-select";
 import Button from "@/app/common/components/DaisyButton";
 import { Formik, FormikConfig } from "formik";
 import {
@@ -13,6 +14,8 @@ import {
   UserRound,
   Users,
 } from "lucide-react";
+import CountrySelect from "@/app/common/components/Forms/CountrySelect";
+import { CountryField } from "@/app/common/types";
 
 import {
   companySizeOptions,
@@ -45,10 +48,19 @@ const OnboardingCards = ({
   onboarding,
   recruiterRoles,
   firstName,
+  groupedCountries,
+  isGoogleSignup,
 }: {
   onboarding: CompanyOnboarding;
   recruiterRoles: RecruiterRole[];
   firstName: string;
+  groupedCountries: GroupBase<CountryField>[];
+  /** Google signups skip the signup form entirely, so company name/country
+   * never get collected -- this step is the only chance to get them, so
+   * skipping isn't offered (see recruiter/dashboard/layout.tsx, which
+   * force-redirects a Google user back here until completed regardless of
+   * onboarding_skipped_at). */
+  isGoogleSignup?: boolean;
 }) => {
   const [step, setStep] = useState(() => getInitialStep(onboarding));
   const [isSkipping, setIsSkipping] = useState(false);
@@ -273,11 +285,19 @@ const OnboardingCards = ({
                   value={values.size}
                   error={errors.size}
                   touched={touched.size}
-                  className='sm:col-span-2'
                   selectFieldProps={{
                     options: companySizeOptions,
                     value: findOption(companySizeOptions, values.size),
                   }}
+                />
+                <CountrySelect
+                  name='country'
+                  label='Country'
+                  value={values.country}
+                  error={errors.country}
+                  touched={touched.country}
+                  type='select'
+                  options={groupedCountries}
                 />
               </div>
             )}
@@ -357,14 +377,16 @@ const OnboardingCards = ({
               >
                 <ArrowLeft className='h-4 w-4' aria-hidden /> Back
               </Button>
-              <button
-                type='button'
-                onClick={skipForNow}
-                disabled={isSubmitting || isSkipping}
-                className='text-sm text-muted-foreground hover:text-foreground transition-colors duration-200 disabled:opacity-50 disabled:pointer-events-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-md px-3 py-2'
-              >
-                {isSkipping ? "Skipping..." : "Skip for now"}
-              </button>
+              {!isGoogleSignup && (
+                <button
+                  type='button'
+                  onClick={skipForNow}
+                  disabled={isSubmitting || isSkipping}
+                  className='text-sm text-muted-foreground hover:text-foreground transition-colors duration-200 disabled:opacity-50 disabled:pointer-events-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-md px-3 py-2'
+                >
+                  {isSkipping ? "Skipping..." : "Skip for now"}
+                </button>
+              )}
               <Button
                 type='submit'
                 color='primary'

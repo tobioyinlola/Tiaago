@@ -619,6 +619,51 @@ class AIServiceHandler:
             logger.error(f"generate_candidate_feedback response parse error: {e}")
             return None
 
+    def generate_ai_interview_questions(self, payload: dict) -> Optional[dict]:
+        """`payload` matches ai/app/models/interview_questions.InterviewQuestionsRequest
+        -- job_title, company_name, description, requirements, resume_summary,
+        assessment_score, weak_areas, duration_minutes, questions_count.
+        Returns {questions: [...], model_used} or None on failure."""
+        try:
+            response = self.post("/generate-interview-questions", json=payload, timeout=90)
+        except Exception as e:
+            logger.error(f"generate_ai_interview_questions request error: {e}")
+            return None
+
+        if response is None or not response.ok:
+            logger.warning(
+                f"generate_ai_interview_questions failed: "
+                f"{getattr(response, 'status_code', None)} {getattr(response, 'text', '')}"
+            )
+            return None
+        try:
+            return response.json()
+        except Exception as e:
+            logger.error(f"generate_ai_interview_questions response parse error: {e}")
+            return None
+
+    def score_ai_interview(self, payload: dict) -> Optional[dict]:
+        """`payload` matches ai/app/models/interview_scoring.InterviewScoringRequest
+        -- job_title, company_name, requirements, candidate_name, transcript,
+        questions. Returns the parsed JSON scoring result or None on failure."""
+        try:
+            response = self.post("/score-ai-interview", json=payload, timeout=120)
+        except Exception as e:
+            logger.error(f"score_ai_interview request error: {e}")
+            return None
+
+        if response is None or not response.ok:
+            logger.warning(
+                f"score_ai_interview failed: "
+                f"{getattr(response, 'status_code', None)} {getattr(response, 'text', '')}"
+            )
+            return None
+        try:
+            return response.json()
+        except Exception as e:
+            logger.error(f"score_ai_interview response parse error: {e}")
+            return None
+
     def _coerce_score(self, val, default=0.0):
         try:
             s = float(val)
