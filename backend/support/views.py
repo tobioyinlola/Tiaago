@@ -1,5 +1,6 @@
 import logging
 
+from django.db.models import F, Max, Q
 from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import generics
@@ -195,6 +196,36 @@ class AdminTicketListView(generics.ListAPIView):
     queryset = SupportTicket.objects.select_related("company", "submitted_by", "assigned_to").all()
 
 
+def _unread_admin_tickets_queryset():
+    """Tickets with activity a staff member hasn't seen yet -- either never
+    opened, or the ticket/a non-admin reply is newer than the last time it
+    was opened. Deliberately keyed on last_viewed_by_admin_at, not
+    updated_at, so an admin's own status/priority edits never count as
+    "new"."""
+    return SupportTicket.objects.annotate(
+        latest_customer_reply_at=Max(
+            "replies__created_at",
+            filter=Q(replies__is_admin_reply=False, replies__is_internal_note=False),
+        )
+    ).filter(
+        Q(last_viewed_by_admin_at__isnull=True)
+        | Q(created_at__gt=F("last_viewed_by_admin_at"))
+        | Q(latest_customer_reply_at__gt=F("last_viewed_by_admin_at"))
+    )
+
+
+class AdminTicketUnreadCountView(APIView):
+    """GET /api/support/admin/tickets/unread-count/ -- powers the badge on
+    the admin Communication nav item, mirroring notifications' own
+    unread-count endpoint. See _unread_admin_tickets_queryset for what
+    counts as "unread"."""
+
+    permission_classes = [requirePermission("support.view")]
+
+    def get(self, request):
+        return Response(status=200, data={"unread_count": _unread_admin_tickets_queryset().distinct().count()})
+
+
 class AdminTicketDetailView(APIView):
     def get_permissions(self):
         slug = "support.view" if self.request.method == "GET" else "support.manage"
@@ -204,6 +235,8 @@ class AdminTicketDetailView(APIView):
         ticket = SupportTicket.objects.filter(id=ticket_id).first()
         if not ticket:
             return Response(status=404, data={"error": "Ticket not found."})
+        ticket.last_viewed_by_admin_at = timezone.now()
+        ticket.save(update_fields=["last_viewed_by_admin_at"])
         return Response(
             status=200,
             data=SupportTicketDetailSerializer(ticket, context={"include_internal_notes": True}).data,

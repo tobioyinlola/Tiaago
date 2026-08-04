@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { format, formatDistanceToNowStrict } from "date-fns";
+import { format } from "date-fns";
 
 import DisplayErrorMessages, {
   DisplayErrorMessagesProps,
@@ -21,7 +21,6 @@ export const metadata = {
 };
 
 const formatExact = (value: string) => format(new Date(value), "MMM dd, yyyy hh:mm a");
-const formatRelative = (value: string) => formatDistanceToNowStrict(new Date(value), { addSuffix: true });
 
 const OrganisationsPage = async ({
   searchParams,
@@ -72,33 +71,28 @@ const OrganisationsPage = async ({
       header: "Organisation",
       render: row => (
         <Link href={`/admin/organisations/${row.id}`} className='font-medium text-primary hover:underline'>
-          {row.company_name}
+          {row.company_name || <span className='text-muted-foreground italic'>Unnamed</span>}
         </Link>
       ),
       className: "text-left",
     },
     {
-      key: "tags",
-      header: "Tags",
+      key: "contact_name",
+      header: "Contact",
+      className: "text-left",
+      render: row => row.contact_name || <span className='text-muted-foreground'>—</span>,
+    },
+    {
+      key: "company_email",
+      header: "Email",
       className: "text-left max-md:hidden",
-      render: row => (
-        <div className='flex flex-wrap gap-1 max-w-xs'>
-          {row.tags.slice(0, 4).map(tag => (
-            <Link
-              key={tag.slug}
-              href={`/admin/organisations?tags=${tag.slug}`}
-              className='badge badge-sm text-white hover:opacity-80'
-              style={{ backgroundColor: tag.colour }}
-            >
-              {tag.name}
-            </Link>
-          ))}
-          {row.tags.length > 4 && (
-            <span className='badge badge-sm badge-ghost'>+{row.tags.length - 4} more</span>
-          )}
-          {!row.tags.length && <span className='text-muted-foreground text-xs'>—</span>}
-        </div>
-      ),
+      render: row => row.company_email || <span className='text-muted-foreground'>—</span>,
+    },
+    {
+      key: "phone_number",
+      header: "Phone",
+      className: "text-left max-md:hidden",
+      render: row => row.phone_number || <span className='text-muted-foreground'>—</span>,
     },
     { key: "date_joined", header: "Date joined", className: "max-md:hidden", render: row => formatExact(row.date_joined) },
     { key: "status", header: "Status", render: row => <OrgStatusBadge status={row.status} /> },
@@ -112,31 +106,13 @@ const OrganisationsPage = async ({
       ),
     },
     {
-      key: "total_resumes_screened",
-      header: "Resumes screened",
-      className: "max-md:hidden",
-      render: row => row.total_resumes_screened,
-    },
-    {
-      key: "total_assessments_taken",
-      header: "Assessments taken",
-      className: "max-md:hidden",
-      render: row => row.total_assessments_taken,
-    },
-    { key: "active_jobs_count", header: "Active jobs", className: "max-md:hidden", render: row => row.active_jobs_count },
-    { key: "team_members_count", header: "Team members", className: "max-md:hidden", render: row => row.team_members_count },
-    {
-      key: "last_active",
-      header: "Last active",
-      className: "max-md:hidden",
-      render: row => (row.last_active ? formatRelative(row.last_active) : <span className='text-muted-foreground'>—</span>),
-    },
-    { key: "total_spend_ngn", header: "Total spend", render: row => `₦${row.total_spend_ngn.toLocaleString()}` },
-    {
-      key: "monthly_avg_spend_ngn",
-      header: "Monthly avg spend",
-      className: "max-md:hidden",
-      render: row => `₦${row.monthly_avg_spend_ngn.toLocaleString()}`,
+      key: "id",
+      header: "",
+      render: row => (
+        <Link href={`/admin/organisations/${row.id}`} className='btn btn-sm btn-outline'>
+          View
+        </Link>
+      ),
     },
   ];
 

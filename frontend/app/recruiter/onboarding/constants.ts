@@ -86,6 +86,7 @@ export type OnboardingFormValues = {
   website: string;
   industry: string;
   size: string;
+  country: string;
   role: string;
   phone_number: string;
   heard_from: string;
@@ -101,6 +102,7 @@ export const getInitialFormValues = (
   website: onboarding.website || "",
   industry: onboarding.industry || "",
   size: onboarding.size || "",
+  country: onboarding.country || "",
   role: onboarding.role || "",
   phone_number: onboarding.phone_number || "",
   heard_from: onboarding.heard_from || "",
@@ -131,12 +133,13 @@ export const onboardingSteps: OnboardingStep[] = [
   {
     title: "Organization",
     description: "A few details about your organization",
-    fieldNames: ["company_name", "website", "industry", "size"],
+    fieldNames: ["company_name", "website", "industry", "size", "country"],
     validationSchema: Yup.object().shape({
       company_name: Yup.string().trim().required().label("Company name"),
       website: optionalUrlSchema.label("Website"),
       industry: Yup.string().label("Industry"),
       size: Yup.string().required().label("Company size"),
+      country: Yup.string().required().label("Country"),
     }),
   },
   {
@@ -169,7 +172,7 @@ export const onboardingSteps: OnboardingStep[] = [
  */
 export const getInitialStep = (onboarding: CompanyOnboarding) => {
   if (!onboarding.account_type) return 0;
-  if (!onboarding.company_name || !onboarding.size) return 1;
+  if (!onboarding.company_name || !onboarding.size || !onboarding.country) return 1;
   if (!onboarding.role) return 2;
   return 3;
 };

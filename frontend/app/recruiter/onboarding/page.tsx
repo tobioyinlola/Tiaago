@@ -7,7 +7,7 @@ import DisplayErrorMessages, {
   DisplayErrorMessagesProps,
 } from "@/app/common/components/DisplayErrorMessages";
 import BrandLink from "@/app/common/components/BrandLink";
-import { getTalentRoles } from "@/app/common/services";
+import { getTalentRoles, getCountries } from "@/app/common/services";
 import { handleServerApiCallError } from "@/app/common/utils";
 import { getCurrentUser } from "@/app/common/services/profile";
 import { getCompanyOnboarding } from "@/app/common/services/company-onboarding";
@@ -52,6 +52,9 @@ const RecruiterOnboardingPage = async () => {
       })
     : [];
 
+  const groupedCountries = await getCountries();
+  const isGoogleSignup = currentUser.auth_provider === "google";
+
   return (
     <main className='min-h-[100svh] bg-background flex flex-col'>
       <DisplayErrorMessages errors={errors} />
@@ -68,6 +71,8 @@ const RecruiterOnboardingPage = async () => {
               if (b.title === "Other") return -1;
               return 0;
             })}
+            groupedCountries={groupedCountries}
+            isGoogleSignup={isGoogleSignup}
           />
         ) : (
           <div className='w-full max-w-md rounded-xl border border-border bg-card text-card-foreground shadow-sm p-6 text-center space-y-4'>

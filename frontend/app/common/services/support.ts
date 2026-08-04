@@ -134,6 +134,13 @@ export const getAdminTicketDetail = async (id: string) => {
   return data;
 };
 
+export const getAdminTicketsUnreadCount = async () => {
+  const data = await serverKyInstance
+    .get("support/admin/tickets/unread-count/")
+    .json<{ unread_count: number }>();
+  return data.unread_count;
+};
+
 export type AdminTicketUpdatePayload = Partial<{
   status: TicketStatus;
   priority: TicketPriority;

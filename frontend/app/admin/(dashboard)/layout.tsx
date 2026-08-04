@@ -5,6 +5,7 @@ import {
   getAllTalents,
   getCurrentUser,
 } from "@/app/common/services/profile";
+import { getAdminTicketsUnreadCount } from "@/app/common/services/support";
 import { useAdminStore } from "./store";
 import Nav from "@/app/common/components/dashboard/Nav";
 import ScrollArea from "@/app/common/components/ScrollArea";
@@ -24,7 +25,7 @@ const AdminDashboardLayout = async ({ children }: PropsWithChildren) => {
   const { currentUser: user } = result;
   useAdminStore.setState({ profile: user });
   const as = "staff";
-  const [talentsRes, recruitersRes] = await Promise.all([
+  const [talentsRes, recruitersRes, unreadTicketsCount] = await Promise.all([
     getAllTalents(1, false).catch(async e => {
       const error = await handleServerApiCallError(e);
       console.log("Get talents error (admin dashboard layout): ", error);
@@ -37,6 +38,11 @@ const AdminDashboardLayout = async ({ children }: PropsWithChildren) => {
       errors.push({ message: error, title: "Error getting recruiters" });
       return { count: 0 };
     }),
+    // Not gated with an error banner like the other two -- staff without
+    // support.view (the same permission the Communication nav item itself
+    // requires) just see no badge instead of an error, since they can't
+    // reach the ticket list anyway.
+    getAdminTicketsUnreadCount().catch(() => 0),
   ]);
   const noOfUnverifiedTalents = talentsRes.count;
   const noOfUnverifiedRecruiters = recruitersRes.count;
@@ -73,6 +79,7 @@ const AdminDashboardLayout = async ({ children }: PropsWithChildren) => {
                 badges={{
                   Talents: noOfUnverifiedTalents,
                   Recruiters: noOfUnverifiedRecruiters,
+                  Support: unreadTicketsCount,
                 }}
               />
             </div>

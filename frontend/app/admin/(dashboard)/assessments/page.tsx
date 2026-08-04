@@ -7,7 +7,7 @@ import StatCard from "@/app/common/components/dashboard/StatCard";
 import DataTable, { DataTableColumn } from "@/app/common/components/dashboard/DataTable";
 import ChartContainer from "@/app/common/components/dashboard/charts/ChartContainer";
 import DashboardBarChart from "@/app/common/components/dashboard/charts/DashboardBarChart";
-import { JobAssessmentStat, RetakeComparison } from "@/app/common/types/analytics.type";
+import { JobAssessmentStat } from "@/app/common/types/analytics.type";
 
 export const metadata = {
   title: "Assessment Intelligence",
@@ -32,26 +32,6 @@ const AssessmentIntelligencePage = async () => {
   if (!data) {
     return <DisplayErrorMessages errors={errors} />;
   }
-
-  const retakeColumns: DataTableColumn<RetakeComparison>[] = [
-    { key: "job_application_id", header: "Application", render: r => `#${r.job_application_id}`, className: "text-left" },
-    { key: "original_score", header: "Original score", render: r => `${r.original_score}%` },
-    { key: "retake_score", header: "Retake score", render: r => `${r.retake_score}%` },
-    {
-      key: "delta",
-      header: "Change",
-      render: r => {
-        const delta = r.retake_score - r.original_score;
-        return (
-          <span className={delta >= 0 ? "text-badge-green-text" : "text-destructive"}>
-            {delta >= 0 ? "+" : ""}
-            {delta.toFixed(1)}%
-          </span>
-        );
-      },
-    },
-    { key: "attempts", header: "Attempts", render: r => r.attempts },
-  ];
 
   const jobColumns: DataTableColumn<JobAssessmentStat>[] = [
     { key: "job_title", header: "Job", render: r => r.job_title, className: "text-left" },
@@ -106,16 +86,6 @@ const AssessmentIntelligencePage = async () => {
           )}
         </section>
       </ChartContainer>
-
-      <section className='mb-8'>
-        <h3 className='text-gray-900 text-lg font-medium mb-4'>Retake comparisons</h3>
-        <DataTable
-          columns={retakeColumns}
-          data={data.retake_comparisons}
-          rowKey={r => r.job_application_id}
-          emptyText='No retakes recorded yet'
-        />
-      </section>
 
       <div className='grid grid-cols-1 lg:grid-cols-2 gap-6'>
         <section>

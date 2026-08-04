@@ -51,11 +51,18 @@ const RecruiterDashboardLayout = async ({ children }: PropsWithChildren) => {
   ]);
   const teamRole = teamRoleData?.role ?? null;
   const isTeamMember = !!teamRoleData?.role;
+  // Google signups never fill in a signup form -- company name/country only
+  // ever get collected here, so onboarding isn't skippable for them (unlike
+  // email signups, who already gave this info at signup). Ignoring
+  // has_skipped_onboarding for a Google user also retroactively catches
+  // anyone who skipped before this was enforced, next time they load the
+  // dashboard.
+  const isGoogleSignup = recruiter.auth_provider === "google";
   if (
     !isTeamMember &&
     onboarding &&
     !onboarding.has_completed_onboarding &&
-    !onboarding.has_skipped_onboarding
+    (!onboarding.has_skipped_onboarding || isGoogleSignup)
   )
     redirect("/recruiter/onboarding");
   const showFinishOnboardingBanner =
