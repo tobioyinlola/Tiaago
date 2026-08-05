@@ -5,8 +5,8 @@ the ai/ FastAPI generation service) -- see ../docker-compose.yml's
 `interview-agent` service. Connects to LiveKit, joins the room the candidate
 was given a token for (see backend/ai_interviews/views.py
 AIInterviewStartSessionView), and conducts the interview using OpenAI
-Whisper for STT, GPT-4o for the conversation, and OpenAI TTS (voice: nova)
-for Alex's voice.
+Whisper for STT, GPT-4o-mini for the conversation, and OpenAI TTS (voice:
+nova) for Alex's voice.
 
 Transcript capture is a byproduct of the conversation pipeline itself --
 every candidate turn (once STT finalizes it) and every Alex turn (once GPT-4o
@@ -24,7 +24,15 @@ import time
 import aiohttp
 from dotenv import load_dotenv
 from livekit import agents, rtc
-from livekit.agents import Agent, AgentSession, JobContext, RoomInputOptions, WorkerOptions
+from livekit.agents import (
+    Agent,
+    AgentSession,
+    JobContext,
+    RoomInputOptions,
+    RunContext,
+    WorkerOptions,
+    function_tool,
+)
 from livekit.agents.llm import ChatMessage
 from livekit.agents.voice.events import ConversationItemAddedEvent
 from livekit.plugins import openai, silero
@@ -47,7 +55,9 @@ Vary your acknowledgements every time:
 'That makes sense' / 'I appreciate that' / 'Interesting' / 'Got it' / 'Makes sense' / 'Tell me more about that'
 Never say 'Great answer' or 'Wonderful'
 
-OPENING -- say this exactly:
+OPENING -- this is the very first thing you say, before anything else, as soon
+as the call connects. Do not wait for the candidate to speak first. Say this
+exactly:
 'Hi {candidate_name}, I am Alex. I will be conducting your interview today for the {job_title} role. This should take about {duration} minutes. I have looked through your background and have some questions I would love to explore with you. Ready to get started?'
 
 Wait for them to confirm before continuing.
@@ -83,7 +93,9 @@ CLOSING -- when all questions complete:
 '{candidate_name}, this has been a great conversation. Thank you so much for your time. Our team at {company_name} will review everything and be in touch about next steps. Is there anything you would like to add or any questions before we finish?'
 
 Listen fully to their response.
-Then: 'Brilliant. It was great speaking with you. Best of luck and take care.'
+Then say: 'Brilliant. It was great speaking with you. Best of luck and take care.'
+Then immediately call the end_interview tool. Call it exactly once, only
+after that line, never before.
 
 NEVER:
 Tell the candidate how they performed.
@@ -101,9 +113,10 @@ Assessment: {assessment_score}/100
 
 
 class InterviewAgent(Agent):
-    def __init__(self, interview_data: dict):
+    def __init__(self, interview_data: dict, call_ended: asyncio.Event):
         self.interview_id = interview_data["id"]
         self.start_time = time.time()
+        self._call_ended = call_ended
 
         questions_text = self._format_questions(interview_data["questions"])
 
@@ -149,6 +162,16 @@ class InterviewAgent(Agent):
     async def on_user_turn_completed(self, turn_ctx, new_message):
         await self.save_segment("CANDIDATE", new_message.text_content)
 
+    @function_tool
+    async def end_interview(self, context: RunContext) -> None:
+        """Call this exactly once, immediately after delivering the final
+        goodbye line and only once the candidate has confirmed they have
+        nothing more to add. This ends the interview call."""
+        # Let the goodbye that triggered this call finish playing before the
+        # room disconnects, otherwise the candidate gets cut off mid-word.
+        await context.wait_for_playout()
+        self._call_ended.set()
+
 
 async def _fetch_agent_data(interview_id: str) -> dict:
     async with aiohttp.ClientSession() as s:
@@ -189,14 +212,32 @@ async def entrypoint(ctx: JobContext):
     interview_data = await _fetch_agent_data(interview_id)
     await _patch_status(interview_id, "IN_PROGRESS")
 
-    agent = InterviewAgent(interview_data)
+    call_ended = asyncio.Event()
+    agent = InterviewAgent(interview_data, call_ended)
 
     session = AgentSession(
         stt=openai.STT(model="whisper-1"),
-        llm=openai.LLM(model="gpt-4o", temperature=0.65),
+        # gpt-4o-mini keeps both latency and per-turn token spend low; the
+        # interview follows a rigid, fully-scripted prompt (exact opening/
+        # closing lines, fixed question order) so a smaller model tracks it
+        # just as reliably as gpt-4o. max_completion_tokens caps runaway
+        # completions -- every turn here is meant to be a short spoken line,
+        # never a long one, which also keeps TTS from lagging behind.
+        llm=openai.LLM(
+            model="gpt-4o-mini", temperature=0.65, max_completion_tokens=200, parallel_tool_calls=False
+        ),
         tts=openai.TTS(model="tts-1", voice="nova"),
         vad=silero.VAD.load(),
-        max_endpointing_delay=0.8,
+        # preemptive_generation starts drafting Alex's reply from interim STT
+        # results instead of waiting for the final transcript -- the single
+        # biggest lever for perceived voice-to-voice latency. Endpointing
+        # delays tightened from the previous 0.8s max (with no min set, i.e.
+        # the SDK default) so Alex jumps in faster once the candidate stops
+        # talking, while staying high enough not to cut people off mid-word.
+        turn_handling={
+            "endpointing": {"min_delay": 0.3, "max_delay": 0.6},
+            "preemptive_generation": {"enabled": True},
+        },
     )
 
     @session.on("conversation_item_added")
@@ -207,11 +248,11 @@ async def entrypoint(ctx: JobContext):
         if isinstance(event.item, ChatMessage) and event.item.role == "assistant":
             asyncio.create_task(agent.save_segment("ALEX", event.item.text_content))
 
-    disconnected = asyncio.Event()
-
     @ctx.room.on("participant_disconnected")
     def _on_participant_disconnected(participant: rtc.RemoteParticipant):
-        disconnected.set()
+        # Candidate hung up on their end -- same exit path as the agent
+        # calling end_interview after its own goodbye.
+        call_ended.set()
 
     await session.start(
         agent=agent,
@@ -219,13 +260,23 @@ async def entrypoint(ctx: JobContext):
         room_input_options=RoomInputOptions(),
     )
 
+    # Alex must greet first, unprompted -- turn-detection otherwise waits for
+    # the candidate to speak before generating any reply, which would leave
+    # them staring at silence. generate_reply forces the opening line (the
+    # instructions here just point back at the prompt's own OPENING script,
+    # already-formatted per-candidate) the moment the session is live.
+    session.generate_reply(
+        instructions="Greet the candidate now, exactly per the OPENING section of your instructions."
+    )
+
     max_seconds = (interview_data["duration_minutes"] * 60) + 60
 
     try:
-        await asyncio.wait_for(disconnected.wait(), timeout=max_seconds)
+        await asyncio.wait_for(call_ended.wait(), timeout=max_seconds)
     except asyncio.TimeoutError:
         pass
 
+    await ctx.room.disconnect()
     await _mark_complete(interview_id)
 
 

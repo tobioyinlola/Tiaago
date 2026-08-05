@@ -169,6 +169,7 @@ class AIInterviewQuestion(TimeStampedModel):
         EXPERIENCE = "EXPERIENCE", _("Experience")
         SITUATIONAL = "SITUATIONAL", _("Situational")
         CHALLENGE = "CHALLENGE", _("Challenge")
+        CULTURAL_FIT = "CULTURAL_FIT", _("Cultural fit")
         CLOSING = "CLOSING", _("Closing")
 
     class SignalStrength(models.TextChoices):
