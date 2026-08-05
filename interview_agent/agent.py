@@ -226,4 +226,4 @@ async def entrypoint(ctx: JobContext):
 
 
 if __name__ == "__main__":
-    agents.cli.run_app(WorkerOptions(entrypoint_fnc=entrypoint))
+    agents.cli.run_app(WorkerOptions(entrypoint_fnc=entrypoint, num_idle_processes=1))
