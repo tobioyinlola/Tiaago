@@ -270,9 +270,13 @@ class GeneralSkillAssessmentSection(TimeStampedModel):
         GeneralSkillAssessment, on_delete=models.CASCADE, related_name="sections"
     )
     type = models.CharField(max_length=100, choices=SUB_SKILL_ASSESSMENT_TYPE_CHOICES)
-    mcq_questions = models.ManyToManyField(
-        "GeneralSkillAssessmentMCQQuestion", blank=True
-    )
+    # Set only on bundle-added sections (and only on one section per bundle
+    # add, when a bundle spans MCQ/coding/open-ended) to the slice of
+    # estimated_duration_minutes that add rolled into the parent assessment's
+    # duration_minutes -- lets RemoveSectionAPIView subtract the exact amount
+    # back out instead of duration only ever accumulating. Always 0 for
+    # hand-authored custom sections, which never touch duration_minutes.
+    bundle_duration_minutes = models.PositiveIntegerField(default=0)
     mcq_questions_new = models.ManyToManyField(
         "GeneralSkillAssessmentMCQQuestion",
         blank=True,

@@ -155,6 +155,22 @@ def meeting_invite_others(user_id, meeting_id, user_emails=None):
         raise
     
 @shared_task
+def candidate_interview_confirmation_mail(user_id, company_name, meeting_id):
+    """Confirmation to the candidate once they've picked a slot -- see
+    JobInterviewSlotClaimView.post."""
+    try:
+        user = User.objects.get(id=user_id)
+        meeting_instance = Scheduler.objects.get(id=meeting_id)
+        meeting_details = get_meeting_details(meeting_instance)
+        return emails.candidate_interview_confirmation_mail(user, company_name, meeting_details)
+    except (Scheduler.DoesNotExist, User.DoesNotExist):
+        logger.error(f"candidate_interview_confirmation_mail: meeting {meeting_id} or user {user_id} not found")
+        return None
+    except Exception:
+        logger.exception(f"Error sending candidate interview confirmation for meeting {meeting_id}")
+
+
+@shared_task
 def recruiter_interview_acceptance_mail(user_id, company_name, meeting_id):
     """Send email notification to company when talent accepts interview"""
     logger.info(f"Sending interview acceptance notification for meeting {meeting_id}")
@@ -162,7 +178,10 @@ def recruiter_interview_acceptance_mail(user_id, company_name, meeting_id):
         user = User.objects.get(id=user_id)
         meeting_instance = Scheduler.objects.get(id=meeting_id)
         meeting_details = get_meeting_details(meeting_instance)
-        result = emails.recruiter_interview_acceptance_mail(user, company_name, meeting_details)
+        candidate_name = meeting_instance.talent.full_name if meeting_instance.talent else "The candidate"
+        result = emails.recruiter_interview_acceptance_mail(
+            user, company_name, meeting_details, candidate_name=candidate_name
+        )
         logger.info(f"Successfully sent interview acceptance notification for meeting {meeting_id}")
         return result
     except Scheduler.DoesNotExist:

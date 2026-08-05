@@ -101,6 +101,7 @@ from rest_framework.throttling import ScopedRateThrottle
 from scheduler.models import Scheduler
 from scheduler.services import provision_daily_room, DailyRoomProvisioningError
 from scheduler.tasks import (
+    candidate_interview_confirmation_mail,
     recruiter_interview_acceptance_mail,
     recruiter_interview_reminder_mail,
     retry_room_creation,
@@ -587,6 +588,13 @@ class JobInterviewSlotClaimView(APIView):
         except Exception as e:
             logger.error(f"Failed to send interview acceptance email: {e}")
 
+        try:
+            candidate_interview_confirmation_mail.delay(
+                request.user.id, job.company.company_name, str(meeting.id)
+            )
+        except Exception:
+            logger.exception(f"Failed to send candidate interview confirmation email for meeting {meeting.id}")
+
         if room_created and job.company.company_rep_id:
             try:
                 notify_user(
@@ -603,32 +611,46 @@ class JobInterviewSlotClaimView(APIView):
             except Exception:
                 logger.exception(f"Failed to create room-ready notification for meeting {meeting.id}")
 
-        # 30-minutes-before reminders -- candidate gets email only (reusing
-        # the existing talent-facing reminder task), recruiter gets email +
-        # in-app (see recruiter_interview_reminder_mail). Scheduled
-        # regardless of whether room provisioning succeeded above: if the
-        # retry also fails, the recruiter still gets reminded to sort it out.
+        # Two reminder tiers -- 1 hour and 15 minutes before -- to both
+        # candidate (email) and recruiter (email + in-app). Both underlying
+        # tasks already self-guard (send_meeting_reminder no-ops if the
+        # meeting time has passed or it was never accepted;
+        # recruiter_interview_reminder_mail no-ops if cancelled), so firing
+        # each one twice at different etas is safe without any new
+        # cancellation bookkeeping. Only the 15-minute tier's task ids are
+        # persisted (matching the existing candidate_reminder_task_id/
+        # recruiter_reminder_task_id fields, which are 1-per-meeting) --
+        # the 1-hour tier is fire-and-forget, same as this feature's other
+        # scheduled reminders.
         try:
             meeting_time = timezone.make_aware(datetime.combine(slot.date, slot.start_time))
-            reminder_eta = meeting_time - timedelta(minutes=30)
+            reminder_etas = {
+                "1_hour": meeting_time - timedelta(hours=1),
+                "15_min": meeting_time - timedelta(minutes=15),
+            }
 
-            candidate_reminder = send_meeting_reminder.apply_async(
-                (request.user.id, job.company.company_name, str(meeting.id)), eta=reminder_eta
-            )
-            update_fields = ["candidate_reminder_task_id"]
-            meeting.candidate_reminder_task_id = candidate_reminder.id
-
-            if job.company.company_rep_id:
-                recruiter_reminder = recruiter_interview_reminder_mail.apply_async(
-                    (job.company.company_rep_id, profile.full_name, job.company.company_name, str(meeting.id)),
-                    eta=reminder_eta,
+            update_fields = []
+            for tier, reminder_eta in reminder_etas.items():
+                candidate_reminder = send_meeting_reminder.apply_async(
+                    (request.user.id, job.company.company_name, str(meeting.id)), eta=reminder_eta
                 )
-                meeting.recruiter_reminder_task_id = recruiter_reminder.id
-                update_fields.append("recruiter_reminder_task_id")
+                if tier == "15_min":
+                    meeting.candidate_reminder_task_id = candidate_reminder.id
+                    update_fields.append("candidate_reminder_task_id")
 
-            meeting.save(update_fields=update_fields)
+                if job.company.company_rep_id:
+                    recruiter_reminder = recruiter_interview_reminder_mail.apply_async(
+                        (job.company.company_rep_id, profile.full_name, job.company.company_name, str(meeting.id)),
+                        eta=reminder_eta,
+                    )
+                    if tier == "15_min":
+                        meeting.recruiter_reminder_task_id = recruiter_reminder.id
+                        update_fields.append("recruiter_reminder_task_id")
+
+            if update_fields:
+                meeting.save(update_fields=update_fields)
         except Exception:
-            logger.exception(f"Failed to schedule 30-minute reminders for meeting {meeting.id}")
+            logger.exception(f"Failed to schedule interview reminders for meeting {meeting.id}")
 
         return Response(JobInterviewAvailabilitySlotSerializer(slot).data, status=HTTP_200_OK)
 

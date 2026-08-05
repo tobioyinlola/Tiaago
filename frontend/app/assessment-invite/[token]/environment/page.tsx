@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowRight, Camera, CheckCircle2, XCircle } from "lucide-react";
+import { ArrowRight, Camera, CheckCircle2, Mic, XCircle } from "lucide-react";
 
 import DaisyButton from "@/app/common/components/DaisyButton";
 import InviteShell from "../_components/InviteShell";
@@ -22,13 +22,37 @@ const EnvironmentPage = () => {
   const { token, cameraStream, setCameraStream, setEnvironmentReady, proctoring } = useInviteFlow();
   const videoRef = useRef<HTMLVideoElement>(null);
   const [permission, setPermission] = useState<PermissionState>("checking");
+  const [micPermission, setMicPermission] = useState<PermissionState>("checking");
   const webcamRequired = !!proctoring?.require_webcam;
 
   useEffect(() => {
     let cancelled = false;
     let localStream: MediaStream | null = null;
 
-    const requestCamera = async () => {
+    // Mic access alongside the camera -- an active, unmuted microphone
+    // through the assessment is one more integrity signal for the
+    // recruiter (matches the existing webcam-snapshot rationale). Requested
+    // together so the browser's permission prompt only interrupts the
+    // candidate once, but camera and mic are tracked as independent
+    // pass/fail signals: a denied/missing mic never blocks the camera (or
+    // the assessment) the way a *required* camera can.
+    const requestDevices = async () => {
+      try {
+        localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        if (cancelled) {
+          localStream.getTracks().forEach(t => t.stop());
+          return;
+        }
+        setCameraStream(localStream);
+        setPermission("allowed");
+        setMicPermission(localStream.getAudioTracks().length > 0 ? "allowed" : "denied");
+        return;
+      } catch {
+        // Combined request fails outright if either device is unavailable/
+        // denied -- fall back to camera-only so a missing/blocked mic never
+        // takes camera access down with it.
+      }
+
       try {
         localStream = await navigator.mediaDevices.getUserMedia({ video: true });
         if (cancelled) {
@@ -37,15 +61,20 @@ const EnvironmentPage = () => {
         }
         setCameraStream(localStream);
         setPermission("allowed");
+        setMicPermission("denied");
       } catch {
-        if (!cancelled) setPermission("denied");
+        if (!cancelled) {
+          setPermission("denied");
+          setMicPermission("denied");
+        }
       }
     };
 
     if (cameraStream) {
       setPermission("allowed");
+      setMicPermission(cameraStream.getAudioTracks().length > 0 ? "allowed" : "denied");
     } else {
-      requestCamera();
+      requestDevices();
     }
 
     return () => {
@@ -68,10 +97,15 @@ const EnvironmentPage = () => {
   return (
     <InviteShell step={4}>
       <h2 className='text-lg font-bold text-primary-black mb-1'>Environment setup</h2>
-      <p className='text-secondary-black text-sm mb-6'>
+      <p className='text-secondary-black text-sm mb-2'>
         {webcamRequired
           ? "This assessment requires camera access. We use it for periodic snapshots for the recruiter to review -- we don't record you continuously."
           : "We use your camera for periodic snapshots for the recruiter to review. We don't record you continuously."}
+      </p>
+      <p className='text-secondary-black text-sm mb-6 flex items-center gap-1.5'>
+        <Mic className='h-3.5 w-3.5 shrink-0' />
+        We also ask for microphone access -- an active mic during the assessment is an additional integrity
+        signal for the recruiter. It&apos;s optional and never blocks you from starting.
       </p>
 
       <div className='grid md:grid-cols-2 gap-6 mb-8'>
@@ -93,13 +127,28 @@ const EnvironmentPage = () => {
 
         <div>
           <p className='text-sm font-medium text-primary-black mb-2'>Device permissions</p>
-          <div className='border border-gray-200 rounded-xl p-4 flex items-center justify-between mb-4'>
+          <div className='border border-gray-200 rounded-xl p-4 flex items-center justify-between mb-3'>
             <span className='text-sm text-primary-black'>Camera</span>
             {permission === "allowed" ? (
               <span className='inline-flex items-center gap-1.5 text-xs text-success bg-success/10 px-2.5 py-1 rounded-full font-medium'>
                 <CheckCircle2 className='h-3.5 w-3.5' /> Allowed
               </span>
             ) : permission === "denied" ? (
+              <span className='inline-flex items-center gap-1.5 text-xs text-error bg-error/10 px-2.5 py-1 rounded-full font-medium'>
+                <XCircle className='h-3.5 w-3.5' /> Denied
+              </span>
+            ) : (
+              <span className='text-xs text-secondary-black'>Checking...</span>
+            )}
+          </div>
+
+          <div className='border border-gray-200 rounded-xl p-4 flex items-center justify-between mb-4'>
+            <span className='text-sm text-primary-black'>Microphone</span>
+            {micPermission === "allowed" ? (
+              <span className='inline-flex items-center gap-1.5 text-xs text-success bg-success/10 px-2.5 py-1 rounded-full font-medium'>
+                <CheckCircle2 className='h-3.5 w-3.5' /> Allowed
+              </span>
+            ) : micPermission === "denied" ? (
               <span className='inline-flex items-center gap-1.5 text-xs text-error bg-error/10 px-2.5 py-1 rounded-full font-medium'>
                 <XCircle className='h-3.5 w-3.5' /> Denied
               </span>

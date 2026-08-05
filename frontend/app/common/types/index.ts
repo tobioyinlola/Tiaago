@@ -1273,6 +1273,7 @@ export type AiFeedbackItem = {
   resume_recommendations: string;
   resume_achievement_quality: string;
   time_taken: string;
+  topics_tested: string[];
   difficulty_level: CompanySkillAssessment["difficulty_level"];
   total_questions: number | null;
   duration_minutes: number | null;

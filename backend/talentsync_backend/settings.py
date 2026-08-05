@@ -421,6 +421,15 @@ LIVEKIT_API_SECRET = env("LIVEKIT_API_SECRET", default="")
 # segment, status, complete) -- see ai_interviews.permissions.HasInternalServiceKey.
 INTERNAL_API_KEY = env("INTERNAL_API_KEY", default="")
 
+# How many AI interview sessions the deployed interview_agent/ worker
+# fleet can run at once. AIInterviewStartSessionView checks this before
+# creating a LiveKit room -- past this, a candidate is asked to wait
+# rather than joining a room no agent has capacity to pick up. Tune this
+# to match how many interview_agent processes/workers are actually
+# running (each LiveKit Agents worker process handles several concurrent
+# jobs on its own, so this is a platform-wide ceiling, not a 1:1 worker count).
+AI_INTERVIEW_MAX_CONCURRENT_SESSIONS = env("AI_INTERVIEW_MAX_CONCURRENT_SESSIONS", cast=int, default=5)
+
 # Server-side only -- used by ats_integrations.nango_client to call Nango's
 # REST API (create connect sessions, proxy ATS requests, delete connections
 # after a sync). Never expose this to the frontend. Nango's public-key

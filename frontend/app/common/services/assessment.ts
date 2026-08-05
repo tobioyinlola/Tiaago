@@ -221,6 +221,23 @@ export const getCompanyAssessment = async (id: ID) => {
   return data;
 };
 
+/** Deletes a standalone company assessment. The backend refuses (400) once
+ * any candidate has completed it, and (404) if it isn't owned by the
+ * caller's company or doesn't exist. */
+export const deleteCompanyAssessment = async (
+  id: ID
+): Promise<ApiResponse<{ message: string }>> => {
+  try {
+    const result = await serverKyInstance
+      .delete(`skill-assessments/company-assessments/${id}`)
+      .json<{ message: string }>();
+    return { success: true, data: result };
+  } catch (error) {
+    const errMsg = await handleServerApiCallError(error);
+    return { success: false, error: errMsg };
+  }
+};
+
 export const createCompanyAssessment = async (
   data: Partial<typeof initialValues> & Record<string, unknown>
 ): Promise<ApiResponse<CompanySkillAssessment>> => {
@@ -356,11 +373,15 @@ export const addBundleToAssessment = async (
 export const removeSectionFromAssessment = async (
   id: ID,
   sectionId: ID
-): Promise<ApiResponse<{ message: string }>> => {
+): Promise<ApiResponse<{ message: string; duration_minutes: number }>> => {
   try {
     const result = await serverKyInstance
       .delete(`skill-assessments/company-assessments/${id}/sections/${sectionId}/`)
-      .json<{ message: string }>();
+      // duration_minutes is the assessment's new total after subtracting back
+      // out whatever this section had rolled in (bundle-added sections only,
+      // see AddBundleSectionAPIView/RemoveSectionAPIView on the backend) --
+      // mirrored into Formik the same way addBundleToAssessment's is.
+      .json<{ message: string; duration_minutes: number }>();
     return { success: true, data: result };
   } catch (error) {
     const errMsg = await handleServerApiCallError(error);

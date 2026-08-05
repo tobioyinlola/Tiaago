@@ -1,12 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { useRef } from "react";
-import { Clock, ListChecks, Send, PenLine } from "lucide-react";
+import { useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { Clock, ListChecks, Send, PenLine, Trash2 } from "lucide-react";
 
 import { cn, getAssessmentDurationInMinutes, getNoOfAssementQuestions } from "@/app/common/utils";
 import { CompanySkillAssessment } from "@/app/common/types";
+import { useAlert } from "@/app/common/store/useAlert";
+import { deleteCompanyAssessment } from "@/app/common/services/assessment";
 import InviteCandidatesModal from "./InviteCandidatesModal";
+import DeleteAssessmentModal from "./DeleteAssessmentModal";
 
 const difficultyToneMap: Record<string, string> = {
   JUNIOR: "bg-badge-green-bg text-badge-green-text",
@@ -26,13 +30,31 @@ const StatusBadge = ({ published }: { published?: boolean }) => (
 );
 
 const AssessmentCard = (assessment: CompanySkillAssessment) => {
+  const router = useRouter();
+  const setAlert = useAlert(s => s.setAlert);
   const noOfQuestions = getNoOfAssementQuestions(assessment);
   const inviteModalRef = useRef<HTMLDialogElement>(null);
+  const deleteModalRef = useRef<HTMLDialogElement>(null);
   const modalId = `invite-candidates-modal-${assessment.id}`;
+  const deleteModalId = `delete-assessment-modal-${assessment.id}`;
   const detailsHref = `/recruiter/dashboard/assessments/${assessment.id}`;
   // Drafts still have an unfinished wizard behind them -- send the recruiter
   // straight back into it rather than to the read-only detail page.
   const resumeHref = `/recruiter/dashboard/assessments/add?assessmentId=${assessment.id}`;
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDelete = async () => {
+    setDeleting(true);
+    const res = await deleteCompanyAssessment(assessment.id);
+    setDeleting(false);
+    if (!res.success) {
+      setAlert({ title: "Error", message: res.error, icon: "error" });
+      return;
+    }
+    deleteModalRef.current?.close();
+    setAlert({ title: "Deleted", message: "Assessment deleted.", icon: "success" });
+    router.refresh();
+  };
 
   return (
     <div className='group bg-white border border-[#EAECF0] rounded-2lg p-6 hover:shadow-card-hover hover:border-primary/30 transition-all flex flex-col'>
@@ -80,37 +102,57 @@ const AssessmentCard = (assessment: CompanySkillAssessment) => {
           </div>
         </div>
 
-        {assessment.published ? (
+        <div className='flex items-center gap-3'>
           <button
             type='button'
-            onClick={() => inviteModalRef.current?.showModal()}
-            className='flex items-center gap-1.5 text-primary text-sm font-medium hover:underline'
+            aria-label='Delete assessment'
+            title='Delete assessment'
+            onClick={() => deleteModalRef.current?.showModal()}
+            className='text-secondary-black/60 hover:text-error transition-colors'
           >
-            <Send className='w-3.5 h-3.5' />
-            Invite
+            <Trash2 className='w-3.5 h-3.5' />
           </button>
-        ) : (
-          <div className='flex items-center gap-3'>
-            <Link
-              href={detailsHref}
-              className='text-xs text-secondary-black hover:text-primary hover:underline'
-            >
-              Details
-            </Link>
-            <Link
-              href={resumeHref}
+
+          {assessment.published ? (
+            <button
+              type='button'
+              onClick={() => inviteModalRef.current?.showModal()}
               className='flex items-center gap-1.5 text-primary text-sm font-medium hover:underline'
             >
-              <PenLine className='w-3.5 h-3.5' />
-              Continue
-            </Link>
-          </div>
-        )}
+              <Send className='w-3.5 h-3.5' />
+              Invite
+            </button>
+          ) : (
+            <>
+              <Link
+                href={detailsHref}
+                className='text-xs text-secondary-black hover:text-primary hover:underline'
+              >
+                Details
+              </Link>
+              <Link
+                href={resumeHref}
+                className='flex items-center gap-1.5 text-primary text-sm font-medium hover:underline'
+              >
+                <PenLine className='w-3.5 h-3.5' />
+                Continue
+              </Link>
+            </>
+          )}
+        </div>
       </div>
 
       {assessment.published && (
         <InviteCandidatesModal assessmentId={assessment.id} modalId={modalId} modalRef={inviteModalRef} />
       )}
+
+      <DeleteAssessmentModal
+        modalId={deleteModalId}
+        modalRef={deleteModalRef}
+        title={assessment.title}
+        deleting={deleting}
+        onConfirm={handleDelete}
+      />
     </div>
   );
 };

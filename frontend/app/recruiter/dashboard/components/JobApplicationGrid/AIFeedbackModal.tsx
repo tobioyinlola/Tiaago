@@ -45,12 +45,16 @@ const getStatusColor = (status: string) => {
     case "recommend":
     case "strongly recommend":
     case "validated":
+    case "authentic":
       return "text-green-600 bg-green-50 border-green-200";
     case "fail":
     case "not recommend":
       return "text-red-600 bg-red-50 border-red-200";
     case "conditional":
     case "average":
+    case "suspicious":
+    case "likely ai-generated":
+    case "questionable":
       return "text-yellow-600 bg-yellow-50 border-yellow-200";
     default:
       return "text-blue-600 bg-blue-50 border-blue-200";
@@ -62,12 +66,16 @@ const getStatusIcon = (status: string) => {
     case "pass":
     case "recommend":
     case "validated":
+    case "authentic":
       return <CheckCircle className='w-5 h-5' />;
     case "fail":
     case "not recommend":
       return <XCircle className='w-5 h-5' />;
     case "conditional":
     case "average":
+    case "suspicious":
+    case "likely ai-generated":
+    case "questionable":
       return <AlertTriangle className='w-5 h-5' />;
     default:
       return <Target className='w-5 h-5' />;
@@ -429,6 +437,18 @@ const AIFeedbackModal: React.FC<AIFeedbackModalProps> = ({
                   <div className='text-sm capitalize'>
                     {fromSlug(aiFeedback.resume_text_authencity)}
                   </div>
+                  {aiFeedback.resume_text_authencity_explanation && (
+                    <div className='text-xs mt-1.5 opacity-80 normal-case'>
+                      {aiFeedback.resume_text_authencity_explanation}
+                    </div>
+                  )}
+                  {["suspicious", "likely ai-generated"].includes(
+                    (aiFeedback.resume_text_authencity || "").toLowerCase()
+                  ) && (
+                    <div className='text-xs mt-1.5 italic opacity-70 normal-case'>
+                      Informational only -- doesn&apos;t disqualify the candidate.
+                    </div>
+                  )}
                 </div>
 
                 <div
@@ -665,6 +685,26 @@ const AIFeedbackModal: React.FC<AIFeedbackModalProps> = ({
                     </div>
                   </div>
                 </div>
+
+                {/* Key topics tested */}
+                {aiFeedback.topics_tested && aiFeedback.topics_tested.length > 0 && (
+                  <div className='bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-white/50 mb-6'>
+                    <h4 className='font-semibold text-gray-900 mb-3 flex items-center'>
+                      <ListChecks className='w-4 h-4 mr-2' />
+                      Key Topics Tested
+                    </h4>
+                    <div className='flex flex-wrap gap-2'>
+                      {aiFeedback.topics_tested.map((topic, index) => (
+                        <span
+                          key={index}
+                          className='text-sm font-medium px-3 py-1.5 rounded-full bg-primary/10 text-primary'
+                        >
+                          {topic}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {/* Assessment Feedback */}
                 <div className='bg-white/80 backdrop-blur-sm rounded-2xl p-8 shadow-lg border border-white/50'>

@@ -97,6 +97,7 @@ const AssessmentDetailsPage = async ({ params }: Props) => {
           )}
           <AssessmentDetailActions
             assessmentId={assessment.id}
+            title={assessment.title}
             published={!!assessment.published}
             hasSections={assessment.sections.length > 0}
           />

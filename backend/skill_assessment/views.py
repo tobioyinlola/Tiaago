@@ -301,7 +301,7 @@ class AddSectionsToSkillAssessmentAPIView(APIView):
                                 correct_option_index=correct_option_index,
                                 is_ai_generated=is_ai_generated,
                             )
-                            assessment_section.mcq_questions.add(mcq_question_obj)
+                            assessment_section.mcq_questions_new.add(mcq_question_obj)
 
                     # if the section is a coding section (support multiple coding tasks)
                     elif section_type == SkillAssessmentTypes.CODING_TASK:
@@ -444,10 +444,15 @@ class AddBundleSectionAPIView(APIView):
             # total -- the recruiter picked a duration for each standalone
             # test in the library; the composed assessment should reflect
             # what was actually added rather than staying at whatever was
-            # typed on step 1 before any tests were chosen.
+            # typed on step 1 before any tests were chosen. Tracked on the
+            # first created section so RemoveSectionAPIView can subtract the
+            # exact amount back out later instead of duration only ever
+            # accumulating.
             if created_sections:
                 assessment.duration_minutes = (assessment.duration_minutes or 0) + bundle.estimated_duration_minutes
                 assessment.save(update_fields=["duration_minutes"])
+                created_sections[0].bundle_duration_minutes = bundle.estimated_duration_minutes
+                created_sections[0].save(update_fields=["bundle_duration_minutes"])
         except Exception as e:
             logger.exception("Failed to add bundle section: %s", e)
             return Response(status=500, data={"error": "Failed to add bundle to assessment"})
@@ -475,8 +480,16 @@ class RemoveSectionAPIView(APIView):
         if not section:
             return Response(status=404, data={"error": "Section not found on this assessment."})
 
+        if section.bundle_duration_minutes:
+            assessment.duration_minutes = max(
+                (assessment.duration_minutes or 0) - section.bundle_duration_minutes, 0
+            )
+            assessment.save(update_fields=["duration_minutes"])
+
         section.delete()
-        return Response(status=200, data={"message": "Section removed."})
+        return Response(status=200, data={
+            "message": "Section removed.", "duration_minutes": assessment.duration_minutes,
+        })
 
 
 class BundleListAPIView(APIView, PaginationHandlerMixin):
@@ -1173,6 +1186,39 @@ class GeneralSkillAssessmentDetailAPIView(APIView):
             },
         ).data
         return Response(status=200, data=data)
+
+    def delete(self, request, skill_assessment_id):
+        """Deletes a standalone company assessment (never a job-application-
+        backed one -- those are per-candidate and not user-manageable here).
+        Refused once any candidate has actually completed it, since
+        CandidateAssessmentSubmission.skill_assessment is SET_NULL on delete
+        -- allowing it would silently orphan real results instead of hard
+        failing."""
+        if not (request.user.is_authenticated and request.user.is_company()):
+            return Response(status=403, data={"error": "You do not have permission to delete this assessment."})
+
+        company = getattr(request.user, "company", None)
+        if not user_is_company_role(request.user, company, [CompanyTeamMember.ROLE.ADMIN, CompanyTeamMember.ROLE.RECRUITER]):
+            return Response(status=403, data={"error": "You do not have permission to delete this assessment."})
+
+        assessment = GeneralSkillAssessment.objects.filter(
+            id=skill_assessment_id, company=company, job_application__isnull=True,
+        ).first()
+        if not assessment:
+            return Response(status=404, data={"error": "Skill assessment does not exist or has been deleted"})
+
+        has_attempts = CandidateAssessmentSubmission.objects.filter(
+            Q(skill_assessment_id=assessment.id) | Q(skill_assessment__source_template_id=assessment.id),
+            is_completed=True,
+        ).exists()
+        if has_attempts:
+            return Response(
+                status=400,
+                data={"error": "This assessment already has candidate submissions and can't be deleted."},
+            )
+
+        assessment.delete()
+        return Response(status=200, data={"message": "Skill assessment deleted"})
 
 
 def submit_general_skill_assessment_answers(talent, skill_assessment, request_data):
@@ -2522,7 +2568,7 @@ class StartVerificationAssessmentView(APIView):
                 company_skill_assessment=assessment,
                 type=SkillAssessmentTypes.MCQ,
             )
-            mcq_section.mcq_questions.set([e.mcq_question for e in mcq_entries])
+            mcq_section.mcq_questions_new.set([e.mcq_question for e in mcq_entries])
 
             # Only if technical, fetch and attach coding tasks
             if role.is_technical:
@@ -2624,14 +2670,26 @@ class AIOperationsFeedback(APIView, PaginationHandlerMixin):
 
         # Prefetched (not per-row queried) so the question count for each
         # assessment's "Assessment Details" card doesn't add N+1 queries.
+        # topics_tested_map is built in the same pass -- section names (e.g.
+        # "React Fundamentals") plus the assessment's tech stack are the
+        # existing, already-categorized signal for "what was this candidate
+        # actually tested on", no new AI call needed.
         question_count_map = {}
-        for a in GeneralSkillAssessment.objects.filter(id__in=assessment_ids).prefetch_related(
+        topics_tested_map = {}
+        for a in GeneralSkillAssessment.objects.filter(id__in=assessment_ids).select_related(
+            "assessment_stack"
+        ).prefetch_related(
             "sections__mcq_questions_new", "sections__coding_tasks", "sections__open_ended_questions"
         ):
             question_count_map[a.id] = sum(
                 len(s.mcq_questions_new.all()) + len(s.coding_tasks.all()) + len(s.open_ended_questions.all())
                 for s in a.sections.all()
             )
+            topics = [s.name for s in a.sections.all() if s.name]
+            if a.assessment_stack_id and a.assessment_stack.stack:
+                topics = [a.assessment_stack.stack] + topics
+            # Dedup while preserving order.
+            topics_tested_map[a.id] = list(dict.fromkeys(topics))
 
         # Bulk-fetched (not per-row queried) current-company lookup, keyed by
         # talent id -- prefers an ongoing role (end_date is null), else falls
@@ -2726,6 +2784,7 @@ class AIOperationsFeedback(APIView, PaginationHandlerMixin):
                 "resume_experience_relevance_score": resume_experience_relevance_score, 
                 "resume_achievement_quality": resume_achievement_quality,
                 "time_taken": time_taken,
+                "topics_tested": topics_tested_map.get(assessment.id, []) if assessment else [],
                 "difficulty_level": difficulty_level,
                 "total_questions": total_questions,
                 "duration_minutes": duration_minutes,
