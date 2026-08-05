@@ -18,7 +18,27 @@ class CachedJWTCookieAuthentication(JWTCookieAuthentication):
         except Exception:
             user = None
         if user is None:
-            user = super().get_user(validated_token)
+            try:
+                user = super().get_user(validated_token)
+            except AuthenticationFailed as e:
+                # "User not found" specifically means the token's user_id has
+                # no matching row anymore (deleted account, or a stale cookie
+                # left over from a wiped/reset DB) -- not that the caller
+                # supplied bad credentials for a real account. Raising here
+                # would 401 the request before permission_classes is ever
+                # consulted, breaking every AllowAny/public endpoint (e.g.
+                # the AI-interview candidate join link) for anyone whose
+                # browser happens to carry such a cookie. Treat it as no
+                # credentials instead, same as not sending the cookie at
+                # all -- protected endpoints still correctly reject the
+                # resulting anonymous user via IsAuthenticated. Other
+                # failures (inactive/password-changed) still raise, since
+                # those describe a real account the caller should know about.
+                detail = getattr(e, "detail", None)
+                code = detail.get("code") if isinstance(detail, dict) else None
+                if code == "user_not_found":
+                    return None
+                raise
             try:
                 cache.set(cache_key, user, 60)
             except Exception:

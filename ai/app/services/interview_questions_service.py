@@ -27,16 +27,20 @@ openai_api_key = os.getenv("OPENAI_API_KEY")
 QUESTIONS_MODEL = "gpt-4o"
 
 QUESTION_TYPES_BY_COUNT = {
-    4: ["OPENER", "EXPERIENCE", "SITUATIONAL", "CLOSING"],
-    5: ["OPENER", "MOTIVATION", "EXPERIENCE", "SITUATIONAL", "CLOSING"],
-    6: ["OPENER", "MOTIVATION", "EXPERIENCE", "SITUATIONAL", "CHALLENGE", "CLOSING"],
+    4: ["OPENER", "EXPERIENCE", "CULTURAL_FIT", "CLOSING"],
+    5: ["OPENER", "EXPERIENCE", "SITUATIONAL", "CULTURAL_FIT", "CLOSING"],
+    6: ["OPENER", "MOTIVATION", "EXPERIENCE", "SITUATIONAL", "CULTURAL_FIT", "CLOSING"],
 }
 
 QUESTIONS_SYSTEM_PROMPT = (
     "You are an expert recruiter designing questions for a structured AI voice "
     "interview. Questions must sound completely natural when spoken aloud. "
     "Short, conversational sentences only. No lists or bullet points in question "
-    "text. Return only valid JSON."
+    "text. Every question must be specific to this job and this candidate -- "
+    "never generic or cliche ('tell me about a time you failed' is banned). "
+    "Pull a real detail from the job description or resume into the question "
+    "itself so it feels like a genuine, curious conversation, not a template. "
+    "Return only valid JSON."
 )
 
 QUESTIONS_USER_PROMPT_TEMPLATE = """Job: {job_title} at {company_name}
@@ -64,9 +68,17 @@ SITUATIONAL (90-120 sec): A realistic scenario from this specific role.
 CHALLENGE (60-90 sec): A professional challenge relevant to this role type and
 what they learned.
 
+CULTURAL_FIT (60-90 sec): How they like to work -- team style, feedback,
+pace, or what kind of environment brings out their best. Ground it in
+something real about this company/team from the job description, not a
+generic "describe your ideal workplace" question.
+
 CLOSING (30-45 sec): Invite them to share anything or ask one question.
 
-Return this exact JSON:
+The "questions" array below MUST contain exactly {questions_count} objects,
+one per type listed above in that exact order -- not fewer, not one example.
+Return this exact JSON shape (repeat the object for every one of the
+{questions_count} questions, incrementing "number" each time):
 {{
   "questions": [
     {{
@@ -78,6 +90,11 @@ Return this exact JSON:
       "good_signals": ["signal 1"],
       "concern_signals": ["concern 1"],
       "transition_phrase": "Natural phrase to move to the next question"
+    }},
+    {{
+      "number": 2,
+      "type": "...next type in the list...",
+      "...": "...same shape, and so on for all {questions_count} questions..."
     }}
   ]
 }}"""
