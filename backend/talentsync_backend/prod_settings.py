@@ -80,6 +80,19 @@ CSRF_COOKIE_SECURE     = True
 SECURE_SSL_REDIRECT = True
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
+# interview_agent/ calls these over the internal Docker network
+# (NEXTJS_INTERNAL_URL=http://web:8000), which never carries the
+# X-Forwarded-Proto header nginx adds -- without this exemption
+# SECURE_SSL_REDIRECT 301s that plain-HTTP call to https://web:8000,
+# which isn't TLS-terminated, and the request fails with an SSL error.
+# Auth for these paths is the X-Internal-Key shared secret, not TLS.
+SECURE_REDIRECT_EXEMPT = [
+    r"^api/ai-interviews/[^/]+/agent-data/$",
+    r"^api/ai-interviews/[^/]+/segment/$",
+    r"^api/ai-interviews/[^/]+/status/$",
+    r"^api/ai-interviews/[^/]+/complete/$",
+]
+
 
 DATABASES = {
     "default": dj_database_url.config(
