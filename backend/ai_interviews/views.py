@@ -6,6 +6,7 @@ scheduler/copilot_views.py + scheduler/review_views.py's conventions
 exactly -- plain dict serializers, APIView, ownership check helper."""
 
 import logging
+from datetime import timedelta
 
 from django.conf import settings
 from django.utils import timezone
@@ -114,6 +115,23 @@ class AIInterviewStartSessionView(APIView):
             return Response(
                 {"error": "This interview isn't ready yet. Please try again shortly."}, status=HTTP_400_BAD_REQUEST
             )
+
+        # Reclaim stale sessions before counting capacity -- a WAITING/
+        # IN_PROGRESS interview never gets a terminal status on its own if
+        # the interview_agent crashes, the candidate's connection drops, or
+        # they just close the tab (nothing marks it FAILED/COMPLETED in
+        # those cases). Left alone, a single one of these permanently
+        # occupies a concurrency slot forever, eventually locking out every
+        # real candidate once enough pile up. No real interview call runs
+        # anywhere near this long, so anyone still WAITING/IN_PROGRESS this
+        # long after joining is certainly dead, not actually on a call.
+        # This also fixes it retroactively: any already-stuck interview
+        # gets reclaimed the next time *any* candidate hits this endpoint.
+        stale_cutoff = timezone.now() - timedelta(minutes=30)
+        AIInterview.objects.filter(
+            status__in=(AIInterview.Status.WAITING, AIInterview.Status.IN_PROGRESS),
+            joined_at__lt=stale_cutoff,
+        ).update(status=AIInterview.Status.FAILED)
 
         # Capacity gate -- the interview_agent fleet can only run so many
         # concurrent LiveKit sessions. Past that, don't create a room no
