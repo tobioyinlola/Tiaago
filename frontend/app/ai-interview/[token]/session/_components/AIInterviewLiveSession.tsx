@@ -77,6 +77,16 @@ const AIInterviewLiveSession = ({ token }: { token: string }) => {
   useEffect(() => {
     if (!session) return;
 
+    // Guards against a malformed/incomplete session object reaching
+    // room.connect (e.g. LIVEKIT_URL unset server-side, or a stale/corrupted
+    // sessionStorage entry) -- livekit-client's connect throws an opaque
+    // low-level TypeError in that case instead of a readable message.
+    if (!session.livekitUrl || !session.token) {
+      setErrorMessage("This interview session is incomplete. Please go back and try again.");
+      setPhase("error");
+      return;
+    }
+
     const room = new Room();
     roomRef.current = room;
     let cancelled = false;

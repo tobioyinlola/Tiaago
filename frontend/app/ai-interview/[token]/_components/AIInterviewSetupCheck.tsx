@@ -24,10 +24,14 @@ const AIInterviewSetupCheck = ({
   durationMinutes,
   onStart,
   starting,
+  statusLabel,
 }: {
   durationMinutes: number;
   onStart: (cameraEnabled: boolean) => void;
   starting: boolean;
+  /** Overrides the button's "Connecting..." label -- used while queued and
+   * auto-retrying for a free interview slot. */
+  statusLabel?: string;
 }) => {
   const { status, micLevel, micSignalDetected, retry } = useMicCheck();
   const [cameraEnabled, setCameraEnabled] = useState(false);
@@ -196,7 +200,7 @@ const AIInterviewSetupCheck = ({
           loading={starting}
           className='w-full h-[52px] min-h-[52px] text-base font-semibold text-white'
         >
-          {starting ? "Connecting..." : "Start interview with Alex"}
+          {starting ? statusLabel || "Connecting..." : "Start interview with Alex"}
         </DaisyButton>
 
         <p className='text-xs text-secondary-black text-center mt-3'>

@@ -30,11 +30,24 @@ export type AIInterviewLookup =
   | ({ found: true; status: AIInterviewStatus } & AIInterviewJoinInfo)
   | { found: false };
 
-export type AIInterviewSessionInfo = {
+/** The room/token to actually connect with. */
+export type AIInterviewConnectInfo = {
+  queued: false;
   token: string;
   roomName: string;
   livekitUrl: string;
 };
+
+/** Returned instead when the interview_agent fleet is already at
+ * AI_INTERVIEW_MAX_CONCURRENT_SESSIONS -- no room/token minted yet, `position`
+ * is this candidate's place in line. Still a 200 (not an error): the
+ * candidate just needs to wait and retry, not fix anything. */
+export type AIInterviewQueuedInfo = {
+  queued: true;
+  position: number;
+};
+
+export type AIInterviewSessionInfo = AIInterviewConnectInfo | AIInterviewQueuedInfo;
 
 /** Public (no auth) -- looks up an AI interview by the candidate's join
  * token. The token in the invitation email is the candidate's only
