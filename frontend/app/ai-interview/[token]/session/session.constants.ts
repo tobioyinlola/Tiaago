@@ -1,4 +1,4 @@
-import type { AIInterviewSessionInfo } from "@/app/common/services/ai-interviews";
+import type { AIInterviewConnectInfo } from "@/app/common/services/ai-interviews";
 
 /** sessionStorage (not localStorage -- this must not survive across tabs or
  * outlive the browsing session) key the pre-join page writes to right after
@@ -6,7 +6,10 @@ import type { AIInterviewSessionInfo } from "@/app/common/services/ai-interviews
  * mount. Never put the LiveKit token in the URL or in a cookie. */
 export const AI_INTERVIEW_SESSION_STORAGE_KEY = "tiaago_ai_interview_session_v1";
 
-export type AIInterviewSessionData = AIInterviewSessionInfo & {
+/** Only ever written once startAIInterviewSession resolves to the non-queued
+ * (queued: false) variant -- a queued response never reaches sessionStorage
+ * or the session page, see AIInterviewPreJoinFlow. */
+export type AIInterviewSessionData = AIInterviewConnectInfo & {
   cameraEnabled: boolean;
   candidateFirstName: string;
   jobTitle: string;
