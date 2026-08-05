@@ -66,7 +66,10 @@ what they learned.
 
 CLOSING (30-45 sec): Invite them to share anything or ask one question.
 
-Return this exact JSON:
+The "questions" array below MUST contain exactly {questions_count} objects,
+one per type listed above in that exact order -- not fewer, not one example.
+Return this exact JSON shape (repeat the object for every one of the
+{questions_count} questions, incrementing "number" each time):
 {{
   "questions": [
     {{
@@ -78,6 +81,11 @@ Return this exact JSON:
       "good_signals": ["signal 1"],
       "concern_signals": ["concern 1"],
       "transition_phrase": "Natural phrase to move to the next question"
+    }},
+    {{
+      "number": 2,
+      "type": "...next type in the list...",
+      "...": "...same shape, and so on for all {questions_count} questions..."
     }}
   ]
 }}"""
