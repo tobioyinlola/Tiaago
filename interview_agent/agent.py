@@ -25,6 +25,7 @@ import aiohttp
 from dotenv import load_dotenv
 from livekit import agents, rtc
 from livekit.agents import Agent, AgentSession, JobContext, RoomInputOptions, WorkerOptions
+from livekit.agents.llm import ChatMessage
 from livekit.agents.voice.events import ConversationItemAddedEvent
 from livekit.plugins import openai, silero
 
@@ -200,7 +201,10 @@ async def entrypoint(ctx: JobContext):
 
     @session.on("conversation_item_added")
     def _on_conversation_item_added(event: ConversationItemAddedEvent):
-        if event.item.role == "assistant":
+        # event.item is ChatMessage | AgentHandoff -- only ChatMessage has .role;
+        # AgentHandoff is for multi-agent handoffs, which this single-agent
+        # interview never uses, but the SDK still allows it on the event type.
+        if isinstance(event.item, ChatMessage) and event.item.role == "assistant":
             asyncio.create_task(agent.save_segment("ALEX", event.item.text_content))
 
     disconnected = asyncio.Event()
