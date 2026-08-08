@@ -20,8 +20,19 @@ class ProctoringSession(models.Model):
         CRITICAL = "CRITICAL", "Critical"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    # Null for an AI-interview proctoring session (see ai_interview below) --
+    # exactly one of assessment_attempt/ai_interview is ever set.
     assessment_attempt = models.OneToOneField(
-        CandidateAssessmentSubmission, related_name="proctoring_session", on_delete=models.CASCADE
+        CandidateAssessmentSubmission, related_name="proctoring_session", on_delete=models.CASCADE,
+        null=True, blank=True,
+    )
+    # Set instead of assessment_attempt for a live AI interview call (see
+    # ai_interviews.views proctoring endpoints) -- proctoring signals (tab
+    # switches, copy/paste, devtools, fullscreen) are captured the same way
+    # during the LiveKit call as during a written assessment.
+    ai_interview = models.OneToOneField(
+        "ai_interviews.AIInterview", related_name="proctoring_session", on_delete=models.CASCADE,
+        null=True, blank=True,
     )
     # Both null for a standalone (non-job) assessment invite -- see
     # GeneralSkillAssessment.invited_email/invited_name, the account-less

@@ -25,10 +25,19 @@ export type ProctoringEventInput = {
   severity: "INFO" | "WARNING" | "VIOLATION";
 };
 
-export const createProctoringSession = async (token: string): Promise<{ sessionId: string } | null> => {
+// "invite" (the default) is the skill-assessment flow's proctoring routes;
+// "ai-interview" is the same set of routes under a different backend prefix
+// (see proctoring/urls.py) for the live AI interview call -- same session/
+// event/complete shape either way, just a different parent resource.
+type ProctoringBasePath = "invite" | "ai-interview";
+
+export const createProctoringSession = async (
+  token: string,
+  basePath: ProctoringBasePath = "invite"
+): Promise<{ sessionId: string } | null> => {
   try {
     const data = await publicKyInstance
-      .post(`proctoring/invite/${token}/session/`)
+      .post(`proctoring/${basePath}/${token}/session/`)
       .json<{ session_id: string }>();
     return { sessionId: data.session_id };
   } catch {
@@ -38,19 +47,29 @@ export const createProctoringSession = async (token: string): Promise<{ sessionI
 
 /** Fire-and-forget batch flush -- best-effort, proctoring never blocks the
  * candidate on a failed network call. */
-export const flushProctoringEvents = (token: string, sessionId: string, events: ProctoringEventInput[]) => {
+export const flushProctoringEvents = (
+  token: string,
+  sessionId: string,
+  events: ProctoringEventInput[],
+  basePath: ProctoringBasePath = "invite"
+) => {
   if (!events.length) return;
   publicKyInstance
-    .post(`proctoring/invite/${token}/sessions/${sessionId}/events/`, { json: { events } })
+    .post(`proctoring/${basePath}/${token}/sessions/${sessionId}/events/`, { json: { events } })
     .catch(() => {});
 };
 
 /** Best-effort flush on unmount/tab-close via sendBeacon where available
  * (survives page teardown, unlike a regular fetch); falls back to a
  * fire-and-forget keepalive fetch. */
-export const flushProctoringEventsOnUnload = (token: string, sessionId: string, events: ProctoringEventInput[]) => {
+export const flushProctoringEventsOnUnload = (
+  token: string,
+  sessionId: string,
+  events: ProctoringEventInput[],
+  basePath: ProctoringBasePath = "invite"
+) => {
   if (!events.length) return;
-  const url = `${API_URL}proctoring/invite/${token}/sessions/${sessionId}/events/`;
+  const url = `${API_URL}proctoring/${basePath}/${token}/sessions/${sessionId}/events/`;
   const body = JSON.stringify({ events });
   if (typeof navigator !== "undefined" && navigator.sendBeacon) {
     const blob = new Blob([body], { type: "application/json" });
@@ -63,11 +82,12 @@ export const flushProctoringEventsOnUnload = (token: string, sessionId: string, 
 export const completeProctoringSession = async (
   token: string,
   sessionId: string,
-  terminatedReason?: string
+  terminatedReason?: string,
+  basePath: ProctoringBasePath = "invite"
 ): Promise<{ status: string; integrity_score: number; risk_level: string } | null> => {
   try {
     return await publicKyInstance
-      .post(`proctoring/invite/${token}/sessions/${sessionId}/complete/`, {
+      .post(`proctoring/${basePath}/${token}/sessions/${sessionId}/complete/`, {
         json: terminatedReason ? { terminated_reason: terminatedReason } : {},
       })
       .json();

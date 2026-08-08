@@ -2,7 +2,7 @@
 
 import { HTTPError } from "ky";
 
-import { ApiResponse, ID } from "../types";
+import { ApiResponse, ID, ProctoringSettings } from "../types";
 import { _handleServerApiCallError, handleServerApiCallError } from "../utils";
 import serverKyInstance from "../utils/server-ky.instance";
 
@@ -36,6 +36,7 @@ export type AIInterviewConnectInfo = {
   token: string;
   roomName: string;
   livekitUrl: string;
+  proctoringSettings: ProctoringSettings;
 };
 
 /** Returned instead when this candidate's reserved slot with the

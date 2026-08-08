@@ -13,16 +13,31 @@ import {
   type RemoteTrackPublication,
   type TranscriptionSegment,
 } from "livekit-client";
-import { Mic, MicOff, Phone, Video, X } from "lucide-react";
+import { MessageSquareText, Mic, MicOff, Phone, Video, X } from "lucide-react";
 
 import Modal from "@/app/common/components/Modal";
 import DaisyButton from "@/app/common/components/DaisyButton";
+import BrandLink from "@/app/common/components/BrandLink";
+import ProctoringWarningOverlay from "@/app/common/components/dashboard/ProctoringWarningOverlay";
+import ProctoringViolationBanner from "@/app/common/components/dashboard/ProctoringViolationBanner";
+import { useProctoring } from "@/app/common/hooks/useProctoring";
+import {
+  createProctoringSession,
+  completeProctoringSession,
+} from "@/app/common/services/assessment-invite-client";
 import { cn } from "@/app/common/utils";
 import AlexAvatar from "../../_components/AlexAvatar";
 import AIInterviewCompletion from "./AIInterviewCompletion";
 import { AI_INTERVIEW_SESSION_STORAGE_KEY, type AIInterviewSessionData } from "../session.constants";
 
 type Phase = "connecting" | "live" | "reconnecting" | "ended" | "error";
+
+type TranscriptEntry = {
+  id: string;
+  speaker: "alex" | "you";
+  text: string;
+  final: boolean;
+};
 
 const formatElapsed = (seconds: number) => {
   const mins = Math.floor(seconds / 60)
@@ -42,15 +57,21 @@ const AIInterviewLiveSession = ({ token }: { token: string }) => {
   const [cameraOn, setCameraOn] = useState(false);
   const [captionsOn, setCaptionsOn] = useState(true);
   const [caption, setCaption] = useState("");
+  const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
+  const [transcriptOpen, setTranscriptOpen] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [reconnectingLong, setReconnectingLong] = useState(false);
   const [showEndConfirm, setShowEndConfirm] = useState(false);
+  const [proctoringSessionId, setProctoringSessionId] = useState<string | null>(null);
+  const [terminationReason, setTerminationReason] = useState<string | null>(null);
 
   const roomRef = useRef<Room | null>(null);
   const alexAudioRef = useRef<HTMLAudioElement | null>(null);
   const candidateVideoRef = useRef<HTMLVideoElement | null>(null);
   const endModalRef = useRef<HTMLDialogElement>(null);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const transcriptEndRef = useRef<HTMLDivElement | null>(null);
+  const proctoringSessionIdRef = useRef<string | null>(null);
 
   // Load the token minted by the pre-join page. This page is never reached
   // directly -- no session data means the candidate skipped the setup step
@@ -73,6 +94,44 @@ const AIInterviewLiveSession = ({ token }: { token: string }) => {
     if (showEndConfirm) endModalRef.current?.showModal();
     else endModalRef.current?.close();
   }, [showEndConfirm]);
+
+  // Auto-scroll the transcript panel to the newest line.
+  useEffect(() => {
+    if (transcriptOpen) transcriptEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [transcript, transcriptOpen]);
+
+  // Marks the proctoring session complete (or terminated) exactly once,
+  // whichever way the call actually ends -- natural goodbye, the candidate
+  // clicking "End interview", or a forced end from a critical violation
+  // (see the onForceSubmit wiring on useProctoring below, which sets
+  // terminationReason before this fires).
+  useEffect(() => {
+    if (phase !== "ended") return;
+    const sessionId = proctoringSessionIdRef.current;
+    if (sessionId) completeProctoringSession(token, sessionId, terminationReason || undefined, "ai-interview");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase]);
+
+  const {
+    tabSwitchCount,
+    showViolationBanner,
+    showTabReturnOverlay,
+    dismissTabReturnOverlay,
+    showFullscreenOverlay,
+    requestReturnToFullscreen,
+    showDevtoolsOverlay,
+    dismissDevtoolsOverlay,
+  } = useProctoring({
+    token,
+    sessionId: proctoringSessionId,
+    settings: session?.proctoringSettings ?? null,
+    basePath: "ai-interview",
+    onForceSubmit: reason => {
+      setTerminationReason(reason);
+      void roomRef.current?.disconnect();
+      setPhase("ended");
+    },
+  });
 
   useEffect(() => {
     if (!session) return;
@@ -106,11 +165,30 @@ const AIInterviewLiveSession = ({ token }: { token: string }) => {
     };
 
     const onTranscription = (segments: TranscriptionSegment[], participant?: Participant) => {
-      // Only Alex's speech is captioned -- the candidate's own live
-      // transcript (if the server ever sends one) isn't shown back to them.
-      if (participant && participant.identity === room.localParticipant.identity) return;
-      const latest = segments[segments.length - 1];
-      if (latest) setCaption(latest.text);
+      const isLocal = !!participant && participant.identity === room.localParticipant.identity;
+      const speaker: TranscriptEntry["speaker"] = isLocal ? "you" : "alex";
+
+      // Alex's live caption, shown big under the avatar -- only the latest
+      // finalized-or-interim line, same as before.
+      if (!isLocal) {
+        const latest = segments[segments.length - 1];
+        if (latest) setCaption(latest.text);
+      }
+
+      // Full running transcript, both speakers -- LiveKit sends interim
+      // results that refine in place (same segment id) before settling on
+      // `final: true`, so upsert by id instead of appending duplicates.
+      setTranscript(prev => {
+        const next = [...prev];
+        for (const seg of segments) {
+          if (!seg.text) continue;
+          const idx = next.findIndex(e => e.id === seg.id);
+          const entry: TranscriptEntry = { id: seg.id, speaker, text: seg.text, final: seg.final };
+          if (idx >= 0) next[idx] = entry;
+          else next.push(entry);
+        }
+        return next;
+      });
     };
 
     const onConnected = () => {
@@ -121,6 +199,14 @@ const AIInterviewLiveSession = ({ token }: { token: string }) => {
         void room.localParticipant.setCameraEnabled(true);
         setCameraOn(true);
       }
+      if (session.proctoringSettings.require_fullscreen) {
+        document.documentElement.requestFullscreen?.().catch(() => {});
+      }
+      createProctoringSession(token, "ai-interview").then(result => {
+        if (cancelled || !result) return;
+        proctoringSessionIdRef.current = result.sessionId;
+        setProctoringSessionId(result.sessionId);
+      });
     };
 
     const onReconnecting = () => {
@@ -181,7 +267,7 @@ const AIInterviewLiveSession = ({ token }: { token: string }) => {
       void room.disconnect();
       window.sessionStorage.removeItem(AI_INTERVIEW_SESSION_STORAGE_KEY);
     };
-  }, [session]);
+  }, [session, token]);
 
   // Elapsed timer while the call is actually live.
   useEffect(() => {
@@ -232,18 +318,18 @@ const AIInterviewLiveSession = ({ token }: { token: string }) => {
   const durationSeconds = session.durationMinutes * 60;
   const amberAt = durationSeconds * 0.8;
   const redAt = durationSeconds * 0.9;
-  const timerTone = elapsed >= redAt ? "text-error" : elapsed >= amberAt ? "text-amber-600" : "text-primary-black";
+  const timerTone = elapsed >= redAt ? "text-error" : elapsed >= amberAt ? "text-amber-300" : "text-white";
   const candidateInitial = (session.candidateFirstName || "?").charAt(0).toUpperCase();
 
   return (
-    <div className='min-h-[100svh] w-full bg-white flex flex-col'>
+    <div className='h-[100svh] w-full bg-[#0B0E2E] flex flex-col overflow-hidden'>
       {(phase === "connecting" || phase === "reconnecting") && (
-        <div className='fixed inset-0 z-50 bg-white/95 flex flex-col items-center justify-center gap-4 text-primary-black'>
+        <div className='fixed inset-0 z-50 bg-[#0B0E2E] flex flex-col items-center justify-center gap-4 text-white'>
           <span className='loading loading-spinner loading-lg text-primary' />
           {phase === "reconnecting" ? (
             <>
               <p className='font-semibold'>Connection interrupted</p>
-              <p className='text-secondary-black text-sm'>Trying to reconnect...</p>
+              <p className='text-white/60 text-sm'>Trying to reconnect...</p>
               {reconnectingLong && (
                 <DaisyButton
                   color='primary'
@@ -255,84 +341,174 @@ const AIInterviewLiveSession = ({ token }: { token: string }) => {
               )}
             </>
           ) : (
-            <p className='text-secondary-black text-sm'>Connecting you with Alex...</p>
+            <p className='text-white/60 text-sm'>Connecting you with Alex...</p>
           )}
         </div>
       )}
 
+      {showViolationBanner && <ProctoringViolationBanner count={tabSwitchCount} />}
+      <ProctoringWarningOverlay
+        open={showTabReturnOverlay}
+        title="Welcome back"
+        message="We noticed you left the interview tab. Please stay on this tab for the rest of the interview."
+        actionLabel="I'm back"
+        onAction={dismissTabReturnOverlay}
+      />
+      <ProctoringWarningOverlay
+        open={showFullscreenOverlay}
+        title='Please return to fullscreen'
+        message='This interview must be taken in fullscreen mode. Exiting fullscreen has been recorded.'
+        actionLabel='Return to fullscreen'
+        onAction={requestReturnToFullscreen}
+      />
+      <ProctoringWarningOverlay
+        open={showDevtoolsOverlay}
+        title='Developer tools detected'
+        message='Browser developer tools have been detected. This has been recorded.'
+        actionLabel='Continue'
+        onAction={dismissDevtoolsOverlay}
+      />
+
       {/* Top bar */}
-      <div className='h-12 shrink-0 bg-white border-b border-[#EAECF0] flex items-center justify-between px-4 text-primary-black'>
-        <span className='text-sm font-semibold'>Tiaago</span>
-        <span className='text-xs text-secondary-black'>{session.questionsTotal} questions &middot; {session.jobTitle}</span>
-        <span className={cn("text-sm font-mono tabular-nums", timerTone)}>{formatElapsed(elapsed)}</span>
+      <div className='h-14 shrink-0 bg-gradient-to-r from-[#1E2560] to-[#2A2F7A] flex items-center justify-between px-4 sm:px-6 relative z-10'>
+        <div className='pointer-events-none [&_svg]:h-6 [&_svg]:w-auto sm:[&_svg]:h-7'>
+          <BrandLink isWhite containerClassName='block' />
+        </div>
+        <span className='hidden sm:block text-xs text-white/70 truncate max-w-[40%]'>
+          {session.questionsTotal} questions &middot; {session.jobTitle} at {session.companyName}
+        </span>
+        <span className={cn("text-sm font-mono tabular-nums font-semibold", timerTone)}>{formatElapsed(elapsed)}</span>
       </div>
-      <div className='h-0.5 bg-[#EAECF0]'>
+      <div className='h-1 bg-white/10 shrink-0'>
         <div
-          className='h-full bg-primary transition-all duration-1000'
+          className='h-full bg-gradient-to-r from-primary to-[#7C89FF] transition-all duration-1000'
           style={{ width: `${Math.min(100, (elapsed / durationSeconds) * 100)}%` }}
         />
       </div>
 
-      {/* Panels */}
-      <div className='flex-1 flex flex-col lg:flex-row gap-4 p-4 min-h-0'>
-        <div className='lg:w-3/5 rounded-2xl bg-primary/5 border border-primary/10 flex flex-col items-center justify-center py-10 gap-4'>
-          <AlexAvatar
-            className='h-28 w-28 lg:h-32 lg:w-32'
-            ringClassName={cn(
-              "p-1 transition-shadow duration-300",
-              alexSpeaking && "ring-4 ring-primary shadow-[0_0_0_6px_rgba(84,101,255,0.2)] animate-pulse"
-            )}
-          />
-          <div className='text-center'>
-            <p className='text-primary-black font-semibold'>Alex</p>
-            <p className='text-secondary-black text-sm'>AI Interviewer &middot; Tiaago</p>
+      {/* Stage */}
+      <div className='flex-1 flex min-h-0 relative'>
+        <div className='flex-1 relative flex flex-col items-center justify-center px-4 py-6 overflow-hidden'>
+          {/* Ambient background glow */}
+          <div className='pointer-events-none absolute inset-0 overflow-hidden'>
+            <div
+              className={cn(
+                "absolute left-1/2 top-1/2 h-[36rem] w-[36rem] -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/20 blur-3xl transition-opacity duration-700",
+                alexSpeaking ? "opacity-70" : "opacity-30"
+              )}
+            />
           </div>
-          {!alexSpeaking && phase === "live" && (
-            <div className='flex items-center gap-2 text-secondary-black text-xs'>
-              <span className='flex gap-0.5'>
-                <span className='h-2 w-1 bg-primary/70 rounded-full animate-bounce [animation-delay:-0.2s]' />
-                <span className='h-2 w-1 bg-primary/70 rounded-full animate-bounce [animation-delay:-0.1s]' />
-                <span className='h-2 w-1 bg-primary/70 rounded-full animate-bounce' />
-              </span>
-              Listening...
+
+          <div className='relative flex flex-col items-center gap-5'>
+            <AlexAvatar
+              className='h-36 w-36 sm:h-44 sm:w-44'
+              ringClassName={cn(
+                "p-1.5 transition-shadow duration-300",
+                alexSpeaking
+                  ? "ring-4 ring-primary shadow-[0_0_0_10px_rgba(84,101,255,0.25)] animate-pulse"
+                  : "ring-2 ring-white/10"
+              )}
+            />
+            <div className='text-center'>
+              <p className='text-white font-semibold text-lg'>Alex</p>
+              <p className='text-white/50 text-sm'>AI Interviewer &middot; Tiaago</p>
+            </div>
+            {!alexSpeaking && phase === "live" && (
+              <div className='flex items-center gap-2 text-white/50 text-xs'>
+                <span className='flex gap-0.5'>
+                  <span className='h-2 w-1 bg-primary/70 rounded-full animate-bounce [animation-delay:-0.2s]' />
+                  <span className='h-2 w-1 bg-primary/70 rounded-full animate-bounce [animation-delay:-0.1s]' />
+                  <span className='h-2 w-1 bg-primary/70 rounded-full animate-bounce' />
+                </span>
+                Listening...
+              </div>
+            )}
+          </div>
+
+          {/* Candidate self-view -- picture-in-picture, bottom-right of the stage */}
+          <div className='absolute bottom-4 right-4 sm:bottom-6 sm:right-6 flex flex-col items-center gap-2 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-sm p-3 w-28 sm:w-36'>
+            {cameraOn ? (
+              <div className='h-16 w-16 sm:h-20 sm:w-20 rounded-full overflow-hidden bg-black ring-2 ring-white/10'>
+                <video ref={candidateVideoRef} autoPlay muted playsInline className='h-full w-full object-cover' />
+              </div>
+            ) : (
+              <div className='h-14 w-14 sm:h-16 sm:w-16 rounded-full bg-primary flex items-center justify-center ring-2 ring-white/10'>
+                <span className='text-white text-lg font-bold'>{candidateInitial}</span>
+              </div>
+            )}
+            <p className='text-white/80 text-xs truncate max-w-full'>{session.candidateFirstName || "You"}</p>
+            {!session.cameraEnabled && !cameraOn && (
+              <button
+                type='button'
+                onClick={enableCamera}
+                className='flex items-center gap-1 text-[11px] text-white/50 hover:text-white transition-colors'
+              >
+                <Video className='h-3 w-3' /> Camera
+              </button>
+            )}
+          </div>
+
+          {/* Captions */}
+          {captionsOn && caption && (
+            <div className='absolute bottom-0 left-0 right-0 px-6 pb-4 flex justify-center'>
+              <div className='max-w-2xl bg-black/50 backdrop-blur-sm text-white text-sm rounded-lg px-4 py-2 text-center'>
+                {caption}
+              </div>
             </div>
           )}
         </div>
 
-        <div className='lg:w-2/5 rounded-2xl bg-primary/5 border border-primary/10 flex flex-col items-center justify-center py-10 gap-3'>
-          {cameraOn ? (
-            <div className='h-40 w-40 rounded-full overflow-hidden bg-black'>
-              <video ref={candidateVideoRef} autoPlay muted playsInline className='h-full w-full object-cover' />
-            </div>
-          ) : (
-            <div className='h-24 w-24 rounded-full bg-primary flex items-center justify-center'>
-              <span className='text-white text-2xl font-bold'>{candidateInitial}</span>
-            </div>
+        {/* Live transcript panel */}
+        <div
+          className={cn(
+            "shrink-0 border-l border-white/10 bg-[#11154A]/80 backdrop-blur-sm flex flex-col transition-all duration-300 overflow-hidden",
+            transcriptOpen ? "w-full sm:w-80 absolute sm:relative inset-0 sm:inset-auto z-20" : "w-0"
           )}
-          <p className='text-primary-black text-sm'>{session.candidateFirstName || "You"}</p>
-          {!session.cameraEnabled && !cameraOn && (
+        >
+          <div className='flex items-center justify-between px-4 h-12 border-b border-white/10 shrink-0'>
+            <p className='text-white text-sm font-semibold'>Transcript</p>
             <button
               type='button'
-              onClick={enableCamera}
-              className='flex items-center gap-1.5 text-xs text-secondary-black hover:text-primary'
+              onClick={() => setTranscriptOpen(false)}
+              className='text-white/50 hover:text-white transition-colors'
+              aria-label='Close transcript'
             >
-              <Video className='h-3.5 w-3.5' /> Turn on camera
+              <X className='h-4 w-4' />
             </button>
-          )}
+          </div>
+          <div className='flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3 min-h-0'>
+            {transcript.length === 0 ? (
+              <p className='text-white/40 text-sm text-center mt-8'>
+                Your conversation with Alex will appear here as you talk.
+              </p>
+            ) : (
+              transcript.map(entry => (
+                <div
+                  key={entry.id}
+                  className={cn("max-w-[90%] flex flex-col gap-0.5", entry.speaker === "you" ? "self-end items-end" : "self-start items-start")}
+                >
+                  <span className='text-[10px] uppercase tracking-wide text-white/40'>
+                    {entry.speaker === "you" ? session.candidateFirstName || "You" : "Alex"}
+                  </span>
+                  <p
+                    className={cn(
+                      "text-sm rounded-xl px-3 py-2 leading-relaxed",
+                      entry.speaker === "you" ? "bg-primary text-white" : "bg-white/10 text-white",
+                      !entry.final && "opacity-60 italic"
+                    )}
+                  >
+                    {entry.text}
+                  </p>
+                </div>
+              ))
+            )}
+            <div ref={transcriptEndRef} />
+          </div>
         </div>
       </div>
 
-      {/* Captions */}
-      {captionsOn && caption && (
-        <div className='px-6 pb-24 -mt-4'>
-          <div className='max-w-3xl mx-auto bg-primary text-white text-sm rounded-lg px-4 py-2 text-center'>
-            {caption}
-          </div>
-        </div>
-      )}
-
       {muted && (
-        <div className='px-6 -mt-4 mb-2'>
+        <div className='px-6 pb-2 shrink-0'>
           <div className='max-w-md mx-auto bg-amber-500 text-white text-xs font-medium rounded-lg px-3 py-2 text-center'>
             Alex can&apos;t hear you -- tap to unmute
           </div>
@@ -340,13 +516,13 @@ const AIInterviewLiveSession = ({ token }: { token: string }) => {
       )}
 
       {/* Controls */}
-      <div className='shrink-0 flex items-center justify-center gap-5 py-5 px-4 relative border-t border-[#EAECF0] bg-white/80 backdrop-blur-sm'>
+      <div className='shrink-0 flex items-center justify-center gap-5 py-5 px-4 relative border-t border-white/10 bg-[#0B0E2E]/90 backdrop-blur-sm'>
         <button
           type='button'
           onClick={toggleMute}
           className={cn(
             "h-12 w-12 rounded-full flex items-center justify-center shadow-sm transition-all hover:scale-105 active:scale-95",
-            muted ? "bg-error text-white" : "bg-primary/10 text-primary-black hover:bg-primary/20"
+            muted ? "bg-error text-white" : "bg-white/10 text-white hover:bg-white/20"
           )}
           aria-label={muted ? "Unmute" : "Mute"}
         >
@@ -364,10 +540,21 @@ const AIInterviewLiveSession = ({ token }: { token: string }) => {
 
         <button
           type='button'
+          onClick={() => setTranscriptOpen(o => !o)}
+          className={cn(
+            "absolute left-4 h-9 px-3 rounded-full text-xs font-semibold flex items-center gap-1.5 transition-colors",
+            transcriptOpen ? "bg-primary/25 text-white" : "bg-white/10 text-white/70 hover:text-white"
+          )}
+        >
+          <MessageSquareText className='h-3.5 w-3.5' /> <span className='hidden sm:inline'>Transcript</span>
+        </button>
+
+        <button
+          type='button'
           onClick={() => setCaptionsOn(c => !c)}
           className={cn(
             "absolute right-4 h-9 px-3 rounded-full text-xs font-semibold flex items-center justify-center transition-colors",
-            captionsOn ? "bg-primary/15 text-primary" : "bg-[#F5F6F7] text-secondary-black"
+            captionsOn ? "bg-primary/25 text-white" : "bg-white/10 text-white/70 hover:text-white"
           )}
         >
           CC

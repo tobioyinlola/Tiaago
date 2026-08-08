@@ -23,6 +23,9 @@ type UseProctoringArgs = {
   settings: ProctoringSettings | null;
   getCurrentQuestionNumber?: () => number | null;
   onForceSubmit: (reason: string) => void;
+  // "ai-interview" wires this same hook into the live AI interview call
+  // instead of a written assessment -- see AIInterviewLiveSession.tsx.
+  basePath?: "invite" | "ai-interview";
 };
 
 /** Single reusable module driving every non-webcam proctoring signal for the
@@ -37,6 +40,7 @@ export const useProctoring = ({
   settings,
   getCurrentQuestionNumber,
   onForceSubmit,
+  basePath = "invite",
 }: UseProctoringArgs) => {
   const [tabSwitchCount, setTabSwitchCount] = useState(0);
   const [showViolationBanner, setShowViolationBanner] = useState(false);
@@ -56,8 +60,8 @@ export const useProctoring = ({
     if (!sessionId || !queueRef.current.length) return;
     const events = queueRef.current;
     queueRef.current = [];
-    flushProctoringEvents(token, sessionId, events);
-  }, [token, sessionId]);
+    flushProctoringEvents(token, sessionId, events, basePath);
+  }, [token, sessionId, basePath]);
 
   const forceSubmit = useCallback(
     async (reason: string) => {
@@ -70,10 +74,10 @@ export const useProctoring = ({
         metadata: { reason },
       });
       flush();
-      await completeProctoringSession(token, sessionId, reason);
+      await completeProctoringSession(token, sessionId, reason, basePath);
       onForceSubmit(reason);
     },
-    [flush, onForceSubmit, sessionId, token]
+    [flush, onForceSubmit, sessionId, token, basePath]
   );
 
   const addEvent = useCallback(
@@ -258,7 +262,7 @@ export const useProctoring = ({
     const flushInterval = setInterval(flush, FLUSH_INTERVAL_MS);
 
     const onBeforeUnload = () => {
-      flushProctoringEventsOnUnload(token, sessionId, queueRef.current);
+      flushProctoringEventsOnUnload(token, sessionId, queueRef.current, basePath);
       queueRef.current = [];
     };
     window.addEventListener("beforeunload", onBeforeUnload);
@@ -279,7 +283,7 @@ export const useProctoring = ({
       clearInterval(idleInterval);
       if (devtoolsInterval) clearInterval(devtoolsInterval);
       clearInterval(flushInterval);
-      flushProctoringEventsOnUnload(token, sessionId, queueRef.current);
+      flushProctoringEventsOnUnload(token, sessionId, queueRef.current, basePath);
       queueRef.current = [];
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps

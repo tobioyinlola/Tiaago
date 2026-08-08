@@ -26,6 +26,16 @@ from .serializers import (
 )
 
 
+def _get_ai_interview_for_token(token):
+    """Resolve the AIInterview for a proctoring endpoint, mirroring
+    _get_submission_for_token below -- never trust request.user, only the
+    candidate_join_token (same identity anchor AIInterviewJoinLookupView/
+    AIInterviewStartSessionView already use)."""
+    from ai_interviews.models import AIInterview
+
+    return AIInterview.objects.filter(candidate_join_token=token).first()
+
+
 def _settings_snapshot(job):
     if job is None:
         return dict(STANDALONE_PROCTORING_DEFAULTS)
@@ -166,6 +176,110 @@ class CompleteProctoringSessionView(APIView):
             # silently never completes because the candidate never reached
             # every section. See force_complete_submission's docstring.
             force_complete_submission(submission)
+
+        return Response(status=200, data={"status": session.status, "integrity_score": score, "risk_level": risk_level})
+
+
+class CreateAIInterviewProctoringSessionView(APIView):
+    """POST /proctoring/ai-interview/<token>/session/ -- called once the
+    candidate's live AI interview call actually connects (see
+    AIInterviewLiveSession.tsx). Idempotent: a reconnect returns the
+    existing session instead of creating a second one. Reuses the job's
+    same proctoring settings the skill assessment already uses -- one
+    toggle covers both stages instead of a second, separate config."""
+
+    permission_classes = [AllowAny]
+
+    def post(self, request, token):
+        interview = _get_ai_interview_for_token(token)
+        if not interview:
+            return Response(status=404, data={"error": "This interview link is invalid or has expired."})
+
+        session, created = ProctoringSession.objects.get_or_create(
+            ai_interview=interview,
+            defaults={
+                "candidate": interview.candidate,
+                "job": interview.job,
+                "started_at": timezone.now(),
+                "settings_snapshot": _settings_snapshot(interview.job),
+                "ip_address": get_client_ip(request),
+            },
+        )
+        if created and session.ip_address:
+            resolve_proctoring_session_geo.delay(str(session.id))
+        return Response(status=201, data={"session_id": session.id})
+
+
+class AIInterviewProctoringEventBatchView(APIView):
+    """POST /proctoring/ai-interview/<token>/sessions/<session_id>/events/
+    -- same batched, side-effect-free ingestion as the assessment version."""
+
+    permission_classes = [AllowAny]
+
+    def post(self, request, token, session_id):
+        interview = _get_ai_interview_for_token(token)
+        if not interview:
+            return Response(status=404, data={"error": "This interview link is invalid or has expired."})
+
+        session = ProctoringSession.objects.filter(id=session_id, ai_interview=interview).first()
+        if not session:
+            return Response(status=404, data={"error": "Proctoring session not found."})
+
+        serializer = ProctoringEventBatchInputSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        events = [
+            ProctoringEvent(
+                session=session,
+                event_type=e["event_type"],
+                occurred_at=e["occurred_at"],
+                duration_seconds=e.get("duration_seconds"),
+                metadata=e.get("metadata") or {},
+                severity=e.get("severity", ProctoringEvent.Severity.INFO),
+            )
+            for e in serializer.validated_data["events"]
+        ]
+        ProctoringEvent.objects.bulk_create(events)
+        return Response(status=201, data={"created": len(events)})
+
+
+class CompleteAIInterviewProctoringSessionView(APIView):
+    """POST /proctoring/ai-interview/<token>/sessions/<session_id>/complete/
+    -- called once the call ends, normally or forced (critical violation /
+    max tab switches). Unlike the assessment version there's nothing on the
+    backend to force-complete -- a forced end just means the frontend
+    disconnects the LiveKit room itself, same as the candidate clicking "End
+    interview" (see useProctoring's onForceSubmit -> room.disconnect())."""
+
+    permission_classes = [AllowAny]
+
+    def post(self, request, token, session_id):
+        interview = _get_ai_interview_for_token(token)
+        if not interview:
+            return Response(status=404, data={"error": "This interview link is invalid or has expired."})
+
+        session = ProctoringSession.objects.filter(id=session_id, ai_interview=interview).first()
+        if not session:
+            return Response(status=404, data={"error": "Proctoring session not found."})
+
+        if session.status != ProctoringSession.Status.ACTIVE:
+            return Response(status=200, data={
+                "status": session.status, "integrity_score": session.integrity_score, "risk_level": session.risk_level,
+            })
+
+        serializer = CompleteProctoringSessionInputSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        terminated_reason = serializer.validated_data.get("terminated_reason")
+
+        score, risk_level = calculate_integrity_score(session)
+
+        session.status = ProctoringSession.Status.TERMINATED if terminated_reason else ProctoringSession.Status.COMPLETED
+        session.ended_at = timezone.now()
+        session.integrity_score = score
+        session.risk_level = risk_level
+        if terminated_reason:
+            session.terminated_reason = terminated_reason
+        session.save(update_fields=["status", "ended_at", "integrity_score", "risk_level", "terminated_reason", "updated_at"])
 
         return Response(status=200, data={"status": session.status, "integrity_score": score, "risk_level": risk_level})
 
