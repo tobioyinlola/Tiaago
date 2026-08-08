@@ -128,7 +128,10 @@ const ViewTalentApplicationsPage = async ({
       <UpdateJobStatus job={job} />
       {isHireWithAi ? (
         <>
-          <JobApplicationsTable data={aiFeedbacks} />
+          <JobApplicationsTable
+            data={aiFeedbacks}
+            stageCounts={aiFeedbackRes?.stage_counts}
+          />
           {!!aiFeedbackRes && (
             <ServerPagination
               pagedResource={aiFeedbackRes}

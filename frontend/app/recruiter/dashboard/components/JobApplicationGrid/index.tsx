@@ -1,7 +1,7 @@
 "use client";
 import { toast } from "sonner";
 import { PiDotsThreeBold } from "react-icons/pi";
-import { PropsWithChildren, useRef, useState } from "react";
+import { PropsWithChildren, useEffect, useRef, useState } from "react";
 
 import EmptyState, {
   EmptyStateV3,
@@ -9,12 +9,14 @@ import EmptyState, {
 
 import {
   AiFeedbackItem,
+  ID,
   JobApplication,
+  PipelineCategory,
   ServerCandidate,
   TalentRole,
   User,
 } from "@/app/common/types";
-import { addToPipeline } from "@/app/common/services/sourcing";
+import { addToPipeline, getCategories } from "@/app/common/services/sourcing";
 import AIFeedbackModal from "./AIFeedbackModal";
 import { IntegrityScoreBadge, ProctoringViolationFlag } from "@/app/common/components/dashboard/ProctoringBadges";
 import JsFileDownloader from "js-file-downloader";
@@ -27,6 +29,53 @@ import { jobApplicationMenuItems } from "./jobApplicationMenuItems";
 import CoverLetterModal from "@/app/common/components/CoverLetterModal";
 import { AvatarWithVerifiedBadge } from "@/app/common/components/UserAvatar";
 import ScheduleMeetingModal from "@/app/common/components/ProfileModal/ScheduleMeetingModal";
+import { Button } from "@/app/common/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/app/common/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/app/common/components/ui/select";
+
+// Mirrors JobApplication.JobApplicationStatus (backend/jobs/models.py) --
+// kept here (rather than round-tripping through the API) since it's just
+// display copy/ordering, not business logic. Order matches the enum's
+// declaration order, which is also the order stage_counts keys arrive in.
+const STATUS_LABELS: Record<string, string> = {
+  APPLIED: "Applied",
+  REVIEWED: "Reviewed",
+  INTERVIEW_SCHEDULED: "Interview scheduled",
+  PENDING_DECISION: "Pending decision",
+  OFFER_EXTENDED: "Offer extended",
+  OFFER_ACCEPTED: "Offer accepted",
+  OFFER_DECLINED: "Offer declined",
+  REJECTED: "Rejected",
+  WITHDRAWN: "Withdrawn",
+};
+
+const STATUS_BADGE_STYLES: Record<string, string> = {
+  APPLIED: "bg-[#EFF4FF] text-[#3538CD]",
+  REVIEWED: "bg-[#EEF4FF] text-[#3580B5]",
+  INTERVIEW_SCHEDULED: "bg-[#F4F3FF] text-[#5925DC]",
+  PENDING_DECISION: "bg-[#FFFAEB] text-[#B54708]",
+  OFFER_EXTENDED: "bg-[#ECFDF3] text-[#027A48]",
+  OFFER_ACCEPTED: "bg-[#ECFDF3] text-[#027A48]",
+  OFFER_DECLINED: "bg-[#FFEDED] text-[#B53535]",
+  REJECTED: "bg-[#FFEDED] text-[#B53535]",
+  WITHDRAWN: "bg-[#F5F5F5] text-[#667085]",
+};
+
+// Sentinel Select value for "no category" -- category ids are numeric/string
+// ids, so this can't collide with a real one.
+const GENERAL_PIPELINE_VALUE = "__general__";
 
 const className =
   "select select-sm select-bordered text-[#2E2E2E] font-medium join-item focus:outline-none";
@@ -105,7 +154,10 @@ const JobApplicationGrid = ({
 
 export default JobApplicationGrid;
 
-const applicantToPipelineCandidate = (item: AiFeedbackItem): ServerCandidate => ({
+const applicantToPipelineCandidate = (
+  item: AiFeedbackItem,
+  categoryId: ID | null
+): ServerCandidate => ({
   name: item.talent_name,
   role: item.role,
   country: item.country || "",
@@ -119,17 +171,21 @@ const applicantToPipelineCandidate = (item: AiFeedbackItem): ServerCandidate => 
   skills: [],
   experience: [],
   resume: item.resume || "",
+  category: categoryId,
+  application_id: item.application_id,
 });
 
 type JobApplicationsTableProps = PropsWithChildren<{
   data: AiFeedbackItem[];
   className?: string;
+  stageCounts?: Record<string, number>;
   // roles: TalentRole[];
 }>;
 
 export const JobApplicationsTable = ({
   data,
   className,
+  stageCounts,
   // roles,
 }: JobApplicationsTableProps) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -139,13 +195,40 @@ export const JobApplicationsTable = ({
   const [addingToPipelineId, setAddingToPipelineId] = useState<
     AiFeedbackItem["application_id"] | null
   >(null);
+  const [pipelineTarget, setPipelineTarget] = useState<AiFeedbackItem | null>(
+    null
+  );
+  const [categories, setCategories] = useState<PipelineCategory[]>([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<string>(
+    GENERAL_PIPELINE_VALUE
+  );
   // const profileModalRef = useRef<HTMLDialogElement>(null);
   const coverLetterModalRef = useRef<HTMLDialogElement>(null);
-  const handleAddToPipeline = async (item: AiFeedbackItem) => {
+
+  useEffect(() => {
+    if (!pipelineTarget) return;
+    // react-hooks/set-state-in-effect forbids setState as a direct
+    // synchronous statement in an effect body -- defer to a microtask so
+    // the update happens inside a callback instead (fires before the fetch
+    // below can possibly resolve, so no visible behavior change).
+    queueMicrotask(() => setCategoriesLoading(true));
+    getCategories()
+      .then(setCategories)
+      .catch(() => setCategories([]))
+      .finally(() => setCategoriesLoading(false));
+  }, [pipelineTarget]);
+
+  const handleAddToPipeline = async (
+    item: AiFeedbackItem,
+    categoryId: ID | null
+  ) => {
     if (addingToPipelineId != null) return;
     setAddingToPipelineId(item.application_id);
     toast.loading("Adding to pipeline...");
-    const res = await addToPipeline(applicantToPipelineCandidate(item));
+    const res = await addToPipeline(
+      applicantToPipelineCandidate(item, categoryId)
+    );
     toast.dismiss();
     if (res.success) {
       toast.success("Added to Pipeline", {
@@ -155,6 +238,14 @@ export const JobApplicationsTable = ({
       toast.error(res.error);
     }
     setAddingToPipelineId(null);
+  };
+  const handleConfirmAddToPipeline = () => {
+    if (!pipelineTarget) return;
+    const categoryId =
+      selectedCategory === GENERAL_PIPELINE_VALUE ? null : selectedCategory;
+    handleAddToPipeline(pipelineTarget, categoryId);
+    setPipelineTarget(null);
+    setSelectedCategory(GENERAL_PIPELINE_VALUE);
   };
   const handleClick = (
     action: (typeof jobApplicationMenuItems)[number]["label"],
@@ -184,7 +275,7 @@ export const JobApplicationsTable = ({
         openModal("schedule-meeting");
         break;
       case "Add to Pipeline":
-        handleAddToPipeline(item);
+        setPipelineTarget(item);
         break;
       default:
         toast.info("Coming soon...");
@@ -204,6 +295,24 @@ export const JobApplicationsTable = ({
           <h2 className='text-base md:text-lg font-semibold text-[#343A40]'>
             {data.length} Job {handlePlural(data.length, "Applicant")}
           </h2>
+          {!!stageCounts && (
+            <div className='flex items-center gap-2 flex-wrap max-sm:hidden'>
+              {Object.entries(stageCounts)
+                .filter(([, count]) => count > 0)
+                .map(([statusValue, count]) => (
+                  <span
+                    key={statusValue}
+                    className={cn(
+                      "rounded-2xl px-2.5 py-1 text-xs font-medium whitespace-nowrap",
+                      STATUS_BADGE_STYLES[statusValue] ||
+                        "bg-[#F5F5F5] text-[#667085]"
+                    )}
+                  >
+                    {STATUS_LABELS[statusValue] || statusValue}: {count}
+                  </span>
+                ))}
+            </div>
+          )}
         </div>
         <table className='table table-zebra border border-t-0 rounded-b-lg'>
           {/* head */}
@@ -216,8 +325,8 @@ export const JobApplicationsTable = ({
               {/* <th>Pre-screening Score</th> */}
               <th>Overall Score</th>
               <th className='max-sm:hidden'>Proctoring</th>
+              <th>Stage</th>
               <th />
-              {/* <th>Stage</th> */}
             </tr>
           </thead>
           <tbody>
@@ -349,30 +458,17 @@ export const JobApplicationsTable = ({
                       <ProctoringViolationFlag show={feedback.proctoring_has_violation} />
                     </div>
                   </td>
-                  {/* <td>
-                    <div className='flex items-center'>
-                      {Array.from({ length: 3 }).map((_, index, arr) => (
-                        <>
-                          <div
-                            key={index}
-                            className={cn(
-                              "rounded-full border-[#219150] text-[#219150] border bg-[#ECFDF3] w-[22px] h-[22px] flex items-center justify-center text-xs font-medium",
-                              index === arr.length - 1 &&
-                                "border-[#3580B5] text-[#3580B5]"
-                            )}
-                          >
-                            {index + 1}
-                          </div>
-                          <div
-                            className={cn(
-                              "h-[1px] w-6 bg-[#219150]",
-                              index === arr.length - 1 && "hidden"
-                            )}
-                          />
-                        </>
-                      ))}
-                    </div>
-                  </td> */}
+                  <td>
+                    <span
+                      className={cn(
+                        "rounded-2xl px-2.5 py-1 text-xs font-medium whitespace-nowrap",
+                        STATUS_BADGE_STYLES[feedback.status] ||
+                          "bg-[#F5F5F5] text-[#667085]"
+                      )}
+                    >
+                      {feedback.status_label}
+                    </span>
+                  </td>
                   <td>
                     <div className='dropdown dropdown-hover dropdown-end dropdown-top'>
                       <div
@@ -407,7 +503,7 @@ export const JobApplicationsTable = ({
               ))
             ) : (
               <tr>
-                <td colSpan={7}>
+                <td colSpan={8}>
                   <EmptyStateV3 text='No applications yet' />
                 </td>
               </tr>
@@ -438,6 +534,58 @@ export const JobApplicationsTable = ({
           />
         </>
       )}
+      <Dialog
+        open={!!pipelineTarget}
+        onOpenChange={open => {
+          if (!open) {
+            setPipelineTarget(null);
+            setSelectedCategory(GENERAL_PIPELINE_VALUE);
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add to Pipeline</DialogTitle>
+          </DialogHeader>
+          <p className='text-sm text-secondary-black'>
+            Choose which pipeline to add{" "}
+            <span className='font-medium'>{pipelineTarget?.talent_name}</span>{" "}
+            to.
+          </p>
+          <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+            <SelectTrigger className='w-full'>
+              <SelectValue placeholder='Select a pipeline' />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={GENERAL_PIPELINE_VALUE}>
+                General candidate pipeline
+              </SelectItem>
+              {categories.map(category => (
+                <SelectItem key={category.id} value={String(category.id)}>
+                  {category.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <DialogFooter>
+            <Button
+              variant='outline'
+              onClick={() => {
+                setPipelineTarget(null);
+                setSelectedCategory(GENERAL_PIPELINE_VALUE);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              disabled={categoriesLoading || addingToPipelineId != null}
+              onClick={handleConfirmAddToPipeline}
+            >
+              Add to Pipeline
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 };

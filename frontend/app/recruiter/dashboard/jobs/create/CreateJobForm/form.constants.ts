@@ -172,7 +172,7 @@ export const companyDescriptionFormFields: FormField<CompanyDescriptionFormValue
       name: "about_company",
       label: "",
       type: "richtext",
-      placeholder: "Add your company description",
+      placeholder: "Describe the role and what it's like to work in it",
       richTextToolbar: jobPostingRichTextToolbar,
     },
   ];
@@ -220,9 +220,9 @@ export const formSections = [
     fields: jobBasicDetailsFormFields,
   },
   {
-    title: "About your company",
+    title: "About the role",
     description:
-      "Your company values and culture is required here. Note: This information will be used to evaluate the cultural fitness of applicants.",
+      "Describe what it's like working in this role and what kind of person would thrive in it. Note: This information will be used to evaluate the cultural fitness of applicants.",
     fields: companyDescriptionFormFields,
   },
   {

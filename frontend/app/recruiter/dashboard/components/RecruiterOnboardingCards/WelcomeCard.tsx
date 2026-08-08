@@ -28,8 +28,11 @@ export default function WelcomeCard({
           <h2 className="text-xl sm:text-2xl font-bold text-foreground">
             Welcome, {userName}!
           </h2>
+          <p className="text-xs sm:text-sm font-semibold uppercase tracking-wide text-primary">
+            From the desk of our co-founder
+          </p>
           <p className="text-sm sm:text-base text-muted-foreground">
-            See how recruiters hire top African talent in minutes.
+            Take a minute to watch this before you dive in.
           </p>
         </div>
 
@@ -39,8 +42,8 @@ export default function WelcomeCard({
             <iframe
               width="100%"
               height="100%"
-              src="https://www.youtube.com/embed/_QLWQnn2hSs?si=Z8KWTfv-NEKb5JM_"
-              title="TIAAGO overview"
+              src="https://www.youtube.com/embed/WcUA0cD1ZDY"
+              title="A message from our co-founder"
               frameBorder="0"
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
               referrerPolicy="strict-origin-when-cross-origin"

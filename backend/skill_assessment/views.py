@@ -36,7 +36,11 @@ from skill_assessment.constants import SkillAssessmentTypes
 from create_user.models import TalentProfile
 
 from skill_assessment.tasks import mark_skill_assessment_submission, finalize_graded_submission, _to_score, DEFAULT_PASSING_GRADE
-from skill_assessment.utils import resolve_invite_talent
+from skill_assessment.utils import (
+    resolve_invite_talent,
+    get_submission_candidate_name,
+    get_submission_candidate_email,
+)
 from .filters import GeneralSkillAssessmentFilter
 from .models import (
     DIFFICULTY_LEVEL_CHOICES,
@@ -104,6 +108,7 @@ from .serializers import (
     GradeOpenEndedSerializer,
     TalentQuestionBankManageSerializer,
     AssessmentBundleManageSerializer,
+    AdminAssessmentFeedbackSerializer,
 )
 from rest_framework.generics import RetrieveUpdateDestroyAPIView
 from subscriptions.permissions import (
@@ -219,12 +224,19 @@ class GeneralSkillAssessmentAPIView(APIView, PaginationHandlerMixin):
                 company__isnull=True, job_application__isnull=True
             ).order_by("-created_at")
         elif request.user.is_staff:
-            queryset = GeneralSkillAssessment.objects.all().order_by("-created_at")
+            # source_template__isnull=True excludes per-candidate clones (see
+            # _clone_standalone_assessment_for_candidate) -- without it, every
+            # invited candidate makes what looks like a duplicate assessment
+            # appear in this list, since a clone shares its template's
+            # company/title/type and only differs by invited_email/source_template.
+            queryset = GeneralSkillAssessment.objects.filter(
+                source_template__isnull=True
+            ).order_by("-created_at")
         else:
             company = get_user_company(request.user)
             if company:
                 queryset = GeneralSkillAssessment.objects.filter(
-                    company=company, job_application__isnull=True
+                    company=company, job_application__isnull=True, source_template__isnull=True
                 ).order_by("-created_at")
             else:
                 queryset = GeneralSkillAssessment.objects.none()
@@ -320,10 +332,29 @@ class AddSectionsToSkillAssessmentAPIView(APIView):
                             open_ended_obj = OpenEndedQuestion.objects.create(**oeq)
                             assessment_section.open_ended_questions.add(open_ended_obj)
 
+                _promote_to_mixed_if_needed(company_skill_assessment)
+
             return Response(status=200, data={"message": "Skill assessment successfully updated"})
         except Exception as e:
             logger.exception("Failed to add sections to skill assessment: %s", e)
             return Response(status=500, data={"error": "Failed to update skill assessment"})
+
+
+def _promote_to_mixed_if_needed(assessment):
+    """An assessment created as a single type (MCQ/CODING_TASK/OPEN_ENDED)
+    can end up with more than one section type on it -- either because the
+    recruiter added a section of a different type via "Create Custom Test"
+    (now allowed, see GeneralSkillAssessmentSectionSerializer.validate), or
+    because a Test Library bundle spanning multiple types was added (see
+    AddBundleSectionAPIView, which never restricted section types to begin
+    with). Once that's true, the assessment's own declared type needs to
+    catch up to MIXED so it accurately reflects what candidates will
+    actually see -- CUSTOM (the separate Tiaago-verification type) is left
+    alone, since it's never reachable from this recruiter-facing flow."""
+    types_present = set(assessment.sections.values_list("type", flat=True).distinct())
+    if len(types_present) > 1 and assessment.assessment_type != SkillAssessmentTypes.MIXED:
+        assessment.assessment_type = SkillAssessmentTypes.MIXED
+        assessment.save(update_fields=["assessment_type"])
 
 
 def _get_owned_company_assessment(request, skill_assessment_id, require_draft=False, require_published=False):
@@ -440,19 +471,16 @@ class AddBundleSectionAPIView(APIView):
                         )
                         section.open_ended_questions.add(new_q)
                     created_sections.append(section)
-            # Roll the bundle's own declared duration into the assessment's
-            # total -- the recruiter picked a duration for each standalone
-            # test in the library; the composed assessment should reflect
-            # what was actually added rather than staying at whatever was
-            # typed on step 1 before any tests were chosen. Tracked on the
-            # first created section so RemoveSectionAPIView can subtract the
-            # exact amount back out later instead of duration only ever
-            # accumulating.
+            # The recruiter's own duration, set on step 1 before picking any
+            # tests, is authoritative and stays put -- bundles no longer add
+            # their own estimated_duration_minutes on top of it. Still
+            # tracked on the first created section (bundle_duration_minutes)
+            # purely for display; RemoveSectionAPIView no longer subtracts
+            # it back out of the assessment's duration either.
             if created_sections:
-                assessment.duration_minutes = (assessment.duration_minutes or 0) + bundle.estimated_duration_minutes
-                assessment.save(update_fields=["duration_minutes"])
                 created_sections[0].bundle_duration_minutes = bundle.estimated_duration_minutes
                 created_sections[0].save(update_fields=["bundle_duration_minutes"])
+            _promote_to_mixed_if_needed(assessment)
         except Exception as e:
             logger.exception("Failed to add bundle section: %s", e)
             return Response(status=500, data={"error": "Failed to add bundle to assessment"})
@@ -480,12 +508,9 @@ class RemoveSectionAPIView(APIView):
         if not section:
             return Response(status=404, data={"error": "Section not found on this assessment."})
 
-        if section.bundle_duration_minutes:
-            assessment.duration_minutes = max(
-                (assessment.duration_minutes or 0) - section.bundle_duration_minutes, 0
-            )
-            assessment.save(update_fields=["duration_minutes"])
-
+        # duration_minutes is the recruiter's own step-1 value and is never
+        # adjusted by adding/removing question-bank sections (see
+        # AddBundleSectionAPIView.post) -- nothing to undo here.
         section.delete()
         return Response(status=200, data={
             "message": "Section removed.", "duration_minutes": assessment.duration_minutes,
@@ -602,6 +627,197 @@ class TalentQuestionBankManageDetailView(RetrieveUpdateDestroyAPIView):
     queryset = TalentQuestionBank.objects.select_related(
         "mcq_question", "coding_task", "open_ended_question", "role", "stack"
     )
+
+
+class QuestionBankCsvUploadView(APIView):
+    """Staff-only: POST /staff/question-bank/csv-upload/ -- adds bare
+    question-bank entries directly (no bundle wrapper), for the
+    /admin/assessment/question-bank page's "Upload CSV" option. Same
+    CSV/JSON-builder format as AssessmentBundleCsvUploadView (which wraps
+    the same kind of entries in a new bundle) -- reuses its exact row/entry
+    parsers, since those already only ever build bare TalentQuestionBank
+    rows; only the "wrap in a new bundle" step differs here."""
+
+    permission_classes = [IsStaffUser]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def post(self, request):
+        csv_file = request.FILES.get("csv_file")
+        open_ended_raw = request.data.get("open_ended_questions")
+        coding_tasks_raw = request.data.get("coding_tasks")
+        if not csv_file and not open_ended_raw and not coding_tasks_raw:
+            return Response(
+                {"error": "Add questions via csv_file, open_ended_questions, coding_tasks, or a combination"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        role_id = request.data.get("role_id") or None
+        stack_id = request.data.get("stack_id") or None
+        difficulty_level = (request.data.get("difficulty_level") or "").strip().upper()
+        if difficulty_level not in _VALID_DIFFICULTY_LEVELS:
+            return Response(
+                {"error": "A valid difficulty_level is required"}, status=status.HTTP_400_BAD_REQUEST
+            )
+
+        reader = None
+        if csv_file:
+            try:
+                decoded = csv_file.read().decode("utf-8-sig")
+            except UnicodeDecodeError:
+                return Response({"error": "Could not read the file as UTF-8 CSV"}, status=status.HTTP_400_BAD_REQUEST)
+            reader = csv.DictReader(io.StringIO(decoded))
+            if reader.fieldnames is None:
+                return Response({"error": "CSV file has no header row"}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            with transaction.atomic():
+                bank_entries = []
+                if reader is not None:
+                    bank_entries += [
+                        _parse_bundle_csv_row(row, row_number, difficulty_level)
+                        for row_number, row in enumerate(reader, start=2)  # row 1 is the header
+                    ]
+                if open_ended_raw:
+                    bank_entries += _parse_bundle_open_ended_entries(open_ended_raw, difficulty_level)
+                if coding_tasks_raw:
+                    bank_entries += _parse_bundle_coding_task_entries(coding_tasks_raw, difficulty_level)
+
+                if not bank_entries:
+                    raise ValidationError(
+                        "Add at least one question via CSV, the open-ended builder, or the coding task builder"
+                    )
+
+                if role_id or stack_id:
+                    TalentQuestionBank.objects.filter(
+                        id__in=[e.id for e in bank_entries]
+                    ).update(**({"role_id": role_id} if role_id else {}), **({"stack_id": stack_id} if stack_id else {}))
+        except ValidationError as e:
+            message = e.message if hasattr(e, "message") else str(e)
+            return Response({"error": message}, status=status.HTTP_400_BAD_REQUEST)
+
+        entries = TalentQuestionBank.objects.filter(id__in=[e.id for e in bank_entries]).select_related(
+            "mcq_question", "coding_task", "open_ended_question", "role", "stack"
+        )
+        return Response(
+            TalentQuestionBankManageSerializer(entries, many=True).data, status=status.HTTP_201_CREATED
+        )
+
+
+class GenerateQuestionBankQuestionsView(APIView):
+    """Staff-only: POST /staff/question-bank/generate/ -- AI-generates MCQ or
+    coding questions straight into the question bank, for the
+    /admin/assessment/question-bank page's "Generate with AI" option. Reuses
+    the same AIService calls the job-wizard/talent-verification flows
+    already use for question generation (utils.ai_service.AIService), just
+    persisted as bare TalentQuestionBank entries instead of assessment
+    sections. No open-ended option: no existing AIService method generates
+    grading-rubric-style questions, and this doesn't invent a new one."""
+
+    permission_classes = [IsStaffUser]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "question_bank_generation"
+
+    def post(self, request):
+        question_type = (request.data.get("question_type") or "").strip().upper()
+        topic = (request.data.get("topic") or "").strip()
+        role_id = request.data.get("role_id") or None
+        stack_id = request.data.get("stack_id") or None
+        difficulty_level = (request.data.get("difficulty_level") or "").strip().upper()
+        try:
+            count = int(request.data.get("count") or 5)
+        except (TypeError, ValueError):
+            count = 5
+        count = max(1, min(count, 20))
+
+        if question_type not in (SkillAssessmentTypes.MCQ, SkillAssessmentTypes.CODING_TASK):
+            return Response({"error": "question_type must be MCQ or CODING_TASK"}, status=400)
+        if difficulty_level not in _VALID_DIFFICULTY_LEVELS:
+            return Response({"error": "A valid difficulty_level is required"}, status=400)
+        if not topic:
+            return Response(
+                {"error": "topic is required -- e.g. a role, tech stack, or short description to generate questions about"},
+                status=400,
+            )
+
+        try:
+            if question_type == SkillAssessmentTypes.MCQ:
+                questions = AIService.get_mcq_questions(job_description=topic, num_questions=count)
+            else:
+                coding_result = AIService.get_talent_coding_questions(
+                    programming_languages=topic, difficulty=difficulty_level.lower(), num_questions=count,
+                )
+                questions = coding_result.get("questions") if coding_result else None
+        except Exception as e:
+            logger.exception("Question bank AI generation failed: %s", e)
+            return Response({"error": "AI question generation failed. Please try again."}, status=502)
+
+        if not questions:
+            return Response({"error": "The AI service returned no questions. Please try again."}, status=502)
+
+        bank_entries = []
+        with transaction.atomic():
+            if question_type == SkillAssessmentTypes.MCQ:
+                for q in questions:
+                    mcq = GeneralSkillAssessmentMCQQuestion.objects.create(
+                        question=q.get("question"),
+                        options=q.get("options"),
+                        correct_option_index=q.get("correct_option_index"),
+                        is_ai_generated=True,
+                    )
+                    bank_entries.append(TalentQuestionBank.objects.create(
+                        mcq_question=mcq, difficulty_level=difficulty_level, role_id=role_id, stack_id=stack_id,
+                    ))
+            else:
+                for q in questions:
+                    coding_task = CodingTask.objects.create(
+                        title=(q.get("question") or "Untitled coding task")[:255],
+                        description=q.get("question") or "",
+                        constraints=q.get("function_signature") or "",
+                        difficulty_level=difficulty_level,
+                        skills_assessed=q.get("skills_assessed", []),
+                        is_ai_generated=True,
+                    )
+                    for tc in q.get("test_cases", []) or []:
+                        TestCase.objects.create(
+                            coding_task=coding_task,
+                            input_data=tc.get("input"), expected_output=tc.get("expected_output"),
+                        )
+                    bank_entries.append(TalentQuestionBank.objects.create(
+                        coding_task=coding_task, difficulty_level=difficulty_level, role_id=role_id, stack_id=stack_id,
+                    ))
+
+        return Response(
+            TalentQuestionBankManageSerializer(bank_entries, many=True).data, status=status.HTTP_201_CREATED
+        )
+
+
+class AdminAssessmentFeedbackListView(generics.ListAPIView):
+    """Staff-only: every candidate's post-submit star rating + comment (see
+    AssessmentInviteFeedbackView, which persists these onto
+    CandidateAssessmentSubmission) -- backs /admin/assessments/feedback so
+    staff can see what candidates actually thought of an assessment, not
+    just its pass/fail numbers. Only rows where feedback was actually left
+    show up here; the vast majority of submissions never get any."""
+
+    serializer_class = AdminAssessmentFeedbackSerializer
+    permission_classes = [IsStaffUser]
+    pagination_class = TiaagoPagination
+
+    def get_queryset(self):
+        queryset = (
+            CandidateAssessmentSubmission.objects.filter(
+                Q(feedback_rating__isnull=False) | ~Q(feedback_comment="")
+            )
+            .select_related(
+                "candidate", "candidate__user", "skill_assessment", "skill_assessment__company",
+                "skill_assessment__job_application",
+            )
+            .order_by("-completed_at")
+        )
+        rating = self.request.GET.get("rating")
+        if rating:
+            queryset = queryset.filter(feedback_rating=rating)
+        return queryset
 
 
 class AssessmentBundleManageListCreateView(ListCreateAPIView):
@@ -999,7 +1215,6 @@ class InviteCandidatesToAssessmentAPIView(APIView):
         serializer.is_valid(raise_exception=True)
         invites = serializer.validated_data["invites"]
 
-        has_coding_task = template.sections.filter(type=SkillAssessmentTypes.CODING_TASK).exists()
         sent, failed = [], []
 
         for invite in invites:
@@ -1012,7 +1227,7 @@ class InviteCandidatesToAssessmentAPIView(APIView):
                     clone.invite_deadline = clone.invite_sent_at + timedelta(hours=72)
                     clone.save(update_fields=["invite_sent_at", "invite_deadline"])
                 emails.standalone_assessment_invite_mail(
-                    email, name, clone, deadline=clone.invite_deadline, has_coding_task=has_coding_task,
+                    email, name, clone, deadline=clone.invite_deadline,
                 )
                 sent.append(email)
             except Exception as e:
@@ -2806,14 +3021,23 @@ class AIOperationsFeedback(APIView, PaginationHandlerMixin):
                 ),
                 "country": (job_apps.applicant.country or "") if has_account else "",
                 "current_company": current_company_map.get(job_apps.applicant_id, "") if has_account else "",
+                "status": job_apps.status,
+                "status_label": job_apps.get_status_display(),
             })
 
         #return leaderbord in descending order
         feedback.sort(key=lambda x: x["overall_score"], reverse=True)
-        
+
+        # Counted over the full (unpaginated) result set so the "N in each
+        # stage" summary on the applicants page stays accurate across pages.
+        stage_counts = {choice.value: 0 for choice in JobApplication.JobApplicationStatus}
+        for item in feedback:
+            stage_counts[item["status"]] = stage_counts.get(item["status"], 0) + 1
+
         paginated_queryset = self.paginate_queryset(feedback)
         data = AIFeedbackSerializer(paginated_queryset, many=True).data
         paginated_data = self.get_paginated_response(data)
+        paginated_data["stage_counts"] = stage_counts
         return Response(data=paginated_data)
 
 class StartPreScreeningInterviewView(PreScreeningMixin, APIView):

@@ -1,3 +1,6 @@
+import Link from "next/link";
+import { ArrowRight } from "lucide-react";
+
 import DisplayErrorMessages, {
   DisplayErrorMessagesProps,
 } from "@/app/common/components/DisplayErrorMessages";
@@ -43,11 +46,20 @@ const AssessmentIntelligencePage = async () => {
   return (
     <>
       <DisplayErrorMessages errors={errors} />
-      <div className='border-b w-full border-border pb-1 mb-6'>
-        <h1 className='text-2xl font-bold mb-1 font-space-grotesk'>Assessment Intelligence</h1>
-        <h4 className='text-foreground text-sm md:text-base'>
-          Quality and integrity signals for the AI assessment layer.
-        </h4>
+      <div className='border-b w-full border-border pb-1 mb-6 flex flex-wrap items-end justify-between gap-4'>
+        <div>
+          <h1 className='text-2xl font-bold mb-1 font-space-grotesk'>Assessment Intelligence</h1>
+          <h4 className='text-foreground text-sm md:text-base'>
+            Quality and integrity signals for the AI assessment layer.
+          </h4>
+        </div>
+        <Link
+          href='/admin/assessments/feedback'
+          className='flex items-center gap-1 text-sm text-primary font-medium hover:underline mb-1'
+        >
+          Candidate feedback
+          <ArrowRight className='w-3.5 h-3.5' />
+        </Link>
       </div>
 
       <div className='grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4 mb-8'>

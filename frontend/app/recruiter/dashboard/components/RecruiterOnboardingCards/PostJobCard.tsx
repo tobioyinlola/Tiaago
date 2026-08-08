@@ -24,6 +24,7 @@ export default function PostJobCard({
       onNext={onNext}
       onPrevious={onPrevious}
       onSkip={onSkip}
+      nextLabel="Post a Role"
     >
       <div className="w-full space-y-4 sm:space-y-6">
         {/* Illustration */}

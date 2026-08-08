@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { Loader2, FileQuestion } from "lucide-react";
 
 import SlidePanel from "@/app/common/components/SlidePanel";
-import { cn } from "@/app/common/utils";
+import { cn, getNoOfAssementQuestions } from "@/app/common/utils";
 import { AssessmentQuestionSection, CompanySkillAssessment, TalentRole } from "@/app/common/types";
 import { getTalentRoles } from "@/app/common/services";
 import {
@@ -63,10 +63,10 @@ const AssessmentSourcePicker = ({
     }
   }, [open, tab, roleFilter]);
 
-  const mcqQuestionCount = (assessment: CompanySkillAssessment) =>
-    assessment.sections
-      .filter(s => s.type === "MCQ")
-      .reduce((sum, s) => sum + (s.mcq_questions?.length || 0), 0);
+  const assessmentTypeLabel = (assessment: CompanySkillAssessment) =>
+    assessment.assessment_type === "MCQ"
+      ? "MCQ"
+      : assessment.assessment_type?.replaceAll("_", " ") || "";
 
   // The skill-assessment system (bundles, CompanySkillAssessment) uses
   // 1-based option indices/correct_option_index (see
@@ -194,9 +194,11 @@ const AssessmentSourcePicker = ({
               >
                 <div className="min-w-0">
                   <p className="font-medium text-primaryBlack truncate">{assessment.title}</p>
-                  <p className="text-xs text-secondary-black mt-0.5">
-                    {mcqQuestionCount(assessment)} MCQ question
-                    {mcqQuestionCount(assessment) !== 1 ? "s" : ""} &middot;{" "}
+                  <p className="text-xs text-secondary-black mt-0.5 capitalize">
+                    {getNoOfAssementQuestions(assessment)} question
+                    {getNoOfAssementQuestions(assessment) !== 1 ? "s" : ""}
+                    {assessmentTypeLabel(assessment) && ` · ${assessmentTypeLabel(assessment)}`}
+                    {" · "}
                     {assessment.difficulty_level}
                   </p>
                 </div>

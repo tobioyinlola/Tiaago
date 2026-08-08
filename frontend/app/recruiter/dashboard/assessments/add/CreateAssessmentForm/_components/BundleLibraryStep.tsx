@@ -163,10 +163,9 @@ const BundleLibraryStep = ({
             {selectedSections.length} test{selectedSections.length === 1 ? "" : "s"}
           </span>
         </div>
-        {/* Live totals -- duration is the server's own running total (each
-            bundle rolls its estimated duration into the assessment), so the
-            recruiter sees it climb as tests are added rather than only on
-            the preview step. */}
+        {/* duration_minutes is the fixed value the recruiter set on step 1
+            -- adding/removing tests here never changes it, so this is just
+            a reminder of that budget, not a running total. */}
         <div className="flex items-center gap-4 text-xs text-[#6C757D] mb-4">
           <span className="flex items-center gap-1">
             <LuClock /> {totalDurationMinutes}m total

@@ -57,6 +57,13 @@ class AddToPipelineSerializer(serializers.Serializer):
     experience = serializers.ListField(required=False, default=list)
     avatar = serializers.CharField(max_length=500, required=False, allow_blank=True, default="")
     category = serializers.IntegerField(required=False, allow_null=True, default=None)
+    # Set only when this candidate is being added from the job-applicants
+    # page (not a sourcing-search result) -- resolves their resume server-
+    # side via JobApplication.candidate_resume (guest-safe: works whether
+    # they applied with a real account or as a guest) instead of trying to
+    # push a resume URL through the form, which a plain CharField can't
+    # turn into a real FileField value anyway.
+    application_id = serializers.IntegerField(required=False, allow_null=True, default=None)
 
     def create(self, validated_data):
         # Accept both "linkdIn_profile" (legacy typo) and "linkedin_profile" as input
@@ -67,6 +74,20 @@ class AddToPipelineSerializer(serializers.Serializer):
         if category_id:
             validated_data["category_id"] = category_id
         validated_data["summary"] = validated_data.get("summary") or ""
+
+        application_id = validated_data.pop("application_id", None)
+        if application_id:
+            from jobs.models import JobApplication
+
+            # Scoped to the requesting recruiter's own company -- an
+            # application_id for a different company's job must never leak
+            # that candidate's resume into this company's pipeline.
+            job_application = JobApplication.objects.filter(
+                id=application_id, job__company=validated_data.get("company")
+            ).select_related("applicant").first()
+            if job_application and job_application.candidate_resume:
+                validated_data["resume"] = job_application.candidate_resume
+
         return PipelineCandidate.objects.create(**validated_data)
 
 
@@ -172,7 +193,11 @@ class InviteSubmissionSerializer(serializers.Serializer):
 
     def create(self, validated_data):
         invite_link = self.context["invite_link"]
-        user = self.context["user"]
+        # AnonymousUser (the vast majority of submissions -- this endpoint
+        # is AllowAny/no-login by design) can't be assigned to the user FK;
+        # only store it when the candidate happens to already be logged in.
+        request_user = self.context["user"]
+        user = request_user if request_user.is_authenticated else None
 
         first_name = validated_data.pop("first_name")
         last_name = validated_data.pop("last_name")

@@ -1,6 +1,16 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowRight, ListChecks, Timer, Target, Users, FileQuestion, Code2, PenLine } from "lucide-react";
+import {
+  ArrowRight,
+  ChevronLeft,
+  ListChecks,
+  Timer,
+  Target,
+  Users,
+  FileQuestion,
+  Code2,
+  PenLine,
+} from "lucide-react";
 
 import {
   getNoOfAssementQuestions,
@@ -8,14 +18,17 @@ import {
   handleServerApiCallError,
 } from "@/app/common/utils";
 import NoQuestionsIcon from "@/app/common/icons/NoQuestionsIcon";
-import { getCompanyAssessment } from "@/app/common/services/assessment";
+import { getAssessmentResultsList, getCompanyAssessment } from "@/app/common/services/assessment";
 import DisplayErrorMessages, {
   DisplayErrorMessagesProps,
 } from "@/app/common/components/DisplayErrorMessages";
+import ServerPagination from "@/app/common/components/ServerPagination";
 import AssessmentDetailActions from "./_components/AssessmentDetailActions";
+import SubmissionsList from "./submissions/_components/SubmissionsList";
 
 type Props = {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ page?: string }>;
 };
 
 export const generateMetadata = async ({ params }: Props) => {
@@ -33,8 +46,9 @@ const sectionTypeMeta: Record<string, { label: string; Icon: typeof FileQuestion
   OPEN_ENDED: { label: "Open-ended", Icon: PenLine },
 };
 
-const AssessmentDetailsPage = async ({ params }: Props) => {
+const AssessmentDetailsPage = async ({ params, searchParams }: Props) => {
   const { id } = await params;
+  const { page } = await searchParams;
   const errors: DisplayErrorMessagesProps["errors"] = [];
   const assessment = await getCompanyAssessment(id).catch(async e => {
     const error = await handleServerApiCallError(e);
@@ -49,6 +63,14 @@ const AssessmentDetailsPage = async ({ params }: Props) => {
     return null;
   });
   if (!assessment) return notFound();
+
+  const submissionsPage = assessment.published
+    ? await getAssessmentResultsList(id, { page }).catch(async e => {
+        const error = await handleServerApiCallError(e);
+        errors.push({ message: error, title: "Error getting submissions" });
+        return { results: [], current: 1, count: 0, next: null, previous: null };
+      })
+    : null;
 
   const noOfQuestions = getNoOfAssementQuestions(assessment);
 
@@ -68,9 +90,10 @@ const AssessmentDetailsPage = async ({ params }: Props) => {
         <div>
           <Link
             href='/recruiter/dashboard/assessments'
-            className='text-sm text-secondary-black hover:text-primary'
+            className='flex items-center gap-1 text-sm text-secondary-black hover:text-primary'
           >
-            Assessments
+            <ChevronLeft className='w-4 h-4' />
+            Back to assessments
           </Link>
           <h1 className='text-2xl font-semibold font-space-grotesk text-primaryBlack mt-1'>
             Assessment Details
@@ -78,15 +101,7 @@ const AssessmentDetailsPage = async ({ params }: Props) => {
         </div>
 
         <div className='flex items-center gap-4'>
-          {assessment.published ? (
-            <Link
-              href={`/recruiter/dashboard/assessments/${assessment.id}/submissions`}
-              className='flex items-center gap-1 text-sm text-primary font-medium hover:underline'
-            >
-              View Submissions
-              <ArrowRight className='w-3.5 h-3.5' />
-            </Link>
-          ) : (
+          {!assessment.published && (
             <Link
               href={resumeHref}
               className='flex items-center gap-1 text-sm text-primary font-medium hover:underline'
@@ -206,6 +221,35 @@ const AssessmentDetailsPage = async ({ params }: Props) => {
           </div>
         )}
       </div>
+
+      {assessment.published && submissionsPage && (
+        <div className='mt-10'>
+          <div className='flex justify-between items-center mb-4'>
+            <h3 className='text-base font-semibold text-primaryBlack'>Submissions</h3>
+          </div>
+
+          {submissionsPage.results.length === 0 ? (
+            <div className='bg-white rounded-2lg p-16 border border-[#EAECF0] flex flex-col items-center text-center'>
+              <div className='w-12 h-12 rounded-full bg-[#F5F6F7] flex items-center justify-center mb-4'>
+                <Users className='w-5 h-5 text-secondary-black' />
+              </div>
+              <p className='font-medium text-primaryBlack'>No submissions yet</p>
+              <p className='text-secondary-black text-sm mt-1'>
+                Invite candidates to see their submissions here.
+              </p>
+            </div>
+          ) : (
+            <>
+              <SubmissionsList
+                assessmentId={id}
+                submissions={submissionsPage.results}
+                requiresApproval={!!assessment.display_review_and_approve_responses}
+              />
+              <ServerPagination pagedResource={submissionsPage} />
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 };

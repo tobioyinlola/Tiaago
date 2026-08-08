@@ -25,6 +25,10 @@ export type PagedResource<T> = {
   next?: number | string | null;
   previous?: number | string | null;
   results: T[];
+  // Only present on endpoints that opt into it (e.g. AI feedback/applicants
+  // list) -- a count of every result (not just the current page) grouped by
+  // JobApplication["status"].
+  stage_counts?: Record<string, number>;
 };
 
 export type BasePageProps = {
@@ -1109,6 +1113,17 @@ export type TalentQuestionBankEntry = {
   created_at: string;
 };
 
+export type AssessmentFeedbackEntry = {
+  id: ID;
+  feedback_rating: number | null;
+  feedback_comment: string;
+  completed_at: string | null;
+  candidate_name: string | null;
+  candidate_email: string | null;
+  assessment_title: string | null;
+  company_name: string | null;
+};
+
 export type AssessmentBundleAdmin = {
   id: ID;
   name: string;
@@ -1287,6 +1302,8 @@ export type AiFeedbackItem = {
   proctoring_has_violation: boolean;
   country: string | null;
   current_company: string | null;
+  status: JobApplication["status"];
+  status_label: string;
 };
 
 export type SubmissionAnswerMCQQuestion = {
@@ -1662,6 +1679,13 @@ export type ServerCandidate = {
   experience_level?: string;
   current_pay?: string;
   pay_currency?: string;
+  // Which PipelineCategory to file this candidate under -- omitted/null
+  // files them into the uncategorized "general" pipeline.
+  category?: ID | null;
+  // Set when adding a job applicant (not a sourcing-search result) to a
+  // pipeline -- lets the backend resolve their resume server-side via
+  // JobApplication.candidate_resume instead of relying on `resume` above.
+  application_id?: ID | null;
 };
 
 export type PipelineEntry = ServerCandidate & {

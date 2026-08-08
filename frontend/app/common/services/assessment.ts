@@ -22,6 +22,7 @@ import {
   TalentQuestionBankEntry,
   AssessmentBundleAdmin,
   JobAssessmentQuestion,
+  AssessmentFeedbackEntry,
 } from "../types";
 import { _handleServerApiCallError, handleServerApiCallError } from "../utils";
 import serverKyInstance from "../utils/server-ky.instance";
@@ -497,10 +498,17 @@ export const getAssessmentResults = async (id: ID) => {
   return response;
 };
 
-export const getAssessmentResultsList = async (id: ID) => {
+export const getAssessmentResultsList = async (
+  id: ID,
+  params?: { page?: string | number; page_size?: string | number }
+) => {
+  const searchParams: Record<string, string> = {};
+  if (params?.page) searchParams.page = String(params.page);
+  if (params?.page_size) searchParams.page_size = String(params.page_size);
   const response = await serverKyInstance
     .get<PagedResource<SkillAssessmentResult>>(
-      `skill-assessments/skill-assessment-results/${id}`
+      `skill-assessments/skill-assessment-results/${id}`,
+      { searchParams }
     )
     .json();
   return response;
@@ -739,6 +747,23 @@ export const getSubmissionSnapshots = async (
   }
 };
 
+// Staff-only: candidate star-rating/comment feedback, backing
+// /admin/assessments/feedback.
+export const getAdminAssessmentFeedback = async (params?: {
+  rating?: string;
+  page?: string;
+}) => {
+  const searchParams: Record<string, string> = {};
+  if (params?.rating) searchParams.rating = params.rating;
+  if (params?.page) searchParams.page = params.page;
+  const data = await serverKyInstance
+    .get<PagedResource<AssessmentFeedbackEntry>>("skill-assessments/staff/assessment-feedback/", {
+      searchParams,
+    })
+    .json();
+  return data;
+};
+
 export const getSubmissionAnswers = async (submissionId: ID): Promise<SubmissionAnswers> => {
   const data = await serverKyInstance
     .get<SubmissionAnswers>(`skill-assessments/submissions/${submissionId}/answers/`)
@@ -803,6 +828,34 @@ export const deleteStaffQuestionBankEntry = async (id: ID): Promise<ApiResponse<
   try {
     await serverKyInstance.delete(`skill-assessments/staff/question-bank/${id}/`);
     return { success: true, data: null };
+  } catch (error) {
+    const errMsg = await handleServerApiCallError(error);
+    return { success: false, error: errMsg };
+  }
+};
+
+export const uploadStaffQuestionBankCsv = async (
+  data: FormData
+): Promise<ApiResponse<TalentQuestionBankEntry[]>> => {
+  try {
+    const result = await serverKyInstance
+      .post("skill-assessments/staff/question-bank/csv-upload/", { body: data })
+      .json<TalentQuestionBankEntry[]>();
+    return { success: true, data: result };
+  } catch (error) {
+    const errMsg = await handleServerApiCallError(error);
+    return { success: false, error: errMsg };
+  }
+};
+
+export const generateStaffQuestionBankQuestions = async (
+  payload: Record<string, unknown>
+): Promise<ApiResponse<TalentQuestionBankEntry[]>> => {
+  try {
+    const result = await serverKyInstance
+      .post("skill-assessments/staff/question-bank/generate/", { json: payload, timeout: 60000 })
+      .json<TalentQuestionBankEntry[]>();
+    return { success: true, data: result };
   } catch (error) {
     const errMsg = await handleServerApiCallError(error);
     return { success: false, error: errMsg };

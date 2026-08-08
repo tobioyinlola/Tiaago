@@ -81,13 +81,6 @@ const CreateAssessmentForm = ({
   );
   const [publishedTitle, setPublishedTitle] = useState("");
   const [customSectionPanelOpen, setCustomSectionPanelOpen] = useState(false);
-  // The type the assessment was actually *created* with. Sections are
-  // validated against the stored value server-side, and nothing in this
-  // wizard PATCHes it afterwards, so this -- not the live Formik field --
-  // is what the custom-test panel must lock itself to.
-  const [assessmentType, setAssessmentType] = useState(
-    existingAssessment?.assessment_type ?? ""
-  );
   const successModalRef = useRef<HTMLDialogElement>(null);
   // Formik's instance, so the section-syncing helper below (which lives
   // outside the render-prop) can write the server's authoritative
@@ -108,14 +101,9 @@ const CreateAssessmentForm = ({
     try {
       const assessment = await getCompanyAssessment(assessmentId);
       setSections(toSelectedSections(assessment));
-      // Adding a bundle rolls its estimated_duration_minutes into the
-      // assessment server-side, so the value typed on step 1 goes stale the
-      // moment a test is added. Mirroring the server's total back into
-      // Formik is what makes step 3's preview (which reads
-      // values.duration_minutes) show the real number.
-      if (typeof assessment.duration_minutes === "number") {
-        formikRef.current?.setFieldValue("duration_minutes", assessment.duration_minutes);
-      }
+      // duration_minutes is set once on step 1 and never touched by adding/
+      // removing question-bank sections server-side, so nothing to
+      // re-sync into Formik here.
     } catch {
       // best-effort refresh; the recruiter can still see the section
       // they just added reflected on next successful fetch
@@ -154,7 +142,6 @@ const CreateAssessmentForm = ({
               return;
             }
             setAssessmentId(res.data.id);
-            setAssessmentType(res.data.assessment_type || values.assessment_type);
             setStep(1);
             scrollToTop();
             return;
@@ -438,7 +425,6 @@ const CreateAssessmentForm = ({
       {assessmentId && (
         <CustomSectionModal
           assessmentId={assessmentId}
-          assessmentType={assessmentType}
           open={customSectionPanelOpen}
           onClose={() => setCustomSectionPanelOpen(false)}
           onAdded={refetchSections}

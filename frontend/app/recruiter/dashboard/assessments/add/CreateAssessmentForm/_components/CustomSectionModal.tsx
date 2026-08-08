@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { LuTrash2, LuPlus, LuLayers } from "react-icons/lu";
 
 import { ID } from "@/app/common/types";
@@ -31,16 +31,6 @@ const sectionTypeLabels: Record<SectionType, string> = {
 
 const allSectionTypes = Object.keys(sectionTypeLabels) as SectionType[];
 
-/** A non-MIXED assessment may only hold sections of its own declared type
- * -- GeneralSkillAssessmentSectionSerializer.validate rejects anything else
- * with "Section is of type X but assessment is of type Y". Rather than let
- * the recruiter build a section the API will refuse, the type picker is
- * locked to whatever step 1 chose unless the assessment is a hybrid. */
-const allowedTypesFor = (assessmentType?: string): SectionType[] =>
-  allSectionTypes.includes(assessmentType as SectionType)
-    ? [assessmentType as SectionType]
-    : allSectionTypes;
-
 const questionCountOf = (section: AssessmentSectionInput) =>
   section.mcq_questions?.length ??
   section.coding_tasks?.length ??
@@ -49,28 +39,21 @@ const questionCountOf = (section: AssessmentSectionInput) =>
 
 const CustomSectionModal = ({
   assessmentId,
-  assessmentType,
   open,
   onClose,
   onAdded,
 }: {
   assessmentId: ID;
-  /** The wizard's step-1 `assessment_type`. "MIXED" unlocks all three
-   * section types; anything else pins the panel to that one type. */
-  assessmentType: string;
   open: boolean;
   onClose: () => void;
   onAdded: () => void;
 }) => {
   const setAlert = useAlert(s => s.setAlert);
-  const allowedTypes = useMemo(() => allowedTypesFor(assessmentType), [assessmentType]);
-  const typeIsLocked = allowedTypes.length === 1;
-
-  // Derived rather than synced: the recruiter can still change the
-  // assessment type on step 1 while this panel is mounted, and the active
-  // type must always collapse back into the allowed set when they do.
-  const [preferredType, setPreferredType] = useState<SectionType>(allowedTypes[0]);
-  const type = allowedTypes.includes(preferredType) ? preferredType : allowedTypes[0];
+  // Any section type can be added regardless of the assessment's current
+  // declared type -- the backend promotes it to MIXED automatically once
+  // more than one type is actually present (see
+  // skill_assessment.views._promote_to_mixed_if_needed).
+  const [type, setPreferredType] = useState<SectionType>(allSectionTypes[0]);
 
   const [name, setName] = useState("");
   const [mcqs, setMcqs] = useState<MCQDraft[]>([blankMCQ()]);
@@ -87,7 +70,7 @@ const CustomSectionModal = ({
   };
 
   const resetAll = () => {
-    setPreferredType(allowedTypes[0]);
+    setPreferredType(allSectionTypes[0]);
     setStaged([]);
     resetForm();
   };
@@ -174,33 +157,18 @@ const CustomSectionModal = ({
       payloads = [...payloads, payload];
     }
 
-    // add-sections only accepts more than one section per request for hybrid
-    // assessments ("Multiple sections are only available for custom skill
-    // assessments"); single-type assessments get one request per section so
-    // staging several in one sitting still works.
-    const batches =
-      assessmentType === "MIXED" ? [payloads] : payloads.map(payload => [payload]);
-
     setSubmitting(true);
-    let saved = 0;
-    let failure: string | null = null;
-    for (const batch of batches) {
-      const res = await addSectionsToAssessment(assessmentId, batch);
-      if (!res.success) {
-        failure = res.error;
-        break;
-      }
-      saved += batch.length;
-    }
+    const res = await addSectionsToAssessment(assessmentId, payloads);
     setSubmitting(false);
 
-    if (saved) onAdded();
+    if (res.success) onAdded();
 
-    if (failure) {
-      // Drop whatever made it through so a retry doesn't duplicate sections.
-      setStaged(payloads.slice(saved));
+    if (!res.success) {
+      // Nothing was saved (single request, all-or-nothing) -- keep
+      // everything staged so a retry doesn't lose it.
+      setStaged(payloads);
       resetForm();
-      setAlert({ title: "Error", message: failure, icon: "error" });
+      setAlert({ title: "Error", message: res.error, icon: "error" });
       return;
     }
 
@@ -277,33 +245,21 @@ const CustomSectionModal = ({
         </div>
       )}
 
-      {typeIsLocked ? (
-        <div className='mb-5 rounded-lg border border-[#EAECF0] bg-[#F8FAFC] px-4 py-3'>
-          <p className='text-sm font-medium text-primaryBlack'>
-            Section type: {sectionTypeLabels[allowedTypes[0]]}
-          </p>
-          <p className='text-xs text-[#9DA3A8] mt-1'>
-            Locked to this assessment&apos;s type. Pick &quot;Hybrid (mix of types)&quot; on step 1
-            to combine section types.
-          </p>
-        </div>
-      ) : (
-        <div className='flex gap-2 mb-5'>
-          {allowedTypes.map(t => (
-            <button
-              key={t}
-              type='button'
-              onClick={() => setPreferredType(t)}
-              className={cn(
-                "flex-1 border rounded-lg px-3 py-2 text-sm font-medium border-[#EAECF0]",
-                type === t ? "bg-primary text-white border-primary" : "text-[#344054]"
-              )}
-            >
-              {sectionTypeLabels[t]}
-            </button>
-          ))}
-        </div>
-      )}
+      <div className='flex gap-2 mb-5'>
+        {allSectionTypes.map(t => (
+          <button
+            key={t}
+            type='button'
+            onClick={() => setPreferredType(t)}
+            className={cn(
+              "flex-1 border rounded-lg px-3 py-2 text-sm font-medium border-[#EAECF0]",
+              type === t ? "bg-primary text-white border-primary" : "text-[#344054]"
+            )}
+          >
+            {sectionTypeLabels[t]}
+          </button>
+        ))}
+      </div>
 
       <label className='block text-sm font-medium text-[#344054] mb-1'>Section name</label>
       <input

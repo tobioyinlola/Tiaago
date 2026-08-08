@@ -61,6 +61,11 @@ function GoogleButtonInner({
         setTimeout(() => {
           if (next) {
             window.location.href = next;
+          } else if (is_new && user_type === "CR") {
+            // Match normal email signup: land on the onboarding cards
+            // directly instead of hitting /recruiter/dashboard first and
+            // relying on its layout to bounce back here.
+            window.location.href = "/recruiter/onboarding";
           } else {
             const fullType = getFullUserType(user_type as "T" | "CR" | "ST");
             window.location.href = `/${getRoleUrlSegment(fullType)}/dashboard`;

@@ -751,7 +751,27 @@ def applicant_vetting_mail(
     )
 
 
-def standalone_assessment_invite_mail(email, name, assessment, deadline=None, has_coding_task=False):
+def _standalone_assessment_format_label(assessment):
+    """Describes what the candidate will actually face, from the section
+    types really on this assessment -- not a single has-coding-task flag,
+    which used to default to "Multiple choice assessment" for e.g. an
+    all-open-ended test, or "MCQ with live coding" for one with coding +
+    open-ended but no MCQ at all."""
+    types = set(assessment.sections.values_list("type", flat=True).distinct())
+    labels = {
+        "MCQ": "multiple choice",
+        "CODING_TASK": "live coding",
+        "OPEN_ENDED": "open-ended written response",
+    }
+    present = [labels[t] for t in ("MCQ", "CODING_TASK", "OPEN_ENDED") if t in types]
+    if not present:
+        return "assessment"
+    if len(present) == 1:
+        return present[0].capitalize() + " assessment"
+    return " + ".join(present) + " assessment"
+
+
+def standalone_assessment_invite_mail(email, name, assessment, deadline=None):
     """Invite email for a recruiter-built, account-less assessment invite --
     there's no CustomUser/TalentProfile to address this to (see
     GeneralSkillAssessment.invited_email/invited_name), so this builds the
@@ -766,7 +786,7 @@ def standalone_assessment_invite_mail(email, name, assessment, deadline=None, ha
         "assessment_url": assessment_link,
         "duration": f"{assessment.duration_minutes} minutes" if assessment.duration_minutes else None,
         "deadline": _format_deadline(deadline),
-        "assessment_format": "MCQ with live coding" if has_coding_task else "Multiple choice assessment",
+        "assessment_format": _standalone_assessment_format_label(assessment),
         "is_standalone_invite": True,
     }
     subject = f"You've been invited to take an assessment: {assessment.title}"

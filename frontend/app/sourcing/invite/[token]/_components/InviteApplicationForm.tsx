@@ -3,7 +3,6 @@
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import Link from "next/link";
 import {
   IoPersonSharp,
   IoMail,
@@ -99,8 +98,6 @@ const EXPERIENCE_LEVELS = [
 
 const CURRENCIES = ["USD", "GBP", "EUR", "NGN", "KES", "ZAR", "GHS", "EGP"];
 
-const SESSION_STORAGE_KEY = (token: string) => `invite_form_${token}`;
-
 type FormState = {
   first_name: string;
   last_name: string;
@@ -195,23 +192,6 @@ export function InviteApplicationForm({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [geoCountry]);
 
-  useEffect(() => {
-    try {
-      const saved = sessionStorage.getItem(SESSION_STORAGE_KEY(token));
-      if (saved) {
-        const parsed = JSON.parse(saved) as FormState;
-        setForm(parsed);
-        setStep(3);
-        sessionStorage.removeItem(SESSION_STORAGE_KEY(token));
-        setTimeout(() => {
-          toast.info("Welcome back! Please re-upload your resume if you had one.");
-        }, 500);
-      }
-    } catch {
-      // ignore
-    }
-  }, [token]);
-
   const update = (field: keyof FormState, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
     if (errors[field]) setErrors((prev) => ({ ...prev, [field]: "" }));
@@ -272,15 +252,6 @@ export function InviteApplicationForm({
         description: "Please fill in your name and email.",
       });
       setStep(!form.first_name.trim() || !form.last_name.trim() ? 1 : 2);
-      return;
-    }
-
-    if (!user) {
-      sessionStorage.setItem(SESSION_STORAGE_KEY(token), JSON.stringify(form));
-      toast.info("Please create an account first", {
-        description: "You'll be redirected to sign up, then back here.",
-      });
-      router.push(`/talents/signup?next=/sourcing/invite/${token}`);
       return;
     }
 
@@ -555,13 +526,7 @@ export function InviteApplicationForm({
               Tell Us About Yourself
             </h1>
             <p className='text-[#5F6264] text-sm font-onest mt-2 mb-6'>
-              Step {step} of 5: {STEP_LABELS[step - 1]}.{" "}
-              <Link
-                href='/talents/signin'
-                className='font-semibold text-primary hover:underline'
-              >
-                Already have an account?
-              </Link>
+              Step {step} of 5: {STEP_LABELS[step - 1]}.
             </p>
 
             {/* Progress Bar */}
