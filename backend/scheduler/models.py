@@ -57,10 +57,25 @@ class Scheduler(models.Model):
     additional_emails = models.TextField(max_length=500, default="", blank=True)
     reminder_task_id = models.CharField(max_length=255, blank=True, null=True, help_text="Celery task ID for reminder email")
     others_task_id = models.CharField(max_length=255, blank=True, null=True, help_text="Celery task ID for others email")
+    # Null only for a guest (account-less) candidate claiming a job's
+    # published interview slots -- see jobs.views.claim_interview_slot and
+    # JobApplication's own guest_* fields, which is where guest identity is
+    # read from via job_application below in that case. Every other Scheduler
+    # meeting (the recruiter-initiated ScheduleMeetingModal flow, interview
+    # copilot) always has a real talent and no job_application.
     talent = models.ForeignKey(
         TalentProfile,
         related_name="schedules",
         on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+    )
+    job_application = models.ForeignKey(
+        "jobs.JobApplication",
+        related_name="scheduled_meetings",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
     )
     company = models.ForeignKey(
         Company,
@@ -68,6 +83,29 @@ class Scheduler(models.Model):
         on_delete=models.CASCADE
     )
     created_on = models.DateTimeField(auto_now_add=True)
+
+    @property
+    def candidate_full_name(self):
+        if self.talent_id:
+            return self.talent.full_name or self.talent.user.get_full_name() or self.talent.user.username
+        return self.job_application.candidate_full_name if self.job_application_id else ""
+
+    @property
+    def candidate_email(self):
+        if self.talent_id:
+            return self.talent.user.email
+        return self.job_application.candidate_email if self.job_application_id else ""
+
+    def candidate_email_recipient(self):
+        """User-like object (`.first_name`/`.email`) for email code that
+        expects a CustomUser -- the real one for a real talent, or a
+        lightweight stand-in built from the guest's submitted name/email."""
+        if self.talent_id:
+            return self.talent.user
+        if self.job_application_id:
+            return self.job_application.as_email_recipient()
+        from types import SimpleNamespace
+        return SimpleNamespace(first_name="", last_name="", email="", get_full_name=lambda: "")
 
     # -- Interview Copilot fields -------------------------------------------
     # Persistent, unique, URL-safe lookup keys used in shareable join links

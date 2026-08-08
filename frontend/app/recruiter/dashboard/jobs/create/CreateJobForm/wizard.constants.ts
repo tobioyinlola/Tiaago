@@ -56,6 +56,34 @@ export const criteriaAvailabilityValidationSchema = Yup.object().shape({
   ai_interview_window_hours: Yup.number().oneOf([48, 72]).label("AI interview window"),
 });
 
+// Edit-mode equivalent of criteriaAvailabilityValidationSchema -- the only
+// difference is interview_availability is never required. A job being
+// edited may already have published interview slots (or AI interview
+// already configured); the recruiter shouldn't be forced to re-pick
+// availability just to save an unrelated change elsewhere in the wizard.
+// See jobs/edit/EditJobForm, which submits interview_slots only when the
+// recruiter actually picks new days (otherwise existing slots are left
+// untouched -- see jobs.serializers.JobUpdateSerializer.update).
+export const editCriteriaAvailabilityValidationSchema = Yup.object().shape({
+  screening_threshold: Yup.number()
+    .typeError("Please enter a screening threshold")
+    .required("Please set a screening threshold")
+    .min(0, "Must be at least 0%")
+    .max(100, "Must be at most 100%")
+    .label("Screening threshold"),
+  passing_grade: Yup.number()
+    .typeError("Please enter an assessment passing grade")
+    .required("Please set an assessment passing grade")
+    .min(0, "Must be at least 0%")
+    .max(100, "Must be at most 100%")
+    .label("Assessment passing grade"),
+  interview_availability: Yup.object(),
+  ai_interview_enabled: Yup.boolean(),
+  ai_interview_duration_minutes: Yup.number().oneOf([5, 8, 10]).label("AI interview duration"),
+  ai_interview_questions_count: Yup.number().oneOf([4, 5, 6]).label("AI interview question count"),
+  ai_interview_window_hours: Yup.number().oneOf([48, 72]).label("AI interview window"),
+});
+
 export const assessmentGenerationValidationSchema = Yup.object().shape({
   assessment_time_limit: Yup.number()
     .typeError("Please enter a time limit")
@@ -166,4 +194,17 @@ export const wizardSteps = [
     description: "Generate and review AI-written assessment questions.",
     validationSchema: assessmentGenerationValidationSchema,
   },
+] as const;
+
+// Same steps/components as wizardSteps -- jobs/edit/EditJobForm follows the
+// exact same wizard flow as job creation, just pre-filled from the existing
+// job and with a relaxed step-2 validation schema (see
+// editCriteriaAvailabilityValidationSchema above).
+export const editWizardSteps = [
+  wizardSteps[0],
+  {
+    ...wizardSteps[1],
+    validationSchema: editCriteriaAvailabilityValidationSchema,
+  },
+  wizardSteps[2],
 ] as const;

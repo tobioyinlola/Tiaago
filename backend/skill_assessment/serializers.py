@@ -475,7 +475,9 @@ class InviteCandidateSerializer(serializers.Serializer):
 
 
 class BulkInviteCandidatesSerializer(serializers.Serializer):
-    invites = InviteCandidateSerializer(many=True, allow_empty=False)
+    # Capped so one request can't fan out into an unbounded number of
+    # standalone-assessment clones/emails/billing charges in a single call.
+    invites = InviteCandidateSerializer(many=True, allow_empty=False, max_length=100)
 
 
 class AddBundleSectionSerializer(serializers.Serializer):

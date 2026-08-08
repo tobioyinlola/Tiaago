@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import Image from "next/image";
 import {
   IoPersonSharp,
@@ -160,7 +159,6 @@ export function InviteApplicationForm({
   const countryOptions = groupedCountries.flatMap((g) =>
     g.options.map((c) => ({ value: c.value, label: c.label }))
   );
-  const router = useRouter();
   const user = useUserStore((s) => s.profile);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -383,12 +381,6 @@ export function InviteApplicationForm({
                 </li>
               </ul>
             </div>
-            <button
-              onClick={() => router.push("/talents/dashboard")}
-              className='btn btn-primary text-white w-full'
-            >
-              Go to Dashboard
-            </button>
           </div>
         </div>
       </div>

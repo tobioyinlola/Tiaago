@@ -68,7 +68,46 @@ class JobSerializer(serializers.ModelSerializer):
     # Not model fields -- consumed in create() to build the related template/slot rows.
     assessment_questions = serializers.JSONField(write_only=True, required=False, default=list)
     interview_slots = serializers.JSONField(write_only=True, required=False, default=list)
+    # Read-only counterparts -- the edit wizard (JobEditForm) pre-fills its
+    # AssessmentGenerationStep/CriteriaAvailabilityStep from these, in the
+    # exact shape assessment_questions/interview_slots above accept back on
+    # submit. Separate fields (not a read/write split on the same field)
+    # since the shapes genuinely differ: this is a full section/question or
+    # slot listing, not the wizard's flat submission payload.
+    existing_assessment_questions = serializers.SerializerMethodField()
+    existing_interview_slots = serializers.SerializerMethodField()
 
+    def get_existing_assessment_questions(self, obj):
+        template = getattr(obj, "assessment_template", None)
+        if not template:
+            return []
+        return [
+            {
+                "category": section.name,
+                "questions": [
+                    {
+                        "question": q.question,
+                        "options": q.options,
+                        "correct_option_index": q.correct_option_index,
+                        "is_ai_generated": q.is_ai_generated,
+                    }
+                    for q in section.questions.all()
+                ],
+            }
+            for section in template.sections.all()
+        ]
+
+    def get_existing_interview_slots(self, obj):
+        return [
+            {
+                "id": slot.id,
+                "date": slot.date,
+                "start_time": slot.start_time,
+                "end_time": slot.end_time,
+                "is_claimed": slot.is_claimed,
+            }
+            for slot in obj.interview_availability_slots.all()
+        ]
 
     class Meta:
         model = Job
@@ -109,6 +148,12 @@ class JobSerializer(serializers.ModelSerializer):
             "passing_grade",
             "assessment_questions",
             "interview_slots",
+            "existing_assessment_questions",
+            "existing_interview_slots",
+            "ai_interview_enabled",
+            "ai_interview_duration_minutes",
+            "ai_interview_questions_count",
+            "ai_interview_window_hours",
             "proctoring_enabled",
             "require_fullscreen",
             "require_webcam",
@@ -268,7 +313,21 @@ class JobInterviewAvailabilitySlotSerializer(serializers.ModelSerializer):
 class JobUpdateSerializer(serializers.ModelSerializer):
     job_status = serializers.ChoiceField(choices=Job.JobStatus.choices, required=False)
     role_title = serializers.SerializerMethodField()
-    title = serializers.SerializerMethodField() 
+    title = serializers.SerializerMethodField()
+    screening_threshold = serializers.IntegerField(
+        required=False, allow_null=True, min_value=0, max_value=100
+    )
+    assessment_time_limit = serializers.IntegerField(
+        required=False, allow_null=True, min_value=1
+    )
+    passing_grade = serializers.IntegerField(
+        required=False, allow_null=True, min_value=0, max_value=100
+    )
+    # Write-only, same shape as JobSerializer's -- edit-wizard equivalent of
+    # the create-wizard's final submit. Omitted entirely (not present in the
+    # request body) means "leave as-is"; see update() below.
+    assessment_questions = serializers.JSONField(write_only=True, required=False)
+    interview_slots = serializers.JSONField(write_only=True, required=False)
 
     class Meta:
         model = Job
@@ -294,6 +353,27 @@ class JobUpdateSerializer(serializers.ModelSerializer):
             "about_company",
             "job_requirement",
             "description",
+            "hiring_type",
+            "screening_threshold",
+            "assessment_time_limit",
+            "passing_grade",
+            "assessment_questions",
+            "interview_slots",
+            "ai_interview_enabled",
+            "ai_interview_duration_minutes",
+            "ai_interview_questions_count",
+            "ai_interview_window_hours",
+            "proctoring_enabled",
+            "require_fullscreen",
+            "require_webcam",
+            "webcam_snapshots_enabled",
+            "snapshot_interval_seconds",
+            "max_tab_switches_before_warning",
+            "max_tab_switches_before_termination",
+            "copy_paste_blocked",
+            "right_click_blocked",
+            "devtools_detection_enabled",
+            "force_submit_on_critical_violation",
         )
         read_only_fields = (
             "id",
@@ -325,6 +405,68 @@ class JobUpdateSerializer(serializers.ModelSerializer):
 
     def get_title(self, obj):
         return obj.role or ""
+
+    def _replace_assessment_template(self, job, assessment_questions):
+        """Wholesale-replaces the job's JobAssessmentTemplate. Safe to do
+        even for a job with existing candidates -- send_assessment_link
+        deep-clones this template into a per-application GeneralSkillAssessment
+        row at invite time (see its docstring), so already-created candidate
+        assessments are independent copies, never retroactively affected by
+        editing the template afterwards."""
+        JobAssessmentTemplate.objects.filter(job=job).delete()
+        if not assessment_questions:
+            return
+        template = JobAssessmentTemplate.objects.create(
+            job=job, status=JobAssessmentTemplate.Status.READY
+        )
+        for section_order, section_data in enumerate(assessment_questions):
+            section = JobAssessmentTemplateSection.objects.create(
+                template=template,
+                name=section_data.get("category") or f"Category {section_order + 1}",
+                order=section_order,
+            )
+            for question_order, question in enumerate(section_data.get("questions", [])):
+                JobAssessmentTemplateQuestion.objects.create(
+                    section=section,
+                    question=question["question"],
+                    options=question["options"],
+                    correct_option_index=question["correct_option_index"],
+                    is_ai_generated=question.get("is_ai_generated", True),
+                    order=question_order,
+                )
+
+    def _replace_unclaimed_interview_slots(self, job, interview_slots):
+        """Replaces only the still-unclaimed slots -- a slot a candidate has
+        already booked (is_claimed=True) is never touched/deleted by an
+        edit, since that would silently cancel a confirmed interview."""
+        JobInterviewAvailabilitySlot.objects.filter(job=job, is_claimed=False).delete()
+        for slot in interview_slots:
+            JobInterviewAvailabilitySlot.objects.create(
+                job=job,
+                date=slot["date"],
+                start_time=slot["start_time"],
+                end_time=slot["end_time"],
+            )
+
+    def update(self, instance, validated_data):
+        # Popped (not left for super().update()) regardless of presence --
+        # neither is a real Job model field. Only acted on when the key was
+        # actually present in the request body (sentinel default of "unset"
+        # via pop(..., _UNSET) below) -- omitting the key entirely means
+        # "leave the existing template/slots as they are", matching every
+        # other optional field's partial-update semantics here.
+        _UNSET = object()
+        assessment_questions = validated_data.pop("assessment_questions", _UNSET)
+        interview_slots = validated_data.pop("interview_slots", _UNSET)
+
+        with transaction.atomic():
+            job = super().update(instance, validated_data)
+            if assessment_questions is not _UNSET:
+                self._replace_assessment_template(job, assessment_questions or [])
+            if interview_slots is not _UNSET:
+                self._replace_unclaimed_interview_slots(job, interview_slots or [])
+
+        return job
 
 
 

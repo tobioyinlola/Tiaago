@@ -55,13 +55,13 @@ def get_meeting_details(meeting_instance):
 
 @shared_task
 def send_meeting_reminder(user_id, company_name, meeting_id):
-    """
-    Send a meeting reminder to a talent user.
-    """
+    """Send a meeting reminder to the candidate. user_id may be None for a
+    guest (account-less) candidate -- meeting_instance.candidate_email_recipient()
+    is used instead in that case (see jobs.views claim_interview_slot)."""
     logger.info(f"Sending meeting reminder for meeting {meeting_id} to user {user_id}")
     try:
-        user = User.objects.get(id=user_id)
         meeting_instance = Scheduler.objects.get(id=meeting_id)
+        user = User.objects.get(id=user_id) if user_id else meeting_instance.candidate_email_recipient()
 
         # Ensure we are using a valid timezone
         now = timezone.now()
@@ -157,10 +157,11 @@ def meeting_invite_others(user_id, meeting_id, user_emails=None):
 @shared_task
 def candidate_interview_confirmation_mail(user_id, company_name, meeting_id):
     """Confirmation to the candidate once they've picked a slot -- see
-    JobInterviewSlotClaimView.post."""
+    jobs.views claim_interview_slot. user_id may be None for a guest
+    (account-less) candidate, resolved via candidate_email_recipient() instead."""
     try:
-        user = User.objects.get(id=user_id)
         meeting_instance = Scheduler.objects.get(id=meeting_id)
+        user = User.objects.get(id=user_id) if user_id else meeting_instance.candidate_email_recipient()
         meeting_details = get_meeting_details(meeting_instance)
         return emails.candidate_interview_confirmation_mail(user, company_name, meeting_details)
     except (Scheduler.DoesNotExist, User.DoesNotExist):
@@ -178,7 +179,7 @@ def recruiter_interview_acceptance_mail(user_id, company_name, meeting_id):
         user = User.objects.get(id=user_id)
         meeting_instance = Scheduler.objects.get(id=meeting_id)
         meeting_details = get_meeting_details(meeting_instance)
-        candidate_name = meeting_instance.talent.full_name if meeting_instance.talent else "The candidate"
+        candidate_name = meeting_instance.candidate_full_name or "The candidate"
         result = emails.recruiter_interview_acceptance_mail(
             user, company_name, meeting_details, candidate_name=candidate_name
         )
@@ -273,7 +274,7 @@ def retry_room_creation(self, meeting_id):
                 meeting.company.company_rep,
                 title="Interview room ready",
                 message=(
-                    f"Interview room ready for {meeting.talent.full_name}. "
+                    f"Interview room ready for {meeting.candidate_full_name}. "
                     f"Interview scheduled for {meeting.meeting_date} {meeting.start_time.strftime('%H:%M')}."
                 ),
                 notification_type=Notification.Type.INTERVIEW,
@@ -536,7 +537,7 @@ def process_interview_pipeline(meeting_id):
         logger.error(f"process_interview_pipeline: meeting {meeting_id} not found")
         return None
 
-    candidate_name = meeting.talent.full_name if meeting.talent else "the candidate"
+    candidate_name = meeting.candidate_full_name or "the candidate"
 
     # Step 1: compile the transcript from live segments.
     meeting.transcription_status = Scheduler.TranscriptionStatus.PROCESSING

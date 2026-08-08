@@ -498,14 +498,21 @@ class WalletTransaction(models.Model):
 
 
 class CandidateBillingRecord(models.Model):
-    """One row per (organisation, job_application). This is the idempotency
-    guard that ensures a candidate's resume screening and assessment are
-    each ever charged (or covered by a free credit) exactly once, no matter
-    how many times the pipeline retries."""
+    """One row per (organisation, job_application) -- or per (organisation,
+    skill_assessment) for a standalone (no-job) assessment invite, see
+    skill_assessment below. This is the idempotency guard that ensures a
+    candidate's resume screening and assessment are each ever charged (or
+    covered by a free credit) exactly once, no matter how many times the
+    pipeline retries."""
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     organisation = models.ForeignKey(Company, on_delete=models.CASCADE, related_name="candidate_billing_records")
-    job = models.ForeignKey("jobs.Job", on_delete=models.CASCADE, related_name="candidate_billing_records")
+    # Null for a standalone assessment charge (see skill_assessment below) --
+    # there's no Job at all in that flow.
+    job = models.ForeignKey(
+        "jobs.Job", on_delete=models.CASCADE, related_name="candidate_billing_records",
+        null=True, blank=True,
+    )
     # The idempotency key used to be (organisation, job, candidate), but a
     # guest application (see jobs.JobApplication.applicant, now nullable)
     # has no TalentProfile to be a `candidate` -- job_application uniquely
@@ -514,6 +521,17 @@ class CandidateBillingRecord(models.Model):
     # real accounts.
     job_application = models.ForeignKey(
         "jobs.JobApplication", on_delete=models.CASCADE, related_name="billing_records",
+        null=True, blank=True,
+    )
+    # Set instead of job/job_application for a standalone (no-job) assessment
+    # invite -- see BillingService.process_standalone_assessment_charge and
+    # skill_assessment.views.InviteCandidatesToAssessmentAPIView. Each
+    # invited candidate gets their own cloned GeneralSkillAssessment row
+    # (source_template on the clone points back at the recruiter's saved
+    # template), so charging per-clone here mirrors charging per-
+    # job_application on the job-flow side exactly.
+    skill_assessment = models.ForeignKey(
+        "skill_assessment.GeneralSkillAssessment", on_delete=models.CASCADE, related_name="billing_records",
         null=True, blank=True,
     )
     candidate = models.ForeignKey(
@@ -537,15 +555,24 @@ class CandidateBillingRecord(models.Model):
         constraints = [
             models.UniqueConstraint(
                 fields=["organisation", "job_application"], name="unique_candidate_billing_record"
-            )
+            ),
+            models.UniqueConstraint(
+                fields=["organisation", "skill_assessment"],
+                condition=models.Q(skill_assessment__isnull=False),
+                name="unique_candidate_billing_record_standalone",
+            ),
         ]
         indexes = [
             models.Index(fields=["organisation", "-created_at"]),
         ]
 
     def __str__(self):
-        candidate = self.candidate or (self.job_application and self.job_application.candidate_full_name)
-        return f"Billing record: {candidate} / {self.job} / {self.organisation}"
+        candidate = self.candidate or (
+            (self.job_application and self.job_application.candidate_full_name)
+            or (self.skill_assessment and self.skill_assessment.invited_name)
+        )
+        scope = self.job or self.skill_assessment or self.organisation
+        return f"Billing record: {candidate} / {scope} / {self.organisation}"
 
 
 class WalletTopup(models.Model):

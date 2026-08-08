@@ -1,12 +1,17 @@
+import logging
+
 from django.utils import timezone
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import permissions, status
 
+from create_user.models import Company
 from subscriptions.permissions import IsStaffUser
 from staff.permissions import requirePermission
 from . import utils
 from .models import PageView
+
+logger = logging.getLogger(__name__)
 
 
 class _AnalyticsBaseView(APIView):
@@ -60,6 +65,36 @@ class OrganisationDetailAPIView(_AnalyticsBaseView):
         if not data:
             return Response(status=404, data={"error": "Organisation not found"})
         return Response(status=200, data=data)
+
+
+class OrganisationDeleteAPIView(_AnalyticsBaseView):
+    """Hard-deletes an organisation by deleting its company_rep CustomUser --
+    Company.company_rep is a OneToOneField with on_delete=CASCADE, so this
+    cascades to the Company row and everything hanging off it (jobs,
+    applications, wallet, subscriptions, team memberships, assessments,
+    etc; every Company FK across the codebase is CASCADE, confirmed no
+    PROTECT anywhere blocks this). No email notification is sent (an
+    explicit product decision for staff-initiated deletions, unlike
+    recruiter-facing account actions elsewhere). The email is freed
+    immediately -- the same address can sign up again as a brand new
+    account, but nothing about the deleted one is recoverable."""
+
+    permission_classes = [requirePermission("organisations.delete")]
+
+    def delete(self, request, company_id):
+        company = Company.objects.filter(id=company_id).select_related("company_rep").first()
+        if not company:
+            return Response(status=404, data={"error": "Organisation not found"})
+
+        company_name = company.company_name
+        company_rep = company.company_rep
+        company_rep.delete()
+
+        logger.warning(
+            "Organisation '%s' (company_id=%s) permanently deleted by staff user %s (id=%s)",
+            company_name, company_id, request.user.email, request.user.id,
+        )
+        return Response(status=204)
 
 
 class OrganisationAlertsAPIView(_AnalyticsBaseView):

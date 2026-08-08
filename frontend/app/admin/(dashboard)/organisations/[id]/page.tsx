@@ -7,6 +7,7 @@ import StatCard from "@/app/common/components/dashboard/StatCard";
 import { cn } from "@/app/common/utils";
 import OrgStatusBadge from "../_components/OrgStatusBadge";
 import OrganisationTagsSection from "../_components/OrganisationTagsSection";
+import DeleteOrganisationButton from "../_components/DeleteOrganisationButton";
 
 export const metadata = {
   title: "Organisation Detail",
@@ -45,7 +46,10 @@ const OrganisationDetailPage = async ({ params }: { params: Promise<{ id: string
             Joined {formatExact(org.date_joined)}
           </h4>
         </div>
-        <OrgStatusBadge status={org.status} />
+        <div className='flex items-center gap-3'>
+          <OrgStatusBadge status={org.status} />
+          <DeleteOrganisationButton companyId={id} companyName={org.company_name} />
+        </div>
       </div>
 
       <div className='flex flex-wrap gap-x-8 gap-y-1 text-sm text-foreground mb-8'>

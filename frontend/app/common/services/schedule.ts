@@ -2,6 +2,7 @@
 import { ApiResponse, ID, InterviewSlot, ScheduledMeeting } from "../types";
 import { handleServerApiCallError } from "../utils";
 import serverKyInstance from "../utils/server-ky.instance";
+import { publicKyInstance } from "../utils/client-ky.instance";
 
 export const getSchedule = async () => {
   try {
@@ -64,6 +65,46 @@ export const claimInterviewSlot = async (
   } catch (error) {
     const errMsg = await handleServerApiCallError(error);
     console.log("claimInterviewSlot Error: ", errMsg);
+    return { success: false, error: errMsg };
+  }
+};
+
+export type GuestInterviewSlots = {
+  job_title: string;
+  company_name: string;
+  slots: InterviewSlot[];
+};
+
+// No-login equivalents for a guest (account-less) applicant, keyed by the
+// invite token emailed to them (see jobs.views.GuestInterviewSlotListView/
+// GuestInterviewSlotClaimView) instead of an authenticated session.
+export const getGuestInterviewSlots = async (
+  token: string
+): Promise<ApiResponse<GuestInterviewSlots>> => {
+  try {
+    const data = await publicKyInstance
+      .get(`jobs/interview-slots/guest/${token}/`)
+      .json<GuestInterviewSlots>();
+    return { success: true, data };
+  } catch (error) {
+    const errMsg = await handleServerApiCallError(error);
+    console.log("getGuestInterviewSlots Error: ", errMsg);
+    return { success: false, error: errMsg };
+  }
+};
+
+export const claimGuestInterviewSlot = async (
+  token: string,
+  slotId: ID
+): Promise<ApiResponse<InterviewSlot>> => {
+  try {
+    const data = await publicKyInstance
+      .post(`jobs/interview-slots/guest/${token}/${slotId}/claim/`)
+      .json<InterviewSlot>();
+    return { success: true, data };
+  } catch (error) {
+    const errMsg = await handleServerApiCallError(error);
+    console.log("claimGuestInterviewSlot Error: ", errMsg);
     return { success: false, error: errMsg };
   }
 };

@@ -7,6 +7,7 @@ import {
   PagedResult,
 } from "../types/analytics.type";
 import serverKyInstance from "../utils/server-ky.instance";
+import { handleServerApiCallError } from "../utils";
 
 type GetOrganisationsParams = {
   page?: number;
@@ -61,4 +62,19 @@ export const getOrganisationAlerts = async () => {
     .get<OrganisationAlerts>("analytics/organisations/alerts/")
     .json();
   return data;
+};
+
+// Permanently deletes the organisation's account (company_rep user, company,
+// and everything under it -- jobs, applications, wallet, subscriptions,
+// etc). No confirmation email is sent; the email is freed for a fresh
+// signup immediately. See analytics.views.OrganisationDeleteAPIView.
+export const deleteOrganisation = async (id: number | string) => {
+  try {
+    await serverKyInstance.delete(`analytics/organisations/${id}/delete/`);
+    return { success: true as const };
+  } catch (error) {
+    const errMsg = await handleServerApiCallError(error);
+    console.log("deleteOrganisation Error: ", errMsg);
+    return { success: false as const, error: errMsg };
+  }
 };

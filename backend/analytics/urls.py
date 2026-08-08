@@ -7,6 +7,7 @@ urlpatterns = [
     path("organisations/", views.OrganisationListAPIView.as_view(), name="analytics-organisations"),
     path("organisations/alerts/", views.OrganisationAlertsAPIView.as_view(), name="analytics-organisations-alerts"),
     path("organisations/<int:company_id>/", views.OrganisationDetailAPIView.as_view(), name="analytics-organisation-detail"),
+    path("organisations/<int:company_id>/delete/", views.OrganisationDeleteAPIView.as_view(), name="analytics-organisation-delete"),
     path("revenue/", views.RevenueAPIView.as_view(), name="analytics-revenue"),
     path("funnel/", views.FunnelAPIView.as_view(), name="analytics-funnel"),
     path("pipeline/", views.PipelineAPIView.as_view(), name="analytics-pipeline"),
