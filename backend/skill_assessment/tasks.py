@@ -616,13 +616,24 @@ def mark_skill_assessment_submission(self, skill_assessment_submission_id: int):
 
 
 def send_interview_invite(skill_assessment_submission):
+    from .utils import get_submission_candidate_email, get_submission_candidate_name
+
     assessment_id = skill_assessment_submission.skill_assessment.id
     base = str(FRONTEND_URL).rstrip('/') + '/'
     interview_url = f"https://{base}talents/pre-screening/{assessment_id}"
 
-    candidate_email = skill_assessment_submission.candidate.user.email
-    candidate_name = skill_assessment_submission.candidate.user.get_full_name()
-    first_name = skill_assessment_submission.candidate.user.first_name
+    # get_submission_candidate_email/name fall back to the assessment's
+    # invited_email/invited_name for a guest (account-less) applicant --
+    # skill_assessment_submission.candidate is None in that case, so reading
+    # .candidate.user.* directly (as this used to) crashes and silently
+    # drops the invite (this whole call is wrapped in a swallowing
+    # try/except by its only caller, _finalize_submission_score).
+    candidate_email = get_submission_candidate_email(skill_assessment_submission)
+    candidate_name = get_submission_candidate_name(skill_assessment_submission)
+    if not candidate_email:
+        logger.warning("send_interview_invite: no candidate email for submission %s", skill_assessment_submission.id)
+        return
+    first_name = (candidate_name or "").split(" ")[0]
 
     company = getattr(skill_assessment_submission.skill_assessment, "company", None)
     company_name = getattr(company, "company_name", "") if company else ""
@@ -649,11 +660,27 @@ def send_interview_slot_selection_invite(skill_assessment_submission, job):
     Sent instead of send_interview_invite (Tiaago's AI pre-screening invite) when
     the job has unclaimed JobInterviewAvailabilitySlots -- see mark_skill_assessment_submission.
     """
-    base = str(FRONTEND_URL).rstrip('/') + '/'
-    slots_url = f"https://{base}talents/jobs/{job.public_id}/interview-slots"
+    from .utils import get_submission_candidate_email, get_submission_candidate_name
 
-    candidate_email = skill_assessment_submission.candidate.user.email
-    first_name = skill_assessment_submission.candidate.user.first_name
+    base = str(FRONTEND_URL).rstrip('/') + '/'
+    job_application = skill_assessment_submission.skill_assessment.job_application
+    if job_application and not job_application.applicant_id:
+        # Guest (account-less) applicant -- no login to reach the talent-only
+        # slots page, so route to the token-based guest flow instead (see
+        # jobs.views.GuestInterviewSlotListView/GuestInterviewSlotClaimView).
+        slots_url = f"https://{base}jobs/interview-slots/{skill_assessment_submission.skill_assessment.invite_token}"
+    else:
+        slots_url = f"https://{base}talents/jobs/{job.public_id}/interview-slots"
+
+    # See send_interview_invite above -- same guest-safe identity lookup.
+    candidate_email = get_submission_candidate_email(skill_assessment_submission)
+    candidate_name = get_submission_candidate_name(skill_assessment_submission)
+    if not candidate_email:
+        logger.warning(
+            "send_interview_slot_selection_invite: no candidate email for submission %s", skill_assessment_submission.id,
+        )
+        return
+    first_name = (candidate_name or "").split(" ")[0]
 
     company = getattr(skill_assessment_submission.skill_assessment, "company", None)
     company_name = getattr(company, "company_name", "") if company else ""

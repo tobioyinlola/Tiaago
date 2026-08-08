@@ -134,34 +134,28 @@ class AIInterviewStartSessionView(APIView):
             joined_at__lt=stale_cutoff,
         ).update(status=AIInterview.Status.FAILED)
 
-        # Slot gate -- each interview is assigned its own reserved time slot
-        # with the agent fleet at provisioning time (see
-        # services.allocate_ai_interview_slot), so a candidate only ever
-        # waits for their *own* slot to arrive, never behind whoever else
-        # happens to be mid-call right now. interview.scheduled_at is only
-        # ever null for a row created before this field existed -- treat
-        # that as already-available rather than blocking it.
-        if interview.scheduled_at and timezone.now() < interview.scheduled_at:
-            return Response({
-                "queued": True,
-                "scheduled_at": interview.scheduled_at.isoformat(),
-            }, status=HTTP_200_OK)
-
-        # Real-time capacity check -- belt and suspenders alongside the slot
-        # gate above. Slots are sized so this should essentially never
-        # trigger, but they're only as reliable as the allocation math (see
-        # services.allocate_ai_interview_slot); this is the hard backstop
-        # that actually protects the interview_agent fleet from ever being
-        # handed more concurrent sessions than it can run, no matter what.
-        max_concurrent = settings.AI_INTERVIEW_MAX_CONCURRENT_SESSIONS
-        active_sessions = AIInterview.objects.filter(
-            status__in=(AIInterview.Status.WAITING, AIInterview.Status.IN_PROGRESS)
-        ).exclude(pk=interview.pk).count()
-        if active_sessions >= max_concurrent:
-            return Response({
-                "queued": True,
-                "scheduled_at": interview.scheduled_at.isoformat() if interview.scheduled_at else None,
-            }, status=HTTP_200_OK)
+        # Slot gate + real-time capacity check -- TEMPORARILY DISABLED at
+        # product owner's request, so a real interview can be taken
+        # end-to-end on production first and its behavior evaluated before
+        # deciding what (if anything) to change about slot pacing/capacity.
+        # provision_ai_interview/allocate_ai_interview_slot still run and
+        # still record scheduled_at, this just stops enforcing it here.
+        # Re-enable by un-commenting both blocks below.
+        # if interview.scheduled_at and timezone.now() < interview.scheduled_at:
+        #     return Response({
+        #         "queued": True,
+        #         "scheduled_at": interview.scheduled_at.isoformat(),
+        #     }, status=HTTP_200_OK)
+        #
+        # max_concurrent = settings.AI_INTERVIEW_MAX_CONCURRENT_SESSIONS
+        # active_sessions = AIInterview.objects.filter(
+        #     status__in=(AIInterview.Status.WAITING, AIInterview.Status.IN_PROGRESS)
+        # ).exclude(pk=interview.pk).count()
+        # if active_sessions >= max_concurrent:
+        #     return Response({
+        #         "queued": True,
+        #         "scheduled_at": interview.scheduled_at.isoformat() if interview.scheduled_at else None,
+        #     }, status=HTTP_200_OK)
 
         # Preview interviews (a recruiter testing the candidate-facing
         # experience) are never billed -- no real candidate, no charge.

@@ -61,6 +61,11 @@ def _candidate_description(job_application, job, stage):
     return f"{stage} — {name or 'Candidate'} for {role}"
 
 
+def _standalone_candidate_description(assessment, stage):
+    name = assessment.invited_name or "Candidate"
+    return f"{stage} — {name} for {assessment.title}"
+
+
 def _notify_billing_alert(company, title, message):
     recipient = getattr(company, "company_rep", None)
     if not recipient:
@@ -338,6 +343,86 @@ class BillingService:
                         currency=wallet.currency,
                         service_type=WalletTransaction.ServiceType.ASSESSMENT,
                         job=job,
+                        candidate=candidate,
+                    )
+                    record.assessment_charged = True
+                    record.assessment_amount = price
+                    record.assessment_charged_at = timezone.now()
+                    record.total_charged = (record.total_charged or Decimal("0.00")) + price
+                    record.save()
+                    result = {"success": True, "reason": "charged", "amount_charged": price}
+
+        wallet = get_or_create_wallet(organisation)
+        if result["reason"] in ("charged", "insufficient_funds"):
+            BillingService.check_and_send_low_balance_alert(wallet)
+            if result["reason"] == "insufficient_funds":
+                _pause_company_jobs_for_wallet_exhaustion(organisation)
+        elif result["reason"] == "free_credit" and just_exhausted:
+            _notify_free_tier_exhausted(organisation)
+
+        return result
+
+    @staticmethod
+    def process_standalone_assessment_charge(assessment):
+        """Same free-credit-then-wallet rules as process_assessment_charge,
+        for a standalone (no-job) assessment invite -- see
+        skill_assessment.views.InviteCandidatesToAssessmentAPIView. Keyed on
+        the assessment itself (each invited candidate gets their own cloned
+        GeneralSkillAssessment row) instead of a job_application, since a
+        standalone invite has no Job/JobApplication at all. Same price
+        (get_action_price("assessment", ...)), same WalletTransaction ledger,
+        same CandidateBillingRecord table -- shows up in the same billing
+        history as a job-flow assessment charge."""
+        organisation = assessment.company
+        candidate = assessment.assigned_to
+
+        CandidateBillingRecord.objects.get_or_create(
+            organisation=organisation, skill_assessment=assessment,
+            defaults={"candidate": candidate},
+        )
+
+        just_exhausted = False
+        with transaction.atomic():
+            record = CandidateBillingRecord.objects.select_for_update().get(
+                organisation=organisation, skill_assessment=assessment
+            )
+            if record.assessment_charged:
+                return {"success": True, "reason": "already_charged", "amount_charged": None}
+
+            wallet = get_or_create_wallet(organisation)
+            wallet = Wallet.objects.select_for_update().get(pk=wallet.pk)
+
+            if wallet.free_credits_remaining > 0:
+                wallet.free_credits_remaining -= 1
+                just_exhausted = wallet.free_credits_remaining == 0
+                wallet.save(update_fields=["free_credits_remaining"])
+                WalletTransaction.objects.create(
+                    wallet=wallet,
+                    transaction_type=WalletTransaction.TransactionType.CREDIT,
+                    service_type=WalletTransaction.ServiceType.FREE_CREDIT,
+                    amount=Decimal("0.00"),
+                    currency=wallet.currency,
+                    balance_after=wallet.balance,
+                    description=_standalone_candidate_description(assessment, "Free tier credit used — assessment"),
+                    status=WalletTransaction.Status.COMPLETED,
+                    candidate=candidate,
+                )
+                record.was_free_credit = True
+                record.assessment_charged = True
+                record.assessment_amount = Decimal("0.00")
+                record.assessment_charged_at = timezone.now()
+                record.save()
+                result = {"success": True, "reason": "free_credit", "amount_charged": Decimal("0.00")}
+            else:
+                price = get_action_price("assessment", wallet.currency)
+                if wallet.balance < price:
+                    result = {"success": False, "reason": "insufficient_funds", "amount_charged": None}
+                else:
+                    wallet.debit(
+                        amount=price,
+                        description=_standalone_candidate_description(assessment, "Assessment"),
+                        currency=wallet.currency,
+                        service_type=WalletTransaction.ServiceType.ASSESSMENT,
                         candidate=candidate,
                     )
                     record.assessment_charged = True

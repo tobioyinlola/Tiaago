@@ -7,7 +7,10 @@ import { CalendarClock, CheckCircle2 } from "lucide-react";
 import { cn } from "@/app/common/utils";
 import { ID, InterviewSlot } from "@/app/common/types";
 import Button from "@/app/common/components/DaisyButton";
-import { claimInterviewSlot } from "@/app/common/services/schedule";
+import {
+  claimGuestInterviewSlot,
+  claimInterviewSlot,
+} from "@/app/common/services/schedule";
 
 const formatSlotLabel = (slot: InterviewSlot) => {
   const date = new Date(`${slot.date}T${slot.start_time}`);
@@ -21,9 +24,13 @@ const formatSlotLabel = (slot: InterviewSlot) => {
 
 const InterviewSlotPicker = ({
   jobId,
+  token,
   initialSlots,
 }: {
-  jobId: ID;
+  // Exactly one of these is provided by the caller: jobId for the
+  // authenticated-talent page, token for the guest (no-login) page.
+  jobId?: ID;
+  token?: string;
   initialSlots: InterviewSlot[];
 }) => {
   const [slots, setSlots] = useState(initialSlots);
@@ -35,7 +42,9 @@ const InterviewSlotPicker = ({
     if (!selectedId) return;
     setIsClaiming(true);
     toast.dismiss();
-    const result = await claimInterviewSlot(jobId, selectedId);
+    const result = token
+      ? await claimGuestInterviewSlot(token, selectedId)
+      : await claimInterviewSlot(jobId!, selectedId);
     setIsClaiming(false);
     if (result.success) {
       setConfirmedSlot(result.data);

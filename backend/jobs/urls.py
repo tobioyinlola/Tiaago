@@ -6,6 +6,8 @@ from .views import (
     JobAssessmentGenerationStatusView,
     JobInterviewSlotListView,
     JobInterviewSlotClaimView,
+    GuestInterviewSlotListView,
+    GuestInterviewSlotClaimView,
     JobApplicationListView,
     JobApplyView,
     JobRetrieveUpdateView,
@@ -92,6 +94,14 @@ urlpatterns = [
     path('external-application/', ExternalJobApplicationView.as_view(), name='external-job-application'),
     path('verify-otp/', JobApplicationOtpVerificationView.as_view(), name='job-application-otp-verification'),
     path('resend-otp/', JobApplicationResendOtpView.as_view(), name='job-application-resend-otp'),
+
+    # Guest (no-login) interview-slot picking -- keyed by the candidate's
+    # GeneralSkillAssessment.invite_token, not public_id, so this must stay
+    # above the `<str:public_id>/` wildcard below (a literal "interview-slots"
+    # first segment would otherwise never be reached, always matching
+    # public_id="interview-slots" instead).
+    path("interview-slots/guest/<str:token>/", GuestInterviewSlotListView.as_view(), name="guest-interview-slots"),
+    path("interview-slots/guest/<str:token>/<int:slot_id>/claim/", GuestInterviewSlotClaimView.as_view(), name="guest-interview-slot-claim"),
 
     # `<str:public_id>`-based routes are a single-segment wildcard (unlike the
     # old `<int:pk>`, which only matched digits) -- must stay LAST among

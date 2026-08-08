@@ -497,6 +497,188 @@ class JobInterviewSlotListView(ListAPIView):
         return super().list(request, *args, **kwargs)
 
 
+def _claim_interview_slot(job, job_application, slot_id):
+    """Shared by JobInterviewSlotClaimView (authenticated talent) and
+    GuestInterviewSlotClaimView (token-based, for a guest/account-less
+    applicant). profile is read off job_application.applicant, which is
+    already None for a guest -- Scheduler.talent/candidate_reminder emails
+    are guest-safe for exactly that reason (see scheduler.models.Scheduler
+    .candidate_full_name/candidate_email_recipient and
+    scheduler.tasks.send_meeting_reminder/candidate_interview_confirmation_mail,
+    both of which accept a None user_id and fall back to job_application's
+    guest fields). Returns (response_data, http_status)."""
+    profile = job_application.applicant
+
+    with transaction.atomic():
+        slot = (
+            JobInterviewAvailabilitySlot.objects.select_for_update()
+            .filter(id=slot_id, job_id=job.id, is_claimed=False)
+            .first()
+        )
+        if not slot:
+            return {"detail": "This slot is no longer available."}, HTTP_400_BAD_REQUEST
+
+        job = slot.job
+        duration_minutes = int(
+            (datetime.combine(slot.date, slot.end_time) - datetime.combine(slot.date, slot.start_time))
+            .total_seconds() // 60
+        )
+        meeting = Scheduler.objects.create(
+            title=f"Interview for {job.title}",
+            meeting_date=slot.date,
+            start_time=slot.start_time,
+            end_time=slot.end_time,
+            talent=profile,
+            job_application=job_application,
+            company=job.company,
+            accepted=True,
+            description=f"Interview for {job.title} at {job.company.company_name}",
+            duration_minutes=duration_minutes or 45,
+        )
+
+        room_created = False
+        try:
+            room = provision_daily_room(slot.date, slot.start_time, slot.end_time)
+            meeting.room_id = room["room_id"]
+            meeting.room_name = room["room_name"]
+            meeting.room_url = room["room_url"]
+            meeting.token = room["token"]
+            meeting.status = Scheduler.Status.ROOM_CREATED
+            meeting.recruiter_join_token = secrets.token_urlsafe(32)
+            meeting.candidate_join_token = secrets.token_urlsafe(32)
+            meeting.save(update_fields=[
+                "room_id", "room_name", "room_url", "token", "status",
+                "recruiter_join_token", "candidate_join_token",
+            ])
+            room_created = True
+        except DailyRoomProvisioningError as e:
+            # The meeting is still confirmed even if video-room provisioning fails --
+            # status stays SCHEDULED (its default) and a single retry is scheduled 5
+            # minutes out. Never blocks the candidate's booking confirmation.
+            logger.error(f"Daily.co provisioning failed for claimed slot {slot.id}: {e.detail}")
+            retry_task = retry_room_creation.apply_async((str(meeting.id),), countdown=300)
+            meeting.retry_room_creation_task_id = retry_task.id
+            meeting.save(update_fields=["retry_room_creation_task_id"])
+
+        slot.is_claimed = True
+        slot.claimed_by_application = job_application
+        slot.save(update_fields=["is_claimed", "claimed_by_application"])
+
+        talent_screening = TalentScreening.objects.filter(job_application=job_application).first()
+        if talent_screening:
+            InterviewScreening.objects.update_or_create(
+                talent_screening=talent_screening,
+                defaults={"meeting": meeting, "fee_note": f"Interview for {job.title}"},
+            )
+
+        job_application.status = JobApplication.JobApplicationStatus.INTERVIEW_SCHEDULED
+        job_application.save(update_fields=["status"])
+
+    try:
+        if job.company.company_rep_id:
+            recruiter_interview_acceptance_mail.delay(
+                job.company.company_rep_id, job.company.company_name, str(meeting.id)
+            )
+    except Exception as e:
+        logger.error(f"Failed to send interview acceptance email: {e}")
+
+    candidate_user_id = profile.user_id if profile else None
+    try:
+        candidate_interview_confirmation_mail.delay(
+            candidate_user_id, job.company.company_name, str(meeting.id)
+        )
+    except Exception:
+        logger.exception(f"Failed to send candidate interview confirmation email for meeting {meeting.id}")
+
+    if room_created and job.company.company_rep_id:
+        try:
+            notify_user(
+                job.company.company_rep,
+                title="Interview room ready",
+                message=(
+                    f"Interview room ready for {meeting.candidate_full_name}. "
+                    f"Interview scheduled for {slot.date} {slot.start_time.strftime('%H:%M')}."
+                ),
+                notification_type=Notification.Type.INTERVIEW,
+                link_path="recruiter/dashboard/interviews",
+                link_label="View interview",
+            )
+        except Exception:
+            logger.exception(f"Failed to create room-ready notification for meeting {meeting.id}")
+
+    # Two reminder tiers -- 1 hour and 15 minutes before -- to both
+    # candidate (email) and recruiter (email + in-app). Both underlying
+    # tasks already self-guard (send_meeting_reminder no-ops if the
+    # meeting time has passed or it was never accepted;
+    # recruiter_interview_reminder_mail no-ops if cancelled), so firing
+    # each one twice at different etas is safe without any new
+    # cancellation bookkeeping. Only the 15-minute tier's task ids are
+    # persisted (matching the existing candidate_reminder_task_id/
+    # recruiter_reminder_task_id fields, which are 1-per-meeting) --
+    # the 1-hour tier is fire-and-forget, same as this feature's other
+    # scheduled reminders.
+    try:
+        meeting_time = timezone.make_aware(datetime.combine(slot.date, slot.start_time))
+        reminder_etas = {
+            "1_hour": meeting_time - timedelta(hours=1),
+            "15_min": meeting_time - timedelta(minutes=15),
+        }
+
+        update_fields = []
+        for tier, reminder_eta in reminder_etas.items():
+            candidate_reminder = send_meeting_reminder.apply_async(
+                (candidate_user_id, job.company.company_name, str(meeting.id)), eta=reminder_eta
+            )
+            if tier == "15_min":
+                meeting.candidate_reminder_task_id = candidate_reminder.id
+                update_fields.append("candidate_reminder_task_id")
+
+            if job.company.company_rep_id:
+                recruiter_reminder = recruiter_interview_reminder_mail.apply_async(
+                    (job.company.company_rep_id, meeting.candidate_full_name, job.company.company_name, str(meeting.id)),
+                    eta=reminder_eta,
+                )
+                if tier == "15_min":
+                    meeting.recruiter_reminder_task_id = recruiter_reminder.id
+                    update_fields.append("recruiter_reminder_task_id")
+
+        if update_fields:
+            meeting.save(update_fields=update_fields)
+    except Exception:
+        logger.exception(f"Failed to schedule interview reminders for meeting {meeting.id}")
+
+    return JobInterviewAvailabilitySlotSerializer(slot).data, HTTP_200_OK
+
+
+def _get_passing_job_application_by_invite_token(token):
+    """Guest-safe equivalent of _get_passing_job_application -- resolves the
+    candidate via the GeneralSkillAssessment.invite_token already emailed to
+    them (send_interview_slot_selection_invite) instead of a login session,
+    so an account-less applicant can pick their interview slot too."""
+    import uuid
+
+    from skill_assessment.models import GeneralSkillAssessment
+
+    try:
+        # invite_token is a UUIDField -- an unparseable value would otherwise
+        # raise ValidationError deep inside the ORM instead of a clean 403.
+        uuid.UUID(str(token))
+    except (ValueError, AttributeError, TypeError):
+        return None
+
+    assessment = (
+        GeneralSkillAssessment.objects.filter(invite_token=token)
+        .select_related("job_application__job__company")
+        .first()
+    )
+    if not assessment or not assessment.job_application_id:
+        return None
+    has_passed = CandidateAssessmentSubmission.objects.filter(
+        skill_assessment=assessment, is_passed=True
+    ).exists()
+    return assessment.job_application if has_passed else None
+
+
 class JobInterviewSlotClaimView(APIView):
     """Claim a published interview slot, turning it into a confirmed Scheduler meeting."""
 
@@ -511,148 +693,49 @@ class JobInterviewSlotClaimView(APIView):
                 status=HTTP_403_FORBIDDEN,
             )
 
-        profile = request.user.profile
-        job_id = job.id
+        data, status_code = _claim_interview_slot(job, job_application, slot_id)
+        return Response(data, status=status_code)
 
-        with transaction.atomic():
-            slot = (
-                JobInterviewAvailabilitySlot.objects.select_for_update()
-                .filter(id=slot_id, job_id=job_id, is_claimed=False)
-                .first()
+
+class GuestInterviewSlotListView(APIView):
+    """GET /api/jobs/interview-slots/guest/<token>/ -- unclaimed interview
+    slots for a guest applicant's job, no login required. Mirrors
+    JobInterviewSlotListView for an account-less applicant."""
+
+    permission_classes = [AllowAny]
+
+    def get(self, request, token):
+        job_application = _get_passing_job_application_by_invite_token(token)
+        if not job_application:
+            return Response(
+                {"detail": "This link is invalid, expired, or you have not passed this job's assessment."},
+                status=HTTP_403_FORBIDDEN,
             )
-            if not slot:
-                return Response(
-                    {"detail": "This slot is no longer available."}, status=HTTP_400_BAD_REQUEST
-                )
+        job = job_application.job
+        slots = JobInterviewAvailabilitySlot.objects.filter(job_id=job.id, is_claimed=False)
+        return Response({
+            "job_title": job.title,
+            "company_name": job.company.company_name,
+            "slots": JobInterviewAvailabilitySlotSerializer(slots, many=True).data,
+        }, status=HTTP_200_OK)
 
-            job = slot.job
-            duration_minutes = int(
-                (datetime.combine(slot.date, slot.end_time) - datetime.combine(slot.date, slot.start_time))
-                .total_seconds() // 60
+
+class GuestInterviewSlotClaimView(APIView):
+    """POST /api/jobs/interview-slots/guest/<token>/<slot_id>/claim/ --
+    claim a slot with no login required. Mirrors JobInterviewSlotClaimView
+    for an account-less applicant."""
+
+    permission_classes = [AllowAny]
+
+    def post(self, request, token, slot_id, *args, **kwargs):
+        job_application = _get_passing_job_application_by_invite_token(token)
+        if not job_application:
+            return Response(
+                {"detail": "This link is invalid, expired, or you have not passed this job's assessment."},
+                status=HTTP_403_FORBIDDEN,
             )
-            meeting = Scheduler.objects.create(
-                title=f"Interview for {job.title}",
-                meeting_date=slot.date,
-                start_time=slot.start_time,
-                end_time=slot.end_time,
-                talent=profile,
-                company=job.company,
-                accepted=True,
-                description=f"Interview for {job.title} at {job.company.company_name}",
-                duration_minutes=duration_minutes or 45,
-            )
-
-            room_created = False
-            try:
-                room = provision_daily_room(slot.date, slot.start_time, slot.end_time)
-                meeting.room_id = room["room_id"]
-                meeting.room_name = room["room_name"]
-                meeting.room_url = room["room_url"]
-                meeting.token = room["token"]
-                meeting.status = Scheduler.Status.ROOM_CREATED
-                meeting.recruiter_join_token = secrets.token_urlsafe(32)
-                meeting.candidate_join_token = secrets.token_urlsafe(32)
-                meeting.save(update_fields=[
-                    "room_id", "room_name", "room_url", "token", "status",
-                    "recruiter_join_token", "candidate_join_token",
-                ])
-                room_created = True
-            except DailyRoomProvisioningError as e:
-                # The meeting is still confirmed even if video-room provisioning fails --
-                # status stays SCHEDULED (its default) and a single retry is scheduled 5
-                # minutes out. Never blocks the candidate's booking confirmation.
-                logger.error(f"Daily.co provisioning failed for claimed slot {slot.id}: {e.detail}")
-                retry_task = retry_room_creation.apply_async((str(meeting.id),), countdown=300)
-                meeting.retry_room_creation_task_id = retry_task.id
-                meeting.save(update_fields=["retry_room_creation_task_id"])
-
-            slot.is_claimed = True
-            slot.claimed_by_application = job_application
-            slot.save(update_fields=["is_claimed", "claimed_by_application"])
-
-            talent_screening = TalentScreening.objects.filter(job_application=job_application).first()
-            if talent_screening:
-                InterviewScreening.objects.update_or_create(
-                    talent_screening=talent_screening,
-                    defaults={"meeting": meeting, "fee_note": f"Interview for {job.title}"},
-                )
-
-            job_application.status = JobApplication.JobApplicationStatus.INTERVIEW_SCHEDULED
-            job_application.save(update_fields=["status"])
-
-        try:
-            if job.company.company_rep_id:
-                recruiter_interview_acceptance_mail.delay(
-                    job.company.company_rep_id, job.company.company_name, str(meeting.id)
-                )
-        except Exception as e:
-            logger.error(f"Failed to send interview acceptance email: {e}")
-
-        try:
-            candidate_interview_confirmation_mail.delay(
-                request.user.id, job.company.company_name, str(meeting.id)
-            )
-        except Exception:
-            logger.exception(f"Failed to send candidate interview confirmation email for meeting {meeting.id}")
-
-        if room_created and job.company.company_rep_id:
-            try:
-                notify_user(
-                    job.company.company_rep,
-                    title="Interview room ready",
-                    message=(
-                        f"Interview room ready for {profile.full_name}. "
-                        f"Interview scheduled for {slot.date} {slot.start_time.strftime('%H:%M')}."
-                    ),
-                    notification_type=Notification.Type.INTERVIEW,
-                    link_path="recruiter/dashboard/interviews",
-                    link_label="View interview",
-                )
-            except Exception:
-                logger.exception(f"Failed to create room-ready notification for meeting {meeting.id}")
-
-        # Two reminder tiers -- 1 hour and 15 minutes before -- to both
-        # candidate (email) and recruiter (email + in-app). Both underlying
-        # tasks already self-guard (send_meeting_reminder no-ops if the
-        # meeting time has passed or it was never accepted;
-        # recruiter_interview_reminder_mail no-ops if cancelled), so firing
-        # each one twice at different etas is safe without any new
-        # cancellation bookkeeping. Only the 15-minute tier's task ids are
-        # persisted (matching the existing candidate_reminder_task_id/
-        # recruiter_reminder_task_id fields, which are 1-per-meeting) --
-        # the 1-hour tier is fire-and-forget, same as this feature's other
-        # scheduled reminders.
-        try:
-            meeting_time = timezone.make_aware(datetime.combine(slot.date, slot.start_time))
-            reminder_etas = {
-                "1_hour": meeting_time - timedelta(hours=1),
-                "15_min": meeting_time - timedelta(minutes=15),
-            }
-
-            update_fields = []
-            for tier, reminder_eta in reminder_etas.items():
-                candidate_reminder = send_meeting_reminder.apply_async(
-                    (request.user.id, job.company.company_name, str(meeting.id)), eta=reminder_eta
-                )
-                if tier == "15_min":
-                    meeting.candidate_reminder_task_id = candidate_reminder.id
-                    update_fields.append("candidate_reminder_task_id")
-
-                if job.company.company_rep_id:
-                    recruiter_reminder = recruiter_interview_reminder_mail.apply_async(
-                        (job.company.company_rep_id, profile.full_name, job.company.company_name, str(meeting.id)),
-                        eta=reminder_eta,
-                    )
-                    if tier == "15_min":
-                        meeting.recruiter_reminder_task_id = recruiter_reminder.id
-                        update_fields.append("recruiter_reminder_task_id")
-
-            if update_fields:
-                meeting.save(update_fields=update_fields)
-        except Exception:
-            logger.exception(f"Failed to schedule interview reminders for meeting {meeting.id}")
-
-        return Response(JobInterviewAvailabilitySlotSerializer(slot).data, status=HTTP_200_OK)
+        data, status_code = _claim_interview_slot(job_application.job, job_application, slot_id)
+        return Response(data, status=status_code)
 
 
 class JobRetrieveUpdateView(RetrieveUpdateAPIView):

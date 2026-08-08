@@ -1207,6 +1207,10 @@ class InviteCandidatesToAssessmentAPIView(APIView):
     permission_classes = [IsCompanyRepUser]
 
     def post(self, request, skill_assessment_id):
+        from subscriptions.billing_service import BillingService
+        from subscriptions.helper import has_active_subscription_capacity
+        from subscriptions.models import UserUsage
+
         template, error = _get_owned_company_assessment(request, skill_assessment_id, require_published=True)
         if error:
             return error
@@ -1215,6 +1219,7 @@ class InviteCandidatesToAssessmentAPIView(APIView):
         serializer.is_valid(raise_exception=True)
         invites = serializer.validated_data["invites"]
 
+        company = template.company
         sent, failed = [], []
 
         for invite in invites:
@@ -1226,6 +1231,22 @@ class InviteCandidatesToAssessmentAPIView(APIView):
                     clone.invite_sent_at = timezone.now()
                     clone.invite_deadline = clone.invite_sent_at + timedelta(hours=72)
                     clone.save(update_fields=["invite_sent_at", "invite_deadline"])
+
+                # Billed the same way, at the same price, as a job-flow
+                # assessment invite (jobs.tasks.send_assessment_link) --
+                # subscription seat capacity first, wallet free-credit-then-
+                # charge as the fallback. Blocks the invite (never sent) if
+                # the wallet can't cover it, same as the job flow.
+                usage = UserUsage.objects.filter(company=company).first()
+                if not has_active_subscription_capacity(company, usage, determiner="assessment"):
+                    billing_result = BillingService.process_standalone_assessment_charge(clone)
+                    if not billing_result["success"]:
+                        logger.warning(
+                            "Standalone assessment invite not sent for %s: insufficient wallet balance", email,
+                        )
+                        failed.append(email)
+                        continue
+
                 emails.standalone_assessment_invite_mail(
                     email, name, clone, deadline=clone.invite_deadline,
                 )

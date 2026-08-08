@@ -438,6 +438,8 @@ export type Job = {
   /** Free-text role/title typed by the recruiter -- not a Role id/FK. */
   role: string;
   role_title: string;
+  country: string;
+  work_mode: string;
   salary_duration: "PH" | "PM" | "CT";
   payment_range: string;
   payment_range_usd: string;
@@ -474,6 +476,19 @@ export type Job = {
   completed_assessments_count?: number;
   screening_threshold?: number | null;
   assessment_time_limit?: number | null;
+  passing_grade?: number | null;
+  ai_interview_enabled?: boolean;
+  ai_interview_duration_minutes?: number;
+  ai_interview_questions_count?: number;
+  ai_interview_window_hours?: number;
+  /** Current JobAssessmentTemplate contents, in the same shape the edit
+   * wizard submits back as assessment_questions -- read-only, only present
+   * on JobRetrieveUpdateView's GET response (see jobs.serializers.JobSerializer
+   * .get_existing_assessment_questions). */
+  existing_assessment_questions?: AssessmentQuestionSection[];
+  /** Current JobInterviewAvailabilitySlot rows (claimed and unclaimed) --
+   * read-only, same GET-only scope as existing_assessment_questions above. */
+  existing_interview_slots?: InterviewSlot[];
   proctoring_enabled?: boolean;
   require_fullscreen?: boolean;
   require_webcam?: boolean;

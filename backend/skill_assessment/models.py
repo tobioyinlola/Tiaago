@@ -701,6 +701,11 @@ class PendingResumeAnalysis(TimeStampedModel):
     )
     resume_path = models.CharField(max_length=500)
     resume_name = models.CharField(max_length=200)
+    # Incremented each time jobs.tasks.carry_out_pending_resume_analyses
+    # retries this row -- without a cap, a resume the AI service can never
+    # parse gets re-sent to it every beat tick forever (each attempt is a
+    # real, billable AI call). See MAX_PENDING_RESUME_ANALYSIS_ATTEMPTS.
+    attempts = models.PositiveIntegerField(default=0)
 
 
 class ResumeAnalysis(TimeStampedModel):

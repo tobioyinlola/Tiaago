@@ -14,7 +14,7 @@ import {
 } from "../types";
 import { InitialValues as JobFormPayload } from "@/app/recruiter/dashboard/jobs/create/CreateJobForm/form.constants";
 
-type JobCreatePayload = Omit<JobFormPayload, "hiring_type" | "payment_range"> & {
+export type JobCreatePayload = Omit<JobFormPayload, "hiring_type" | "payment_range"> & {
   // hiring_type is no longer collected in the wizard -- omitted, backend defaults it.
   hiring_type?: JobFormPayload["hiring_type"];
   // payment_range is resolved into payment_range_usd/payment_range_ngn before sending.
@@ -26,6 +26,10 @@ type JobCreatePayload = Omit<JobFormPayload, "hiring_type" | "payment_range"> & 
   assessment_time_limit?: number;
   interview_slots?: InterviewSlotInput[];
   assessment_questions?: AssessmentQuestionSection[];
+  ai_interview_enabled?: boolean;
+  ai_interview_duration_minutes?: number;
+  ai_interview_questions_count?: number;
+  ai_interview_window_hours?: number;
   proctoring_enabled?: boolean;
   require_fullscreen?: boolean;
   require_webcam?: boolean;
@@ -295,7 +299,7 @@ export const getJobApplications = async (page = 1, page_size = 10) => {
 
 export const updateJob = async (
   publicId: string,
-  job: Partial<JobFormPayload>
+  job: Partial<JobCreatePayload>
 ): Promise<ApiResponse<Job>> => {
   try {
     const data = await serverKyInstance

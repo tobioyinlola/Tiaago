@@ -831,6 +831,13 @@ def carry_out_resume_analysis(job_application_id):
     return f"@task:carry_out_resume_analysis failed | params: job_application_id -> {job_application_id}"
 
 
+# carry_out_pending_resume_analyses runs on a 15-minute celery-beat schedule
+# (talentsync_backend/celery.py) with no other backoff -- without a cap, a
+# resume the AI service can never parse gets re-sent to it (a real, billable
+# call) every single tick forever.
+MAX_PENDING_RESUME_ANALYSIS_ATTEMPTS = 5
+
+
 @shared_task(name="carry_out_pending_resume_analyses")
 def carry_out_pending_resume_analyses():
     """Carry out resume analyses that failed on the first try or on subsequent tries"""
@@ -844,6 +851,21 @@ def carry_out_pending_resume_analyses():
         job_application: JobApplication = pending_resume_analysis.job_application
         if job_application:
             flow_status, _ = ReportPAYGFlowStatus.objects.get_or_create(job_application=job_application)
+
+            if pending_resume_analysis.attempts >= MAX_PENDING_RESUME_ANALYSIS_ATTEMPTS:
+                logger.error(
+                    "Giving up on pending resume analysis for job_application %s after %s attempts",
+                    job_application.id, pending_resume_analysis.attempts,
+                )
+                pending_resume_analysis.delete()
+                flow_status.status = ReportPAYGFlowStatus.Status.FAILED
+                flow_status.error_message = (
+                    f"Resume could not be analyzed after {MAX_PENDING_RESUME_ANALYSIS_ATTEMPTS} attempts. "
+                    "Giving up -- please contact support if this persists."
+                )
+                flow_status.save()
+                continue
+
             flow_status.status = ReportPAYGFlowStatus.Status.STARTED
             flow_status.error_message = ""
             flow_status.save()
@@ -858,6 +880,15 @@ def carry_out_pending_resume_analyses():
                     job_description=job.description,
                 )
             )
+            if not resume_analysis_obj:
+                pending_resume_analysis.attempts += 1
+                pending_resume_analysis.save(update_fields=["attempts"])
+                flow_status.status = ReportPAYGFlowStatus.Status.FAILED
+                flow_status.error_message = (
+                    f"Resume analysis attempt {pending_resume_analysis.attempts}/"
+                    f"{MAX_PENDING_RESUME_ANALYSIS_ATTEMPTS} failed -- will retry."
+                )
+                flow_status.save()
             if resume_analysis_obj:
                 # Bill for the resume screening, same rule as the primary
                 # path in carry_out_resume_analysis: subscription seat

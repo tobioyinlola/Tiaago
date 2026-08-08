@@ -56,7 +56,14 @@ const RecruiterDashboardLayout = async ({ children }: PropsWithChildren) => {
     }),
   ]);
   const teamRole = teamRoleData?.role ?? null;
-  const isTeamMember = !!teamRoleData?.role;
+  // Every company rep -- including the founding/solo recruiter -- gets a
+  // CompanyTeamMember row (backend/create_user/views.py auto-creates one
+  // with role=admin the first time this is requested), so `!!teamRole` is
+  // true for everyone and can't be used to mean "is an invited team member".
+  // Billing/onboarding are admin-only actions (see the billing page's own
+  // "Billing can only be managed by team admins" gate), so admin-only
+  // banners below are gated on the role itself instead.
+  const isAdmin = teamRole === "admin";
   // Google signups never fill in a signup form -- company name/country only
   // ever get collected here, so onboarding isn't skippable for them (unlike
   // email signups, who already gave this info at signup). Ignoring
@@ -65,14 +72,14 @@ const RecruiterDashboardLayout = async ({ children }: PropsWithChildren) => {
   // dashboard.
   const isGoogleSignup = recruiter.auth_provider === "google";
   if (
-    !isTeamMember &&
+    isAdmin &&
     onboarding &&
     !onboarding.has_completed_onboarding &&
     (!onboarding.has_skipped_onboarding || isGoogleSignup)
   )
     redirect("/recruiter/onboarding");
   const showFinishOnboardingBanner =
-    !isTeamMember && !!onboarding && !onboarding.has_completed_onboarding;
+    isAdmin && !!onboarding && !onboarding.has_completed_onboarding;
   const unreadMessageCount = unreadMessageCounts.reduce(
     (acc: number, curr: any) => acc + curr.unread_messages,
     0
@@ -116,10 +123,14 @@ const RecruiterDashboardLayout = async ({ children }: PropsWithChildren) => {
         >
           <div className='h-8' />
           {showFinishOnboardingBanner && <FinishOnboardingBanner />}
-          {!isTeamMember && (
+          {isAdmin && (
             <FreeCreditsBanner
               freeCreditsRemaining={walletBalance?.free_credits_remaining ?? null}
               freeTierLimit={walletBalance?.pricing?.free_tier_limit ?? 20}
+              walletBalance={walletBalance?.balance ?? null}
+              lowBalanceThreshold={
+                walletBalance?.low_balance_threshold ?? walletBalance?.pricing?.minimum_topup ?? null
+              }
             />
           )}
           {children}
