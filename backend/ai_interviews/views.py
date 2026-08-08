@@ -203,11 +203,31 @@ class AIInterviewStartSessionView(APIView):
             update_fields.append("joined_at")
         interview.save(update_fields=update_fields)
 
+        job = interview.job
         return Response({
             "queued": False,
             "token": candidate_token,
             "roomName": interview.livekit_room_name,
             "livekitUrl": settings.LIVEKIT_URL,
+            # Same job-level toggle the skill assessment already uses (see
+            # jobs.AssessmentGenerationStep) -- one setting covers proctoring
+            # for both stages instead of a second, separate config. Webcam
+            # fields are always off here -- camera stays opt-in for the
+            # candidate during the call, and there's no snapshot pipeline
+            # for AI interviews (Alex already sees live video when it's on).
+            "proctoringSettings": {
+                "proctoring_enabled": job.proctoring_enabled,
+                "require_fullscreen": job.require_fullscreen,
+                "require_webcam": False,
+                "webcam_snapshots_enabled": False,
+                "snapshot_interval_seconds": 0,
+                "copy_paste_blocked": job.copy_paste_blocked,
+                "right_click_blocked": job.right_click_blocked,
+                "devtools_detection_enabled": job.devtools_detection_enabled,
+                "max_tab_switches_before_warning": job.max_tab_switches_before_warning,
+                "max_tab_switches_before_termination": job.max_tab_switches_before_termination,
+                "force_submit_on_critical_violation": job.force_submit_on_critical_violation,
+            },
         }, status=HTTP_200_OK)
 
 

@@ -4,15 +4,32 @@ Runs as its own long-lived worker process (NOT part of the Django backend or
 the ai/ FastAPI generation service) -- see ../docker-compose.yml's
 `interview-agent` service. Connects to LiveKit, joins the room the candidate
 was given a token for (see backend/ai_interviews/views.py
-AIInterviewStartSessionView), and conducts the interview using OpenAI
-Whisper for STT, GPT-4o-mini for the conversation, and OpenAI TTS (voice:
-nova) for Alex's voice.
+AIInterviewStartSessionView), and conducts the interview using OpenAI's
+Realtime API (a single persistent speech-to-speech session) instead of a
+separate STT -> LLM -> TTS pipeline -- collapsing three network round-trips
+per turn into one is the single biggest lever for voice-to-voice latency
+achievable with OpenAI-only credentials (no separate STT/TTS provider key
+is configured for this service -- see interview_agent/.env.example), and
+it's the officially supported low-latency path for LiveKit Agents.
+
+IMPORTANT: this pipeline swap could not be exercised against a live LiveKit
+room in the environment it was written in (no way to place a real call from
+that sandbox). Function-tool calling (end_interview), the transcript-capture
+hooks (on_user_turn_completed / conversation_item_added), and
+session.generate_reply() are all AgentSession/Agent-level APIs that LiveKit
+Agents documents as backend-agnostic (identical whether `llm=` is a
+pipeline LLM or a RealtimeModel), so they're expected to keep working
+unchanged -- but this needs a real end-to-end smoke test (join as a
+candidate, complete a full interview, confirm the transcript saved
+correctly) before being trusted in production. If anything about the
+realtime session's behavior is wrong, reverting this one file to the
+previous stt=/llm=/tts=/vad= pipeline (see git history) restores the
+previous, known-working behavior immediately.
 
 Transcript capture is a byproduct of the conversation pipeline itself --
-every candidate turn (once STT finalizes it) and every Alex turn (once GPT-4o
-finalizes it, before TTS speaks it) is POSTed to Django's internal segment
-endpoint as it happens. No separate transcription service, no extra cost,
-no added latency.
+every candidate turn and every Alex turn is POSTed to Django's internal
+segment endpoint as it happens. No separate transcription service, no extra
+cost, no added latency.
 """
 
 import asyncio
@@ -35,7 +52,7 @@ from livekit.agents import (
 )
 from livekit.agents.llm import ChatMessage
 from livekit.agents.voice.events import ConversationItemAddedEvent
-from livekit.plugins import openai, silero
+from livekit.plugins import openai
 
 load_dotenv()
 
@@ -216,28 +233,22 @@ async def entrypoint(ctx: JobContext):
     agent = InterviewAgent(interview_data, call_ended)
 
     session = AgentSession(
-        stt=openai.STT(model="whisper-1"),
-        # gpt-4o-mini keeps both latency and per-turn token spend low; the
-        # interview follows a rigid, fully-scripted prompt (exact opening/
-        # closing lines, fixed question order) so a smaller model tracks it
-        # just as reliably as gpt-4o. max_completion_tokens caps runaway
-        # completions -- every turn here is meant to be a short spoken line,
-        # never a long one, which also keeps TTS from lagging behind.
-        llm=openai.LLM(
-            model="gpt-4o-mini", temperature=0.65, max_completion_tokens=200, parallel_tool_calls=False
+        # Realtime API: one persistent speech-to-speech session instead of
+        # separate STT/LLM/TTS calls -- no whisper-1 transcription round-trip,
+        # no separate chat-completion round-trip, no separate TTS round-trip.
+        # gpt-4o-mini-realtime-preview (not the full gpt-4o-realtime-preview)
+        # for the same reason the old pipeline used gpt-4o-mini: this is a
+        # rigid, fully-scripted interview (exact opening/closing lines, fixed
+        # question order), so the smaller/faster/cheaper realtime model
+        # tracks it just as reliably. Turn detection (when the candidate has
+        # actually finished talking) is handled by the Realtime API's own
+        # server-side VAD -- no separate silero.VAD or turn_handling config
+        # needed or accepted here, unlike the pipeline mode this replaces.
+        llm=openai.realtime.RealtimeModel(
+            model="gpt-4o-mini-realtime-preview",
+            voice="shimmer",
+            temperature=0.65,
         ),
-        tts=openai.TTS(model="tts-1", voice="nova"),
-        vad=silero.VAD.load(),
-        # preemptive_generation starts drafting Alex's reply from interim STT
-        # results instead of waiting for the final transcript -- the single
-        # biggest lever for perceived voice-to-voice latency. Endpointing
-        # delays tightened from the previous 0.8s max (with no min set, i.e.
-        # the SDK default) so Alex jumps in faster once the candidate stops
-        # talking, while staying high enough not to cut people off mid-word.
-        turn_handling={
-            "endpointing": {"min_delay": 0.3, "max_delay": 0.6},
-            "preemptive_generation": {"enabled": True},
-        },
     )
 
     @session.on("conversation_item_added")

@@ -14,6 +14,17 @@ urlpatterns = [
         views.CompleteProctoringSessionView.as_view(),
         name="proctoring-session-complete",
     ),
+    path("ai-interview/<str:token>/session/", views.CreateAIInterviewProctoringSessionView.as_view(), name="proctoring-ai-interview-session-create"),
+    path(
+        "ai-interview/<str:token>/sessions/<uuid:session_id>/events/",
+        views.AIInterviewProctoringEventBatchView.as_view(),
+        name="proctoring-ai-interview-events-batch",
+    ),
+    path(
+        "ai-interview/<str:token>/sessions/<uuid:session_id>/complete/",
+        views.CompleteAIInterviewProctoringSessionView.as_view(),
+        name="proctoring-ai-interview-session-complete",
+    ),
     path("report/<int:submission_id>/", views.ProctoringReportView.as_view(), name="proctoring-report"),
     path("admin/overview/", views.AdminProctoringOverviewView.as_view(), name="proctoring-admin-overview"),
     path("admin/sessions/", views.AdminHighRiskSessionsView.as_view(), name="proctoring-admin-sessions"),
