@@ -318,18 +318,18 @@ const AIInterviewLiveSession = ({ token }: { token: string }) => {
   const durationSeconds = session.durationMinutes * 60;
   const amberAt = durationSeconds * 0.8;
   const redAt = durationSeconds * 0.9;
-  const timerTone = elapsed >= redAt ? "text-error" : elapsed >= amberAt ? "text-amber-300" : "text-white";
+  const timerTone = elapsed >= redAt ? "text-error" : elapsed >= amberAt ? "text-amber-600" : "text-primary-black";
   const candidateInitial = (session.candidateFirstName || "?").charAt(0).toUpperCase();
 
   return (
-    <div className='h-[100svh] w-full bg-[#0B0E2E] flex flex-col overflow-hidden'>
+    <div className='h-[100svh] w-full bg-white flex flex-col overflow-hidden'>
       {(phase === "connecting" || phase === "reconnecting") && (
-        <div className='fixed inset-0 z-50 bg-[#0B0E2E] flex flex-col items-center justify-center gap-4 text-white'>
+        <div className='fixed inset-0 z-50 bg-white flex flex-col items-center justify-center gap-4 text-primary-black'>
           <span className='loading loading-spinner loading-lg text-primary' />
           {phase === "reconnecting" ? (
             <>
               <p className='font-semibold'>Connection interrupted</p>
-              <p className='text-white/60 text-sm'>Trying to reconnect...</p>
+              <p className='text-secondary-black text-sm'>Trying to reconnect...</p>
               {reconnectingLong && (
                 <DaisyButton
                   color='primary'
@@ -341,7 +341,7 @@ const AIInterviewLiveSession = ({ token }: { token: string }) => {
               )}
             </>
           ) : (
-            <p className='text-white/60 text-sm'>Connecting you with Alex...</p>
+            <p className='text-secondary-black text-sm'>Connecting you with Alex...</p>
           )}
         </div>
       )}
@@ -370,31 +370,31 @@ const AIInterviewLiveSession = ({ token }: { token: string }) => {
       />
 
       {/* Top bar */}
-      <div className='h-14 shrink-0 bg-gradient-to-r from-[#1E2560] to-[#2A2F7A] flex items-center justify-between px-4 sm:px-6 relative z-10'>
+      <div className='h-14 shrink-0 bg-white border-b border-[#EAECF0] flex items-center justify-between px-4 sm:px-6 relative z-10'>
         <div className='pointer-events-none [&_svg]:h-6 [&_svg]:w-auto sm:[&_svg]:h-7'>
-          <BrandLink isWhite containerClassName='block' />
+          <BrandLink containerClassName='block' />
         </div>
-        <span className='hidden sm:block text-xs text-white/70 truncate max-w-[40%]'>
+        <span className='hidden sm:block text-xs text-secondary-black truncate max-w-[40%]'>
           {session.questionsTotal} questions &middot; {session.jobTitle} at {session.companyName}
         </span>
         <span className={cn("text-sm font-mono tabular-nums font-semibold", timerTone)}>{formatElapsed(elapsed)}</span>
       </div>
-      <div className='h-1 bg-white/10 shrink-0'>
+      <div className='h-1 bg-[#EAECF0] shrink-0'>
         <div
-          className='h-full bg-gradient-to-r from-primary to-[#7C89FF] transition-all duration-1000'
+          className='h-full bg-primary transition-all duration-1000'
           style={{ width: `${Math.min(100, (elapsed / durationSeconds) * 100)}%` }}
         />
       </div>
 
       {/* Stage */}
       <div className='flex-1 flex min-h-0 relative'>
-        <div className='flex-1 relative flex flex-col items-center justify-center px-4 py-6 overflow-hidden'>
+        <div className='flex-1 relative flex flex-col items-center justify-center px-4 py-6 overflow-hidden bg-gradient-to-b from-primary/[0.03] to-white'>
           {/* Ambient background glow */}
           <div className='pointer-events-none absolute inset-0 overflow-hidden'>
             <div
               className={cn(
-                "absolute left-1/2 top-1/2 h-[36rem] w-[36rem] -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/20 blur-3xl transition-opacity duration-700",
-                alexSpeaking ? "opacity-70" : "opacity-30"
+                "absolute left-1/2 top-1/2 h-[36rem] w-[36rem] -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/10 blur-3xl transition-opacity duration-700",
+                alexSpeaking ? "opacity-100" : "opacity-40"
               )}
             />
           </div>
@@ -405,16 +405,16 @@ const AIInterviewLiveSession = ({ token }: { token: string }) => {
               ringClassName={cn(
                 "p-1.5 transition-shadow duration-300",
                 alexSpeaking
-                  ? "ring-4 ring-primary shadow-[0_0_0_10px_rgba(84,101,255,0.25)] animate-pulse"
-                  : "ring-2 ring-white/10"
+                  ? "ring-4 ring-primary shadow-[0_0_0_10px_rgba(84,101,255,0.15)] animate-pulse"
+                  : "ring-2 ring-[#EAECF0]"
               )}
             />
             <div className='text-center'>
-              <p className='text-white font-semibold text-lg'>Alex</p>
-              <p className='text-white/50 text-sm'>AI Interviewer &middot; Tiaago</p>
+              <p className='text-primary-black font-semibold text-lg'>Alex</p>
+              <p className='text-secondary-black text-sm'>AI Interviewer &middot; Tiaago</p>
             </div>
             {!alexSpeaking && phase === "live" && (
-              <div className='flex items-center gap-2 text-white/50 text-xs'>
+              <div className='flex items-center gap-2 text-secondary-black text-xs'>
                 <span className='flex gap-0.5'>
                   <span className='h-2 w-1 bg-primary/70 rounded-full animate-bounce [animation-delay:-0.2s]' />
                   <span className='h-2 w-1 bg-primary/70 rounded-full animate-bounce [animation-delay:-0.1s]' />
@@ -426,22 +426,22 @@ const AIInterviewLiveSession = ({ token }: { token: string }) => {
           </div>
 
           {/* Candidate self-view -- picture-in-picture, bottom-right of the stage */}
-          <div className='absolute bottom-4 right-4 sm:bottom-6 sm:right-6 flex flex-col items-center gap-2 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-sm p-3 w-28 sm:w-36'>
+          <div className='absolute bottom-4 right-4 sm:bottom-6 sm:right-6 flex flex-col items-center gap-2 rounded-2xl bg-white border border-[#EAECF0] shadow-sm p-3 w-28 sm:w-36'>
             {cameraOn ? (
-              <div className='h-16 w-16 sm:h-20 sm:w-20 rounded-full overflow-hidden bg-black ring-2 ring-white/10'>
+              <div className='h-16 w-16 sm:h-20 sm:w-20 rounded-full overflow-hidden bg-black ring-2 ring-[#EAECF0]'>
                 <video ref={candidateVideoRef} autoPlay muted playsInline className='h-full w-full object-cover' />
               </div>
             ) : (
-              <div className='h-14 w-14 sm:h-16 sm:w-16 rounded-full bg-primary flex items-center justify-center ring-2 ring-white/10'>
+              <div className='h-14 w-14 sm:h-16 sm:w-16 rounded-full bg-primary flex items-center justify-center ring-2 ring-[#EAECF0]'>
                 <span className='text-white text-lg font-bold'>{candidateInitial}</span>
               </div>
             )}
-            <p className='text-white/80 text-xs truncate max-w-full'>{session.candidateFirstName || "You"}</p>
+            <p className='text-primary-black text-xs truncate max-w-full'>{session.candidateFirstName || "You"}</p>
             {!session.cameraEnabled && !cameraOn && (
               <button
                 type='button'
                 onClick={enableCamera}
-                className='flex items-center gap-1 text-[11px] text-white/50 hover:text-white transition-colors'
+                className='flex items-center gap-1 text-[11px] text-secondary-black hover:text-primary transition-colors'
               >
                 <Video className='h-3 w-3' /> Camera
               </button>
@@ -451,7 +451,7 @@ const AIInterviewLiveSession = ({ token }: { token: string }) => {
           {/* Captions */}
           {captionsOn && caption && (
             <div className='absolute bottom-0 left-0 right-0 px-6 pb-4 flex justify-center'>
-              <div className='max-w-2xl bg-black/50 backdrop-blur-sm text-white text-sm rounded-lg px-4 py-2 text-center'>
+              <div className='max-w-2xl bg-primary text-white text-sm rounded-lg px-4 py-2 text-center shadow-md'>
                 {caption}
               </div>
             </div>
@@ -461,16 +461,16 @@ const AIInterviewLiveSession = ({ token }: { token: string }) => {
         {/* Live transcript panel */}
         <div
           className={cn(
-            "shrink-0 border-l border-white/10 bg-[#11154A]/80 backdrop-blur-sm flex flex-col transition-all duration-300 overflow-hidden",
+            "shrink-0 border-l border-[#EAECF0] bg-[#F9FAFB] flex flex-col transition-all duration-300 overflow-hidden",
             transcriptOpen ? "w-full sm:w-80 absolute sm:relative inset-0 sm:inset-auto z-20" : "w-0"
           )}
         >
-          <div className='flex items-center justify-between px-4 h-12 border-b border-white/10 shrink-0'>
-            <p className='text-white text-sm font-semibold'>Transcript</p>
+          <div className='flex items-center justify-between px-4 h-12 border-b border-[#EAECF0] shrink-0 bg-white'>
+            <p className='text-primary-black text-sm font-semibold'>Transcript</p>
             <button
               type='button'
               onClick={() => setTranscriptOpen(false)}
-              className='text-white/50 hover:text-white transition-colors'
+              className='text-secondary-black hover:text-primary-black transition-colors'
               aria-label='Close transcript'
             >
               <X className='h-4 w-4' />
@@ -478,7 +478,7 @@ const AIInterviewLiveSession = ({ token }: { token: string }) => {
           </div>
           <div className='flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3 min-h-0'>
             {transcript.length === 0 ? (
-              <p className='text-white/40 text-sm text-center mt-8'>
+              <p className='text-secondary-black text-sm text-center mt-8'>
                 Your conversation with Alex will appear here as you talk.
               </p>
             ) : (
@@ -487,13 +487,13 @@ const AIInterviewLiveSession = ({ token }: { token: string }) => {
                   key={entry.id}
                   className={cn("max-w-[90%] flex flex-col gap-0.5", entry.speaker === "you" ? "self-end items-end" : "self-start items-start")}
                 >
-                  <span className='text-[10px] uppercase tracking-wide text-white/40'>
+                  <span className='text-[10px] uppercase tracking-wide text-secondary-black'>
                     {entry.speaker === "you" ? session.candidateFirstName || "You" : "Alex"}
                   </span>
                   <p
                     className={cn(
                       "text-sm rounded-xl px-3 py-2 leading-relaxed",
-                      entry.speaker === "you" ? "bg-primary text-white" : "bg-white/10 text-white",
+                      entry.speaker === "you" ? "bg-primary text-white" : "bg-white border border-[#EAECF0] text-primary-black",
                       !entry.final && "opacity-60 italic"
                     )}
                   >
@@ -516,13 +516,13 @@ const AIInterviewLiveSession = ({ token }: { token: string }) => {
       )}
 
       {/* Controls */}
-      <div className='shrink-0 flex items-center justify-center gap-5 py-5 px-4 relative border-t border-white/10 bg-[#0B0E2E]/90 backdrop-blur-sm'>
+      <div className='shrink-0 flex items-center justify-center gap-5 py-5 px-4 relative border-t border-[#EAECF0] bg-white/80 backdrop-blur-sm'>
         <button
           type='button'
           onClick={toggleMute}
           className={cn(
             "h-12 w-12 rounded-full flex items-center justify-center shadow-sm transition-all hover:scale-105 active:scale-95",
-            muted ? "bg-error text-white" : "bg-white/10 text-white hover:bg-white/20"
+            muted ? "bg-error text-white" : "bg-primary/10 text-primary-black hover:bg-primary/20"
           )}
           aria-label={muted ? "Unmute" : "Mute"}
         >
@@ -543,7 +543,7 @@ const AIInterviewLiveSession = ({ token }: { token: string }) => {
           onClick={() => setTranscriptOpen(o => !o)}
           className={cn(
             "absolute left-4 h-9 px-3 rounded-full text-xs font-semibold flex items-center gap-1.5 transition-colors",
-            transcriptOpen ? "bg-primary/25 text-white" : "bg-white/10 text-white/70 hover:text-white"
+            transcriptOpen ? "bg-primary/15 text-primary" : "bg-[#F5F6F7] text-secondary-black hover:text-primary-black"
           )}
         >
           <MessageSquareText className='h-3.5 w-3.5' /> <span className='hidden sm:inline'>Transcript</span>
@@ -554,7 +554,7 @@ const AIInterviewLiveSession = ({ token }: { token: string }) => {
           onClick={() => setCaptionsOn(c => !c)}
           className={cn(
             "absolute right-4 h-9 px-3 rounded-full text-xs font-semibold flex items-center justify-center transition-colors",
-            captionsOn ? "bg-primary/25 text-white" : "bg-white/10 text-white/70 hover:text-white"
+            captionsOn ? "bg-primary/15 text-primary" : "bg-[#F5F6F7] text-secondary-black"
           )}
         >
           CC
