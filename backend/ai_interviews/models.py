@@ -58,11 +58,22 @@ class AIInterview(TimeStampedModel):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     job = models.ForeignKey(Job, on_delete=models.CASCADE, related_name="ai_interviews")
-    # Null only for is_preview=True rows -- a recruiter previewing the
-    # candidate-facing experience for a job, with no real candidate/
-    # TalentProfile attached (see services.provision_preview_ai_interview).
+    # Null for is_preview=True rows (a recruiter previewing the
+    # candidate-facing experience, with no real candidate attached -- see
+    # services.provision_preview_ai_interview) AND for a guest applicant's
+    # real interview (no TalentProfile at all -- see
+    # jobs.JobApplication.applicant). Distinguish the two via job_application
+    # (set for a guest's real interview, null for a true preview) rather
+    # than candidate alone.
     candidate = models.ForeignKey(
         TalentProfile, on_delete=models.CASCADE, related_name="ai_interviews", null=True, blank=True
+    )
+    # Set for every non-preview interview (real or guest candidate) --
+    # provision_ai_interview always receives the JobApplication it was
+    # provisioned for. Lets guest-candidate code paths recover name/email/
+    # resume from the application when `candidate` is null.
+    job_application = models.ForeignKey(
+        "jobs.JobApplication", on_delete=models.SET_NULL, null=True, blank=True, related_name="ai_interviews"
     )
     organisation = models.ForeignKey(Company, on_delete=models.CASCADE, related_name="ai_interviews")
 
@@ -81,7 +92,14 @@ class AIInterview(TimeStampedModel):
 
     questions_total = models.PositiveSmallIntegerField(default=6)
 
+    # scheduled_at/scheduled_end_at: this candidate's reserved slot with the
+    # agent fleet, assigned once at provisioning time by
+    # services.allocate_ai_interview_slot so no two interviews needing a
+    # live agent overlap past AI_INTERVIEW_MAX_CONCURRENT_SESSIONS at once.
+    # The candidate can only actually start once scheduled_at has arrived --
+    # see AIInterviewStartSessionView.
     scheduled_at = models.DateTimeField(null=True, blank=True)
+    scheduled_end_at = models.DateTimeField(null=True, blank=True)
     window_end_at = models.DateTimeField()
     joined_at = models.DateTimeField(null=True, blank=True)
     completed_at = models.DateTimeField(null=True, blank=True)
@@ -222,3 +240,18 @@ class AIInterviewTranscriptSegment(models.Model):
 
     def __str__(self):
         return f"{self.speaker} segment for {self.interview_id}"
+
+
+class AIInterviewSlotLock(models.Model):
+    """Singleton row (always pk=1, created by migration) locked via
+    SELECT ... FOR UPDATE for the entire duration of slot allocation +
+    AIInterview creation in services.provision_ai_interview/
+    provision_preview_ai_interview. Without this, two concurrent candidates
+    can both count the same not-yet-committed slot as free (the check in
+    services.allocate_ai_interview_slot and the eventual .create() aren't
+    otherwise atomic against each other) and both get handed the same
+    over-booked slot. A dedicated lock row (rather than locking a Job row)
+    is used because slot capacity is global across every job, not per-job."""
+
+    def __str__(self):
+        return "AI interview slot allocation lock"

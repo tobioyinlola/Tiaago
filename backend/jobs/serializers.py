@@ -10,7 +10,7 @@ from create_user.api.serializers import (
     ApplicantDetailSerializer,
 )
 
-from create_user.models import Company, CustomUser, TalentProfile
+from create_user.models import Company
 
 from roles.models import Role
 from talent_network.choices import TalentNetworkWorkMode
@@ -330,7 +330,7 @@ class JobUpdateSerializer(serializers.ModelSerializer):
 
 class JobApplicationSerializer(serializers.ModelSerializer):
     job = JobSerializer(read_only=True)
-    applicant = ApplicantDetailSerializer(read_only=True)
+    applicant = serializers.SerializerMethodField()
     company_name = serializers.ReadOnlyField(source="job.company.company_name")
     company_logo = serializers.ReadOnlyField(source="job.company.get_logo_url")
     resume = serializers.FileField(required=False, write_only=True)
@@ -351,6 +351,39 @@ class JobApplicationSerializer(serializers.ModelSerializer):
             "last_updated",
             "resume",
         )
+
+    def get_applicant(self, obj):
+        """Same shape ApplicantDetailSerializer produces for a real
+        TalentProfile, synthesized from the guest's submitted details when
+        this application has none -- so recruiter-facing UI built against
+        that shape (e.g. TalentApplicationCard.tsx, which reads
+        application.applicant.name/resume/... with no null guards) keeps
+        working unchanged for guest applicants instead of getting a bare
+        null it was never written to handle."""
+        if obj.applicant_id:
+            return ApplicantDetailSerializer(obj.applicant, context=self.context).data
+        request = self.context.get("request")
+        resume_url = None
+        if obj.guest_resume:
+            resume_url = (
+                request.build_absolute_uri(obj.guest_resume.url) if request else obj.guest_resume.url
+            )
+        return {
+            "id": None,
+            "name": obj.guest_full_name,
+            "email": obj.guest_email,
+            "country": "",
+            "phone_number": obj.guest_phone_number,
+            "resume": resume_url,
+            "profile_pic": None,
+            "experience_level": "",
+            "role": None,
+            "has_passed_assessment": False,
+            "verified_skillsets": [],
+            "created_at": obj.applied_date,
+            "updated_at": obj.last_updated,
+            "is_guest": True,
+        }
 
     def validate_resume(self, value):
         if value:
@@ -401,12 +434,15 @@ GUEST_APPLY_MAX_RESUME_SIZE = 5 * 1024 * 1024  # 5MB, per the no-login applicati
 
 
 class GuestJobApplicationSerializer(serializers.Serializer):
-    """No-login job application: takes the candidate's details directly on the
-    form (name/email/phone/LinkedIn/resume) instead of assuming a logged-in
-    TalentProfile already has them. Resolves (or silently provisions) a
-    CustomUser + TalentProfile by email so the resulting JobApplication is a
-    completely ordinary row -- same table, same downstream pipeline, same
-    recruiter-facing Applications list as any other application."""
+    """No-login job application: takes the candidate's details directly on
+    the form (name/email/phone/LinkedIn/resume) and stores them straight on
+    the JobApplication row (guest_full_name/guest_email/...) instead of
+    assuming a logged-in TalentProfile already has them. Deliberately
+    creates no CustomUser/TalentProfile at all -- applying as a guest must
+    never create an account. See JobApplication.candidate_full_name/
+    candidate_email/etc. and as_email_recipient() for how downstream code
+    (resume screening, assessment invites, AI interviews, recruiter UI)
+    reads a guest's identity in place of applicant.*."""
 
     full_name = serializers.CharField(max_length=255, allow_blank=False, trim_whitespace=True)
     email = serializers.EmailField()
@@ -441,59 +477,36 @@ class GuestJobApplicationSerializer(serializers.Serializer):
             raise serializers.ValidationError(
                 f"This job is currently {status_display.lower()} and not accepting applications"
             )
+        email = attrs.get("email", "").strip().lower()
+        if JobApplication.objects.filter(job=job, applicant__isnull=True, guest_email__iexact=email).exists():
+            raise serializers.ValidationError("You've already applied to this job.")
+        # Also block a guest re-application from someone who already applied
+        # to this job with a real account under the same email -- neither
+        # unique constraint on JobApplication catches this (one row has
+        # applicant set, the other doesn't), so without this check the
+        # recruiter would see the same person twice and get billed twice
+        # for the same candidate's resume screening/assessment.
+        if JobApplication.objects.filter(job=job, applicant__user__email__iexact=email).exists():
+            raise serializers.ValidationError(
+                "You've already applied to this job with an account. Please log in to view your application."
+            )
 
         return attrs
 
-    def _split_name(self, full_name):
-        parts = full_name.strip().split(None, 1)
-        first_name = parts[0] if parts else ""
-        last_name = parts[1] if len(parts) > 1 else ""
-        return first_name, last_name
-
     def create(self, validated_data):
         job = self.context["job"]
-        first_name, last_name = self._split_name(validated_data["full_name"])
-
-        with transaction.atomic():
-            # Every email is accepted, no exceptions -- zero login friction.
-            # If this email already has an account (e.g. they applied before,
-            # or signed up separately), reuse it instead of erroring, so the
-            # application still goes through under that same account. Never
-            # block the candidate here.
-            user = CustomUser.objects.filter(email__iexact=validated_data["email"]).first()
-            if not user:
-                user = CustomUser.objects.create_user(
-                    username=validated_data["email"],
-                    email=validated_data["email"],
-                    first_name=first_name,
-                    last_name=last_name,
-                    phone_number=validated_data["phone_number"],
-                    user_type=CustomUser.USER_TYPE.TALENT,
-                    is_verified=False,
-                    password=None,
-                    is_guest_provisioned=True,
-                )
-
-            # Never overwrite an existing account's profile from this
-            # unauthenticated form -- anyone could submit someone else's
-            # email with different details. Only a brand-new profile gets
-            # populated from what was submitted here.
-            talent_profile = TalentProfile.objects.filter(user=user).first()
-            if not talent_profile:
-                talent_profile = TalentProfile.objects.create(
-                    user=user,
-                    full_name=validated_data["full_name"].strip(),
-                    linkedin_url=validated_data["linkedin_url"],
-                    resume=validated_data["resume"],
-                )
-
-            application = JobApplication.objects.create(
-                applicant=talent_profile,
-                job=job,
-                cover_letter=validated_data.get("cover_letter", ""),
-                additional_info=validated_data.get("additional_info", ""),
-                is_external_application=False,
-            )
+        application = JobApplication.objects.create(
+            applicant=None,
+            job=job,
+            guest_full_name=validated_data["full_name"].strip(),
+            guest_email=validated_data["email"],
+            guest_phone_number=validated_data["phone_number"],
+            guest_linkedin_url=validated_data["linkedin_url"],
+            guest_resume=validated_data["resume"],
+            cover_letter=validated_data.get("cover_letter", ""),
+            additional_info=validated_data.get("additional_info", ""),
+            is_external_application=False,
+        )
         return application
 
 

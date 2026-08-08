@@ -42,11 +42,12 @@ const AIInterviewPreJoinFlow = ({ token, interview }: { token: string; interview
     }
 
     if (result.data.queued) {
-      const { position } = result.data;
+      const { scheduled_at } = result.data;
+      const waitMinutes = Math.max(1, Math.ceil((new Date(scheduled_at).getTime() - Date.now()) / 60000));
       toast.info(
-        position <= 1
-          ? "All interview slots are busy right now -- we'll connect you the moment one frees up."
-          : `All interview slots are busy right now -- you're #${position} in line, we'll connect you shortly.`
+        waitMinutes <= 1
+          ? "All interview slots are busy right now -- we'll connect you in about a minute."
+          : `All interview slots are busy right now -- we'll connect you in about ${waitMinutes} minutes.`
       );
       setStatusLabel("Waiting for a free slot...");
       retryTimeoutRef.current = setTimeout(() => {

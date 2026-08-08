@@ -38,13 +38,14 @@ export type AIInterviewConnectInfo = {
   livekitUrl: string;
 };
 
-/** Returned instead when the interview_agent fleet is already at
- * AI_INTERVIEW_MAX_CONCURRENT_SESSIONS -- no room/token minted yet, `position`
- * is this candidate's place in line. Still a 200 (not an error): the
- * candidate just needs to wait and retry, not fix anything. */
+/** Returned instead when this candidate's reserved slot with the
+ * interview_agent fleet (see backend services.allocate_ai_interview_slot)
+ * hasn't arrived yet -- no room/token minted yet, `scheduled_at` is when it
+ * will. Still a 200 (not an error): the candidate just needs to wait and
+ * retry, not fix anything. */
 export type AIInterviewQueuedInfo = {
   queued: true;
-  position: number;
+  scheduled_at: string;
 };
 
 export type AIInterviewSessionInfo = AIInterviewConnectInfo | AIInterviewQueuedInfo;

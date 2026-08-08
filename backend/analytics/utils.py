@@ -137,7 +137,12 @@ def get_overview_metrics():
     )
 
     active_jobs = Job.objects.filter(job_status=Job.JobStatus.ACTIVE).count()
-    total_candidates = JobApplication.objects.values("applicant_id").distinct().count()
+    # applicant_id is null for guest applications -- count those distinct by
+    # guest_email instead so they don't all collapse into one NULL bucket.
+    total_candidates = (
+        JobApplication.objects.filter(applicant__isnull=False).values("applicant_id").distinct().count()
+        + JobApplication.objects.filter(applicant__isnull=True).values("guest_email").distinct().count()
+    )
 
     # Morning digest trio
     active_orgs_today = len(

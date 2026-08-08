@@ -392,13 +392,11 @@ class OneTimePassword(models.Model):
     otp_expires = models.DateTimeField(blank=True, null=True)
     # Wrong guesses so far; the OTP is invalidated at MAX_ATTEMPTS.
     attempts = models.PositiveSmallIntegerField(default=0)
-    # Set only when this OTP is standing in for proof-of-inbox-ownership on
-    # a guest-account claim (TalentSerializer._claim_guest_provisioned_user)
-    # -- an already-hashed password, applied to the user by ConfirmEmailView
-    # once the code is verified, never before. Keeping the claim's password
-    # out of `user.password` until then is what stops an attacker from
-    # logging into someone else's pre-existing guest-provisioned account
-    # just by typing their email into the signup form.
+    # Currently unused -- was set by a guest-account "claim" signup path
+    # (reusing an existing is_guest_provisioned shadow account instead of
+    # blocking signup) that has since been removed in favor of always
+    # blocking signup on an already-used email, no claiming. Left in place
+    # since ConfirmEmailView still (harmlessly) checks it; nothing sets it.
     pending_password = models.CharField(max_length=255, blank=True, default="")
 
     def __str__(self):

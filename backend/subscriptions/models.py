@@ -498,7 +498,7 @@ class WalletTransaction(models.Model):
 
 
 class CandidateBillingRecord(models.Model):
-    """One row per (organisation, job, candidate). This is the idempotency
+    """One row per (organisation, job_application). This is the idempotency
     guard that ensures a candidate's resume screening and assessment are
     each ever charged (or covered by a free credit) exactly once, no matter
     how many times the pipeline retries."""
@@ -506,7 +506,20 @@ class CandidateBillingRecord(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     organisation = models.ForeignKey(Company, on_delete=models.CASCADE, related_name="candidate_billing_records")
     job = models.ForeignKey("jobs.Job", on_delete=models.CASCADE, related_name="candidate_billing_records")
-    candidate = models.ForeignKey(TalentProfile, on_delete=models.CASCADE, related_name="billing_records")
+    # The idempotency key used to be (organisation, job, candidate), but a
+    # guest application (see jobs.JobApplication.applicant, now nullable)
+    # has no TalentProfile to be a `candidate` -- job_application uniquely
+    # identifies the (job, candidate-or-guest) pair either way, so it's the
+    # key now. `candidate` (nullable) stays purely for display/reporting on
+    # real accounts.
+    job_application = models.ForeignKey(
+        "jobs.JobApplication", on_delete=models.CASCADE, related_name="billing_records",
+        null=True, blank=True,
+    )
+    candidate = models.ForeignKey(
+        TalentProfile, on_delete=models.CASCADE, related_name="billing_records",
+        null=True, blank=True,
+    )
     was_free_credit = models.BooleanField(default=False)
 
     resume_screening_charged = models.BooleanField(default=False)
@@ -523,7 +536,7 @@ class CandidateBillingRecord(models.Model):
     class Meta:
         constraints = [
             models.UniqueConstraint(
-                fields=["organisation", "job", "candidate"], name="unique_candidate_billing_record"
+                fields=["organisation", "job_application"], name="unique_candidate_billing_record"
             )
         ]
         indexes = [
@@ -531,7 +544,8 @@ class CandidateBillingRecord(models.Model):
         ]
 
     def __str__(self):
-        return f"Billing record: {self.candidate} / {self.job} / {self.organisation}"
+        candidate = self.candidate or (self.job_application and self.job_application.candidate_full_name)
+        return f"Billing record: {candidate} / {self.job} / {self.organisation}"
 
 
 class WalletTopup(models.Model):

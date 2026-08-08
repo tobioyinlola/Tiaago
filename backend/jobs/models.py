@@ -1,5 +1,6 @@
 import secrets
 import string
+from types import SimpleNamespace
 
 import pycountry
 from django.contrib.postgres.fields import ArrayField
@@ -251,6 +252,11 @@ class Job(models.Model):
     ai_interview_duration_minutes = models.PositiveSmallIntegerField(default=10)
     ai_interview_questions_count = models.PositiveSmallIntegerField(default=6)
     ai_interview_window_hours = models.PositiveSmallIntegerField(default=72)
+    # Generated once (by whichever candidate reaches the interview first for
+    # this job) and reused for every subsequent candidate -- same questions,
+    # same evaluation criteria, across everyone interviewing for this role.
+    # See ai_interviews.services.get_or_generate_job_interview_questions.
+    ai_interview_questions = models.JSONField(default=list, blank=True)
 
     class Meta:
         indexes = [
@@ -487,7 +493,21 @@ class JobApplication(models.Model):
         )  # The candidate has withdrawn their application
 
     applicant = models.ForeignKey(
-        TalentProfile, on_delete=models.CASCADE, related_name="applicants"
+        TalentProfile, on_delete=models.CASCADE, related_name="applicants",
+        null=True, blank=True,
+    )
+    # Set (instead of applicant) for a no-login guest application -- see
+    # jobs.serializers.GuestJobApplicationSerializer.create(). Guests never
+    # get a CustomUser/TalentProfile created for them, so every place that
+    # needs this candidate's name/email/phone/linkedin/resume should read
+    # the candidate_* properties below rather than reaching into `applicant`
+    # directly.
+    guest_full_name = models.CharField(max_length=255, blank=True, default="")
+    guest_email = models.EmailField(blank=True, default="")
+    guest_phone_number = models.CharField(max_length=30, blank=True, default="")
+    guest_linkedin_url = models.URLField(blank=True, default="")
+    guest_resume = models.FileField(
+        upload_to="guest_resumes/%Y/%m/%d/", null=True, blank=True,
     )
     job = models.ForeignKey(
         Job, on_delete=models.CASCADE, related_name="job_applications"
@@ -528,7 +548,20 @@ class JobApplication(models.Model):
    
 
     class Meta:
-        unique_together = ("applicant", "job")
+        # NULL != NULL in SQL, so a plain unique_together on (applicant, job)
+        # would never actually stop the same guest emailing in twice for the
+        # same job (applicant is NULL for both rows) -- these two constraints
+        # cover the real-applicant and guest cases separately.
+        constraints = [
+            models.UniqueConstraint(
+                fields=["applicant", "job"], condition=models.Q(applicant__isnull=False),
+                name="unique_real_applicant_per_job",
+            ),
+            models.UniqueConstraint(
+                fields=["job", "guest_email"], condition=models.Q(applicant__isnull=True),
+                name="unique_guest_email_per_job",
+            ),
+        ]
         indexes = [
             models.Index(fields=["job", "status"]),
             models.Index(fields=["applicant", "-applied_date"]),
@@ -536,11 +569,50 @@ class JobApplication(models.Model):
 
     def save(self, *args, **kwargs):
         if not self.pk:
-            self.was_verified_at_application = self.applicant.user.is_verified
+            self.was_verified_at_application = self.applicant.user.is_verified if self.applicant_id else False
         super().save(*args, **kwargs)
 
     def __str__(self):
-        return f"{self.applicant} applied for {self.job}"
+        return f"{self.candidate_full_name} applied for {self.job}"
+
+    @property
+    def candidate_full_name(self):
+        if self.applicant_id:
+            applicant = self.applicant
+            return applicant.full_name or applicant.user.get_full_name() or applicant.user.username
+        return self.guest_full_name
+
+    @property
+    def candidate_email(self):
+        return self.applicant.user.email if self.applicant_id else self.guest_email
+
+    @property
+    def candidate_phone_number(self):
+        if self.applicant_id:
+            return str(self.applicant.user.phone_number) if self.applicant.user.phone_number else ""
+        return self.guest_phone_number
+
+    @property
+    def candidate_linkedin_url(self):
+        return self.applicant.linkedin_url if self.applicant_id else self.guest_linkedin_url
+
+    @property
+    def candidate_resume(self):
+        return self.applicant.resume if self.applicant_id else self.guest_resume
+
+    def as_email_recipient(self):
+        """A user-like object (`.first_name`/`.last_name`/`.email`/
+        `.get_full_name()`) for email-sending code that expects a CustomUser
+        -- the real one for a logged-in applicant, or a lightweight stand-in
+        built from the guest's submitted details when this application has
+        none."""
+        if self.applicant_id:
+            return self.applicant.user
+        first, _, last = self.guest_full_name.partition(" ")
+        return SimpleNamespace(
+            first_name=first, last_name=last, email=self.guest_email,
+            get_full_name=lambda: self.guest_full_name,
+        )
 
 
 class Tool(TimeStampedModel):
@@ -679,7 +751,7 @@ class TalentScreening(TimeStampedModel):
         total = 0
 
     def __str__(self):
-        return f"Talent Screening: {self.job_application.job.title} - {self.job_application.applicant.user.username}"
+        return f"Talent Screening: {self.job_application.job.title} - {self.job_application.candidate_full_name}"
 
 
 class CandidateResumeScreening(TimeStampedModel):
@@ -705,7 +777,7 @@ class CandidateResumeScreening(TimeStampedModel):
         return not self.is_paid and self.requires_payment
     
     def __str__(self):
-        return f"Candidate Resume Screening: {self.talent_screening.job_application.job.title} - {self.talent_screening.job_application.applicant.user.username}"
+        return f"Candidate Resume Screening: {self.talent_screening.job_application.job.title} - {self.talent_screening.job_application.candidate_full_name}"
 
 
 class SkillAssessmentScreening(TimeStampedModel):

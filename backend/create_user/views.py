@@ -360,11 +360,10 @@ class ConfirmEmailView(APIView):
             user.is_verified = True
             user.verified = True
             update_fields = ["is_verified", "verified"]
-            # This code being verified is the proof-of-inbox-ownership a
-            # guest-account claim (TalentSerializer._claim_guest_provisioned_user)
-            # was withholding a password for -- only now, with that proof in
-            # hand, does the submitted password actually become usable and
-            # the account stop being guest-provisioned.
+            # pending_password is currently never set (the guest-account
+            # claim signup path that used to set it has been removed) --
+            # this branch is dead in practice, kept harmless rather than
+            # ripped out along with the OneTimePassword field itself.
             if otp_entry.pending_password:
                 user.password = otp_entry.pending_password
                 user.is_guest_provisioned = False
@@ -433,13 +432,18 @@ class ResendOtpView(APIView):
             return Response(
                 {"detail": "Email is required."}, status=status.HTTP_400_BAD_REQUEST
             )
-        # Fetch the user and their OTP record
-        try:
-            user = CustomUser.objects.get(email=email)
-        except CustomUser.DoesNotExist:
+        # Fetch the user and their OTP record. email has no DB-level
+        # uniqueness (only username does), so this is a filter, not a
+        # get() -- a stray duplicate for this address (e.g. from before
+        # the guest-account-claim fix in CompanySerializer/TalentSerializer)
+        # must not 500 here. Prefer the not-yet-verified row: that's the
+        # one someone requesting a resend is actually trying to verify.
+        candidates = list(CustomUser.objects.filter(email__iexact=email).order_by("-id"))
+        if not candidates:
             return Response(
                 {"detail": "User not found."}, status=status.HTTP_404_NOT_FOUND
             )
+        user = next((u for u in candidates if not u.is_verified), candidates[0])
         # Check if the user is already verified
         if user.is_verified:
             return Response(
@@ -484,12 +488,16 @@ class CustomPasswordResetView(APIView):
             )
 
         # Same response whether or not the account exists, so this endpoint
-        # can't be used to probe which emails are registered.
-        try:
-            user = User.objects.get(email=email)
-        except User.DoesNotExist:
-            pass
-        else:
+        # can't be used to probe which emails are registered. email has no
+        # DB-level uniqueness (only username does), so this is a filter,
+        # not a get() -- a stray duplicate for this address must not 500
+        # here. A guest-provisioned account never had a real password to
+        # forget, so prefer a row that actually has one.
+        user = (
+            User.objects.filter(email__iexact=email, is_guest_provisioned=False).order_by("-id").first()
+            or User.objects.filter(email__iexact=email).order_by("-id").first()
+        )
+        if user is not None:
             uid = urlsafe_base64_encode(force_bytes(user.pk))
             token = default_token_generator.make_token(user)
             self.send_password_reset_email(user, uid, token, request)

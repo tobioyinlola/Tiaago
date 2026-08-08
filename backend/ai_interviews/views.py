@@ -42,7 +42,9 @@ NOT_JOINABLE_STATUSES = (
 
 
 def _get_owned_ai_interview(request, pk):
-    interview = AIInterview.objects.select_related("job", "candidate__user", "organisation").filter(pk=pk).first()
+    interview = AIInterview.objects.select_related(
+        "job", "candidate__user", "job_application", "organisation"
+    ).filter(pk=pk).first()
     if not interview:
         return None, Response({"error": "Interview not found."}, status=HTTP_404_NOT_FOUND)
     company = get_user_company(request.user)
@@ -77,9 +79,9 @@ class AIInterviewJoinLookupView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request, token):
-        interview = AIInterview.objects.select_related("job", "candidate__user", "organisation").filter(
-            candidate_join_token=token
-        ).first()
+        interview = AIInterview.objects.select_related(
+            "job", "candidate__user", "job_application", "organisation"
+        ).filter(candidate_join_token=token).first()
         if not interview:
             return Response({"found": False}, status=HTTP_404_NOT_FOUND)
 
@@ -95,9 +97,9 @@ class AIInterviewStartSessionView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request, token):
-        interview = AIInterview.objects.select_related("job", "candidate__user", "organisation").filter(
-            candidate_join_token=token
-        ).first()
+        interview = AIInterview.objects.select_related(
+            "job", "candidate__user", "job_application", "organisation"
+        ).filter(candidate_join_token=token).first()
         if not interview:
             return Response({"error": "This interview link is invalid or has expired."}, status=HTTP_404_NOT_FOUND)
 
@@ -116,29 +118,41 @@ class AIInterviewStartSessionView(APIView):
                 {"error": "This interview isn't ready yet. Please try again shortly."}, status=HTTP_400_BAD_REQUEST
             )
 
-        # Reclaim stale sessions before counting capacity -- a WAITING/
-        # IN_PROGRESS interview never gets a terminal status on its own if
-        # the interview_agent crashes, the candidate's connection drops, or
-        # they just close the tab (nothing marks it FAILED/COMPLETED in
-        # those cases). Left alone, a single one of these permanently
-        # occupies a concurrency slot forever, eventually locking out every
-        # real candidate once enough pile up. No real interview call runs
-        # anywhere near this long, so anyone still WAITING/IN_PROGRESS this
-        # long after joining is certainly dead, not actually on a call.
-        # This also fixes it retroactively: any already-stuck interview
-        # gets reclaimed the next time *any* candidate hits this endpoint.
+        # Reclaim stale sessions -- a WAITING/IN_PROGRESS interview never
+        # gets a terminal status on its own if the interview_agent crashes,
+        # the candidate's connection drops, or they just close the tab
+        # (nothing marks it FAILED/COMPLETED in those cases). Left alone, a
+        # single one of these permanently occupies its reserved slot
+        # forever. No real interview call runs anywhere near this long, so
+        # anyone still WAITING/IN_PROGRESS this long after joining is
+        # certainly dead, not actually on a call. This also fixes it
+        # retroactively: any already-stuck interview gets reclaimed the
+        # next time *any* candidate hits this endpoint.
         stale_cutoff = timezone.now() - timedelta(minutes=30)
         AIInterview.objects.filter(
             status__in=(AIInterview.Status.WAITING, AIInterview.Status.IN_PROGRESS),
             joined_at__lt=stale_cutoff,
         ).update(status=AIInterview.Status.FAILED)
 
-        # Capacity gate -- the interview_agent fleet can only run so many
-        # concurrent LiveKit sessions. Past that, don't create a room no
-        # agent can join; tell the candidate to wait and let the frontend
-        # poll this same endpoint (see AIInterviewSetupCheck) until a slot
-        # frees up. Interviews are short, so a coarse "check again shortly"
-        # loop is enough -- no persistent queue table needed.
+        # Slot gate -- each interview is assigned its own reserved time slot
+        # with the agent fleet at provisioning time (see
+        # services.allocate_ai_interview_slot), so a candidate only ever
+        # waits for their *own* slot to arrive, never behind whoever else
+        # happens to be mid-call right now. interview.scheduled_at is only
+        # ever null for a row created before this field existed -- treat
+        # that as already-available rather than blocking it.
+        if interview.scheduled_at and timezone.now() < interview.scheduled_at:
+            return Response({
+                "queued": True,
+                "scheduled_at": interview.scheduled_at.isoformat(),
+            }, status=HTTP_200_OK)
+
+        # Real-time capacity check -- belt and suspenders alongside the slot
+        # gate above. Slots are sized so this should essentially never
+        # trigger, but they're only as reliable as the allocation math (see
+        # services.allocate_ai_interview_slot); this is the hard backstop
+        # that actually protects the interview_agent fleet from ever being
+        # handed more concurrent sessions than it can run, no matter what.
         max_concurrent = settings.AI_INTERVIEW_MAX_CONCURRENT_SESSIONS
         active_sessions = AIInterview.objects.filter(
             status__in=(AIInterview.Status.WAITING, AIInterview.Status.IN_PROGRESS)
@@ -146,7 +160,7 @@ class AIInterviewStartSessionView(APIView):
         if active_sessions >= max_concurrent:
             return Response({
                 "queued": True,
-                "position": active_sessions - max_concurrent + 1,
+                "scheduled_at": interview.scheduled_at.isoformat() if interview.scheduled_at else None,
             }, status=HTTP_200_OK)
 
         # Preview interviews (a recruiter testing the candidate-facing
@@ -173,7 +187,12 @@ class AIInterviewStartSessionView(APIView):
                     status=HTTP_402_PAYMENT_REQUIRED,
                 )
 
-        participant_name = interview.candidate.full_name if interview.candidate else "Preview"
+        if interview.candidate:
+            participant_name = interview.candidate.full_name
+        elif interview.job_application_id:
+            participant_name = interview.job_application.candidate_full_name
+        else:
+            participant_name = "Preview"
         try:
             create_ai_interview_room(interview.livekit_room_name, interview.id)
             candidate_token = mint_candidate_token(
@@ -205,7 +224,10 @@ class AIInterviewAgentDataView(APIView):
     permission_classes = [HasInternalServiceKey]
 
     def get(self, request, pk):
-        interview = AIInterview.objects.select_related("job", "candidate__user", "organisation").filter(pk=pk).first()
+        interview = (
+            AIInterview.objects.select_related("job", "candidate__user", "job_application", "organisation")
+            .filter(pk=pk).first()
+        )
         if not interview:
             return Response({"error": "Interview not found."}, status=HTTP_404_NOT_FOUND)
 
@@ -220,13 +242,13 @@ class AIInterviewAgentDataView(APIView):
             for q in interview.questions.order_by("question_number")
         ]
 
-        from .services import display_first_name, get_candidate_context, get_job_application_for
+        from .services import display_first_name, get_candidate_context
 
-        candidate = interview.candidate
         resume_summary, assessment_score = "", None
-        if candidate:
-            job_application = get_job_application_for(interview.job, candidate)
-            resume_summary, assessment_score = get_candidate_context(interview.job, candidate, job_application)
+        if interview.job_application_id:
+            resume_summary, assessment_score = get_candidate_context(
+                interview.job, interview.candidate, interview.job_application
+            )
 
         return Response({
             "id": str(interview.id),
@@ -317,10 +339,16 @@ def _serialize_interview_detail(interview):
     from .services import display_first_name
 
     candidate = interview.candidate
+    if candidate:
+        candidate_name = candidate.full_name or candidate.user.get_full_name()
+    elif interview.job_application_id:
+        candidate_name = interview.job_application.candidate_full_name
+    else:
+        candidate_name = f"{display_first_name(interview)} (preview)"
     return {
         "id": str(interview.id),
         "status": interview.status,
-        "candidate_name": (candidate.full_name or candidate.user.get_full_name()) if candidate else f"{display_first_name(interview)} (preview)",
+        "candidate_name": candidate_name,
         "job_title": interview.job.title,
         "company_name": interview.organisation.company_name,
         "duration_seconds": interview.duration_seconds,
@@ -439,7 +467,7 @@ class RecruiterAIInterviewListView(APIView):
         # Preview interviews (recruiter test runs, no real candidate) never
         # appear in the real pipeline dashboard.
         base_qs = AIInterview.objects.filter(organisation=company, is_preview=False).select_related(
-            "job", "candidate__user"
+            "job", "candidate__user", "job_application"
         )
 
         stats = {tab: filter_fn(base_qs).count() for tab, filter_fn in TAB_FILTERS.items()}
@@ -451,7 +479,11 @@ class RecruiterAIInterviewListView(APIView):
         results = [
             {
                 "id": str(interview.id),
-                "candidate_name": interview.candidate.full_name or interview.candidate.user.get_full_name(),
+                "candidate_name": (
+                    interview.candidate.full_name or interview.candidate.user.get_full_name()
+                    if interview.candidate else
+                    (interview.job_application.candidate_full_name if interview.job_application_id else "Guest")
+                ),
                 "job_title": interview.job.title,
                 "status": interview.status,
                 "summary_status": interview.summary_status,
