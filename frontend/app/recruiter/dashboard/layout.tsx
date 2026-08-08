@@ -15,7 +15,9 @@ import { getTeamRole } from "@/app/common/services/team";
 import SideNavV3 from "@/app/common/components/dashboard/Nav/SideNavV3";
 import SetUserProfile from "@/app/common/components/Layout/SetUserProfile";
 import FinishOnboardingBanner from "./components/FinishOnboardingBanner";
+import FreeCreditsBanner from "./components/FreeCreditsBanner";
 import { getCompanyOnboarding } from "@/app/common/services/company-onboarding";
+import { getWalletBalance } from "@/app/common/services/subscription";
 import BackendWarmupPing from "@/app/common/components/Layout/BackendWarmupPing";
 import MaintenancePage from "@/app/common/components/MaintenancePage";
 
@@ -28,7 +30,7 @@ const RecruiterDashboardLayout = async ({ children }: PropsWithChildren) => {
   //   return redirect(`/verify-email?email=${user.email}&as=talent`);
 
   const splitCompanyName = (recruiter.company_name ?? "").split(" ");
-  const [teamRoleData, onboarding, unreadMessageCounts] = await Promise.all([
+  const [teamRoleData, onboarding, unreadMessageCounts, walletBalance] = await Promise.all([
     getTeamRole().catch(e => {
       console.log("Get team role error (recruiter dashboard layout): ", e?.message);
       return null;
@@ -48,6 +50,10 @@ const RecruiterDashboardLayout = async ({ children }: PropsWithChildren) => {
           return [];
         })
       : ([] as any[]),
+    getWalletBalance().catch(e => {
+      console.log("Get wallet balance error (recruiter dashboard layout): ", e?.message);
+      return null;
+    }),
   ]);
   const teamRole = teamRoleData?.role ?? null;
   const isTeamMember = !!teamRoleData?.role;
@@ -110,6 +116,12 @@ const RecruiterDashboardLayout = async ({ children }: PropsWithChildren) => {
         >
           <div className='h-8' />
           {showFinishOnboardingBanner && <FinishOnboardingBanner />}
+          {!isTeamMember && (
+            <FreeCreditsBanner
+              freeCreditsRemaining={walletBalance?.free_credits_remaining ?? null}
+              freeTierLimit={walletBalance?.pricing?.free_tier_limit ?? 20}
+            />
+          )}
           {children}
           <div className='h-8' />
         </ScrollArea>

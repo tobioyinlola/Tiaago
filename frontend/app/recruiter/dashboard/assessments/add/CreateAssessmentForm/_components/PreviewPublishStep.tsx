@@ -13,6 +13,15 @@ const PreviewPublishStep = ({
   sections: SelectedSection[];
 }) => {
   const totalQuestions = sections.reduce((acc, s) => acc + (s.question_count || 0), 0);
+  // The backend auto-promotes assessment_type to MIXED the moment more
+  // than one section type is actually present (see
+  // skill_assessment.views._promote_to_mixed_if_needed) -- deriving the
+  // badge from the real sections here keeps it accurate even before that
+  // refetch lands, instead of trusting values.assessment_type, which only
+  // ever reflects what was picked at creation.
+  const distinctSectionTypes = new Set(sections.map(s => s.type));
+  const displayedType =
+    distinctSectionTypes.size > 1 ? "MIXED" : sections[0]?.type ?? values.assessment_type;
 
   return (
     <div className="border border-[#EAECF0] rounded-lg p-6">
@@ -22,7 +31,7 @@ const PreviewPublishStep = ({
           <p className="text-sm text-[#9DA3A8] mt-1">{values.description}</p>
         </div>
         <span className="text-xs font-medium px-2 py-[2px] bg-[#F1F3FF] text-primary rounded-full shrink-0">
-          {values.assessment_type}
+          {displayedType}
         </span>
       </div>
 

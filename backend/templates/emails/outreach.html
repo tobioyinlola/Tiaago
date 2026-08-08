@@ -81,9 +81,11 @@
             </p>
             <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="border-top:1px solid #2E4585; font-size:0; line-height:0; height:1px;">&nbsp;</td></tr></table>
             <p style="margin:14px 0 0; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:12px; line-height:1.7; color:#9AA6D4;">
-              Questions? <a href="mailto:support@tiaago.com" style="color:#FFFFFF; text-decoration:underline;">support@tiaago.com</a><br />
+              Questions? <a href="mailto:{{ unsubscribe_email|default:'support@tiaago.com' }}" style="color:#FFFFFF; text-decoration:underline;">{{ unsubscribe_email|default:"support@tiaago.com" }}</a><br />
               1942 Broadway St, Suite 314C, Boulder, CO, US<br />
-              &copy; {% now "Y" %} Tiaago. All rights reserved.
+              &copy; {% now "Y" %} Tiaago. All rights reserved.<br />
+              You're receiving this because {{ company_name }} found your profile as a potential fit for an open role.
+              <a href="mailto:{{ unsubscribe_email|default:'support@tiaago.com' }}?subject=Unsubscribe" style="color:#FFFFFF; text-decoration:underline;">Unsubscribe</a>
             </p>
           </td>
         </tr>

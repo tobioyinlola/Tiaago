@@ -20,6 +20,9 @@ from .views import (
     AssessmentBundleManageListCreateView,
     AssessmentBundleManageDetailView,
     AssessmentBundleCsvUploadView,
+    AdminAssessmentFeedbackListView,
+    QuestionBankCsvUploadView,
+    GenerateQuestionBankQuestionsView,
     GeneralSkillAssessmentDetailAPIView,
     TakeAGeneralSkillAssessmentAPIView,
     TakeAGeneralSkillAssessmentAPIView_V1,
@@ -109,6 +112,16 @@ urlpatterns = [
         name="staff-question-bank-detail",
     ),
     path(
+        "staff/question-bank/csv-upload/",
+        QuestionBankCsvUploadView.as_view(),
+        name="staff-question-bank-csv-upload",
+    ),
+    path(
+        "staff/question-bank/generate/",
+        GenerateQuestionBankQuestionsView.as_view(),
+        name="staff-question-bank-generate",
+    ),
+    path(
         "staff/bundles/",
         AssessmentBundleManageListCreateView.as_view(),
         name="staff-bundle-list",
@@ -122,6 +135,11 @@ urlpatterns = [
         "staff/bundles/csv-upload/",
         AssessmentBundleCsvUploadView.as_view(),
         name="staff-bundle-csv-upload",
+    ),
+    path(
+        "staff/assessment-feedback/",
+        AdminAssessmentFeedbackListView.as_view(),
+        name="staff-assessment-feedback",
     ),
     path(
         "company-assessments/<int:skill_assessment_id>",

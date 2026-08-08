@@ -7,14 +7,17 @@ import DisplayErrorMessages, {
   DisplayErrorMessagesProps,
 } from "@/app/common/components/DisplayErrorMessages";
 import { handleServerApiCallError } from "@/app/common/utils";
+import ServerPagination from "@/app/common/components/ServerPagination";
 import SubmissionsList from "./_components/SubmissionsList";
 
 type Props = {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ page?: string }>;
 };
 
-const AssessmentSubmissionsPage = async ({ params }: Props) => {
+const AssessmentSubmissionsPage = async ({ params, searchParams }: Props) => {
   const { id } = await params;
+  const { page } = await searchParams;
   const errors: DisplayErrorMessagesProps["errors"] = [];
 
   const assessment = await getCompanyAssessment(id).catch(async e => {
@@ -24,11 +27,12 @@ const AssessmentSubmissionsPage = async ({ params }: Props) => {
   });
   if (!assessment) return notFound();
 
-  const { results } = await getAssessmentResultsList(id).catch(async e => {
+  const submissionsPage = await getAssessmentResultsList(id, { page }).catch(async e => {
     const error = await handleServerApiCallError(e);
     errors.push({ message: error, title: "Error getting submissions" });
-    return { results: [] };
+    return { results: [], current: 1, count: 0, next: null, previous: null };
   });
+  const { results } = submissionsPage;
 
   return (
     <div className='text-black max-w-5xl'>
@@ -60,11 +64,14 @@ const AssessmentSubmissionsPage = async ({ params }: Props) => {
           </p>
         </div>
       ) : (
-        <SubmissionsList
-          assessmentId={id}
-          submissions={results}
-          requiresApproval={!!assessment.display_review_and_approve_responses}
-        />
+        <>
+          <SubmissionsList
+            assessmentId={id}
+            submissions={results}
+            requiresApproval={!!assessment.display_review_and_approve_responses}
+          />
+          <ServerPagination pagedResource={submissionsPage} />
+        </>
       )}
     </div>
   );

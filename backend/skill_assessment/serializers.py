@@ -299,28 +299,17 @@ class GeneralSkillAssessmentSectionSerializer(serializers.ModelSerializer):
         assessment_type = getattr(self.instance, "assessment_type", None)
         sections = attrs.get("sections")
 
-        # Hybrid assessments freely combine any mix of MCQ/coding/open-ended
-        # sections -- no shape restriction, unlike CUSTOM below.
-        if assessment_type == SkillAssessmentTypes.MIXED:
-            return attrs
+        # MCQ/CODING_TASK/OPEN_ENDED/MIXED all freely accept any mix of
+        # section types -- AddSectionsToSkillAssessmentAPIView.post promotes
+        # assessment_type to MIXED automatically the moment the assessment
+        # actually ends up with more than one section type, instead of
+        # rejecting a recruiter's own attempt to combine types up front (a
+        # single-type assessment used to hard-block adding any other type,
+        # silently discarding whatever the recruiter had just built for it).
 
-        # Single-type assessments (MCQ, CODING_TASK, or OPEN_ENDED)
-        if assessment_type in [
-            SkillAssessmentTypes.CODING_TASK,
-            SkillAssessmentTypes.MCQ,
-            SkillAssessmentTypes.OPEN_ENDED,
-        ]:
-            if len(sections) > 1:
-                raise serializers.ValidationError(
-                    "Multiple sections are only available for custom skill assessments"
-                )
-            section_type = sections[0].get("type")
-            if section_type != assessment_type:
-                message = f"Section is of type {section_type} but assessment is of type {assessment_type}"
-                raise serializers.ValidationError(f"Invalid assessment section. {message}")
-            return attrs
-
-        # Custom assessments
+        # Custom (Tiaago staff-only talent-verification) assessments keep
+        # their strict shape requirement -- unrelated to the recruiter
+        # wizard this validator otherwise serves.
         if assessment_type == SkillAssessmentTypes.CUSTOM:
             if len(sections) != 2:
                 raise serializers.ValidationError(
@@ -565,6 +554,37 @@ class TalentQuestionBankManageSerializer(serializers.ModelSerializer):
             validated_data["open_ended_question"] = OpenEndedQuestion.objects.create(**oeq_data)
 
         return TalentQuestionBank.objects.create(**validated_data)
+
+
+class AdminAssessmentFeedbackSerializer(serializers.ModelSerializer):
+    """Staff-only: the star rating + comment a candidate left on the
+    post-submit "thank you" screen (see AssessmentInviteFeedbackView) --
+    read-only, backs the admin /admin/assessments/feedback page."""
+
+    candidate_name = serializers.SerializerMethodField()
+    candidate_email = serializers.SerializerMethodField()
+    assessment_title = serializers.SerializerMethodField()
+    company_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = CandidateAssessmentSubmission
+        fields = [
+            "id", "feedback_rating", "feedback_comment", "completed_at",
+            "candidate_name", "candidate_email", "assessment_title", "company_name",
+        ]
+
+    def get_candidate_name(self, obj):
+        return get_submission_candidate_name(obj)
+
+    def get_candidate_email(self, obj):
+        return get_submission_candidate_email(obj)
+
+    def get_assessment_title(self, obj):
+        return getattr(obj.skill_assessment, "title", None)
+
+    def get_company_name(self, obj):
+        company = getattr(obj.skill_assessment, "company", None)
+        return getattr(company, "company_name", None)
 
     def update(self, instance, validated_data):
         mcq_data = validated_data.pop("mcq_question", None)
@@ -1671,6 +1691,8 @@ class AIFeedbackSerializer(serializers.Serializer):
     proctoring_has_violation = serializers.BooleanField()
     country = serializers.CharField(allow_null=True, allow_blank=True)
     current_company = serializers.CharField(allow_null=True, allow_blank=True)
+    status = serializers.CharField()
+    status_label = serializers.CharField()
 
 
 

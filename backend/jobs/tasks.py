@@ -413,10 +413,14 @@ def send_assessment_link(job_application_id, trials=0):
         flow_status.save()
     job = job_application.job
     # job.role is free text (not a Role FK) -- resolve is_technical via a
-    # case-insensitive title lookup, same fallback-to-technical default used
-    # in GenerateAssessmentQuestionsView when no matching Role row exists.
+    # case-insensitive title lookup. Defaults to non-technical when no
+    # matching Role row exists: most recruiter-typed role titles that don't
+    # match anything are ordinary (non-engineering) roles, and wrongly
+    # defaulting those to "technical" was bolting an unwanted coding-task
+    # section onto assessments for roles that never asked for one (see the
+    # `if is_technical:` block below, under `if use_template:`).
     matched_role = Role.objects.filter(title__iexact=job.role).first()
-    is_technical = matched_role.is_technical if matched_role else True
+    is_technical = matched_role.is_technical if matched_role else False
     candidate_name = job_application.candidate_full_name
     if job:
         job_difficulty = "beginner"
@@ -534,7 +538,10 @@ def send_assessment_link(job_application_id, trials=0):
                 )
                 # attach skillset/role -- skillsets is a Role FK M2M, so resolve
                 # (or create) a Role row matching job.role's free-text title.
-                skillset_role = matched_role or Role.objects.create(title=job.role)
+                # Carries the is_technical we already resolved above onto a
+                # newly-created row, so a later job with this same free-text
+                # title doesn't get a fresh, unrelated model-default guess.
+                skillset_role = matched_role or Role.objects.create(title=job.role, is_technical=is_technical)
                 company_skill_assessment.skillsets.set([skillset_role])
 
                 # Create one MCQ section per category (a single "Multiple Choice
@@ -780,11 +787,20 @@ def carry_out_resume_analysis(job_application_id):
                 logger.warning(f"areas_for_improvement: {areas_for_improvement}")
                 logger.warning(f"Total Score: {resume_analysis_obj.total_score}")
                 if resume_analysis_obj.total_score >= job.get_screening_threshold():
+                    # Auto-advance to the next stage -- surfaced on the View
+                    # Applicants table so recruiters see candidates move
+                    # forward without manual status changes.
+                    JobApplication.objects.filter(id=job_application_id).update(
+                        status=JobApplication.JobApplicationStatus.REVIEWED
+                    )
                     send_assessment_link.apply_async(
                         args=[job_application_id],
                         countdown=ACCEPTANCE_MAIL_DELAY_SECONDS,
                     )
                 else:
+                    JobApplication.objects.filter(id=job_application_id).update(
+                        status=JobApplication.JobApplicationStatus.REJECTED
+                    )
                     send_rejection_mail.apply_async(
                         args=[job_id, job_application_id, areas_for_improvement],
                         countdown=REJECTION_MAIL_DELAY_SECONDS,
@@ -912,7 +928,9 @@ def generate_job_assessment_questions_task(self, request_id, description, job_re
 
     job_description = "\n\n".join(part for part in [description, job_requirement] if part)
 
-    is_technical = True
+    # Defaults non-technical when role_id doesn't match an existing Role --
+    # see jobs.tasks.send_assessment_link for the matching fix and why.
+    is_technical = False
     if role_id:
         if isinstance(role_id, int) or (isinstance(role_id, str) and str(role_id).strip().isdigit()):
             role = Role.objects.filter(id=int(role_id)).first()

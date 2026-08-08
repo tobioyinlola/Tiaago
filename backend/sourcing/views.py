@@ -1,7 +1,11 @@
+import html
+import re
 import smtplib
+import time
 import logging
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from email.utils import formatdate, make_msgid
 
 from django.conf import settings
 from django.utils import timezone
@@ -294,7 +298,13 @@ class ValidateInviteTokenView(APIView):
 
 
 class SubmitInviteApplicationView(APIView):
-    permission_classes = [IsAuthenticated]
+    """No-login pipeline-invite submission: a candidate fills in their own
+    details, no Tiaago account required, and none is created -- see
+    InviteSubmissionSerializer.create(), which stores request.user only when
+    they happen to already be logged in (PipelineCandidate.user is
+    nullable) rather than requiring it."""
+
+    permission_classes = [AllowAny]
 
     def post(self, request, token):
         invite = get_object_or_404(PipelineInviteLink, token=token)
@@ -496,6 +506,11 @@ class SendOutreachView(APIView):
         sent_count = 0
         failed_count = 0
         from_name = company.company_name or request.user.get_full_name()
+        # Matches the address already hardcoded in the outreach.html footer --
+        # a real, monitored mailbox is required for List-Unsubscribe to help
+        # (rather than hurt) deliverability.
+        unsubscribe_email = "support@tiaago.com"
+        total_records = len(outreach_records)
         try:
             with smtplib.SMTP("smtp.gmail.com", 587, timeout=15) as server:
                 server.ehlo()
@@ -503,7 +518,7 @@ class SendOutreachView(APIView):
                 server.ehlo()
                 server.login(smtp_config.gmail_address, smtp_config.app_password)
 
-                for record in outreach_records:
+                for i, record in enumerate(outreach_records):
                     try:
                         from html import escape as html_escape
                         job_url = f"{settings.FRONTEND_URL}/jobs/{job.apply_token}"
@@ -534,6 +549,14 @@ class SendOutreachView(APIView):
                             personalized_body = personalized_body.replace(placeholder, value)
                         for placeholder, value in subject_replacements.items():
                             personalized_subject = personalized_subject.replace(placeholder, value)
+                        # Plain-text alternative derived before the \n -> <br />
+                        # swap below (which would otherwise leak into the text
+                        # part) -- a text-only fallback is one of the biggest,
+                        # cheapest signals to spam filters that this is a real,
+                        # human-authored message rather than an HTML-only blast.
+                        plain_body = re.sub(r"<[^>]+>", "", personalized_body)
+                        plain_body = html.unescape(plain_body).strip()
+
                         personalized_body = personalized_body.replace("\n", "<br />")
 
                         branded_html = render_to_string("emails/outreach.html", {
@@ -541,12 +564,25 @@ class SendOutreachView(APIView):
                             "body": personalized_body,
                             "company_name": company.company_name or "",
                             "job_link": f"{settings.FRONTEND_URL}/jobs/{job.apply_token}",
+                            "unsubscribe_email": unsubscribe_email,
                         })
 
                         msg = MIMEMultipart("alternative")
                         msg["From"] = f"{from_name} <{smtp_config.gmail_address}>"
                         msg["To"] = record.recipient_email
                         msg["Subject"] = personalized_subject
+                        # Date/Message-ID are unset by default on a bare
+                        # MIMEMultipart -- their absence is itself a spam
+                        # signal most filters check for.
+                        msg["Date"] = formatdate(localtime=True)
+                        msg["Message-ID"] = make_msgid(domain="tiaago.com")
+                        # mailto-based List-Unsubscribe (no separate
+                        # infrastructure needed): recognized by Gmail/Outlook/
+                        # Yahoo as a legitimate opt-out path, which measurably
+                        # helps inbox placement for recruiter-to-candidate
+                        # outreach at this volume.
+                        msg["List-Unsubscribe"] = f"<mailto:{unsubscribe_email}?subject=Unsubscribe>"
+                        msg.attach(MIMEText(plain_body, "plain"))
                         msg.attach(MIMEText(branded_html, "html"))
 
                         server.sendmail(
@@ -563,6 +599,14 @@ class SendOutreachView(APIView):
                         record.error_reason = str(e)[:500]
                         failed_count += 1
                         logger.warning("Outreach send failed to %s: %s", record.recipient_email, e)
+
+                    # Small gap between sends on the same Gmail connection --
+                    # sending a burst of identical-looking messages back-to-
+                    # back is a known trigger for Gmail's own bulk-sending
+                    # abuse detection, which can silently start folder-
+                    # dropping mid-batch.
+                    if i < total_records - 1:
+                        time.sleep(0.4)
 
             smtp_config.last_used_at = timezone.now()
             smtp_config.save(update_fields=["last_used_at"])

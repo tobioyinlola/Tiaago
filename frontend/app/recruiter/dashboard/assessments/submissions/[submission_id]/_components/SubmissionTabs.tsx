@@ -20,15 +20,15 @@ const SubmissionTabs = ({ submissionId }: { submissionId: string }) => {
   const [active, setActive] = useState<(typeof TABS)[number]["id"]>("answers");
 
   return (
-    <div className='bg-white rounded-2lg border border-[#EAECF0] overflow-hidden'>
-      <div className='flex border-b border-[#EAECF0] px-2'>
+    <div>
+      <div className='flex gap-1 mb-4'>
         {TABS.map(tab => (
           <button
             key={tab.id}
             type='button'
             onClick={() => setActive(tab.id)}
             className={cn(
-              "flex items-center gap-2 px-4 py-3.5 text-sm font-medium border-b-2 -mb-px transition-colors",
+              "flex items-center gap-2 px-4 py-3.5 text-sm font-medium border-b-2 transition-colors",
               active === tab.id
                 ? "border-primary text-primary"
                 : "border-transparent text-secondary-black hover:text-primaryBlack"

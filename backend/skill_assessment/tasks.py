@@ -25,6 +25,7 @@ from celery.exceptions import Retry
 from django.db import IntegrityError, OperationalError, transaction
 from skill_assessment.models import GeneralSkillAssessment
 from utils.ai_service import AIService
+from jobs.models import JobApplication
 from jobs.tasks import bill_service
 from payments.models import ReportPAYGFlowStatus
 from django.core.files.storage import default_storage
@@ -260,6 +261,21 @@ def _finalize_submission_score(submission, assessment, total_score, is_passed, p
             flow_status.error_message = ""
             flow_status.save(update_fields=["status", "error_message"])
 
+            # Auto-advance the applicant's pipeline stage on the assessment
+            # result -- mirrors the resume-screening stage transition in
+            # jobs.tasks.carry_out_resume_analysis (REVIEWED on pass /
+            # REJECTED on fail). A pass moves them to PENDING_DECISION
+            # (awaiting interview scheduling/hiring decision); interview
+            # confirmation later flips this to INTERVIEW_SCHEDULED
+            # (jobs/views.py JobApplicationRetrieveUpdateView).
+            JobApplication.objects.filter(id=assessment.job_application_id).update(
+                status=(
+                    JobApplication.JobApplicationStatus.PENDING_DECISION
+                    if is_passed
+                    else JobApplication.JobApplicationStatus.REJECTED
+                )
+            )
+
     # Completion notification -- candidate confirmation + scored result +
     # recruiter notice. Fires exactly once (guarded by completion_email_sent,
     # set before sending so a task retry never double-sends). The scored
@@ -271,9 +287,13 @@ def _finalize_submission_score(submission, assessment, total_score, is_passed, p
     # inside the one guarded completion block, so it only ever fires once.
     if not submission.completion_email_sent:
         if assessment.job_application_id:
-            # Job-application-backed flow: candidate always has a real
-            # TalentProfile+CustomUser (see decision #1 in the standalone-
-            # assessments plan), so candidate.user.email is always valid here.
+            # Job-application-backed flow: candidate has a real
+            # TalentProfile+CustomUser UNLESS this is a guest application (see
+            # jobs.serializers.GuestJobApplicationSerializer) -- send_assessment_link
+            # sets invited_email/invited_name on the assessment for that case
+            # (jobs/tasks.py), so job_application.candidate_full_name/
+            # candidate_email/as_email_recipient() are the guest-safe reads to
+            # use here instead of assuming submission.candidate exists.
             submission.completion_email_sent = True
             submission.save(update_fields=["completion_email_sent"])
 
@@ -281,13 +301,17 @@ def _finalize_submission_score(submission, assessment, total_score, is_passed, p
             candidate = submission.candidate
             candidate_name = (
                 submission.candidate_display_name
-                or candidate.full_name
-                or candidate.user.get_full_name()
-                or candidate.user.username
+                or (candidate.full_name if candidate else "")
+                or (candidate.user.get_full_name() if candidate else "")
+                or (candidate.user.username if candidate else "")
+                or assessment.job_application.candidate_full_name
             )
+            candidate_email = candidate.user.email if candidate else assessment.job_application.candidate_email
 
             try:
-                emails.assessment_submitted_mail(candidate.user, job)
+                emails.assessment_submitted_mail(
+                    candidate.user if candidate else assessment.job_application.as_email_recipient(), job,
+                )
             except Exception:
                 logger.exception("assessment_submitted_mail failed for submission %s", submission.id)
 
@@ -302,7 +326,7 @@ def _finalize_submission_score(submission, assessment, total_score, is_passed, p
                 try:
                     if is_passed:
                         emails.send_assessment_pass_via_handler(
-                            to_email=candidate.user.email,
+                            to_email=candidate_email,
                             talent_name=candidate_name,
                             total_score=total_score,
                             assessment=assessment,
@@ -312,19 +336,23 @@ def _finalize_submission_score(submission, assessment, total_score, is_passed, p
                             is_tiaago=is_tiaago,
                         )
                     else:
-                        from .models import AssessmentCooldown
+                        # Cooldown tracking needs a TalentProfile to attach to
+                        # -- guests don't have one (same as the standalone
+                        # invite branch below, which also skips this).
+                        if candidate:
+                            from .models import AssessmentCooldown
 
-                        AssessmentCooldown.objects.update_or_create(
-                            talent=candidate,
-                            skill_assessment=assessment,
-                            defaults={
-                                "cooldown_ends_at": tz_now() + timedelta(days=14),
-                                "failed_at": tz_now(),
-                            },
-                        )
+                            AssessmentCooldown.objects.update_or_create(
+                                talent=candidate,
+                                skill_assessment=assessment,
+                                defaults={
+                                    "cooldown_ends_at": tz_now() + timedelta(days=14),
+                                    "failed_at": tz_now(),
+                                },
+                            )
                         retake_link = f"{str(FRONTEND_URL).rstrip('/')}/assessments/retake/{assessment.id}"
                         emails.send_assessment_failure_via_handler(
-                            to_email=candidate.user.email,
+                            to_email=candidate_email,
                             talent_name=candidate_name,
                             total_score=total_score,
                             retake_days=14,

@@ -4,15 +4,11 @@ import { useRouter } from "next/navigation";
 
 import WelcomeCard from "./WelcomeCard";
 import PostJobCard from "./PostJobCard";
-import FindTalentsCard from "./FindTalentsCard";
-import AIFeedbackCard from "./AIFeedbackCard";
-import PaymentCard from "./PaymentCard";
-import ConfirmationModal from "./ConfirmationModal";
 import { useRecruiterStore } from "../../store";
 import { useMultiStep } from "@/app/common/store/useMultiStep";
 import Modal from "@/app/common/components/Modal";
 
-const TOTAL_STEPS = 5;
+const TOTAL_STEPS = 2;
 const scrollAreaId = "recruiter-onboarding-scroll-area";
 
 function RecruiterOnboardingCards({ isTeamMember = false }: { isTeamMember?: boolean }) {
@@ -30,24 +26,9 @@ function RecruiterOnboardingCards({ isTeamMember = false }: { isTeamMember?: boo
     s.setHasBeenOnboarded,
   ]);
   const { step: currentStep, nextStep, prevStep, setStep } = useMultiStep();
-  const confirmationModalRef = useRef<HTMLDialogElement>(null);
   const onboardingModalRef = useRef<HTMLDialogElement>(null);
   const userName = profile?.first_name || "there";
   const router = useRouter();
-
-  const handleCloseModal = () => {
-    confirmationModalRef.current?.close();
-  };
-
-  const handleOpenModal = () => {
-    setOnboardingStep(TOTAL_STEPS);
-    setHasBeenOnboarded(true);
-    if (isTeamMember) {
-      onboardingModalRef.current?.close();
-      return;
-    }
-    confirmationModalRef.current?.showModal();
-  };
 
   const scrollToTop = () => {
     const element =
@@ -58,13 +39,24 @@ function RecruiterOnboardingCards({ isTeamMember = false }: { isTeamMember?: boo
     });
   };
 
+  const finishOnboarding = () => {
+    setOnboardingStep(TOTAL_STEPS);
+    setHasBeenOnboarded(true);
+    onboardingModalRef.current?.close();
+  };
+
   const handleNext = () => {
     if (currentStep < TOTAL_STEPS) {
       nextStep(TOTAL_STEPS);
       setOnboardingStep(currentStep + 1);
       scrollToTop();
     } else {
-      handleOpenModal();
+      finishOnboarding();
+      // Team members aren't necessarily the ones who'll post the role --
+      // just close the tour for them instead of redirecting.
+      if (!isTeamMember) {
+        router.push("/recruiter/dashboard/jobs/create");
+      }
     }
   };
 
@@ -73,14 +65,7 @@ function RecruiterOnboardingCards({ isTeamMember = false }: { isTeamMember?: boo
     scrollToTop();
   };
 
-  const handleSkip = () => handleOpenModal();
-
-  const handleUsageBased = () => {
-    handleCloseModal();
-    setStep(0);
-    onboardingModalRef.current?.close();
-    router.push("/recruiter/dashboard/billing");
-  };
+  const handleSkip = () => finishOnboarding();
 
   const renderCurrentCard = () => {
     switch (currentStep) {
@@ -104,36 +89,6 @@ function RecruiterOnboardingCards({ isTeamMember = false }: { isTeamMember?: boo
             onSkip={handleSkip}
           />
         );
-      case 3:
-        return (
-          <FindTalentsCard
-            currentStep={currentStep}
-            totalSteps={TOTAL_STEPS}
-            onNext={handleNext}
-            onPrevious={handlePrevious}
-            onSkip={handleSkip}
-          />
-        );
-      case 4:
-        return (
-          <AIFeedbackCard
-            currentStep={currentStep}
-            totalSteps={TOTAL_STEPS}
-            onNext={handleNext}
-            onPrevious={handlePrevious}
-            onSkip={handleSkip}
-          />
-        );
-      case 5:
-        return (
-          <PaymentCard
-            currentStep={currentStep}
-            totalSteps={TOTAL_STEPS}
-            onNext={handleNext}
-            onPrevious={handlePrevious}
-            onSkip={handleSkip}
-          />
-        );
       default:
         return null;
     }
@@ -142,38 +97,27 @@ function RecruiterOnboardingCards({ isTeamMember = false }: { isTeamMember?: boo
   useEffect(() => {
     if (!hasBeenOnboarded) {
       onboardingModalRef.current?.showModal();
-      setStep(onboardingStep);
+      // Clamp against a stale onboardingStep persisted from before the
+      // tour was shortened to TOTAL_STEPS -- otherwise a returning user
+      // mid-way through the old (longer) tour would land past the last
+      // known step and see a blank, un-closeable modal.
+      setStep(Math.min(onboardingStep, TOTAL_STEPS) || 1);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasBeenOnboarded]);
 
   return (
-    <>
-      <Modal
-        id='onboarding-modal'
-        modalRef={onboardingModalRef}
-        disableBackdropClick
-        disableClose
-        className='md:max-w-2xl w-[90svw]'
-        scrollAreaClassName='max-w-2xl'
-        scrollAreaId={scrollAreaId}
-      >
-        {renderCurrentCard()}
-      </Modal>
-      {/* Confirmation Modal */}
-      <Modal
-        id='confirmation-modal'
-        modalRef={confirmationModalRef}
-        disableBackdropClick
-        disableClose
-      >
-        <ConfirmationModal
-          userName={userName}
-          onClose={handleCloseModal}
-          onUsageBased={handleUsageBased}
-        />
-      </Modal>
-    </>
+    <Modal
+      id='onboarding-modal'
+      modalRef={onboardingModalRef}
+      disableBackdropClick
+      disableClose
+      className='md:max-w-2xl w-[90svw]'
+      scrollAreaClassName='max-w-2xl'
+      scrollAreaId={scrollAreaId}
+    >
+      {renderCurrentCard()}
+    </Modal>
   );
 }
 
