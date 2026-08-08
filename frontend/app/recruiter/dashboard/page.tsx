@@ -104,7 +104,7 @@ const RecruiterDashboard = async () => {
   return (
     <>
       <DisplayErrorMessages errors={errors} />
-      <RecruiterOnboardingCards isTeamMember={!!teamRoleData?.role} />
+      <RecruiterOnboardingCards isTeamMember={teamRole !== "admin"} />
       <div className='flex justify-between items-center mb-8'>
         <h1 className='text-2xl font-switzer text-primary-black'>
           Welcome,{" "}

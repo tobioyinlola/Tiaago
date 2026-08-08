@@ -26,7 +26,17 @@ const RecruiterOnboardingPage = async () => {
     getTeamRole().catch(() => null),
   ]);
 
-  if (teamRoleData?.role) redirect("/recruiter/dashboard");
+  // Every company rep -- including the founding/solo recruiter, who is
+  // exactly who needs to see this page -- gets an auto-created "admin"
+  // team role on first check (see create_user.views.CompanyTeamRoleAPIView),
+  // so `teamRoleData.role` is truthy for them too. Only skip onboarding for
+  // a genuinely *invited* team member (recruiter/viewer, never admin) --
+  // mirrors the same isAdmin distinction recruiter/dashboard/layout.tsx uses
+  // to decide when to redirect *into* onboarding, so the two pages agree
+  // instead of redirecting into each other forever.
+  if (teamRoleData?.role && teamRoleData.role !== "admin") {
+    redirect("/recruiter/dashboard");
+  }
 
   const onboarding = await getCompanyOnboarding().catch(async e => {
     const error = await handleServerApiCallError(e);
