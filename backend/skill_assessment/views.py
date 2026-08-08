@@ -2748,14 +2748,21 @@ class AIOperationsFeedback(APIView, PaginationHandlerMixin):
             resume_experience_relevance_score = resume.experience_relevance_score if resume and resume.experience_relevance_score is not None else 0
             resume_achievement_quality= resume.achievement_quality if resume and resume.achievement_quality is not None else ''
             proctoring_session = proctoring_map.get(submission.id) if submission else None
+            has_account = bool(job_apps.applicant_id)
+            resume_url = None
+            if job_apps.candidate_resume:
+                resume_url = request.build_absolute_uri(job_apps.candidate_resume.url)
             feedback.append({
                 "application_id": job_apps.id,
-                "talent_name": job_apps.applicant.user.get_full_name,
-                "talent_id": job_apps.applicant.user.id,
-                "email": job_apps.applicant.user.email,
-                "phone_number": str(job_apps.applicant.user.phone_number) if job_apps.applicant.user.phone_number else None,
-                "linkedin_url": job_apps.applicant.linkedin_url or None,
-                "profile_picture": request.build_absolute_uri(job_apps.applicant.user.profile_pic.url) if job_apps.applicant.user.profile_pic else None,
+                "talent_name": job_apps.candidate_full_name,
+                "talent_id": job_apps.applicant.user.id if has_account else None,
+                "email": job_apps.candidate_email,
+                "phone_number": job_apps.candidate_phone_number or None,
+                "linkedin_url": job_apps.candidate_linkedin_url or None,
+                "profile_picture": (
+                    request.build_absolute_uri(job_apps.applicant.user.profile_pic.url)
+                    if has_account and job_apps.applicant.user.profile_pic else None
+                ),
                 "role": job_apps.job.role,
                 "resume_analysis_score": resume_score,
                 "resume_review_score":resume_review_score,
@@ -2767,11 +2774,11 @@ class AIOperationsFeedback(APIView, PaginationHandlerMixin):
                 "resume_feedback": resume.detailed_analysis if resume else None,
                 "prescreening_feedback": prescreening.agent_comment if prescreening else None,
                 "assessment_score": assessment_score,
-                "has_passed_tiaago_assessment": job_apps.applicant.has_passed_tiaago_assessment,
+                "has_passed_tiaago_assessment": job_apps.applicant.has_passed_tiaago_assessment if has_account else False,
                 "assessment_title": assessment.title if assessment else None,
-                "portfolio_slug": job_apps.applicant.portfolio_slug_safe,
+                "portfolio_slug": job_apps.applicant.portfolio_slug_safe if has_account else None,
                 "cover_letter":cover_letter,
-                "resume":request.build_absolute_uri(job_apps.applicant.resume.url) if job_apps.applicant.resume else None,
+                "resume": resume_url,
                 "resume_role_match_status": resume_role_match_status,
                 "resume_text_authencity": resume_text_authencity, 
                 "resume_text_authencity_explanation": resume_text_authencity_explanation,
@@ -2797,8 +2804,8 @@ class AIOperationsFeedback(APIView, PaginationHandlerMixin):
                 "proctoring_has_violation": bool(
                     proctoring_session and any(e.severity == "VIOLATION" for e in proctoring_session.events.all())
                 ),
-                "country": job_apps.applicant.country or "",
-                "current_company": current_company_map.get(job_apps.applicant_id, ""),
+                "country": (job_apps.applicant.country or "") if has_account else "",
+                "current_company": current_company_map.get(job_apps.applicant_id, "") if has_account else "",
             })
 
         #return leaderbord in descending order
@@ -2835,17 +2842,12 @@ class StartPreScreeningInterviewView(PreScreeningMixin, APIView):
                     {"detail": "No job application associated with this assessment."},
                     status=status.HTTP_400_BAD_REQUEST
                 )        
-            candidate = assessment.job_application.applicant
-            if not candidate:
-                return Response(
-                    {"detail": "No candidate associated with this assessment."},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
             job_application = assessment.job_application
+            candidate = job_application.applicant
 
             logger.info(
                 f"Starting interview session for assessment_id={assessment_id}, "
-                f"candidate_id={candidate.id}, job_application_id={job_application.id}"
+                f"candidate_id={candidate.id if candidate else 'guest'}, job_application_id={job_application.id}"
             )
 
             session, created = PreScreeningInterviewSession.objects.get_or_create(

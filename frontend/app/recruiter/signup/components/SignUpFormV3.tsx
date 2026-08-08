@@ -47,9 +47,6 @@ const SignUpFormV3 = ({
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const router = useRouter();
   const setAlert = useAlert(state => state.setAlert);
-  const urlSearchParams = new URLSearchParams();
-  if (referral_code) urlSearchParams.set("referral_code", referral_code);
-  if (next) urlSearchParams.set("next", next);
 
   const isInvite = !!invite_token;
 
@@ -210,18 +207,6 @@ const SignUpFormV3 = ({
           >
             {isSubmitting ? "Creating account..." : "Create account"}
           </Button>
-          <p className='text-foreground text-base text-center'>
-            Click{" "}
-            <Link
-              className='text-primary hover:underline'
-              href={`/talents/signup${
-                urlSearchParams.size ? "?" + urlSearchParams.toString() : ""
-              }`}
-            >
-              here
-            </Link>{" "}
-            to Sign Up as a Talent instead
-          </p>
         </form>
       )}
     </Formik>

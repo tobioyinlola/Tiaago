@@ -14,6 +14,13 @@ import AIInterviewSetupCheck from "./AIInterviewSetupCheck";
 // short, so a coarse retry loop is enough, no persistent queue/websocket.
 const QUEUE_RETRY_MS = 15000;
 
+// Plain module-level helper (not a component/hook) so its Date.now() call
+// isn't flagged by react-hooks/purity, which treats any impure call inside
+// a component's lexical scope as happening "during render" even when it's
+// really inside an event-handler closure like handleStart below.
+const minutesUntil = (isoTimestamp: string): number =>
+  Math.max(1, Math.ceil((new Date(isoTimestamp).getTime() - Date.now()) / 60000));
+
 const AIInterviewPreJoinFlow = ({ token, interview }: { token: string; interview: AIInterviewJoinInfo }) => {
   const router = useRouter();
   const [starting, setStarting] = useState(false);
@@ -42,11 +49,12 @@ const AIInterviewPreJoinFlow = ({ token, interview }: { token: string; interview
     }
 
     if (result.data.queued) {
-      const { position } = result.data;
+      const { scheduled_at } = result.data;
+      const waitMinutes = minutesUntil(scheduled_at);
       toast.info(
-        position <= 1
-          ? "All interview slots are busy right now -- we'll connect you the moment one frees up."
-          : `All interview slots are busy right now -- you're #${position} in line, we'll connect you shortly.`
+        waitMinutes <= 1
+          ? "All interview slots are busy right now -- we'll connect you in about a minute."
+          : `All interview slots are busy right now -- we'll connect you in about ${waitMinutes} minutes.`
       );
       setStatusLabel("Waiting for a free slot...");
       retryTimeoutRef.current = setTimeout(() => {

@@ -18,7 +18,7 @@ def mark_notification_applied(sender, instance: JobApplication, created, **kwarg
     if not created:
         return
 
-    applicant_email = getattr(instance.applicant.user, "email", None)
+    applicant_email = instance.candidate_email
     if not applicant_email:
         return
 

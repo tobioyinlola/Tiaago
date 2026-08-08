@@ -745,8 +745,11 @@ class PreScreeningAgent(models.Model):
 
 
 class PreScreeningInterviewSession(models.Model):
+    # Null for a guest job application (no TalentProfile) -- job_application
+    # (required, below) is the real identity anchor either way.
     candidate = models.ForeignKey(
-        TalentProfile, related_name="pre_screening", on_delete=models.CASCADE
+        TalentProfile, related_name="pre_screening", on_delete=models.CASCADE,
+        null=True, blank=True,
     )
     job_application = models.ForeignKey(
         JobApplication, related_name="pre_screening", on_delete=models.CASCADE

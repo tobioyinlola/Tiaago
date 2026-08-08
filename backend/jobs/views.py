@@ -2,7 +2,7 @@ import logging
 import secrets
 from datetime import datetime, timedelta
 from warnings import filters
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.db.models import Prefetch
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import cache_page
@@ -1142,11 +1142,11 @@ class JobTrackViewAPIView(APIView):
 
 class JobApplyByIdView(APIView):
     """No-login job application: any visitor can apply directly with their own
-    name/email/phone/LinkedIn/resume -- no Tiaago account required. A
-    CustomUser + TalentProfile is resolved (or silently provisioned) by email
-    behind the scenes so the resulting JobApplication is completely ordinary:
-    same table, same resume-screening/assessment pipeline, same recruiter
-    Applications list as every other application."""
+    name/email/phone/LinkedIn/resume -- no Tiaago account required, and none
+    is created. The submitted details live directly on the JobApplication
+    row (see GuestJobApplicationSerializer); the resume-screening/assessment
+    pipeline and recruiter Applications list read them from there instead
+    of a TalentProfile."""
 
     permission_classes = [AllowAny]
     parser_classes = [MultiPartParser, FormParser]
@@ -1161,12 +1161,22 @@ class JobApplyByIdView(APIView):
 
         serializer = GuestJobApplicationSerializer(data=request.data, context={"job": job})
         serializer.is_valid(raise_exception=True)
-        application = serializer.save()
+        try:
+            application = serializer.save()
+        except IntegrityError:
+            # validate()'s "already applied" check and this INSERT aren't
+            # atomic -- a double-click/retry can race both requests past
+            # validate() before either commits, so the unique_guest_email_
+            # per_job constraint is the real backstop. Surface the same
+            # friendly message instead of an unhandled 500.
+            return Response(
+                {"error": "You've already applied to this job."}, status=HTTP_400_BAD_REQUEST
+            )
 
         job_owner = job.company
 
         try:
-            emails.application_received_mail(application.applicant.user, job)
+            emails.application_received_mail(application.as_email_recipient(), job)
         except Exception:
             logger.exception("Failed to send application-received email for application %s", application.id)
 

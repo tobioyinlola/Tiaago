@@ -57,7 +57,11 @@ def generate_otp(user, pending_password=None):
 
 def send_otp_to_user(email, pending_password=None):
     subject = "Verify your email"
-    user = CustomUser.objects.filter(email=email).first()
+    # email has no DB-level uniqueness (only username does) -- prefer the
+    # not-yet-verified row for this address so a stray duplicate never
+    # steals an OTP meant for the account actually being verified.
+    candidates = list(CustomUser.objects.filter(email__iexact=email).order_by("-id"))
+    user = next((u for u in candidates if not u.is_verified), candidates[0] if candidates else None)
     otp_code = generate_otp(user, pending_password=pending_password)
     context = {"code": list(otp_code)}
     if user:

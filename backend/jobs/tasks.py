@@ -35,7 +35,6 @@ from skill_assessment.models import (
     TestCase,
     TalentQuestionBank
 )
-from create_user.models import TalentProfile
 from utils.ai_service import AIService
 import time
 import requests
@@ -201,7 +200,7 @@ def create_talent_screening(
             CandidateResumeScreening.objects.create(
                 talent_screening=talent_screening,
                 fee=resume_screening_fee,
-                fee_note=f"Resume screening for {job_application.applicant.user.get_full_name()} for job {job_application.job.title}",
+                fee_note=f"Resume screening for {job_application.candidate_full_name} for job {job_application.job.title}",
                 resume_analysis=resume_analysis,
             )
             # The recruiter should be charged here since it's PAYG
@@ -231,7 +230,7 @@ def add_skill_assessment_to_talent_screening(
                 coding_task_assessment_fee = (
                     latest_pricing.code_skill_assessment_per_candidate_fee
                 )
-        fee_note = f"Skill Assessment fee for {job_application.applicant.user.get_full_name()} for job {job_application.job.title}"
+        fee_note = f"Skill Assessment fee for {job_application.candidate_full_name} for job {job_application.job.title}"
         if mcq:
             fee_note += " (MCQ)"
         if coding_task:
@@ -343,17 +342,17 @@ def notify_jobs_reactivated_after_topup(company_id, job_ids):
 
 
 @shared_task
-def send_rejection_mail(job_id, talent_profile_id, areas_for_improvement=None):
+def send_rejection_mail(job_id, job_application_id, areas_for_improvement=None):
     """
     Send a rejection mail to an applicant.\n
     This is sent after AI analyzes the applicant's resume and marks them as unfit for the role
     """
-    logger.info(f"send_rejection_mail called with job_id={job_id}, talent_profile_id={talent_profile_id}")
+    logger.info(f"send_rejection_mail called with job_id={job_id}, job_application_id={job_application_id}")
     job = Job.objects.filter(id=job_id).first()
-    talent_profile = TalentProfile.objects.filter(id=talent_profile_id).first()
-    if job and talent_profile and talent_profile.user:
+    job_application = JobApplication.objects.filter(id=job_application_id).first()
+    if job and job_application:
         emails.applicant_vetting_mail(
-            talent_profile.user,
+            job_application.as_email_recipient(),
             job,
             "unconsider",
             areas_for_improvement=areas_for_improvement,
@@ -418,8 +417,8 @@ def send_assessment_link(job_application_id, trials=0):
     # in GenerateAssessmentQuestionsView when no matching Role row exists.
     matched_role = Role.objects.filter(title__iexact=job.role).first()
     is_technical = matched_role.is_technical if matched_role else True
-    talent_profile = job_application.applicant
-    if job and talent_profile and talent_profile.user:
+    candidate_name = job_application.candidate_full_name
+    if job:
         job_difficulty = "beginner"
         coding_task_difficulty_level = "Easy"
         assessment_difficulty_level = SkillAssessmentDifficultyLevels.JUNIOR
@@ -515,16 +514,23 @@ def send_assessment_link(job_application_id, trials=0):
             with transaction.atomic():
                 company_skill_assessment = GeneralSkillAssessment.objects.create(
                     company=job.company,
-                    title=f"Assessment for {job.role} role at {job.company.company_name} for  {talent_profile.user.get_full_name()}",
+                    title=f"Assessment for {job.role} role at {job.company.company_name} for  {candidate_name}",
                     published=True,
                     difficulty_level=assessment_difficulty_level,
-                    description=f"Assessment for {job.role} role at {job.company.company_name} for  {talent_profile.user.get_full_name()}",
+                    description=f"Assessment for {job.role} role at {job.company.company_name} for  {candidate_name}",
                     duration_minutes=duration_minutes,
                     passing_grade=job.get_passing_grade(),
                     reference=str(uuid.uuid4().hex)[:15],
                     assessment_id=assessment_id if is_technical else None,
                     assessment_type=SkillAssessmentTypes.CUSTOM,
                     job_application=job_application,
+                    # A guest applicant has no TalentProfile -- reuse the
+                    # existing standalone-invite identity mechanism
+                    # (skill_assessment.utils.get_assessment_candidate_name/
+                    # email already fall back to these) instead of adding a
+                    # second guest-branching path there.
+                    invited_email=job_application.guest_email if not job_application.applicant_id else "",
+                    invited_name=job_application.guest_full_name if not job_application.applicant_id else "",
                 )
                 # attach skillset/role -- skillsets is a Role FK M2M, so resolve
                 # (or create) a Role row matching job.role's free-text title.
@@ -567,7 +573,7 @@ def send_assessment_link(job_application_id, trials=0):
                         test_cases = coding_question.get("test_cases", []) or []
                         coding_task_obj = CodingTask.objects.create(
                             is_ai_generated=coding_question.get("is_ai_generated", False),
-                            title=f"Coding Task for {job.role} role - Applicant {talent_profile.user.get_full_name()}",
+                            title=f"Coding Task for {job.role} role - Applicant {candidate_name}",
                             description=coding_question.get("question"),
                             constraints=coding_question.get("function_signature"),
                             difficulty_level=coding_question.get("difficulty_level", coding_task_difficulty_level),
@@ -625,10 +631,10 @@ def send_assessment_link(job_application_id, trials=0):
         company_skill_assessment.invite_deadline = company_skill_assessment.invite_sent_at + timedelta(hours=72)
         company_skill_assessment.save(update_fields=["invite_sent_at", "invite_deadline"])
 
-        logger.info(f"Attempting to send applicant vetting mail to {talent_profile.user.email}")
+        logger.info(f"Attempting to send applicant vetting mail to {job_application.candidate_email}")
         try:
             emails.applicant_vetting_mail(
-                talent_profile.user, job, "consider",
+                job_application.as_email_recipient(), job, "consider",
                 assessment_link=assessment_link,
                 duration_minutes=company_skill_assessment.duration_minutes,
                 deadline=company_skill_assessment.invite_deadline,
@@ -730,14 +736,12 @@ def carry_out_resume_analysis(job_application_id):
         flow_status.error_message = ""
         flow_status.save()
         job = job_application.job
-        talent_profile = job_application.applicant
-        logger.info(f"Job: {job}, Talent Profile: {talent_profile}, Resume: {talent_profile.resume}")
-        if job and talent_profile and talent_profile.resume:
+        resume = job_application.candidate_resume
+        logger.info(f"Job: {job}, Candidate: {job_application.candidate_full_name}, Resume: {resume}")
+        if job and resume:
             job_id = job.id
-            talent_profile_id = talent_profile.id
-            job_application.id = job_application.id
-            resume_path = talent_profile.resume
-            resume_name = talent_profile.resume.name
+            resume_path = resume
+            resume_name = resume.name
             resume_analysis_obj, recommendation, areas_for_improvement = (
                 on_analyze_resume(
                     job_application=job_application,
@@ -772,20 +776,19 @@ def carry_out_resume_analysis(job_application_id):
                         )
                         return "Insufficient wallet balance"
                 #create_talent_screening(job_application, resume_analysis_obj)
-                if talent_profile.user:
-                    logger.warning(f"Recommendation: {recommendation}")
-                    logger.warning(f"areas_for_improvement: {areas_for_improvement}")
-                    logger.warning(f"Total Score: {resume_analysis_obj.total_score}")
-                    if resume_analysis_obj.total_score >= job.get_screening_threshold():
-                        send_assessment_link.apply_async(
-                            args=[job_application_id],
-                            countdown=ACCEPTANCE_MAIL_DELAY_SECONDS,
-                        )
-                    else:
-                        send_rejection_mail.apply_async(
-                            args=[job_id, talent_profile_id, areas_for_improvement],
-                            countdown=REJECTION_MAIL_DELAY_SECONDS,
-                        )
+                logger.warning(f"Recommendation: {recommendation}")
+                logger.warning(f"areas_for_improvement: {areas_for_improvement}")
+                logger.warning(f"Total Score: {resume_analysis_obj.total_score}")
+                if resume_analysis_obj.total_score >= job.get_screening_threshold():
+                    send_assessment_link.apply_async(
+                        args=[job_application_id],
+                        countdown=ACCEPTANCE_MAIL_DELAY_SECONDS,
+                    )
+                else:
+                    send_rejection_mail.apply_async(
+                        args=[job_id, job_application_id, areas_for_improvement],
+                        countdown=REJECTION_MAIL_DELAY_SECONDS,
+                    )
                 flow_status.status = ReportPAYGFlowStatus.Status.COMPLETED
                 flow_status.error_message = ""
                 flow_status.save()
@@ -802,12 +805,10 @@ def carry_out_resume_analysis(job_application_id):
         else:
             # Handle missing resume or invalid data
             flow_status.status = ReportPAYGFlowStatus.Status.FAILED
-            if not talent_profile:
-                flow_status.error_message = "Talent profile not found"
-            elif not talent_profile.resume:
-                flow_status.error_message = "Resume not found for talent"
+            if not resume:
+                flow_status.error_message = "Resume not found for candidate"
             else:
-                flow_status.error_message = "Invalid job or talent data"
+                flow_status.error_message = "Invalid job or candidate data"
             flow_status.save()
             return f"Resume analysis failed: {flow_status.error_message}"
  
@@ -830,7 +831,6 @@ def carry_out_pending_resume_analyses():
             flow_status.status = ReportPAYGFlowStatus.Status.STARTED
             flow_status.error_message = ""
             flow_status.save()
-            talent_profile = job_application.applicant
             job = job_application.job
             resume_name = pending_resume_analysis.resume_name
             resume_path = pending_resume_analysis.resume_path
@@ -867,17 +867,16 @@ def carry_out_pending_resume_analyses():
                 else:
                     try:
                         create_talent_screening(job_application, resume_analysis_obj)
-                        if talent_profile.user:
-                            if resume_analysis_obj.total_score >= job.get_screening_threshold():
-                                send_assessment_link.apply_async(
-                                    args=[job_application.id],
-                                    countdown=ACCEPTANCE_MAIL_DELAY_SECONDS,
-                                )
-                            else:
-                                send_rejection_mail.apply_async(
-                                    args=[job.id, talent_profile.id, areas_for_improvement],
-                                    countdown=REJECTION_MAIL_DELAY_SECONDS,
-                                )
+                        if resume_analysis_obj.total_score >= job.get_screening_threshold():
+                            send_assessment_link.apply_async(
+                                args=[job_application.id],
+                                countdown=ACCEPTANCE_MAIL_DELAY_SECONDS,
+                            )
+                        else:
+                            send_rejection_mail.apply_async(
+                                args=[job.id, job_application.id, areas_for_improvement],
+                                countdown=REJECTION_MAIL_DELAY_SECONDS,
+                            )
                     except Exception as e:
                         downstream_error = str(e)
                         logger.error(

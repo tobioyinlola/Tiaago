@@ -25,7 +25,12 @@ class JobAdmin(admin.ModelAdmin):
 @admin.register(JobApplication)
 class JobApplicationAdmin(admin.ModelAdmin):
     model = JobApplication
-    list_display = ("applicant", "job", "applied_date", "status")
+    list_display = ("candidate_name", "job", "applied_date", "status")
+
+    @admin.display(description="Candidate")
+    def candidate_name(self, obj):
+        name = obj.candidate_full_name
+        return f"{name} (guest)" if not obj.applicant_id else name
 
 
 class ExperienceInline(admin.TabularInline):

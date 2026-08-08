@@ -99,6 +99,22 @@ def _convert_image_to_jpeg(file_obj, quality=85):
     return new_file
 
 
+def _reject_if_email_taken(value):
+    """Shared by TalentSerializer/CompanySerializer. No claiming, no
+    merging -- if any CustomUser row already exists for this email (real
+    account, or an inert is_guest_provisioned shadow from an ATS sync),
+    signup is simply blocked with the same "already exists" error either
+    way. CustomUser.email has no DB-level uniqueness (only username does,
+    auto-generated so it never collides), so without this check a second
+    CustomUser row could silently end up sharing that email; every
+    email-keyed lookup downstream (OTP resend, email confirm, password
+    reset) is hardened to tolerate that if it ever happens anyway, but
+    blocking it here keeps signup itself simple and predictable."""
+    if User.objects.filter(email__iexact=value).exists():
+        raise serializers.ValidationError("A user with this email already exists.")
+    return value
+
+
 class TalentSerializer(RegisterSerializer):
     full_name = serializers.CharField()
     role = serializers.CharField()
@@ -176,47 +192,9 @@ class TalentSerializer(RegisterSerializer):
         # If we reached here, pass-through original upload
         return value
 
-    def _claim_guest_provisioned_user(self, user, request):
-        """`user` is an inert shadow account auto-provisioned from a guest
-        job application or ATS sync (unusable password, is_guest_provisioned
-        True) -- reuse it in place instead of going through
-        RegisterSerializer.save()'s new-user path, so their existing
-        TalentProfile/JobApplication history is preserved rather than
-        colliding on the unique `username` (= email) constraint.
-
-        Security-critical: this account already holds a real stranger's
-        data (resume, phone, LinkedIn, application history) from whoever
-        the guest application/ATS sync was actually for -- nothing at this
-        point has proven the person submitting *this* signup form owns
-        that inbox. So the submitted password is validated but NOT applied
-        here, and is_guest_provisioned is NOT cleared here either -- the
-        account stays exactly as unusable-password/login-blocked as it was
-        before. The hashed password is stashed on the OTP row that
-        CustomRegisterView.create() sends moments after this returns; only
-        ConfirmEmailView, once that code is verified, actually sets the
-        password and clears is_guest_provisioned. Until then this is a
-        no-op as far as anyone's ability to authenticate as this user."""
-        adapter = get_adapter()
-        cleaned_data = self.get_cleaned_data()
-        password1 = cleaned_data.get("password1", "")
-        if password1:
-            try:
-                adapter.clean_password(password1, user=user)
-            except DjangoValidationError as exc:
-                raise serializers.ValidationError(detail=serializers.as_serializer_error(exc))
-            OneTimePassword.objects.update_or_create(
-                user=user,
-                defaults={"pending_password": make_password(password1)},
-            )
-        return user
-
     @transaction.atomic
     def save(self, request):
-        claimable = getattr(self, "_claimable_guest_user", None)
-        if claimable is not None:
-            user = self._claim_guest_provisioned_user(claimable, request)
-        else:
-            user = super().save(request)
+        user = super().save(request)
         user.full_name = self.validated_data.get("full_name", "")
         parts = user.full_name.split()
         user.first_name = parts[0] if parts else ""
@@ -290,22 +268,7 @@ class TalentSerializer(RegisterSerializer):
         return value
 
     def validate_email(self, value):
-        """
-        Check if the email already exists in the database.
-
-        Exception: a shadow account auto-provisioned from a guest job
-        application or ATS sync (is_guest_provisioned, unusable password)
-        was never actually signed up for -- let this signup claim it
-        instead of blocking on "already exists" (see save() ->
-        _claim_guest_provisioned_user).
-        """
-        existing = User.objects.filter(email__iexact=value).first()
-        if existing:
-            if existing.is_guest_provisioned and not existing.has_usable_password():
-                self._claimable_guest_user = existing
-                return value
-            raise serializers.ValidationError("A user with this email already exists.")
-        return value
+        return _reject_if_email_taken(value)
 
     def validate_role(self, value):
         if not value or not value.strip():
@@ -412,6 +375,9 @@ class CompanySerializer(RegisterSerializer):
             "profile_pic",
             "country",
         )
+
+    def validate_email(self, value):
+        return _reject_if_email_taken(value)
 
     @transaction.atomic
     def save(self, request):

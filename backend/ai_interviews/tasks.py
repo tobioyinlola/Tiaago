@@ -3,6 +3,7 @@ from datetime import timedelta
 
 from celery import shared_task
 from django.conf import settings
+from django.db import transaction
 from django.utils import timezone
 
 from notifications.models import Notification
@@ -15,6 +16,75 @@ logger = logging.getLogger(__name__)
 FRONTEND_URL = getattr(settings, "FRONTEND_URL", "https://www.tiaago.com/")
 
 
+def _candidate_name(interview):
+    """Candidate's display name for notifications/emails -- the real
+    TalentProfile's for a logged-in applicant, or the guest's submitted
+    name (via job_application) for a guest applicant. Every caller here is
+    on a non-preview interview, which always has one or the other."""
+    candidate = interview.candidate
+    if candidate:
+        return candidate.full_name or candidate.user.get_full_name()
+    if interview.job_application_id:
+        return interview.job_application.candidate_full_name
+    return "Candidate"
+
+
+def _candidate_recipient(interview):
+    """(email, first_name) for candidate-facing emails -- same real-vs-guest
+    fallback as _candidate_name."""
+    candidate = interview.candidate
+    if candidate:
+        first_name = candidate.user.first_name or (candidate.full_name.split(" ")[0] if candidate.full_name else "")
+        return candidate.user.email, first_name
+    if interview.job_application_id:
+        job_application = interview.job_application
+        full_name = job_application.candidate_full_name
+        first_name = full_name.split(" ")[0] if full_name else ""
+        return job_application.candidate_email, first_name
+    return "", ""
+
+
+def _get_or_generate_job_questions(job, company_name):
+    """Returns this job's AI-interview question list, generating it once
+    (via the AI service) and caching on Job.ai_interview_questions the
+    first time any candidate reaches this job's interview -- every
+    subsequent candidate for the same job gets this exact same set,
+    ensuring consistent questions/evaluation criteria across candidates
+    instead of a fresh (and differently-worded) AI call per interview.
+    Generic/role-level only (no per-candidate resume/assessment context),
+    since the whole point is that it's shared. Raises on failure, same as
+    the direct AIService call callers previously made.
+
+    Locks the Job row for the whole check-generate-save so two candidates
+    for the same job finishing their assessment at nearly the same moment
+    can't both see an empty cache and both trigger a (paid) AI call --
+    the second just waits for the first's result instead."""
+    from jobs.models import Job
+
+    with transaction.atomic():
+        job = Job.objects.select_for_update().get(pk=job.pk)
+        if job.ai_interview_questions:
+            return job.ai_interview_questions
+
+        payload = {
+            "job_title": job.title,
+            "company_name": company_name,
+            "description": job.description,
+            "requirements": job.job_requirement,
+            "resume_summary": "",
+            "assessment_score": None,
+            "weak_areas": [],
+            "duration_minutes": job.ai_interview_duration_minutes,
+            "questions_count": job.ai_interview_questions_count,
+        }
+        result = AIService.generate_ai_interview_questions(payload)
+        questions = result.get("questions") if result else None
+        if questions:
+            job.ai_interview_questions = questions
+            job.save(update_fields=["ai_interview_questions"])
+        return questions
+
+
 @shared_task(bind=True, name="generate_questions_and_invite_task", max_retries=2)
 def generate_questions_and_invite_task(self, interview_id):
     """Generates the question set for one AI interview, saves it, then
@@ -24,41 +94,23 @@ def generate_questions_and_invite_task(self, interview_id):
     assessment-marking path that triggered this already returned."""
     from .models import AIInterview, AIInterviewQuestion
 
-    interview = AIInterview.objects.select_related("job", "candidate__user", "organisation").filter(
-        id=interview_id
-    ).first()
+    interview = AIInterview.objects.select_related(
+        "job", "candidate__user", "job_application", "organisation"
+    ).filter(id=interview_id).first()
     if not interview:
         logger.warning("AIInterview %s not found", interview_id)
         return
 
-    from .services import get_candidate_context, get_job_application_for, get_weak_areas_for
-
     job = interview.job
-    candidate = interview.candidate
-    job_application = get_job_application_for(job, candidate)
-    resume_summary, assessment_score = get_candidate_context(job, candidate, job_application)
-    weak_areas = get_weak_areas_for(job_application)
-
-    payload = {
-        "job_title": job.title,
-        "company_name": interview.organisation.company_name,
-        "description": job.description,
-        "requirements": job.job_requirement,
-        "resume_summary": resume_summary[:3000],
-        "assessment_score": assessment_score,
-        "weak_areas": weak_areas,
-        "duration_minutes": job.ai_interview_duration_minutes,
-        "questions_count": job.ai_interview_questions_count,
-    }
 
     try:
-        result = AIService.generate_ai_interview_questions(payload)
+        questions = _get_or_generate_job_questions(job, interview.organisation.company_name)
     except Exception as e:
         if self.request.retries < self.max_retries:
             raise self.retry(exc=e, countdown=30 * (self.request.retries + 1))
-        result = None
+        questions = None
 
-    if not result or not result.get("questions"):
+    if not questions:
         interview.status = AIInterview.Status.FAILED
         interview.save(update_fields=["status"])
         logger.error("Question generation failed for AIInterview %s", interview_id)
@@ -77,15 +129,15 @@ def generate_questions_and_invite_task(self, interview_id):
                 concern_signals=q.get("concern_signals", []),
                 transition_phrase=q.get("transition_phrase", ""),
             )
-            for q in result["questions"]
+            for q in questions
         ]
     )
 
     interview.invitation_sent_at = timezone.now()
     interview.save(update_fields=["invitation_sent_at"])
 
-    _send_invitation_email(interview, job, candidate)
-    _notify_recruiter_invited(interview, job, candidate)
+    _send_invitation_email(interview, job)
+    _notify_recruiter_invited(interview, job)
 
     # One-shot ETA-scheduled follow-ups, same pattern as
     # scheduler.views' send_meeting_reminder/meeting_invite_others
@@ -115,26 +167,15 @@ def generate_preview_questions_task(self, interview_id):
         return
 
     job = interview.job
-    payload = {
-        "job_title": job.title,
-        "company_name": interview.organisation.company_name,
-        "description": job.description,
-        "requirements": job.job_requirement,
-        "resume_summary": "",
-        "assessment_score": None,
-        "weak_areas": [],
-        "duration_minutes": job.ai_interview_duration_minutes,
-        "questions_count": job.ai_interview_questions_count,
-    }
 
     try:
-        result = AIService.generate_ai_interview_questions(payload)
+        questions = _get_or_generate_job_questions(job, interview.organisation.company_name)
     except Exception as e:
         if self.request.retries < self.max_retries:
             raise self.retry(exc=e, countdown=30 * (self.request.retries + 1))
-        result = None
+        questions = None
 
-    if not result or not result.get("questions"):
+    if not questions:
         interview.status = AIInterview.Status.FAILED
         interview.save(update_fields=["status"])
         logger.error("Preview question generation failed for AIInterview %s", interview_id)
@@ -153,16 +194,15 @@ def generate_preview_questions_task(self, interview_id):
                 concern_signals=q.get("concern_signals", []),
                 transition_phrase=q.get("transition_phrase", ""),
             )
-            for q in result["questions"]
+            for q in questions
         ]
     )
     interview.invitation_sent_at = timezone.now()
     interview.save(update_fields=["invitation_sent_at"])
 
 
-def _send_invitation_email(interview, job, candidate):
-    candidate_email = candidate.user.email
-    first_name = candidate.user.first_name or (candidate.full_name.split(" ")[0] if candidate.full_name else "")
+def _send_invitation_email(interview, job):
+    candidate_email, first_name = _candidate_recipient(interview)
     context = {
         "first_name": first_name,
         "company": interview.organisation.company_name,
@@ -183,7 +223,7 @@ def _send_invitation_email(interview, job, candidate):
         logger.exception("Failed to send AI interview invite email for interview %s", interview.id)
 
 
-def _notify_recruiter_invited(interview, job, candidate):
+def _notify_recruiter_invited(interview, job):
     recipient = getattr(interview.organisation, "company_rep", None)
     if not recipient:
         return
@@ -191,7 +231,7 @@ def _notify_recruiter_invited(interview, job, candidate):
         notify_user(
             recipient,
             "Candidate invited to AI interview",
-            f"{candidate.full_name or candidate.user.get_full_name()} passed the assessment for "
+            f"{_candidate_name(interview)} passed the assessment for "
             f"{job.title} and has been invited to an AI interview.",
             notification_type=Notification.Type.INTERVIEW,
             link_path=f"recruiter/dashboard/ai-interviews/{interview.id}",
@@ -208,9 +248,9 @@ def process_completed_ai_interview_task(self, interview_id):
     the recruiter and emails the candidate their feedback."""
     from .models import AIInterview
 
-    interview = AIInterview.objects.select_related("job", "candidate__user", "organisation").filter(
-        id=interview_id
-    ).first()
+    interview = AIInterview.objects.select_related(
+        "job", "candidate__user", "job_application", "organisation"
+    ).filter(id=interview_id).first()
     if not interview:
         logger.warning("AIInterview %s not found", interview_id)
         return
@@ -232,17 +272,14 @@ def process_completed_ai_interview_task(self, interview_id):
         "completed_at", "status", "summary_status",
     ])
 
-    from .services import display_first_name
-
     questions = list(interview.questions.order_by("question_number"))
     job = interview.job
-    candidate = interview.candidate
 
     payload = {
         "job_title": job.title,
         "company_name": interview.organisation.company_name,
         "requirements": job.job_requirement,
-        "candidate_name": candidate.full_name if candidate else display_first_name(interview),
+        "candidate_name": _candidate_name(interview),
         "transcript": transcript_raw,
         "questions": [
             {
@@ -300,14 +337,14 @@ def process_completed_ai_interview_task(self, interview_id):
     # Preview interviews have no real candidate to email and the recruiter
     # already knows the result (they're the one who ran it) -- skip both.
     if not interview.is_preview:
-        _notify_recruiter_ready(interview, job, candidate)
-        _send_candidate_feedback(interview, job, candidate)
+        _notify_recruiter_ready(interview, job)
+        _send_candidate_feedback(interview, job)
 
 
-def _notify_recruiter_ready(interview, job, candidate):
+def _notify_recruiter_ready(interview, job):
     recipient = getattr(interview.organisation, "company_rep", None)
     review_url = f"{str(FRONTEND_URL).rstrip('/')}/recruiter/dashboard/ai-interviews/{interview.id}"
-    candidate_name = candidate.full_name or candidate.user.get_full_name()
+    candidate_name = _candidate_name(interview)
     overall = interview.overall_score
 
     if recipient:
@@ -342,14 +379,15 @@ def _notify_recruiter_ready(interview, job, candidate):
             logger.exception("Failed to send AI interview complete email for interview %s", interview.id)
 
 
-def _send_candidate_feedback(interview, job, candidate):
+def _send_candidate_feedback(interview, job):
     if not interview.candidate_feedback:
         return
+    candidate_email, first_name = _candidate_recipient(interview)
     try:
-        EmailHandler(recipients=[candidate.user.email]).send_mail(
+        EmailHandler(recipients=[candidate_email]).send_mail(
             subject=f"Your interview feedback — {job.title} at {interview.organisation.company_name}",
             context={
-                "first_name": candidate.user.first_name,
+                "first_name": first_name,
                 "company": interview.organisation.company_name,
                 "role": job.title,
                 "feedback_content": interview.candidate_feedback,
@@ -371,19 +409,18 @@ def send_ai_interview_reminder_task(interview_id):
     candidate already joined/completed/expired by the time it fires."""
     from .models import AIInterview
 
-    interview = AIInterview.objects.select_related("job", "candidate__user", "organisation").filter(
-        id=interview_id
-    ).first()
+    interview = AIInterview.objects.select_related(
+        "job", "candidate__user", "job_application", "organisation"
+    ).filter(id=interview_id).first()
     if not interview or interview.status != AIInterview.Status.INVITED:
         return
     if timezone.now() > interview.window_end_at:
         return
 
     job = interview.job
-    candidate = interview.candidate
-    first_name = candidate.user.first_name or (candidate.full_name.split(" ")[0] if candidate.full_name else "")
+    candidate_email, first_name = _candidate_recipient(interview)
     try:
-        EmailHandler(recipients=[candidate.user.email]).send_mail(
+        EmailHandler(recipients=[candidate_email]).send_mail(
             subject="Reminder: your AI interview is still open",
             context={
                 "first_name": first_name,
@@ -410,9 +447,9 @@ def send_ai_interview_no_show_followup_task(interview_id):
     marks the interview NO_SHOW and sends the candidate a follow-up."""
     from .models import AIInterview
 
-    interview = AIInterview.objects.select_related("job", "candidate__user", "organisation").filter(
-        id=interview_id
-    ).first()
+    interview = AIInterview.objects.select_related(
+        "job", "candidate__user", "job_application", "organisation"
+    ).filter(id=interview_id).first()
     if not interview or interview.status not in (AIInterview.Status.INVITED, AIInterview.Status.SCHEDULED):
         return
 
@@ -420,12 +457,12 @@ def send_ai_interview_no_show_followup_task(interview_id):
     interview.save(update_fields=["status"])
 
     job = interview.job
-    candidate = interview.candidate
+    candidate_email, first_name = _candidate_recipient(interview)
     try:
-        EmailHandler(recipients=[candidate.user.email]).send_mail(
+        EmailHandler(recipients=[candidate_email]).send_mail(
             subject="Your AI interview window has closed",
             context={
-                "first_name": candidate.user.first_name,
+                "first_name": first_name,
                 "company": interview.organisation.company_name,
                 "role": job.title,
             },
@@ -443,7 +480,7 @@ def send_ai_interview_no_show_followup_task(interview_id):
             notify_user(
                 recipient,
                 "Candidate didn't complete their AI interview",
-                f"{candidate.full_name or candidate.user.get_full_name()} didn't join their AI interview "
+                f"{_candidate_name(interview)} didn't join their AI interview "
                 f"for {job.title} within the window.",
                 notification_type=Notification.Type.INTERVIEW,
                 link_path=f"recruiter/dashboard/ai-interviews/{interview.id}",

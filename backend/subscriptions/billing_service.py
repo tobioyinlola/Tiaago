@@ -55,10 +55,8 @@ def get_or_create_wallet(company: Company) -> Wallet:
     return wallet
 
 
-def _candidate_description(candidate, job, stage):
-    name = getattr(candidate, "full_name", "") or ""
-    if not name and getattr(candidate, "user", None):
-        name = candidate.user.get_full_name() or candidate.user.username
+def _candidate_description(job_application, job, stage):
+    name = job_application.candidate_full_name if job_application else ""
     role = getattr(job, "title", None) or getattr(job, "role", None) or "the role"
     return f"{stage} — {name or 'Candidate'} for {role}"
 
@@ -198,21 +196,24 @@ class BillingService:
     @staticmethod
     def process_resume_candidate_screening(job_application):
         """Charges (or covers via free credit) exactly once for a given
-        (organisation, job, candidate). Returns
+        (organisation, job_application). Returns
         {"success": bool, "reason": "free_credit"|"charged"|"insufficient_funds"|"already_charged",
          "amount_charged": Decimal|None}."""
         job = job_application.job
         organisation = job.company
         candidate = job_application.applicant
 
-        # get_or_create is race-safe on the (organisation, job, candidate)
+        # get_or_create is race-safe on the (organisation, job_application)
         # unique constraint -- Django retries internally on IntegrityError.
-        CandidateBillingRecord.objects.get_or_create(organisation=organisation, job=job, candidate=candidate)
+        CandidateBillingRecord.objects.get_or_create(
+            organisation=organisation, job_application=job_application,
+            defaults={"job": job, "candidate": candidate},
+        )
 
         just_exhausted = False
         with transaction.atomic():
             record = CandidateBillingRecord.objects.select_for_update().get(
-                organisation=organisation, job=job, candidate=candidate
+                organisation=organisation, job_application=job_application
             )
             if record.resume_screening_charged:
                 return {"success": True, "reason": "already_charged", "amount_charged": None}
@@ -231,7 +232,7 @@ class BillingService:
                     amount=Decimal("0.00"),
                     currency=wallet.currency,
                     balance_after=wallet.balance,
-                    description=_candidate_description(candidate, job, "Free tier credit used — resume screening"),
+                    description=_candidate_description(job_application, job, "Free tier credit used — resume screening"),
                     status=WalletTransaction.Status.COMPLETED,
                     job=job,
                     candidate=candidate,
@@ -249,7 +250,7 @@ class BillingService:
                 else:
                     wallet.debit(
                         amount=price,
-                        description=_candidate_description(candidate, job, "Resume screening"),
+                        description=_candidate_description(job_application, job, "Resume screening"),
                         currency=wallet.currency,
                         service_type=WalletTransaction.ServiceType.RESUME_SCREENING,
                         job=job,
@@ -288,12 +289,15 @@ class BillingService:
         organisation = job.company
         candidate = job_application.applicant
 
-        CandidateBillingRecord.objects.get_or_create(organisation=organisation, job=job, candidate=candidate)
+        CandidateBillingRecord.objects.get_or_create(
+            organisation=organisation, job_application=job_application,
+            defaults={"job": job, "candidate": candidate},
+        )
 
         just_exhausted = False
         with transaction.atomic():
             record = CandidateBillingRecord.objects.select_for_update().get(
-                organisation=organisation, job=job, candidate=candidate
+                organisation=organisation, job_application=job_application
             )
             if record.assessment_charged:
                 return {"success": True, "reason": "already_charged", "amount_charged": None}
@@ -312,7 +316,7 @@ class BillingService:
                     amount=Decimal("0.00"),
                     currency=wallet.currency,
                     balance_after=wallet.balance,
-                    description=_candidate_description(candidate, job, "Free tier credit used — assessment"),
+                    description=_candidate_description(job_application, job, "Free tier credit used — assessment"),
                     status=WalletTransaction.Status.COMPLETED,
                     job=job,
                     candidate=candidate,
@@ -330,7 +334,7 @@ class BillingService:
                 else:
                     wallet.debit(
                         amount=price,
-                        description=_candidate_description(candidate, job, "Assessment"),
+                        description=_candidate_description(job_application, job, "Assessment"),
                         currency=wallet.currency,
                         service_type=WalletTransaction.ServiceType.ASSESSMENT,
                         job=job,

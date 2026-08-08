@@ -56,8 +56,11 @@ def get_assessment_candidate_name(assessment):
     if assessment is None:
         return None
     if assessment.job_application_id:
-        applicant = assessment.job_application.applicant
-        return applicant.full_name or applicant.user.get_full_name() or applicant.user.username
+        # job_application.candidate_full_name already falls back to the
+        # guest's submitted name when there's no TalentProfile (a guest
+        # job application) -- invited_name is a further fallback in case
+        # that's also unset.
+        return assessment.job_application.candidate_full_name or assessment.invited_name
     if assessment.assigned_to_id:
         talent = assessment.assigned_to
         return talent.full_name or talent.user.get_full_name() or talent.user.username
@@ -68,7 +71,7 @@ def get_assessment_candidate_email(assessment):
     if assessment is None:
         return None
     if assessment.job_application_id:
-        return assessment.job_application.applicant.user.email
+        return assessment.job_application.candidate_email or assessment.invited_email
     if assessment.assigned_to_id:
         return assessment.assigned_to.user.email
     return assessment.invited_email
