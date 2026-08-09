@@ -488,3 +488,74 @@ def send_ai_interview_no_show_followup_task(interview_id):
             )
         except Exception:
             logger.exception("Failed to notify recruiter of AI interview no-show for interview %s", interview.id)
+
+
+@shared_task(name="send_ai_interview_proceed_invite")
+def send_ai_interview_proceed_invite(interview_id):
+    """Fired when a recruiter decides ACCEPTED/OVERRIDDEN_PROCEED on an AI
+    interview (see ai_interviews.views.RecruiterAIInterviewDecisionView).
+    Invites the candidate to pick a human-interview time from the slots the
+    recruiter published for this job -- mirrors
+    skill_assessment.tasks.send_interview_slot_selection_invite (the
+    equivalent for the non-AI-interview pipeline), sourced from the
+    interview/job_application directly instead of an assessment submission."""
+    from jobs.models import JobApplication
+    from skill_assessment.models import GeneralSkillAssessment
+
+    from .models import AIInterview
+
+    interview = AIInterview.objects.select_related("job", "job__company", "job_application").filter(
+        id=interview_id
+    ).first()
+    if not interview or not interview.job_application_id:
+        return
+
+    job = interview.job
+    job_application = interview.job_application
+
+    if not job.interview_availability_slots.filter(is_claimed=False).exists():
+        logger.warning(
+            "send_ai_interview_proceed_invite: no published interview slots for job %s (interview %s)",
+            job.id, interview_id,
+        )
+        return
+
+    base = str(FRONTEND_URL).rstrip("/") + "/"
+    if job_application.applicant_id:
+        slots_url = f"https://{base}talents/jobs/{job.public_id}/interview-slots"
+    else:
+        # Guest applicant -- no login to reach the talent-only slots page,
+        # so route through the same token-based guest flow used by
+        # send_interview_slot_selection_invite. The candidate necessarily
+        # has a passing GeneralSkillAssessment already: reaching the
+        # AI-interview stage requires it (see
+        # skill_assessment.tasks.mark_skill_assessment_submission).
+        assessment = GeneralSkillAssessment.objects.filter(job_application=job_application).first()
+        if not assessment:
+            logger.warning(
+                "send_ai_interview_proceed_invite: no assessment invite_token for guest job_application %s",
+                job_application.id,
+            )
+            return
+        slots_url = f"https://{base}jobs/interview-slots/{assessment.invite_token}"
+
+    candidate_email, first_name = _candidate_recipient(interview)
+    if not candidate_email:
+        logger.warning("send_ai_interview_proceed_invite: no candidate email for interview %s", interview_id)
+        return
+
+    context = {
+        "first_name": first_name,
+        "company": job.company.company_name,
+        "role": job.title,
+        "slots_url": slots_url,
+    }
+    try:
+        EmailHandler(recipients=[candidate_email]).send_mail(
+            subject="Pick your interview time",
+            context=context,
+            template="emails/interview_slot_selection.html",
+            email_type=EmailTypes.INTERVIEW_SLOT_SELECTION_MAIL,
+        )
+    except Exception:
+        logger.exception("Failed to send interview slot selection invite for interview %s", interview_id)

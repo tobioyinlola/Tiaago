@@ -19,16 +19,13 @@ import {
 import { addToPipeline, getCategories } from "@/app/common/services/sourcing";
 import AIFeedbackModal from "./AIFeedbackModal";
 import { IntegrityScoreBadge, ProctoringViolationFlag } from "@/app/common/components/dashboard/ProctoringBadges";
-import JsFileDownloader from "js-file-downloader";
 import SearchBar from "@/app/common/components/SearchBar";
 import TalentApplicationCard from "./TalentApplicationCard";
 import ScrollArea from "@/app/common/components/ScrollArea";
 import ProfileModal from "@/app/common/components/ProfileModal";
-import { cn, handlePlural, openModal } from "@/app/common/utils";
+import { cn, handlePlural } from "@/app/common/utils";
 import { jobApplicationMenuItems } from "./jobApplicationMenuItems";
-import CoverLetterModal from "@/app/common/components/CoverLetterModal";
 import { AvatarWithVerifiedBadge } from "@/app/common/components/UserAvatar";
-import ScheduleMeetingModal from "@/app/common/components/ProfileModal/ScheduleMeetingModal";
 import { Button } from "@/app/common/components/ui/button";
 import {
   Dialog,
@@ -204,7 +201,6 @@ export const JobApplicationsTable = ({
     GENERAL_PIPELINE_VALUE
   );
   // const profileModalRef = useRef<HTMLDialogElement>(null);
-  const coverLetterModalRef = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
     if (!pipelineTarget) return;
@@ -259,21 +255,6 @@ export const JobApplicationsTable = ({
       // case "View profile":
       //   profileModalRef.current?.showModal();
       //   break;
-      case "Download Resume":
-        new JsFileDownloader({
-          url: item.resume,
-        })
-          .then(() => toast.success("download successful"))
-          .catch(error => {
-            window.open(item.resume, "_blank");
-          });
-        break;
-      case "View Cover Letter":
-        coverLetterModalRef.current?.showModal();
-        break;
-      case "Schedule Interview":
-        openModal("schedule-meeting");
-        break;
       case "Add to Pipeline":
         setPipelineTarget(item);
         break;
@@ -323,6 +304,7 @@ export const JobApplicationsTable = ({
               <th className='max-sm:hidden'>Resume Analysis Score</th>
               <th>Assessment Score</th>
               {/* <th>Pre-screening Score</th> */}
+              <th>AI Interview Score</th>
               <th>Overall Score</th>
               <th className='max-sm:hidden'>Proctoring</th>
               <th>Stage</th>
@@ -403,6 +385,35 @@ export const JobApplicationsTable = ({
                         {feedback.assessment_score}/{100}
                       </p>
                     </div>
+                  </td>
+                  <td>
+                    {feedback.ai_interview_score == null ? (
+                      <p className='text-[#98A2B3] text-xs text-center'>—</p>
+                    ) : (
+                      <div className='relative h-4 w-32 sm:w-56'>
+                        <progress
+                          className='progress [&::-moz-progress-bar]:bg-[#7C5CFC] [&::-webkit-progress-value]:bg-[#7C5CFC] h-4 bg-transparent z-[2] rounded-[4px] [&::-webkit-progress-value]:rounded-[4px] [&::-moz-progress-bar]:rounded-[4px]'
+                          value={(feedback.ai_interview_score / 100) * 100}
+                          max={100}
+                        />
+                        <progress
+                          className='progress bg-[#7C5CFC1A] rounded-[4px] h-4 absolute left-0 top-0 z-[1]'
+                          value={0}
+                          max={100}
+                        />
+                        <p
+                          className={cn(
+                            "absolute top-0 left-0 text-white text-xs font-medium z-[3] text-center pr-1.5",
+                            feedback.ai_interview_score <= 10 && "text-[#FF0000]"
+                          )}
+                          style={{
+                            width: `${(feedback.ai_interview_score / 100) * 100}%`,
+                          }}
+                        >
+                          {Math.round(feedback.ai_interview_score)}/{100}
+                        </p>
+                      </div>
+                    )}
                   </td>
                   {/* <td>
                     <div className='relative h-4 w-56'>
@@ -503,7 +514,7 @@ export const JobApplicationsTable = ({
               ))
             ) : (
               <tr>
-                <td colSpan={8}>
+                <td colSpan={9}>
                   <EmptyStateV3 text='No applications yet' />
                 </td>
               </tr>
@@ -518,15 +529,6 @@ export const JobApplicationsTable = ({
             aiFeedback={activeApplicant}
             roles={roles}
           /> */}
-          <ScheduleMeetingModal
-            talentID={activeApplicant.talent_id}
-            name={activeApplicant.talent_name}
-            buttonClassName='hidden'
-          />
-          <CoverLetterModal
-            modalRef={coverLetterModalRef}
-            coverLetter={activeApplicant.cover_letter}
-          />
           <AIFeedbackModal
             aiFeedback={activeApplicant}
             isOpen={isModalOpen}

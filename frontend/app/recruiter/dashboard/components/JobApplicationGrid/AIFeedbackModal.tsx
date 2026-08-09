@@ -32,6 +32,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/app/common/component
 import { IntegrityScoreBadge } from "@/app/common/components/dashboard/ProctoringBadges";
 import ProctoringReportTab from "./ProctoringReportTab";
 import AssessmentQuestionsTab from "./AssessmentQuestionsTab";
+import AIInterviewTab from "./AIInterviewTab";
 
 interface AIFeedbackModalProps {
   isOpen: boolean;
@@ -183,6 +184,7 @@ const AIFeedbackModal: React.FC<AIFeedbackModalProps> = ({
                 <IntegrityScoreBadge score={aiFeedback.proctoring_integrity_score} riskLevel={aiFeedback.proctoring_risk_level} />
               )}
             </TabsTrigger>
+            {aiFeedback.ai_interview_id != null && <TabsTrigger value='ai-interview'>AI Interview</TabsTrigger>}
           </TabsList>
 
           <TabsContent value='feedback' className='mt-0'>
@@ -761,6 +763,12 @@ const AIFeedbackModal: React.FC<AIFeedbackModalProps> = ({
               </p>
             )}
           </TabsContent>
+
+          {aiFeedback.ai_interview_id != null && (
+            <TabsContent value='ai-interview' className='mt-0'>
+              <AIInterviewTab interviewId={aiFeedback.ai_interview_id} />
+            </TabsContent>
+          )}
         </Tabs>
       </div>
     </div>

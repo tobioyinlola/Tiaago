@@ -1654,6 +1654,8 @@ class AIFeedbackSerializer(serializers.Serializer):
     resume_feedback = serializers.CharField()
     prescreening_feedback = serializers.CharField()
     assessment_score = serializers.FloatField()
+    ai_interview_score = serializers.FloatField(allow_null=True)
+    ai_interview_id = serializers.CharField(allow_null=True)
     email = serializers.EmailField()
     phone_number = serializers.CharField(allow_null=True)
     linkedin_url = serializers.CharField(allow_null=True)
