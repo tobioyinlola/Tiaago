@@ -11,6 +11,7 @@ from .views import (
     RecruiterAIInterviewDecisionView,
     RecruiterAIInterviewDetailView,
     RecruiterAIInterviewListView,
+    RecruiterAIInterviewNotesView,
     RecruiterAIInterviewTranscriptView,
     TriggerAIInterviewPreviewView,
 )
@@ -33,4 +34,5 @@ urlpatterns = [
     path("<uuid:pk>/", RecruiterAIInterviewDetailView.as_view(), name="ai-interview-detail"),
     path("<uuid:pk>/transcript/", RecruiterAIInterviewTranscriptView.as_view(), name="ai-interview-transcript"),
     path("<uuid:pk>/decision/", RecruiterAIInterviewDecisionView.as_view(), name="ai-interview-decision"),
+    path("<uuid:pk>/notes/", RecruiterAIInterviewNotesView.as_view(), name="ai-interview-notes"),
 ]

@@ -452,6 +452,45 @@ class RecruiterAIInterviewDecisionView(APIView):
         interview.save(update_fields=[
             "recruiter_decision", "recruiter_decision_at", "recruiter_decision_by", "recruiter_override_reason",
         ])
+
+        # Mirror the exact stage-transition convention every other
+        # pipeline-advancing action already uses (see
+        # skill_assessment.tasks.mark_skill_assessment_submission: pass ->
+        # PENDING_DECISION, fail -> REJECTED) so this decision shows up
+        # everywhere JobApplication.status is read (Stage column,
+        # stage_counts, etc), not just on this interview's own record.
+        if interview.job_application_id:
+            from jobs.models import JobApplication
+
+            if decision in (AIInterview.RecruiterDecision.ACCEPTED, AIInterview.RecruiterDecision.OVERRIDDEN_PROCEED):
+                JobApplication.objects.filter(id=interview.job_application_id).update(
+                    status=JobApplication.JobApplicationStatus.PENDING_DECISION
+                )
+                from .tasks import send_ai_interview_proceed_invite
+
+                send_ai_interview_proceed_invite.delay(str(interview.id))
+            elif decision == AIInterview.RecruiterDecision.OVERRIDDEN_DECLINE:
+                JobApplication.objects.filter(id=interview.job_application_id).update(
+                    status=JobApplication.JobApplicationStatus.REJECTED
+                )
+
+        return Response(_serialize_interview_detail(interview), status=HTTP_200_OK)
+
+
+class RecruiterAIInterviewNotesView(APIView):
+    """PATCH /api/ai-interviews/<id>/notes/ -- recruiter's freeform notes on
+    this interview (e.g. candidate feedback), editable independent of
+    whether/what decision has been made."""
+
+    permission_classes = [IsAuthenticated]
+
+    def patch(self, request, pk):
+        interview, error = _get_owned_ai_interview(request, pk)
+        if error:
+            return error
+
+        interview.recruiter_notes = (request.data.get("recruiter_notes") or "").strip()
+        interview.save(update_fields=["recruiter_notes"])
         return Response(_serialize_interview_detail(interview), status=HTTP_200_OK)
 
 

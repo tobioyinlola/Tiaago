@@ -49,27 +49,41 @@ const DecisionButtons = ({
     modalRef.current?.showModal();
   };
 
-  if (interview.recruiter_decision && interview.recruiter_decision !== "PENDING") {
-    return (
-      <div className='rounded-xl bg-[#F5F6F7] px-4 py-3 text-sm text-primaryBlack font-medium'>
-        {DECISION_LABEL[interview.recruiter_decision]}
-        {interview.recruiter_override_reason && (
-          <p className='text-xs text-secondary-black font-normal mt-1'>&ldquo;{interview.recruiter_override_reason}&rdquo;</p>
-        )}
-      </div>
-    );
-  }
+  const hasDecided = !!interview.recruiter_decision && interview.recruiter_decision !== "PENDING";
 
   return (
     <>
+      {hasDecided && (
+        <div className='rounded-xl bg-[#F5F6F7] px-4 py-3 text-sm text-primaryBlack font-medium'>
+          Current decision: {DECISION_LABEL[interview.recruiter_decision!]}
+          {interview.recruiter_override_reason && (
+            <p className='text-xs text-secondary-black font-normal mt-1'>&ldquo;{interview.recruiter_override_reason}&rdquo;</p>
+          )}
+        </div>
+      )}
       <div className='flex flex-wrap gap-3'>
-        <DaisyButton color='success' className='text-white' disabled={submitting} onClick={() => submitDecision("ACCEPTED")}>
-          Invite to human interview
+        <DaisyButton
+          color='success'
+          className='text-white'
+          disabled={submitting || interview.recruiter_decision === "ACCEPTED"}
+          onClick={() => submitDecision("ACCEPTED")}
+        >
+          {hasDecided ? "Change to: invite to human interview" : "Invite to human interview"}
         </DaisyButton>
-        <DaisyButton color='warning' variant='outline' disabled={submitting} onClick={() => openOverride("OVERRIDDEN_PROCEED")}>
+        <DaisyButton
+          color='warning'
+          variant='outline'
+          disabled={submitting || interview.recruiter_decision === "OVERRIDDEN_PROCEED"}
+          onClick={() => openOverride("OVERRIDDEN_PROCEED")}
+        >
           Override -- proceed anyway
         </DaisyButton>
-        <DaisyButton color='error' variant='outline' disabled={submitting} onClick={() => openOverride("OVERRIDDEN_DECLINE")}>
+        <DaisyButton
+          color='error'
+          variant='outline'
+          disabled={submitting || interview.recruiter_decision === "OVERRIDDEN_DECLINE"}
+          onClick={() => openOverride("OVERRIDDEN_DECLINE")}
+        >
           Decline candidate
         </DaisyButton>
       </div>

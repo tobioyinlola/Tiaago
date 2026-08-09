@@ -222,6 +222,22 @@ export const submitAIInterviewDecision = async (
   }
 };
 
+export const updateAIInterviewNotes = async (
+  id: ID,
+  recruiter_notes: string
+): Promise<ApiResponse<AIInterviewDetail>> => {
+  try {
+    const data = await serverKyInstance
+      .patch(`ai-interviews/${id}/notes/`, { json: { recruiter_notes } })
+      .json<AIInterviewDetail>();
+    return { success: true, data };
+  } catch (error) {
+    const [errMsg] = await _handleServerApiCallError(error);
+    console.log("updateAIInterviewNotes Error: ", errMsg);
+    return { success: false, error: errMsg };
+  }
+};
+
 export type EligiblePreviewJob = {
   job_id: ID;
   job_title: string;

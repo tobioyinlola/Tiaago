@@ -2888,6 +2888,13 @@ class AIOperationsFeedback(APIView, PaginationHandlerMixin):
             a.job_application_id: a for a in GeneralSkillAssessment.objects.filter(job_application__in=job_applications)
         }
 
+        from ai_interviews.models import AIInterview
+        ai_interview_map = {
+            i.job_application_id: i for i in AIInterview.objects.filter(
+                job_application__in=job_applications, is_preview=False, summary_status=AIInterview.SummaryStatus.READY,
+            ).order_by("created_at")
+        }
+
         assessment_ids = [a.id for a in assessment_map.values() if a]
         submissions = CandidateAssessmentSubmission.objects.filter(
             skill_assessment_id__in=assessment_ids, is_completed=True
@@ -2964,8 +2971,16 @@ class AIOperationsFeedback(APIView, PaginationHandlerMixin):
             resume_score = resume.total_score if resume and resume.total_score is not None else 0
             cultural_score = prescreening.total_points if prescreening and prescreening.total_points is not None else 0
             assessment_score = submission.total_score if submission and submission.total_score is not None else 0
+            ai_interview = ai_interview_map.get(job_apps.id)
+            ai_interview_score = float(ai_interview.overall_score) if ai_interview and ai_interview.overall_score is not None else None
             # scores = [resume_score, cultural_score, assessment_score]
             scores = [resume_score, assessment_score]#used just these two for now, prescreening is not ready yet
+            # Only counted when the candidate has actually reached (and been
+            # scored on) the AI-interview stage -- otherwise a candidate who
+            # simply hasn't gotten there yet would get a phantom 0 dragging
+            # their average down.
+            if ai_interview_score is not None:
+                scores.append(ai_interview_score)
             valid_scores = [float(s) for s in scores if s is not None]
             overall_score = sum(valid_scores) / len(valid_scores) if valid_scores else 0.0
             resume_role_match_status = resume.role_match_status if resume and resume.role_match_status else "no_match"
@@ -3010,6 +3025,8 @@ class AIOperationsFeedback(APIView, PaginationHandlerMixin):
                 "resume_feedback": resume.detailed_analysis if resume else None,
                 "prescreening_feedback": prescreening.agent_comment if prescreening else None,
                 "assessment_score": assessment_score,
+                "ai_interview_score": ai_interview_score,
+                "ai_interview_id": str(ai_interview.id) if ai_interview else None,
                 "has_passed_tiaago_assessment": job_apps.applicant.has_passed_tiaago_assessment if has_account else False,
                 "assessment_title": assessment.title if assessment else None,
                 "portfolio_slug": job_apps.applicant.portfolio_slug_safe if has_account else None,

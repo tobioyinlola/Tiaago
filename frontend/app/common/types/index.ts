@@ -1280,6 +1280,8 @@ export type AiFeedbackItem = {
   overall_feedback: string | null;
   prescreening_feedback: string;
   assessment_score: number;
+  ai_interview_score: number | null;
+  ai_interview_id: string | null;
   email: string;
   phone_number: string | null;
   linkedin_url: string | null;
