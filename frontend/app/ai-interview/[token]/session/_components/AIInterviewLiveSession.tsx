@@ -561,7 +561,7 @@ const AIInterviewLiveSession = ({ token }: { token: string }) => {
         </button>
       </div>
 
-      <Modal id='ai-interview-end-confirm' modalRef={endModalRef} disableBackdropClick>
+      <Modal id='ai-interview-end-confirm' modalRef={endModalRef} disableBackdropClick autoHeight className='max-w-sm'>
         <div className='bg-white rounded-xl p-6 text-center'>
           <div className='mx-auto w-12 h-12 rounded-full bg-error/10 flex items-center justify-center mb-4'>
             <X className='h-6 w-6 text-error' />

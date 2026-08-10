@@ -18,6 +18,7 @@ import { addToPipeline, getCategories } from "@/app/common/services/sourcing";
 import { updateJobApplicationStatus } from "@/app/common/services/jobs";
 import AIFeedbackModal from "./AIFeedbackModal";
 import BoardColumn from "./BoardColumn";
+import { getColumnKey, isBackwardMove, isStageLocked } from "./boardStages";
 import SearchBar from "@/app/common/components/SearchBar";
 import TalentApplicationCard from "./TalentApplicationCard";
 import ProfileModal from "@/app/common/components/ProfileModal";
@@ -88,17 +89,6 @@ const getBoardColumns = (aiInterviewEnabled: boolean): BoardColumnDef[] => [
   { key: "REJECTED", label: "Rejected", droppable: true },
   { key: "CLOSED", label: "Closed", droppable: false },
 ];
-
-const CLOSED_STATUSES = new Set(["OFFER_ACCEPTED", "OFFER_DECLINED", "WITHDRAWN"]);
-
-const getColumnKey = (item: AiFeedbackItem): string => {
-  if (item.status === "APPLIED") {
-    const stillScreening = item.resume_screening_status === "started" || item.resume_screening_status === "failed";
-    return stillScreening ? "RESUME_SCREENING" : "APPLIED";
-  }
-  if (CLOSED_STATUSES.has(item.status)) return "CLOSED";
-  return item.status;
-};
 
 const PAGE_SIZE = 25;
 
@@ -343,10 +333,19 @@ export const JobApplicationsTable = ({
   };
 
   // Shared by the drag-drop end handler and each card's "Move to..." select
-  // -- REJECTED always routes through the reason dialog first, everything
-  // else commits immediately.
+  // -- blocks moving a candidate backward through the pipeline (or out of a
+  // locked stage) before anything else, then routes REJECTED through the
+  // reason dialog, and commits everything else immediately.
   const requestMoveStage = (item: AiFeedbackItem, newStatus: JobApplication["status"]) => {
     if (newStatus === item.status) return;
+    if (isBackwardMove(item, newStatus)) {
+      toast.error("Can't move a candidate backward", {
+        description: isStageLocked(item)
+          ? `${item.talent_name}'s stage can't be changed from here.`
+          : `${item.talent_name} has already passed this stage. To take them out of consideration, use Rejected instead.`,
+      });
+      return;
+    }
     if (newStatus === "REJECTED") {
       setRejectionTarget(item);
       setRejectionReasonText("");

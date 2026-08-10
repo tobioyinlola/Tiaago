@@ -5,6 +5,7 @@ import { PiEye, PiUserPlus } from "react-icons/pi";
 import { AiFeedbackItem, JobApplication } from "@/app/common/types";
 import { cn } from "@/app/common/utils";
 import { AvatarWithVerifiedBadge } from "@/app/common/components/UserAvatar";
+import { isBackwardMove, isStageLocked } from "./boardStages";
 import {
   Select,
   SelectContent,
@@ -53,10 +54,13 @@ const ApplicationCard = ({
   onMoveStage: (status: JobApplication["status"]) => void;
   moving: boolean;
 }) => {
+  const locked = isStageLocked(item);
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: item.application_id,
     data: { item },
+    disabled: locked,
   });
+  const movableOptions = MOVABLE_STATUSES.filter(s => !isBackwardMove(item, s.value));
 
   return (
     <div
@@ -65,7 +69,8 @@ const ApplicationCard = ({
       {...attributes}
       style={{ transform: CSS.Translate.toString(transform) }}
       className={cn(
-        "bg-white rounded-xl border border-[#EAECF0] p-4 flex flex-col gap-3 shadow-sm cursor-grab active:cursor-grabbing touch-none",
+        "bg-white rounded-xl border border-[#EAECF0] p-4 flex flex-col gap-3 shadow-sm touch-none",
+        locked ? "cursor-default" : "cursor-grab active:cursor-grabbing",
         isDragging && "opacity-40"
       )}
     >
@@ -110,15 +115,15 @@ const ApplicationCard = ({
           mistaken for a drag start. */}
       <div className='flex items-center gap-2 pt-1 border-t border-[#F5F5F5]' onPointerDown={e => e.stopPropagation()}>
         <Select
-          value={MOVABLE_STATUSES.some(s => s.value === item.status) ? item.status : undefined}
+          value={movableOptions.some(s => s.value === item.status) ? item.status : undefined}
           onValueChange={value => onMoveStage(value as JobApplication["status"])}
-          disabled={moving}
+          disabled={moving || locked}
         >
           <SelectTrigger className='h-8 text-xs flex-1 min-w-0'>
-            <SelectValue placeholder='Move to...' />
+            <SelectValue placeholder={locked ? "Locked" : "Move to..."} />
           </SelectTrigger>
           <SelectContent>
-            {MOVABLE_STATUSES.map(s => (
+            {movableOptions.map(s => (
               <SelectItem key={s.value} value={s.value} className='text-xs'>
                 {s.label}
               </SelectItem>
