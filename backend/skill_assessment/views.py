@@ -2895,6 +2895,12 @@ class AIOperationsFeedback(APIView, PaginationHandlerMixin):
             ).order_by("created_at")
         }
 
+        from payments.models import ReportPAYGFlowStatus
+        flow_status_map = {
+            f.job_application_id: f.status
+            for f in ReportPAYGFlowStatus.objects.filter(job_application__in=job_applications)
+        }
+
         assessment_ids = [a.id for a in assessment_map.values() if a]
         submissions = CandidateAssessmentSubmission.objects.filter(
             skill_assessment_id__in=assessment_ids, is_completed=True
@@ -3027,6 +3033,7 @@ class AIOperationsFeedback(APIView, PaginationHandlerMixin):
                 "assessment_score": assessment_score,
                 "ai_interview_score": ai_interview_score,
                 "ai_interview_id": str(ai_interview.id) if ai_interview else None,
+                "resume_screening_status": flow_status_map.get(job_apps.id),
                 "has_passed_tiaago_assessment": job_apps.applicant.has_passed_tiaago_assessment if has_account else False,
                 "assessment_title": assessment.title if assessment else None,
                 "portfolio_slug": job_apps.applicant.portfolio_slug_safe if has_account else None,

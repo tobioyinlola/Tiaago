@@ -84,11 +84,6 @@ export const recruiterNavItems: DashboardNavItemV3[] = [
     Icon: LuFolderKanban,
   },
   {
-    name: "sourcing",
-    href: `${baseHref}/sourcing`,
-    Icon: IoSearch,
-  },
-  {
     name: "interviews",
     href: `${baseHref}/interviews`,
     Icon: (props: IconBaseProps) => (
@@ -132,6 +127,11 @@ export const recruiterNavItems: DashboardNavItemV3[] = [
         href: `${baseHref}/ai-interviews`,
       },
     ],
+  },
+  {
+    name: "sourcing",
+    href: `${baseHref}/sourcing`,
+    Icon: IoSearch,
   },
   // {
   //   name: "Question Bank",

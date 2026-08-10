@@ -124,7 +124,7 @@ const ViewTalentApplicationsPage = async ({
       </div>
       <UpdateJobStatus job={job} />
       {isHireWithAi ? (
-        <JobApplicationsTable data={aiFeedbacks} />
+        <JobApplicationsTable data={aiFeedbacks} aiInterviewEnabled={!!job.ai_interview_enabled} />
       ) : (
         <>
           <h4 className='text-[#101828] text-lg my-8 font-medium'>

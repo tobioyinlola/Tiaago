@@ -1,3 +1,5 @@
+import { useDraggable } from "@dnd-kit/core";
+import { CSS } from "@dnd-kit/utilities";
 import { PiEye, PiUserPlus } from "react-icons/pi";
 
 import { AiFeedbackItem, JobApplication } from "@/app/common/types";
@@ -11,18 +13,19 @@ import {
   SelectValue,
 } from "@/app/common/components/ui/select";
 
-type MovableStatus = "REVIEWED" | "PENDING_DECISION" | "INTERVIEW_SCHEDULED" | "OFFER_EXTENDED" | "REJECTED";
+export type MovableStatus = "REVIEWED" | "PENDING_DECISION" | "INTERVIEW_SCHEDULED" | "OFFER_EXTENDED" | "REJECTED";
 
 // Mirrors jobs.views.JobApplicationRetrieveUpdateView.put's TALENT_ONLY_STATUS_UPDATE
 // guard -- OFFER_ACCEPTED/OFFER_DECLINED/WITHDRAWN can only ever be set by the
 // candidate themselves, and APPLIED is rejected outright, so neither belongs in a
-// recruiter-facing "move to" list.
-const MOVABLE_STATUSES: { value: MovableStatus; label: string }[] = [
-  { value: "REVIEWED", label: "Reviewed -- sends assessment invite" },
-  { value: "PENDING_DECISION", label: "Pending Decision -- sends interview invite" },
+// recruiter-facing "move to" list. Also doubles as the set of valid drag-drop
+// targets on the board (see index.tsx).
+export const MOVABLE_STATUSES: { value: MovableStatus; label: string }[] = [
+  { value: "REVIEWED", label: "Skill Assessment -- sends assessment invite" },
+  { value: "PENDING_DECISION", label: "Interview -- sends interview invite" },
   { value: "INTERVIEW_SCHEDULED", label: "Interview Scheduled" },
   { value: "OFFER_EXTENDED", label: "Offer Extended" },
-  { value: "REJECTED", label: "Rejected" },
+  { value: "REJECTED", label: "Rejected -- reason required" },
 ];
 
 const scoreTone = (score: number) => {
@@ -50,8 +53,22 @@ const ApplicationCard = ({
   onMoveStage: (status: JobApplication["status"]) => void;
   moving: boolean;
 }) => {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: item.application_id,
+    data: { item },
+  });
+
   return (
-    <div className='bg-white rounded-xl border border-[#EAECF0] p-4 flex flex-col gap-3 shadow-sm'>
+    <div
+      ref={setNodeRef}
+      {...listeners}
+      {...attributes}
+      style={{ transform: CSS.Translate.toString(transform) }}
+      className={cn(
+        "bg-white rounded-xl border border-[#EAECF0] p-4 flex flex-col gap-3 shadow-sm cursor-grab active:cursor-grabbing touch-none",
+        isDragging && "opacity-40"
+      )}
+    >
       <div className='flex items-start justify-between gap-2'>
         <div className='flex items-center gap-2 min-w-0'>
           <AvatarWithVerifiedBadge
@@ -76,13 +93,22 @@ const ApplicationCard = ({
         </div>
       </div>
 
+      {item.resume_screening_status === "failed" && (
+        <div className='rounded-lg bg-[#FFFAEB] text-[#B54708] text-[11px] font-medium px-2.5 py-1.5'>
+          Screening stuck -- check wallet balance
+        </div>
+      )}
+
       <div className='flex flex-wrap gap-1.5'>
         <ScoreChip label='Resume' score={item.resume_analysis_score} />
         <ScoreChip label='Assessment' score={item.assessment_score} />
         {item.ai_interview_score != null && <ScoreChip label='AI Interview' score={item.ai_interview_score} />}
       </div>
 
-      <div className='flex items-center gap-2 pt-1 border-t border-[#F5F5F5]'>
+      {/* Interactive controls opt out of the drag listeners above (via
+          onPointerDown stopPropagation) so clicking them never gets
+          mistaken for a drag start. */}
+      <div className='flex items-center gap-2 pt-1 border-t border-[#F5F5F5]' onPointerDown={e => e.stopPropagation()}>
         <Select
           value={MOVABLE_STATUSES.some(s => s.value === item.status) ? item.status : undefined}
           onValueChange={value => onMoveStage(value as JobApplication["status"])}

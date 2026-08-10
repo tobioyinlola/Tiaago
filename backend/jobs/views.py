@@ -87,10 +87,12 @@ from .serializers import (
 )
 from .tasks import (
     ACCEPTANCE_MAIL_DELAY_SECONDS,
+    REJECTION_MAIL_DELAY_SECONDS,
     carry_out_resume_analysis,
     generate_job_assessment_questions_task,
     send_assessment_link,
     send_interview_slot_invite,
+    send_manual_rejection_mail,
 )
 from emails import emails
 from rest_framework.permissions import AllowAny
@@ -871,6 +873,15 @@ class JobApplicationRetrieveUpdateView(RetrieveUpdateAPIView):
             return Response({"detail": "Invalid status update"}, status=HTTP_400_BAD_REQUEST)
 
         previous_status = instance.status
+        rejection_reason = (request.data.get("rejection_reason") or "").strip()
+        # A manual reject needs a reason so it can be relayed to the
+        # candidate (see send_manual_rejection_mail below) -- same "reason
+        # required for a real decision" shape as
+        # RecruiterAIInterviewDecisionView's override_reason. Only enforced
+        # on an actual transition into REJECTED, not a no-op re-PUT.
+        if status_value == JobApplication.JobApplicationStatus.REJECTED and status_value != previous_status and not rejection_reason:
+            return Response({"detail": "A reason is required to reject a candidate."}, status=HTTP_400_BAD_REQUEST)
+
         self.perform_update(serializer)
 
         # A recruiter manually advancing a candidate should trigger the same
@@ -895,6 +906,10 @@ class JobApplicationRetrieveUpdateView(RetrieveUpdateAPIView):
                     provision_ai_interview(job, instance)
                 else:
                     send_interview_slot_invite.delay(instance.id)
+            elif status_value == JobApplication.JobApplicationStatus.REJECTED:
+                send_manual_rejection_mail.apply_async(
+                    args=[instance.id, rejection_reason], countdown=REJECTION_MAIL_DELAY_SECONDS
+                )
 
         if getattr(instance, "_prefetched_objects_cache", None):
             # If 'prefetch_related' has been applied to a queryset, we need to
