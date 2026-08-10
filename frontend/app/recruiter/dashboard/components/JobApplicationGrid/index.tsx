@@ -246,9 +246,9 @@ export const JobApplicationsTable = ({
   const [rejecting, setRejecting] = useState(false);
 
   const [visibleCounts, setVisibleCounts] = useState<Record<string, number>>({});
-  // Mobile-only accordion state -- ignored at md: and up, where every
-  // column is always visible. Starts with only non-empty columns expanded
-  // so a candidate-heavy stage isn't buried behind a tap on first load.
+  // Every column is collapsible at every breakpoint. Starts with only
+  // non-empty columns expanded so a candidate-heavy stage isn't buried
+  // behind a click, while empty stages don't waste vertical space.
   const [expandedColumns, setExpandedColumns] = useState<Set<string>>(
     () => new Set(getBoardColumns(aiInterviewEnabled).filter(c => data.some(a => getColumnKey(a) === c.key)).map(c => c.key))
   );
@@ -396,9 +396,14 @@ export const JobApplicationsTable = ({
           </h2>
         </div>
         {applications.length ? (
-          <div className='border border-t-0 rounded-b-lg bg-[#FAFAFB] p-4'>
+          <div className='border border-t-0 rounded-b-lg bg-[#FAFAFB] p-3 sm:p-4'>
             <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-              <div className='flex flex-col md:flex-row md:items-start gap-4'>
+              {/* Fluid grid: as many ~260px+ columns per row as fit the
+                  viewport, wrapping to new rows instead of ever forcing a
+                  fixed column count or horizontal scroll -- scales cleanly
+                  from a single phone-width column up to all 8 stages
+                  side-by-side on a wide monitor. */}
+              <div className='grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] items-start gap-3 sm:gap-4'>
                 {columns.map(column => {
                   const items = applications.filter(a => getColumnKey(a) === column.key);
                   return (
