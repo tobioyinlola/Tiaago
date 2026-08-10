@@ -1282,6 +1282,7 @@ export type AiFeedbackItem = {
   assessment_score: number;
   ai_interview_score: number | null;
   ai_interview_id: string | null;
+  resume_screening_status: "started" | "failed" | "completed" | "skipped" | null;
   email: string;
   phone_number: string | null;
   linkedin_url: string | null;

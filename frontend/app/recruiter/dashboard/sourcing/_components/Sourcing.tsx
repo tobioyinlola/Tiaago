@@ -9,17 +9,10 @@ import {
   ArrowUpDown,
   Sparkles,
   Users,
-  BadgeCheck,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useState } from "react";
 
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/app/common/components/ui/tabs";
 import { cn, handleFormSubmissionError } from "@/app/common/utils";
 import { Button } from "@/app/common/components/ui/button";
 import {
@@ -41,7 +34,6 @@ import {
 } from "@/app/common/components/ui/select";
 import { CandidateCard } from "./CandidateCard";
 import { Badge } from "@/app/common/components/ui/badge";
-import { VettedTalentsTab } from "./VettedTalentsTab";
 import { CandidateProfileDialog } from "./CandidateProfileDialog";
 import { OutreachDialog } from "./OutreachDialog";
 import {
@@ -62,7 +54,6 @@ const Sourcing = ({
 }) => {
   const setAlert = useAlert(s => s.setAlert);
 
-  const [activeTab, setActiveTab] = useState("source");
   const [candidates, setCandidates] = useState<ServerCandidate[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(false);
@@ -185,21 +176,13 @@ const Sourcing = ({
 
   return (
     <>
-      <Tabs value={activeTab} onValueChange={setActiveTab} className='w-full'>
-        <TabsList className='mb-6'>
-          <TabsTrigger value='source' className='gap-2'>
-            <Search className='h-4 w-4' />
-            Source Candidates
-          </TabsTrigger>
-          <TabsTrigger value='vetted' className='gap-2'>
-            <BadgeCheck className='h-4 w-4' />
-            Vetted Talents
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value='source' className='mt-0'>
-          <div className='flex flex-col lg:flex-row gap-6 lg:gap-8'>
-            {/* Left Panel - Form */}
+      <div className='flex items-center gap-2 mb-6'>
+        <Search className='h-4 w-4 text-muted-foreground' />
+        <h2 className='font-medium'>Source Candidates</h2>
+        <Badge variant='purple'>Coming Soon</Badge>
+      </div>
+      <div className='flex flex-col lg:flex-row gap-6 lg:gap-8'>
+        {/* Left Panel - Form */}
             <div className='w-full lg:w-[420px] lg:shrink-0'>
               <div className='lg:sticky lg:top-20'>
                 <SourcingForm onSearch={handleSearch} isLoading={isLoading} />
@@ -437,16 +420,6 @@ const Sourcing = ({
               )}
             </div>
           </div>
-        </TabsContent>
-
-        <TabsContent value='vetted' className='mt-0'>
-          <VettedTalentsTab
-            talentsRes={talentsRes}
-            roles={roles}
-            searchParams={searchParams}
-          />
-        </TabsContent>
-      </Tabs>
 
       {/* Profile Dialog */}
       <CandidateProfileDialog

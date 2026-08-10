@@ -299,11 +299,14 @@ export const getJobApplications = async (page = 1, page_size = 10) => {
 
 export const updateJobApplicationStatus = async (
   id: ID,
-  status: JobApplication["status"]
+  status: JobApplication["status"],
+  rejectionReason?: string
 ): Promise<ApiResponse<JobApplication>> => {
   try {
     const data = await serverKyInstance
-      .put(`jobs/job-applications/${id}/`, { json: { status } })
+      .put(`jobs/job-applications/${id}/`, {
+        json: { status, ...(rejectionReason ? { rejection_reason: rejectionReason } : {}) },
+      })
       .json<JobApplication>();
     return {
       success: true,

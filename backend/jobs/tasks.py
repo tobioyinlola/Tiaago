@@ -1071,3 +1071,28 @@ def send_interview_slot_invite(job_application_id):
     except Exception:
         logger.exception("Failed to send interview slot selection invite for job_application %s", job_application_id)
 
+
+@shared_task(name="send_manual_rejection_mail")
+def send_manual_rejection_mail(job_application_id, reason):
+    """Fired when a recruiter manually moves a candidate to REJECTED on the
+    applications board (see jobs.views.JobApplicationRetrieveUpdateView.put).
+    Reuses the same vetting-fail email the automatic resume-screening-reject
+    path already sends (emails.applicant_vetting_mail / emails/vetting_fail.html)
+    -- its copy is generic ("the team has decided not to move forward...
+    areas to focus on") rather than resume-specific, so it reads correctly
+    for a reject at any pipeline stage, not just resume screening."""
+    job_application = JobApplication.objects.select_related("job", "job__company").filter(
+        id=job_application_id
+    ).first()
+    if not job_application:
+        return
+    try:
+        emails.applicant_vetting_mail(
+            job_application.as_email_recipient(),
+            job_application.job,
+            "unconsider",
+            areas_for_improvement=reason,
+        )
+    except Exception:
+        logger.exception("Failed to send manual rejection mail for job_application %s", job_application_id)
+

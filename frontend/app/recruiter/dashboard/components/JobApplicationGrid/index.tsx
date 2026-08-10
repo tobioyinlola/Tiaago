@@ -1,6 +1,7 @@
 "use client";
 import { toast } from "sonner";
 import { PropsWithChildren, useEffect, useRef, useState } from "react";
+import { DndContext, DragEndEvent, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 
 import EmptyState from "@/app/common/components/dashboard/EmptyState";
 
@@ -16,13 +17,13 @@ import {
 import { addToPipeline, getCategories } from "@/app/common/services/sourcing";
 import { updateJobApplicationStatus } from "@/app/common/services/jobs";
 import AIFeedbackModal from "./AIFeedbackModal";
-import ApplicationCard from "./ApplicationCard";
+import BoardColumn from "./BoardColumn";
 import SearchBar from "@/app/common/components/SearchBar";
 import TalentApplicationCard from "./TalentApplicationCard";
-import ScrollArea from "@/app/common/components/ScrollArea";
 import ProfileModal from "@/app/common/components/ProfileModal";
 import { cn, handlePlural } from "@/app/common/utils";
 import { Button } from "@/app/common/components/ui/button";
+import { Textarea } from "@/app/common/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
@@ -40,13 +41,12 @@ import {
 
 // Mirrors JobApplication.JobApplicationStatus (backend/jobs/models.py) --
 // kept here (rather than round-tripping through the API) since it's just
-// display copy/ordering, not business logic. Order matches the enum's
-// declaration order, which is also the order stage_counts keys arrive in.
+// display copy/ordering, not business logic.
 const STATUS_LABELS: Record<string, string> = {
   APPLIED: "Applied",
-  REVIEWED: "Reviewed",
+  REVIEWED: "Skill Assessment",
   INTERVIEW_SCHEDULED: "Interview scheduled",
-  PENDING_DECISION: "Pending decision",
+  PENDING_DECISION: "Interview",
   OFFER_EXTENDED: "Offer extended",
   OFFER_ACCEPTED: "Offer accepted",
   OFFER_DECLINED: "Offer declined",
@@ -56,29 +56,51 @@ const STATUS_LABELS: Record<string, string> = {
 
 const STATUS_BADGE_STYLES: Record<string, string> = {
   APPLIED: "bg-[#EFF4FF] text-[#3538CD]",
+  RESUME_SCREENING: "bg-[#FFFAEB] text-[#B54708]",
   REVIEWED: "bg-[#EEF4FF] text-[#3580B5]",
   INTERVIEW_SCHEDULED: "bg-[#F4F3FF] text-[#5925DC]",
-  PENDING_DECISION: "bg-[#FFFAEB] text-[#B54708]",
+  PENDING_DECISION: "bg-[#F4F3FF] text-[#5925DC]",
   OFFER_EXTENDED: "bg-[#ECFDF3] text-[#027A48]",
   OFFER_ACCEPTED: "bg-[#ECFDF3] text-[#027A48]",
   OFFER_DECLINED: "bg-[#FFEDED] text-[#B53535]",
   REJECTED: "bg-[#FFEDED] text-[#B53535]",
   WITHDRAWN: "bg-[#F5F5F5] text-[#667085]",
+  CLOSED: "bg-[#F5F5F5] text-[#667085]",
 };
 
-// The board's columns. REJECTED/WITHDRAWN/OFFER_DECLINED are grouped into a
-// single "Not Proceeding" column -- a display-only grouping (each card still
-// carries its real individual status) so 3 terminal-negative outcomes don't
-// eat as much column space as the 6 stages recruiters actively work.
-const BOARD_COLUMNS: { key: string; label: string; statuses: string[] }[] = [
-  { key: "APPLIED", label: "Applied", statuses: ["APPLIED"] },
-  { key: "REVIEWED", label: "Reviewed", statuses: ["REVIEWED"] },
-  { key: "PENDING_DECISION", label: "Pending Decision", statuses: ["PENDING_DECISION"] },
-  { key: "INTERVIEW_SCHEDULED", label: "Interview Scheduled", statuses: ["INTERVIEW_SCHEDULED"] },
-  { key: "OFFER_EXTENDED", label: "Offer Extended", statuses: ["OFFER_EXTENDED"] },
-  { key: "OFFER_ACCEPTED", label: "Offer Accepted", statuses: ["OFFER_ACCEPTED"] },
-  { key: "NOT_PROCEEDING", label: "Not Proceeding", statuses: ["REJECTED", "WITHDRAWN", "OFFER_DECLINED"] },
+type BoardColumnDef = { key: string; label: string; droppable: boolean };
+
+// One column per real status (no more grouped pseudo-columns -- drag-and-drop
+// needs an unambiguous 1:1 drop target), plus two derived, display-only
+// columns: RESUME_SCREENING (status still APPLIED, but a
+// ReportPAYGFlowStatus row exists -- see getColumnKey below) and CLOSED
+// (the 3 talent-only outcomes grouped, since a recruiter can never set any
+// of them -- see MOVABLE_STATUSES in ApplicationCard.tsx). The AI/Human
+// Interview column label is job-specific: a single job is only ever one or
+// the other, never both.
+const getBoardColumns = (aiInterviewEnabled: boolean): BoardColumnDef[] => [
+  { key: "APPLIED", label: "Applied", droppable: false },
+  { key: "RESUME_SCREENING", label: "Resume Screening", droppable: false },
+  { key: "REVIEWED", label: "Skill Assessment", droppable: true },
+  { key: "PENDING_DECISION", label: aiInterviewEnabled ? "AI Interview" : "Human Interview", droppable: true },
+  { key: "INTERVIEW_SCHEDULED", label: "Interview Scheduled", droppable: true },
+  { key: "OFFER_EXTENDED", label: "Offer Extended", droppable: true },
+  { key: "REJECTED", label: "Rejected", droppable: true },
+  { key: "CLOSED", label: "Closed", droppable: false },
 ];
+
+const CLOSED_STATUSES = new Set(["OFFER_ACCEPTED", "OFFER_DECLINED", "WITHDRAWN"]);
+
+const getColumnKey = (item: AiFeedbackItem): string => {
+  if (item.status === "APPLIED") {
+    const stillScreening = item.resume_screening_status === "started" || item.resume_screening_status === "failed";
+    return stillScreening ? "RESUME_SCREENING" : "APPLIED";
+  }
+  if (CLOSED_STATUSES.has(item.status)) return "CLOSED";
+  return item.status;
+};
+
+const PAGE_SIZE = 25;
 
 // Sentinel Select value for "no category" -- category ids are numeric/string
 // ids, so this can't collide with a real one.
@@ -185,12 +207,14 @@ const applicantToPipelineCandidate = (
 type JobApplicationsTableProps = PropsWithChildren<{
   data: AiFeedbackItem[];
   className?: string;
+  aiInterviewEnabled?: boolean;
   // roles: TalentRole[];
 }>;
 
 export const JobApplicationsTable = ({
   data,
   className,
+  aiInterviewEnabled = false,
 }: JobApplicationsTableProps) => {
   const [applications, setApplications] = useState<AiFeedbackItem[]>(data);
   useEffect(() => {
@@ -213,6 +237,33 @@ export const JobApplicationsTable = ({
   const [selectedCategory, setSelectedCategory] = useState<string>(
     GENERAL_PIPELINE_VALUE
   );
+
+  // REJECTED requires a reason (see jobs.views.JobApplicationRetrieveUpdateView.put)
+  // -- both the drag-drop path and the card's "Move to..." select route
+  // through this dialog before committing.
+  const [rejectionTarget, setRejectionTarget] = useState<AiFeedbackItem | null>(null);
+  const [rejectionReasonText, setRejectionReasonText] = useState("");
+  const [rejecting, setRejecting] = useState(false);
+
+  const [visibleCounts, setVisibleCounts] = useState<Record<string, number>>({});
+  // Mobile-only accordion state -- ignored at md: and up, where every
+  // column is always visible. Starts with only non-empty columns expanded
+  // so a candidate-heavy stage isn't buried behind a tap on first load.
+  const [expandedColumns, setExpandedColumns] = useState<Set<string>>(
+    () => new Set(getBoardColumns(aiInterviewEnabled).filter(c => data.some(a => getColumnKey(a) === c.key)).map(c => c.key))
+  );
+
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
+  const columns = getBoardColumns(aiInterviewEnabled);
+
+  const toggleColumn = (key: string) => {
+    setExpandedColumns(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
 
   useEffect(() => {
     if (!pipelineTarget) return;
@@ -258,7 +309,8 @@ export const JobApplicationsTable = ({
 
   const handleMoveStage = async (
     item: AiFeedbackItem,
-    newStatus: JobApplication["status"]
+    newStatus: JobApplication["status"],
+    reason?: string
   ) => {
     if (newStatus === item.status || movingId != null) return;
     const previous = item;
@@ -270,7 +322,7 @@ export const JobApplicationsTable = ({
           : a
       )
     );
-    const res = await updateJobApplicationStatus(item.application_id, newStatus);
+    const res = await updateJobApplicationStatus(item.application_id, newStatus, reason);
     setMovingId(null);
     if (!res.success) {
       toast.error(res.error);
@@ -280,12 +332,45 @@ export const JobApplicationsTable = ({
       return;
     }
     if (newStatus === "REVIEWED") {
-      toast.success("Moved to Reviewed", { description: "Assessment invite sent to the candidate." });
+      toast.success("Moved to Skill Assessment", { description: "Assessment invite sent to the candidate." });
     } else if (newStatus === "PENDING_DECISION") {
-      toast.success("Moved to Pending Decision", { description: "Interview invite sent to the candidate." });
+      toast.success("Moved to Interview", { description: "Interview invite sent to the candidate." });
+    } else if (newStatus === "REJECTED") {
+      toast.success("Candidate rejected", { description: "Rejection email sent to the candidate." });
     } else {
       toast.success(`Moved to ${STATUS_LABELS[newStatus] || newStatus}`);
     }
+  };
+
+  // Shared by the drag-drop end handler and each card's "Move to..." select
+  // -- REJECTED always routes through the reason dialog first, everything
+  // else commits immediately.
+  const requestMoveStage = (item: AiFeedbackItem, newStatus: JobApplication["status"]) => {
+    if (newStatus === item.status) return;
+    if (newStatus === "REJECTED") {
+      setRejectionTarget(item);
+      setRejectionReasonText("");
+      return;
+    }
+    handleMoveStage(item, newStatus);
+  };
+
+  const handleConfirmReject = async () => {
+    if (!rejectionTarget || !rejectionReasonText.trim()) return;
+    setRejecting(true);
+    await handleMoveStage(rejectionTarget, "REJECTED", rejectionReasonText.trim());
+    setRejecting(false);
+    setRejectionTarget(null);
+    setRejectionReasonText("");
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const overId = event.over?.id;
+    if (overId == null) return;
+    const targetColumn = columns.find(c => c.key === overId);
+    const item = event.active.data.current?.item as AiFeedbackItem | undefined;
+    if (!targetColumn || !targetColumn.droppable || !item) return;
+    requestMoveStage(item, targetColumn.key as JobApplication["status"]);
   };
 
   const handleView = (item: AiFeedbackItem) => {
@@ -298,6 +383,10 @@ export const JobApplicationsTable = ({
     setPipelineTarget(item);
   };
 
+  const showMore = (key: string) => {
+    setVisibleCounts(prev => ({ ...prev, [key]: (prev[key] ?? PAGE_SIZE) + PAGE_SIZE }));
+  };
+
   return (
     <>
       <div className={cn("dashboard-content-constraint pb-1 bg-transparent", className)}>
@@ -307,46 +396,33 @@ export const JobApplicationsTable = ({
           </h2>
         </div>
         {applications.length ? (
-          <ScrollArea className='border border-t-0 rounded-b-lg bg-[#FAFAFB]' horizontalScrollClassName='mt-1'>
-            <div className='flex items-start gap-4 p-4' style={{ minWidth: "max-content" }}>
-              {BOARD_COLUMNS.map(column => {
-                const items = applications.filter(a => column.statuses.includes(a.status));
-                return (
-                  <div key={column.key} className='w-[300px] shrink-0 flex flex-col gap-3'>
-                    <div className='flex items-center justify-between px-1'>
-                      <span
-                        className={cn(
-                          "rounded-2xl px-2.5 py-1 text-xs font-semibold whitespace-nowrap",
-                          STATUS_BADGE_STYLES[column.statuses[0]] || "bg-[#F5F5F5] text-[#667085]"
-                        )}
-                      >
-                        {column.label}
-                      </span>
-                      <span className='text-xs text-[#667085] font-medium'>{items.length}</span>
-                    </div>
-                    <div className='flex flex-col gap-3 min-h-[80px]'>
-                      {items.length ? (
-                        items.map(item => (
-                          <ApplicationCard
-                            key={item.application_id}
-                            item={item}
-                            onView={() => handleView(item)}
-                            onAddToPipeline={() => handleAddToPipelineClick(item)}
-                            onMoveStage={status => handleMoveStage(item, status)}
-                            moving={movingId === item.application_id}
-                          />
-                        ))
-                      ) : (
-                        <div className='rounded-xl border border-dashed border-[#EAECF0] p-4 text-center text-xs text-[#98A2B3]'>
-                          No candidates in this stage
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </ScrollArea>
+          <div className='border border-t-0 rounded-b-lg bg-[#FAFAFB] p-4'>
+            <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+              <div className='flex flex-col md:flex-row md:items-start gap-4'>
+                {columns.map(column => {
+                  const items = applications.filter(a => getColumnKey(a) === column.key);
+                  return (
+                    <BoardColumn
+                      key={column.key}
+                      columnKey={column.key}
+                      label={column.label}
+                      badgeClassName={STATUS_BADGE_STYLES[column.key] || "bg-[#F5F5F5] text-[#667085]"}
+                      droppable={column.droppable}
+                      items={items}
+                      visibleCount={visibleCounts[column.key] ?? PAGE_SIZE}
+                      onShowMore={() => showMore(column.key)}
+                      expanded={expandedColumns.has(column.key)}
+                      onToggle={() => toggleColumn(column.key)}
+                      movingId={movingId}
+                      onView={handleView}
+                      onAddToPipeline={handleAddToPipelineClick}
+                      onMoveStage={requestMoveStage}
+                    />
+                  );
+                })}
+              </div>
+            </DndContext>
+          </div>
         ) : (
           <div className='border border-t-0 rounded-b-lg py-16'>
             <EmptyState text='No applications yet' />
@@ -408,6 +484,49 @@ export const JobApplicationsTable = ({
               onClick={handleConfirmAddToPipeline}
             >
               Add to Pipeline
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog
+        open={!!rejectionTarget}
+        onOpenChange={open => {
+          if (!open) {
+            setRejectionTarget(null);
+            setRejectionReasonText("");
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reject candidate</DialogTitle>
+          </DialogHeader>
+          <p className='text-sm text-secondary-black'>
+            A reason is required so it can be included in the rejection email sent to{" "}
+            <span className='font-medium'>{rejectionTarget?.talent_name}</span>.
+          </p>
+          <Textarea
+            value={rejectionReasonText}
+            onChange={e => setRejectionReasonText(e.target.value)}
+            rows={4}
+            placeholder='Why is this candidate being rejected?'
+          />
+          <DialogFooter>
+            <Button
+              variant='outline'
+              onClick={() => {
+                setRejectionTarget(null);
+                setRejectionReasonText("");
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant='destructive'
+              disabled={!rejectionReasonText.trim() || rejecting}
+              onClick={handleConfirmReject}
+            >
+              Reject candidate
             </Button>
           </DialogFooter>
         </DialogContent>
