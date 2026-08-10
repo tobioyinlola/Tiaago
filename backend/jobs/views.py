@@ -85,7 +85,13 @@ from .serializers import (
     JobInterviewAvailabilitySlotSerializer,
     JobDraftSerializer,
 )
-from .tasks import carry_out_resume_analysis, generate_job_assessment_questions_task
+from .tasks import (
+    ACCEPTANCE_MAIL_DELAY_SECONDS,
+    carry_out_resume_analysis,
+    generate_job_assessment_questions_task,
+    send_assessment_link,
+    send_interview_slot_invite,
+)
 from emails import emails
 from rest_framework.permissions import AllowAny
 from payments.models import PaymentMethod
@@ -864,7 +870,31 @@ class JobApplicationRetrieveUpdateView(RetrieveUpdateAPIView):
         if user_is_company_role(user, job_company, [CompanyTeamMember.ROLE.ADMIN, CompanyTeamMember.ROLE.RECRUITER]) and status_value in TALENT_ONLY_STATUS_UPDATE:
             return Response({"detail": "Invalid status update"}, status=HTTP_400_BAD_REQUEST)
 
+        previous_status = instance.status
         self.perform_update(serializer)
+
+        # A recruiter manually advancing a candidate should trigger the same
+        # candidate-facing invite the automatic pipeline sends for that same
+        # transition (see jobs.tasks.carry_out_resume_analysis for REVIEWED,
+        # skill_assessment.tasks.mark_skill_assessment_submission for
+        # PENDING_DECISION) -- both invite functions are already idempotent,
+        # safe to call unconditionally. Only these two statuses currently
+        # have a reusable candidate-facing invite; the rest (INTERVIEW_SCHEDULED
+        # in particular, which is only ever supposed to reflect a real
+        # claimed slot/Daily.co room) stay plain status writes, same as before.
+        if status_value != previous_status:
+            job = instance.job
+            if status_value == JobApplication.JobApplicationStatus.REVIEWED:
+                send_assessment_link.apply_async(
+                    args=[instance.id], countdown=ACCEPTANCE_MAIL_DELAY_SECONDS
+                )
+            elif status_value == JobApplication.JobApplicationStatus.PENDING_DECISION:
+                if job.ai_interview_enabled:
+                    from ai_interviews.services import provision_ai_interview
+
+                    provision_ai_interview(job, instance)
+                else:
+                    send_interview_slot_invite.delay(instance.id)
 
         if getattr(instance, "_prefetched_objects_cache", None):
             # If 'prefetch_related' has been applied to a queryset, we need to

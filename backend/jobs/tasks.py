@@ -36,6 +36,7 @@ from skill_assessment.models import (
     TalentQuestionBank
 )
 from utils.ai_service import AIService
+from utils.email_handler import EmailHandler, EmailTypes
 import time
 import requests
 
@@ -1000,4 +1001,73 @@ def generate_job_assessment_questions_task(self, request_id, description, job_re
     request_row.sections = sections
     request_row.save(update_fields=["status", "sections"])
     return {"status": "ready", "id": str(request_id)}
+
+
+@shared_task(name="send_interview_slot_invite")
+def send_interview_slot_invite(job_application_id):
+    """Invites a candidate to pick a human-interview time from the slots the
+    recruiter published for this job (JobInterviewAvailabilitySlot), sourced
+    directly from job_application/job -- no CandidateAssessmentSubmission
+    required, unlike skill_assessment.tasks.send_interview_slot_selection_invite
+    (which this deliberately doesn't touch, since it's already live on the
+    automatic assessment-pass path). Used by two callers: a recruiter
+    manually moving a candidate to PENDING_DECISION on a non-AI-interview job
+    (see jobs.views.JobApplicationRetrieveUpdateView.put), and
+    ai_interviews.tasks.send_ai_interview_proceed_invite, which delegates
+    here instead of re-implementing this same branching."""
+    from skill_assessment.models import GeneralSkillAssessment
+
+    job_application = JobApplication.objects.select_related("job", "job__company").filter(
+        id=job_application_id
+    ).first()
+    if not job_application:
+        return
+
+    job = job_application.job
+
+    if not job.interview_availability_slots.filter(is_claimed=False).exists():
+        logger.warning(
+            "send_interview_slot_invite: no published interview slots for job %s (job_application %s)",
+            job.id, job_application_id,
+        )
+        return
+
+    base = str(settings.FRONTEND_URL).rstrip("/") + "/"
+    if job_application.applicant_id:
+        slots_url = f"https://{base}talents/jobs/{job.public_id}/interview-slots"
+    else:
+        # Guest applicant -- no login to reach the talent-only slots page,
+        # so route through the same token-based guest flow used by
+        # skill_assessment.tasks.send_interview_slot_selection_invite.
+        assessment = GeneralSkillAssessment.objects.filter(job_application=job_application).first()
+        if not assessment:
+            logger.warning(
+                "send_interview_slot_invite: no assessment invite_token for guest job_application %s",
+                job_application.id,
+            )
+            return
+        slots_url = f"https://{base}jobs/interview-slots/{assessment.invite_token}"
+
+    candidate_email = job_application.candidate_email
+    candidate_name = job_application.candidate_full_name
+    if not candidate_email:
+        logger.warning("send_interview_slot_invite: no candidate email for job_application %s", job_application_id)
+        return
+    first_name = (candidate_name or "").split(" ")[0]
+
+    context = {
+        "first_name": first_name,
+        "company": job.company.company_name,
+        "role": job.title,
+        "slots_url": slots_url,
+    }
+    try:
+        EmailHandler(recipients=[candidate_email]).send_mail(
+            subject="Pick your interview time",
+            context=context,
+            template="emails/interview_slot_selection.html",
+            email_type=EmailTypes.INTERVIEW_SLOT_SELECTION_MAIL,
+        )
+    except Exception:
+        logger.exception("Failed to send interview slot selection invite for job_application %s", job_application_id)
 

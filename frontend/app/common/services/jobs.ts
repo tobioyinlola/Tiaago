@@ -297,6 +297,28 @@ export const getJobApplications = async (page = 1, page_size = 10) => {
   }
 };
 
+export const updateJobApplicationStatus = async (
+  id: ID,
+  status: JobApplication["status"]
+): Promise<ApiResponse<JobApplication>> => {
+  try {
+    const data = await serverKyInstance
+      .put(`jobs/job-applications/${id}/`, { json: { status } })
+      .json<JobApplication>();
+    return {
+      success: true,
+      data,
+    };
+  } catch (error) {
+    const errMsg = await handleServerApiCallError(error);
+    console.log("updateJobApplicationStatus Error: ", errMsg);
+    return {
+      success: false,
+      error: errMsg,
+    };
+  }
+};
+
 export const updateJob = async (
   publicId: string,
   job: Partial<JobCreatePayload>

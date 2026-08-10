@@ -16,7 +16,6 @@ import DisplayErrorMessages, {
   DisplayErrorMessagesProps,
 } from "@/app/common/components/DisplayErrorMessages";
 import { handleServerApiCallError } from "@/app/common/utils";
-import ServerPagination from "@/app/common/components/ServerPagination";
 import { ISearchParams } from "@/app/common/types";
 
 export const metadata = {
@@ -25,7 +24,6 @@ export const metadata = {
 
 const ViewTalentApplicationsPage = async ({
   params,
-  searchParams,
 }: {
   params: Promise<{
     job_id?: string;
@@ -35,11 +33,6 @@ const ViewTalentApplicationsPage = async ({
   const errors: DisplayErrorMessagesProps["errors"] = [];
   const { job_id } = await params;
   if (typeof job_id !== "string") return notFound();
-  const resolvedSearchParams = await searchParams;
-  const _page = resolvedSearchParams.page
-    ? parseInt(resolvedSearchParams.page as string)
-    : 1;
-  const page = isNaN(_page) ? 1 : _page;
 
   const job = await getJob(job_id).catch(async e => {
     const error = await handleServerApiCallError(e);
@@ -66,7 +59,11 @@ const ViewTalentApplicationsPage = async ({
       });
       return null;
     }),
-    getAiFeedback(job_id, page).catch(async e => {
+    // The board shows every applicant grouped by stage at once (not a single
+    // paginated page) -- see JobApplicationsTable -- so this requests a page
+    // size comfortably above any realistic per-job applicant count instead
+    // of paging through DEFAULT_PAGE_SIZE (20) chunks.
+    getAiFeedback(job_id, undefined, 500).catch(async e => {
       const error = await handleServerApiCallError(e);
       console.log("Get AI feedback error (view talent applications): ", error);
       errors.push({
@@ -127,18 +124,7 @@ const ViewTalentApplicationsPage = async ({
       </div>
       <UpdateJobStatus job={job} />
       {isHireWithAi ? (
-        <>
-          <JobApplicationsTable
-            data={aiFeedbacks}
-            stageCounts={aiFeedbackRes?.stage_counts}
-          />
-          {!!aiFeedbackRes && (
-            <ServerPagination
-              pagedResource={aiFeedbackRes}
-              searchParams={resolvedSearchParams}
-            />
-          )}
-        </>
+        <JobApplicationsTable data={aiFeedbacks} />
       ) : (
         <>
           <h4 className='text-[#101828] text-lg my-8 font-medium'>
