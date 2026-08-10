@@ -298,16 +298,21 @@ const UserBilling = ({
   const currentMonthData = {
     resume_screenings: walletUsage?.resumes_used || 0,
     assessments: walletUsage?.assessments_used || 0,
+    ai_interviews: walletUsage?.ai_interviews_used || 0,
     amount: walletUsage?.total_amount_spent || 0,
   };
   const totalUsage =
-    currentMonthData.resume_screenings + currentMonthData.assessments;
+    currentMonthData.resume_screenings +
+    currentMonthData.assessments +
+    currentMonthData.ai_interviews;
   const screeningsPercentage =
     totalUsage > 0
       ? (currentMonthData.resume_screenings / totalUsage) * 100
       : 0;
   const assessmentsPercentage =
     totalUsage > 0 ? (currentMonthData.assessments / totalUsage) * 100 : 0;
+  const aiInterviewsPercentage =
+    totalUsage > 0 ? (currentMonthData.ai_interviews / totalUsage) * 100 : 0;
 
   const displayWalletData = {
     balance: walletUsage?.wallet_balance || 0,
@@ -360,7 +365,7 @@ const UserBilling = ({
                 <span className='font-semibold'>
                   {freeCreditsRemaining} of {freeTierLimit} free credits remaining.
                 </span>{" "}
-                Every candidate you screen or assess uses one free credit until these run out.
+                Every candidate you screen, assess, or AI-interview uses one free credit until these run out.
               </p>
             </div>
           )}
@@ -557,6 +562,24 @@ const UserBilling = ({
                             stopOpacity='1'
                           />
                         </linearGradient>
+                        <linearGradient
+                          id='aiInterviewGrad'
+                          x1='0%'
+                          y1='0%'
+                          x2='100%'
+                          y2='100%'
+                        >
+                          <stop
+                            offset='0%'
+                            stopColor='#F59E0B'
+                            stopOpacity='1'
+                          />
+                          <stop
+                            offset='100%'
+                            stopColor='#D97706'
+                            stopOpacity='1'
+                          />
+                        </linearGradient>
                       </defs>
                       <g transform='rotate(-90 100 100)'>
                         <circle
@@ -608,6 +631,29 @@ const UserBilling = ({
                           style={{
                             filter:
                               "drop-shadow(0 0 8px rgba(16, 185, 129, 0.4))",
+                          }}
+                        />
+                        <circle
+                          cx='100'
+                          cy='100'
+                          r='75'
+                          fill='none'
+                          stroke='url(#aiInterviewGrad)'
+                          strokeWidth='22'
+                          strokeDasharray={`${
+                            (aiInterviewsPercentage / 100) * 471.24
+                          } 471.24`}
+                          strokeDashoffset={`-${
+                            ((screeningsPercentage + assessmentsPercentage) / 100) * 471.24
+                          }`}
+                          strokeLinecap='round'
+                          className={cn(
+                            "transition-all duration-1000 ease-in-out",
+                            !aiInterviewsPercentage && "hidden"
+                          )}
+                          style={{
+                            filter:
+                              "drop-shadow(0 0 8px rgba(245, 158, 11, 0.4))",
                           }}
                         />
                       </g>
@@ -667,6 +713,29 @@ const UserBilling = ({
                     </div>
                     <div className='mt-2 text-xs font-medium text-gray-500'>
                       {assessmentsPercentage.toFixed(1)}% of total
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className='flex items-center justify-between mb-3'>
+                      <div className='flex items-center gap-2'>
+                        <div className='w-3 h-3 rounded-full bg-gradient-to-br from-amber-500 to-amber-600 shadow-sm'></div>
+                        <span className='text-sm font-medium text-gray-700'>
+                          AI Interviews
+                        </span>
+                      </div>
+                      <span className='text-lg font-bold text-gray-900'>
+                        {currentMonthData.ai_interviews}
+                      </span>
+                    </div>
+                    <div className='bg-gray-100 rounded-full h-2.5 overflow-hidden'>
+                      <div
+                        className='bg-gradient-to-r from-amber-500 to-amber-600 h-2.5 rounded-full transition-all duration-1000 ease-out shadow-sm'
+                        style={{ width: `${aiInterviewsPercentage}%` }}
+                      ></div>
+                    </div>
+                    <div className='mt-2 text-xs font-medium text-gray-500'>
+                      {aiInterviewsPercentage.toFixed(1)}% of total
                     </div>
                   </div>
 

@@ -1613,6 +1613,7 @@ export type WalletUsage = {
   wallet_balance: number;
   resumes_used: number;
   assessments_used: number;
+  ai_interviews_used: number;
   total_amount_spent: number;
 };
 

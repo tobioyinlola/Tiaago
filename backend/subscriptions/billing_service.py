@@ -537,63 +537,82 @@ class BillingService:
     def charge_ai_interview(organisation, ai_interview):
         """Charges the flat AI-interview fee the moment a candidate joins and
         the LiveKit agent starts (see ai_interviews.views.AIInterviewStartSessionView).
-        Mirrors charge_interview_package exactly: flat NGN regardless of
-        wallet currency, first-3-charged-per-organisation free allowance
-        computed on the fly (no separate counter field) from
-        AIInterview.billing_charged rows.
+        Same free-credit-then-wallet-charge rule as
+        process_resume_candidate_screening/process_assessment_charge --
+        wallet.free_credits_remaining is one shared pool across resume
+        screening, assessment, and AI interviews, not a separate
+        AI-interview-only allowance. Flat NGN price regardless of wallet
+        currency once free credits run out, per spec.
 
         Returns {"success": bool,
-                 "reason": "already_charged"|"free_allowance"|"charged"|"insufficient_funds",
+                 "reason": "already_charged"|"free_credit"|"charged"|"insufficient_funds",
                  "amount_charged": Decimal}."""
         from ai_interviews.models import AIInterview
 
+        just_exhausted = False
         with transaction.atomic():
             ai_interview = AIInterview.objects.select_for_update().get(pk=ai_interview.pk)
             if ai_interview.billing_charged:
                 return {"success": True, "reason": "already_charged", "amount_charged": Decimal("0.00")}
 
-            free_allowance = AIInterview.objects.filter(
-                organisation=organisation, billing_charged=True
-            ).count() < 3
-
-            price = get_pricing_decimal("ai_interview_price_ngn", "800.00")
-
             wallet = get_or_create_wallet(organisation)
             wallet = Wallet.objects.select_for_update().get(pk=wallet.pk)
-
-            if not free_allowance and wallet.balance < price:
-                return {"success": False, "reason": "insufficient_funds", "amount_charged": Decimal("0.00")}
 
             candidate = ai_interview.candidate
             candidate_name = candidate.full_name if candidate else "the candidate"
             job_title = ai_interview.job.title
 
-            if not free_allowance:
-                wallet.debit(
-                    amount=price,
-                    description=f"AI interview — {candidate_name} for {job_title}",
+            if wallet.free_credits_remaining > 0:
+                wallet.free_credits_remaining -= 1
+                just_exhausted = wallet.free_credits_remaining == 0
+                wallet.save(update_fields=["free_credits_remaining"])
+                WalletTransaction.objects.create(
+                    wallet=wallet,
+                    transaction_type=WalletTransaction.TransactionType.CREDIT,
+                    service_type=WalletTransaction.ServiceType.FREE_CREDIT,
+                    amount=Decimal("0.00"),
                     currency=wallet.currency,
-                    service_type=WalletTransaction.ServiceType.AI_INTERVIEW,
+                    balance_after=wallet.balance,
+                    description=f"Free tier credit used — AI interview — {candidate_name} for {job_title}",
+                    status=WalletTransaction.Status.COMPLETED,
                     job=ai_interview.job,
                     candidate=candidate,
-                    metadata={"ai_interview_id": str(ai_interview.id)},
                 )
+                ai_interview.billing_charged = True
+                ai_interview.billing_amount = Decimal("0.00")
+                ai_interview.billing_charged_at = timezone.now()
+                ai_interview.free_allowance_used = True
+                ai_interview.save(update_fields=[
+                    "billing_charged", "billing_amount", "billing_charged_at", "free_allowance_used",
+                ])
+                result = {"success": True, "reason": "free_credit", "amount_charged": Decimal("0.00")}
             else:
-                logger.info(f"AI interview {ai_interview.id} covered by free allowance for company {organisation.id}")
+                price = get_pricing_decimal("ai_interview_price_ngn", "800.00")
+                if wallet.balance < price:
+                    result = {"success": False, "reason": "insufficient_funds", "amount_charged": Decimal("0.00")}
+                else:
+                    wallet.debit(
+                        amount=price,
+                        description=f"AI interview — {candidate_name} for {job_title}",
+                        currency=wallet.currency,
+                        service_type=WalletTransaction.ServiceType.AI_INTERVIEW,
+                        job=ai_interview.job,
+                        candidate=candidate,
+                        metadata={"ai_interview_id": str(ai_interview.id)},
+                    )
+                    ai_interview.billing_charged = True
+                    ai_interview.billing_amount = price
+                    ai_interview.billing_charged_at = timezone.now()
+                    ai_interview.free_allowance_used = False
+                    ai_interview.save(update_fields=[
+                        "billing_charged", "billing_amount", "billing_charged_at", "free_allowance_used",
+                    ])
+                    result = {"success": True, "reason": "charged", "amount_charged": price}
 
-            ai_interview.billing_charged = True
-            ai_interview.billing_amount = Decimal("0.00") if free_allowance else price
-            ai_interview.free_allowance_used = free_allowance
-            ai_interview.save(update_fields=["billing_charged", "billing_amount", "free_allowance_used"])
-
-            amount_charged = Decimal("0.00") if free_allowance else price
-
-        if not free_allowance:
-            wallet = get_or_create_wallet(organisation)
+        wallet = get_or_create_wallet(organisation)
+        if result["reason"] in ("charged", "insufficient_funds"):
             BillingService.check_and_send_low_balance_alert(wallet)
+        elif result["reason"] == "free_credit" and just_exhausted:
+            _notify_free_tier_exhausted(organisation)
 
-        return {
-            "success": True,
-            "reason": "free_allowance" if free_allowance else "charged",
-            "amount_charged": amount_charged,
-        }
+        return result
