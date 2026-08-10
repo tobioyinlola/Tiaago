@@ -605,10 +605,15 @@ export const createCodeAssessment = async (json: {
   }
 };
 
-export const getAiFeedback = async (publicId: string, page?: number) => {
+export const getAiFeedback = async (
+  publicId: string,
+  page?: number,
+  pageSize?: number
+) => {
   try {
     const searchParams: Record<string, string> = {};
     if (page) searchParams.page = String(page);
+    if (pageSize) searchParams.page_size = String(pageSize);
     const response = await serverKyInstance
       .get<PagedResource<AiFeedbackItem>>(
         `skill-assessments/company-ai-applications/${publicId}/summary`,

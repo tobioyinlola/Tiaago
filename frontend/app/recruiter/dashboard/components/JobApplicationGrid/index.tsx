@@ -1,11 +1,8 @@
 "use client";
 import { toast } from "sonner";
-import { PiDotsThreeBold } from "react-icons/pi";
 import { PropsWithChildren, useEffect, useRef, useState } from "react";
 
-import EmptyState, {
-  EmptyStateV3,
-} from "@/app/common/components/dashboard/EmptyState";
+import EmptyState from "@/app/common/components/dashboard/EmptyState";
 
 import {
   AiFeedbackItem,
@@ -17,15 +14,14 @@ import {
   User,
 } from "@/app/common/types";
 import { addToPipeline, getCategories } from "@/app/common/services/sourcing";
+import { updateJobApplicationStatus } from "@/app/common/services/jobs";
 import AIFeedbackModal from "./AIFeedbackModal";
-import { IntegrityScoreBadge, ProctoringViolationFlag } from "@/app/common/components/dashboard/ProctoringBadges";
+import ApplicationCard from "./ApplicationCard";
 import SearchBar from "@/app/common/components/SearchBar";
 import TalentApplicationCard from "./TalentApplicationCard";
 import ScrollArea from "@/app/common/components/ScrollArea";
 import ProfileModal from "@/app/common/components/ProfileModal";
 import { cn, handlePlural } from "@/app/common/utils";
-import { jobApplicationMenuItems } from "./jobApplicationMenuItems";
-import { AvatarWithVerifiedBadge } from "@/app/common/components/UserAvatar";
 import { Button } from "@/app/common/components/ui/button";
 import {
   Dialog,
@@ -69,6 +65,20 @@ const STATUS_BADGE_STYLES: Record<string, string> = {
   REJECTED: "bg-[#FFEDED] text-[#B53535]",
   WITHDRAWN: "bg-[#F5F5F5] text-[#667085]",
 };
+
+// The board's columns. REJECTED/WITHDRAWN/OFFER_DECLINED are grouped into a
+// single "Not Proceeding" column -- a display-only grouping (each card still
+// carries its real individual status) so 3 terminal-negative outcomes don't
+// eat as much column space as the 6 stages recruiters actively work.
+const BOARD_COLUMNS: { key: string; label: string; statuses: string[] }[] = [
+  { key: "APPLIED", label: "Applied", statuses: ["APPLIED"] },
+  { key: "REVIEWED", label: "Reviewed", statuses: ["REVIEWED"] },
+  { key: "PENDING_DECISION", label: "Pending Decision", statuses: ["PENDING_DECISION"] },
+  { key: "INTERVIEW_SCHEDULED", label: "Interview Scheduled", statuses: ["INTERVIEW_SCHEDULED"] },
+  { key: "OFFER_EXTENDED", label: "Offer Extended", statuses: ["OFFER_EXTENDED"] },
+  { key: "OFFER_ACCEPTED", label: "Offer Accepted", statuses: ["OFFER_ACCEPTED"] },
+  { key: "NOT_PROCEEDING", label: "Not Proceeding", statuses: ["REJECTED", "WITHDRAWN", "OFFER_DECLINED"] },
+];
 
 // Sentinel Select value for "no category" -- category ids are numeric/string
 // ids, so this can't collide with a real one.
@@ -175,20 +185,23 @@ const applicantToPipelineCandidate = (
 type JobApplicationsTableProps = PropsWithChildren<{
   data: AiFeedbackItem[];
   className?: string;
-  stageCounts?: Record<string, number>;
   // roles: TalentRole[];
 }>;
 
 export const JobApplicationsTable = ({
   data,
   className,
-  stageCounts,
-  // roles,
 }: JobApplicationsTableProps) => {
+  const [applications, setApplications] = useState<AiFeedbackItem[]>(data);
+  useEffect(() => {
+    setApplications(data);
+  }, [data]);
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [activeApplicant, setActiveApplicant] = useState<AiFeedbackItem>(
     data[0]
   );
+  const [movingId, setMovingId] = useState<AiFeedbackItem["application_id"] | null>(null);
   const [addingToPipelineId, setAddingToPipelineId] = useState<
     AiFeedbackItem["application_id"] | null
   >(null);
@@ -200,7 +213,6 @@ export const JobApplicationsTable = ({
   const [selectedCategory, setSelectedCategory] = useState<string>(
     GENERAL_PIPELINE_VALUE
   );
-  // const profileModalRef = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
     if (!pipelineTarget) return;
@@ -243,298 +255,110 @@ export const JobApplicationsTable = ({
     setPipelineTarget(null);
     setSelectedCategory(GENERAL_PIPELINE_VALUE);
   };
-  const handleClick = (
-    action: (typeof jobApplicationMenuItems)[number]["label"],
-    item: AiFeedbackItem
+
+  const handleMoveStage = async (
+    item: AiFeedbackItem,
+    newStatus: JobApplication["status"]
   ) => {
-    setActiveApplicant(item);
-    switch (action) {
-      case "View detailed report":
-        setIsModalOpen(true);
-        break;
-      // case "View profile":
-      //   profileModalRef.current?.showModal();
-      //   break;
-      case "Add to Pipeline":
-        setPipelineTarget(item);
-        break;
-      default:
-        toast.info("Coming soon...");
-        break;
+    if (newStatus === item.status || movingId != null) return;
+    const previous = item;
+    setMovingId(item.application_id);
+    setApplications(prev =>
+      prev.map(a =>
+        a.application_id === item.application_id
+          ? { ...a, status: newStatus, status_label: STATUS_LABELS[newStatus] || newStatus }
+          : a
+      )
+    );
+    const res = await updateJobApplicationStatus(item.application_id, newStatus);
+    setMovingId(null);
+    if (!res.success) {
+      toast.error(res.error);
+      setApplications(prev =>
+        prev.map(a => (a.application_id === item.application_id ? previous : a))
+      );
+      return;
+    }
+    if (newStatus === "REVIEWED") {
+      toast.success("Moved to Reviewed", { description: "Assessment invite sent to the candidate." });
+    } else if (newStatus === "PENDING_DECISION") {
+      toast.success("Moved to Pending Decision", { description: "Interview invite sent to the candidate." });
+    } else {
+      toast.success(`Moved to ${STATUS_LABELS[newStatus] || newStatus}`);
     }
   };
+
+  const handleView = (item: AiFeedbackItem) => {
+    setActiveApplicant(item);
+    setIsModalOpen(true);
+  };
+
+  const handleAddToPipelineClick = (item: AiFeedbackItem) => {
+    setActiveApplicant(item);
+    setPipelineTarget(item);
+  };
+
   return (
     <>
-      <ScrollArea
-        className={cn(
-          "dashboard-content-constraint pb-1 bg-transparent",
-          className
-        )}
-      >
-        <div className='h-24' />
-        <div className='w-full rounded-t-xl pl-6 pr-2 h-20 border border-[#F5F5F5] bg-[#EBECEE] flex items-center justify-between'>
+      <div className={cn("dashboard-content-constraint pb-1 bg-transparent", className)}>
+        <div className='w-full rounded-t-xl pl-6 pr-2 h-20 border border-[#F5F5F5] bg-[#EBECEE] flex items-center'>
           <h2 className='text-base md:text-lg font-semibold text-[#343A40]'>
-            {data.length} Job {handlePlural(data.length, "Applicant")}
+            {applications.length} Job {handlePlural(applications.length, "Applicant")}
           </h2>
-          {!!stageCounts && (
-            <div className='flex items-center gap-2 flex-wrap max-sm:hidden'>
-              {Object.entries(stageCounts)
-                .filter(([, count]) => count > 0)
-                .map(([statusValue, count]) => (
-                  <span
-                    key={statusValue}
-                    className={cn(
-                      "rounded-2xl px-2.5 py-1 text-xs font-medium whitespace-nowrap",
-                      STATUS_BADGE_STYLES[statusValue] ||
-                        "bg-[#F5F5F5] text-[#667085]"
-                    )}
-                  >
-                    {STATUS_LABELS[statusValue] || statusValue}: {count}
-                  </span>
-                ))}
-            </div>
-          )}
         </div>
-        <table className='table table-zebra border border-t-0 rounded-b-lg'>
-          {/* head */}
-          <thead>
-            <tr>
-              <th>Talents</th>
-              <th className='max-sm:hidden'>Role</th>
-              <th className='max-sm:hidden'>Resume Analysis Score</th>
-              <th>Assessment Score</th>
-              {/* <th>Pre-screening Score</th> */}
-              <th>AI Interview Score</th>
-              <th>Overall Score</th>
-              <th className='max-sm:hidden'>Proctoring</th>
-              <th>Stage</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
-            {data.length ? (
-              data.map((feedback, i) => (
-                <tr key={feedback.application_id}>
-                  <td className='flex items-center gap-2'>
-                    <AvatarWithVerifiedBadge
-                      profilePic={feedback.profile_picture}
-                      firstName={feedback.talent_name?.split(" ")[0] || ""}
-                      lastName={feedback.talent_name?.split(" ")[1] || ""}
-                      className='w-10'
-                      verified={feedback.has_passed_tiaago_assessment}
-                    />
-                    <div className='font-medium'>
-                      <h6 className='text-[#101828] capitalize'>
-                        {feedback.talent_name}
-                      </h6>
-                      <p className='text-[#667085]'>{feedback.email}</p>
-                    </div>
-                  </td>
-                  <td className='max-sm:hidden text-[#2E2E2E] capitalize'>
-                    {feedback.role}
-                  </td>
-                  <td className='max-sm:hidden'>
-                    <div className='relative h-4 w-32 sm:w-56'>
-                      <progress
-                        className='progress [&::-moz-progress-bar]:bg-[#4AB4FF] [&::-webkit-progress-value]:bg-[#4AB4FF] h-4 bg-transparent z-[2] rounded-[4px] [&::-webkit-progress-value]:rounded-[4px] [&::-moz-progress-bar]:rounded-[4px]'
-                        value={(feedback.resume_analysis_score / 100) * 100}
-                        max={100}
-                      />
-                      <progress
-                        className='progress bg-[#4AB4FF1A] rounded-[4px] h-4 absolute left-0 top-0 z-[1]'
-                        value={0}
-                        max={100}
-                      />
-                      <p
+        {applications.length ? (
+          <ScrollArea className='border border-t-0 rounded-b-lg bg-[#FAFAFB]' horizontalScrollClassName='mt-1'>
+            <div className='flex items-start gap-4 p-4' style={{ minWidth: "max-content" }}>
+              {BOARD_COLUMNS.map(column => {
+                const items = applications.filter(a => column.statuses.includes(a.status));
+                return (
+                  <div key={column.key} className='w-[300px] shrink-0 flex flex-col gap-3'>
+                    <div className='flex items-center justify-between px-1'>
+                      <span
                         className={cn(
-                          "absolute top-0 left-0 text-white text-xs text-center font-medium z-[3] pr-1.5",
-                          feedback.resume_analysis_score <= 10 &&
-                            "text-[#FF0000]"
+                          "rounded-2xl px-2.5 py-1 text-xs font-semibold whitespace-nowrap",
+                          STATUS_BADGE_STYLES[column.statuses[0]] || "bg-[#F5F5F5] text-[#667085]"
                         )}
-                        style={{
-                          width: `${
-                            (feedback.resume_analysis_score / 100) * 100
-                          }%`,
-                        }}
                       >
-                        {feedback.resume_analysis_score}/{100}
-                      </p>
+                        {column.label}
+                      </span>
+                      <span className='text-xs text-[#667085] font-medium'>{items.length}</span>
                     </div>
-                  </td>
-                  <td>
-                    <div className='relative h-4 w-32 sm:w-56'>
-                      <progress
-                        className='progress [&::-moz-progress-bar]:bg-primary [&::-webkit-progress-value]:bg-primary h-4 bg-transparent z-[2] rounded-[4px] [&::-webkit-progress-value]:rounded-[4px] [&::-moz-progress-bar]:rounded-[4px]'
-                        value={(feedback.assessment_score / 100) * 100}
-                        max={100}
-                      />
-                      <progress
-                        className='progress bg-[#5374E71A] rounded-[4px] h-4 absolute left-0 top-0 z-[1]'
-                        value={0}
-                        max={100}
-                      />
-                      <p
-                        className={cn(
-                          "absolute top-0 left-0 text-white text-xs font-medium z-[3] text-center pr-1.5",
-                          feedback.assessment_score <= 10 && "text-[#FF0000]"
-                        )}
-                        style={{
-                          width: `${(feedback.assessment_score / 100) * 100}%`,
-                        }}
-                      >
-                        {feedback.assessment_score}/{100}
-                      </p>
-                    </div>
-                  </td>
-                  <td>
-                    {feedback.ai_interview_score == null ? (
-                      <p className='text-[#98A2B3] text-xs text-center'>—</p>
-                    ) : (
-                      <div className='relative h-4 w-32 sm:w-56'>
-                        <progress
-                          className='progress [&::-moz-progress-bar]:bg-[#7C5CFC] [&::-webkit-progress-value]:bg-[#7C5CFC] h-4 bg-transparent z-[2] rounded-[4px] [&::-webkit-progress-value]:rounded-[4px] [&::-moz-progress-bar]:rounded-[4px]'
-                          value={(feedback.ai_interview_score / 100) * 100}
-                          max={100}
-                        />
-                        <progress
-                          className='progress bg-[#7C5CFC1A] rounded-[4px] h-4 absolute left-0 top-0 z-[1]'
-                          value={0}
-                          max={100}
-                        />
-                        <p
-                          className={cn(
-                            "absolute top-0 left-0 text-white text-xs font-medium z-[3] text-center pr-1.5",
-                            feedback.ai_interview_score <= 10 && "text-[#FF0000]"
-                          )}
-                          style={{
-                            width: `${(feedback.ai_interview_score / 100) * 100}%`,
-                          }}
-                        >
-                          {Math.round(feedback.ai_interview_score)}/{100}
-                        </p>
-                      </div>
-                    )}
-                  </td>
-                  {/* <td>
-                    <div className='relative h-4 w-56'>
-                      <progress
-                        className='progress [&::-moz-progress-bar]:bg-[#4AB4FF] [&::-webkit-progress-value]:bg-[#4AB4FF] h-4 bg-transparent z-[2] rounded-[4px] [&::-webkit-progress-value]:rounded-[4px] [&::-moz-progress-bar]:rounded-[4px]'
-                        value={(feedback.cultural_fitness_score / 100) * 100}
-                        max={100}
-                      />
-                      <progress
-                        className='progress bg-[#4AB4FF1A] rounded-[4px] h-4 absolute left-0 top-0 z-[1]'
-                        value={0}
-                        max={100}
-                      />
-                      <p
-                        className={cn(
-                          "absolute top-0 left-0 text-white text-xs font-medium z-[3] text-center pr-1.5",
-                          feedback.cultural_fitness_score <= 10 &&
-                            "text-[#FF0000]"
-                        )}
-                        style={{
-                          width: `${
-                            (feedback.cultural_fitness_score / 100) * 100
-                          }%`,
-                        }}
-                      >
-                        {feedback.cultural_fitness_score}/{100}
-                      </p>
-                    </div>
-                  </td> */}
-                  <td>
-                    <div
-                      className={cn(
-                        "rounded-2xl bg-[#ECFDF3] px-2 py-0.5 text-center w-fit mx-auto",
-                        feedback.overall_score < 70 && "bg-[#FFEDED]"
+                    <div className='flex flex-col gap-3 min-h-[80px]'>
+                      {items.length ? (
+                        items.map(item => (
+                          <ApplicationCard
+                            key={item.application_id}
+                            item={item}
+                            onView={() => handleView(item)}
+                            onAddToPipeline={() => handleAddToPipelineClick(item)}
+                            onMoveStage={status => handleMoveStage(item, status)}
+                            moving={movingId === item.application_id}
+                          />
+                        ))
+                      ) : (
+                        <div className='rounded-xl border border-dashed border-[#EAECF0] p-4 text-center text-xs text-[#98A2B3]'>
+                          No candidates in this stage
+                        </div>
                       )}
-                    >
-                      <p
-                        className={cn(
-                          "text-[#027A48] text-xs font-medium",
-                          feedback.overall_score < 70 && "!text-[#B53535]"
-                        )}
-                      >
-                        {parseInt(feedback.overall_score.toString())}%
-                      </p>
                     </div>
-                  </td>
-                  <td className='max-sm:hidden'>
-                    <div className='flex items-center justify-center gap-1.5'>
-                      <IntegrityScoreBadge
-                        score={feedback.proctoring_integrity_score}
-                        riskLevel={feedback.proctoring_risk_level}
-                      />
-                      <ProctoringViolationFlag show={feedback.proctoring_has_violation} />
-                    </div>
-                  </td>
-                  <td>
-                    <span
-                      className={cn(
-                        "rounded-2xl px-2.5 py-1 text-xs font-medium whitespace-nowrap",
-                        STATUS_BADGE_STYLES[feedback.status] ||
-                          "bg-[#F5F5F5] text-[#667085]"
-                      )}
-                    >
-                      {feedback.status_label}
-                    </span>
-                  </td>
-                  <td>
-                    <div className='dropdown dropdown-hover dropdown-end dropdown-top'>
-                      <div
-                        tabIndex={0}
-                        className='w-6 h-6 cursor-pointer'
-                        aria-label='open menu'
-                        role='button'
-                      >
-                        <PiDotsThreeBold className='text-2xl' />
-                      </div>
-                      <ul
-                        tabIndex={0}
-                        className='dropdown-content z-[2] menu shadow bg-base-100 rounded-lg w-max px-[2px] py-[18px]'
-                      >
-                        {jobApplicationMenuItems.map(({ label, Icon }) => {
-                          return (
-                            <li key={label}>
-                              <a
-                                className='flex items-center gap-6 text-[13px] font-medium text-[#7F7F7F] hover:text-[#292D32] fill-[#7F7F7F] hover:fill-[#292D32] hover:bg-[#D9DDFF66] px-4 py-2 min-w-[190px]'
-                                onClick={() => handleClick(label, feedback)}
-                              >
-                                <Icon className='text-2xl' />
-                                {label}
-                              </a>
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    </div>
-                  </td>
-                </tr>
-              ))
-            ) : (
-              <tr>
-                <td colSpan={9}>
-                  <EmptyStateV3 text='No applications yet' />
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </ScrollArea>
+                  </div>
+                );
+              })}
+            </div>
+          </ScrollArea>
+        ) : (
+          <div className='border border-t-0 rounded-b-lg py-16'>
+            <EmptyState text='No applications yet' />
+          </div>
+        )}
+      </div>
       {!!activeApplicant && (
-        <>
-          {/* <ProfileModalWithAiFeedback
-            modalRef={profileModalRef}
-            aiFeedback={activeApplicant}
-            roles={roles}
-          /> */}
-          <AIFeedbackModal
-            aiFeedback={activeApplicant}
-            isOpen={isModalOpen}
-            onClose={() => setIsModalOpen(false)}
-          />
-        </>
+        <AIFeedbackModal
+          aiFeedback={activeApplicant}
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+        />
       )}
       <Dialog
         open={!!pipelineTarget}
