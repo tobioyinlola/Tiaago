@@ -38,25 +38,25 @@ const BoardColumn = ({
   const visible = items.slice(0, visibleCount);
 
   return (
-    <div className='w-full md:flex-1 md:min-w-[240px] flex flex-col gap-3'>
+    <div className='w-full min-w-0 flex flex-col gap-3 bg-white rounded-xl border border-[#EAECF0] p-3'>
       <button
         type='button'
         onClick={onToggle}
-        className='flex items-center justify-between px-1 md:pointer-events-none md:cursor-default text-left'
+        className='flex items-center justify-between gap-2 px-1 text-left'
       >
-        <span className={cn("rounded-2xl px-2.5 py-1 text-xs font-semibold whitespace-nowrap", badgeClassName)}>
+        <span className={cn("rounded-2xl px-2.5 py-1 text-xs font-semibold whitespace-nowrap truncate", badgeClassName)}>
           {label}
         </span>
-        <span className='flex items-center gap-1.5 text-xs text-[#667085] font-medium'>
+        <span className='flex items-center gap-1.5 text-xs text-[#667085] font-medium shrink-0'>
           {items.length}
-          <ChevronDown className={cn("w-3.5 h-3.5 transition-transform md:hidden", expanded && "rotate-180")} />
+          <ChevronDown className={cn("w-3.5 h-3.5 transition-transform", expanded && "rotate-180")} />
         </span>
       </button>
       <div
         ref={setNodeRef}
         className={cn(
-          expanded ? "flex" : "hidden",
-          "md:flex flex-col gap-3 min-h-[80px] rounded-xl transition-colors",
+          expanded ? "flex flex-col gap-3" : "hidden",
+          "min-h-[80px] rounded-xl transition-colors",
           "md:max-h-[calc(100vh-320px)] md:overflow-y-auto md:pr-1",
           droppable && isOver && "bg-primary/5 outline outline-2 outline-dashed outline-primary/30"
         )}
