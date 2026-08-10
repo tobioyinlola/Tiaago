@@ -26,6 +26,25 @@ def _log_ai_usage(service_type, company, succeeded, error_message=None):
     except Exception:
         logger.exception("Failed to write AIUsageLog for %s", service_type)
 
+def _candidate_join_url(meeting_instance):
+    """The candidate's real, working join link -- the Daily.co room is
+    private (see scheduler.services.provision_daily_room), so the bare
+    room_url _flatten_meeting falls back to can't actually be entered.
+    None for meetings from the older manual-scheduler flow, which never
+    mints a candidate_join_token -- callers fall back to room_url there."""
+    if not meeting_instance.candidate_join_token:
+        return None
+    base = str(settings.FRONTEND_URL).rstrip("/")
+    return f"{base}/interview/join/{meeting_instance.candidate_join_token}"
+
+
+def _recruiter_join_url(meeting_instance):
+    """The recruiter is always an authenticated dashboard user, so their
+    join link is the workspace page itself, not a public token route."""
+    base = str(settings.FRONTEND_URL).rstrip("/")
+    return f"{base}/recruiter/dashboard/interviews/{meeting_instance.id}/session"
+
+
 def get_meeting_details(meeting_instance):
     """Prepare meeting details for email templates."""
     try:
@@ -72,7 +91,9 @@ def send_meeting_reminder(user_id, company_name, meeting_id):
         # Check if the meeting is in the future before sending the reminder
         if meeting_time > now and meeting_instance.accepted:
             meeting_details = get_meeting_details(meeting_instance)
-            result = emails.meeting_invite_reminder(user, company_name, meeting_details)
+            result = emails.meeting_invite_reminder(
+                user, company_name, meeting_details, join_url=_candidate_join_url(meeting_instance)
+            )
             logger.info(f"Successfully sent reminder email for meeting {meeting_id}")
             return result
         else:
@@ -212,7 +233,10 @@ def recruiter_interview_reminder_mail(user_id, candidate_name, company_name, mee
 
     meeting_details = get_meeting_details(meeting_instance)
     try:
-        emails.recruiter_interview_reminder_mail(user, candidate_name, company_name, meeting_details)
+        emails.recruiter_interview_reminder_mail(
+            user, candidate_name, company_name, meeting_details,
+            join_url=_recruiter_join_url(meeting_instance),
+        )
     except Exception:
         logger.exception(f"Failed to send recruiter interview reminder email for meeting {meeting_id}")
 
@@ -222,7 +246,7 @@ def recruiter_interview_reminder_mail(user_id, candidate_name, company_name, mee
             title="Interview starting soon",
             message=f"Your interview with {candidate_name} starts in 30 minutes.",
             notification_type=Notification.Type.INTERVIEW,
-            link_path=f"recruiter/dashboard/interviews/{meeting_id}",
+            link_path=f"recruiter/dashboard/interviews/{meeting_id}/session",
             link_label="Join interview",
         )
     except Exception:

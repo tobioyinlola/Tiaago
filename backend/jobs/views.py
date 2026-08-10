@@ -882,6 +882,22 @@ class JobApplicationRetrieveUpdateView(RetrieveUpdateAPIView):
         if status_value == JobApplication.JobApplicationStatus.REJECTED and status_value != previous_status and not rejection_reason:
             return Response({"detail": "A reason is required to reject a candidate."}, status=HTTP_400_BAD_REQUEST)
 
+        # Moving a candidate to interview on a non-AI-interview job silently
+        # no-ops (send_interview_slot_invite just logs a warning and returns)
+        # if the recruiter hasn't published any interview time slots yet --
+        # catch that here instead of leaving the recruiter and candidate with
+        # no signal that nothing happened.
+        if (
+            status_value == JobApplication.JobApplicationStatus.PENDING_DECISION
+            and status_value != previous_status
+            and not instance.job.ai_interview_enabled
+            and not instance.job.interview_availability_slots.filter(is_claimed=False).exists()
+        ):
+            return Response(
+                {"detail": "Publish at least one interview time slot for this job before inviting a candidate to interview."},
+                status=HTTP_400_BAD_REQUEST,
+            )
+
         self.perform_update(serializer)
 
         # A recruiter manually advancing a candidate should trigger the same

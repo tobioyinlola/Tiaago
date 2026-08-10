@@ -70,7 +70,7 @@ const InterviewJoinButton = ({
 
   return (
     <Link
-      href={`/recruiter/dashboard/interviews/${id}`}
+      href={`/recruiter/dashboard/interviews/${id}/session`}
       className='btn btn-sm btn-primary text-white rounded-lg gap-1.5 border-none'
     >
       <Video className='w-3.5 h-3.5' />

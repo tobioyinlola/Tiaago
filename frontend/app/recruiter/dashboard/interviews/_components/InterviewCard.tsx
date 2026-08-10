@@ -72,8 +72,11 @@ const InterviewCard = ({
   interview: RecruiterInterview;
   tab: RecruiterInterviewTab;
 }) => {
-  const workspaceHref = `/recruiter/dashboard/interviews/${interview.id}`;
-  const prepareHref = `${workspaceHref}/prepare`;
+  const baseHref = `/recruiter/dashboard/interviews/${interview.id}`;
+  const prepareHref = `${baseHref}/prepare`;
+  // Live interviews join the real video workspace; a needs-review/completed
+  // interview is already over, so its button opens the review page instead.
+  const workspaceHref = tab === "live" ? `${baseHref}/session` : `${baseHref}/review`;
   const startsAt = parseInterviewStart(
     interview.meeting_date,
     interview.start_time

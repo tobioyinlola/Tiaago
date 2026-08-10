@@ -662,15 +662,15 @@ def send_interview_slot_selection_invite(skill_assessment_submission, job):
     """
     from .utils import get_submission_candidate_email, get_submission_candidate_name
 
-    base = str(FRONTEND_URL).rstrip('/') + '/'
+    base = str(FRONTEND_URL).rstrip('/')
     job_application = skill_assessment_submission.skill_assessment.job_application
     if job_application and not job_application.applicant_id:
         # Guest (account-less) applicant -- no login to reach the talent-only
         # slots page, so route to the token-based guest flow instead (see
         # jobs.views.GuestInterviewSlotListView/GuestInterviewSlotClaimView).
-        slots_url = f"https://{base}jobs/interview-slots/{skill_assessment_submission.skill_assessment.invite_token}"
+        slots_url = f"{base}/jobs/interview-slots/{skill_assessment_submission.skill_assessment.invite_token}"
     else:
-        slots_url = f"https://{base}talents/jobs/{job.public_id}/interview-slots"
+        slots_url = f"{base}/talents/jobs/{job.public_id}/interview-slots"
 
     # See send_interview_invite above -- same guest-safe identity lookup.
     candidate_email = get_submission_candidate_email(skill_assessment_submission)
