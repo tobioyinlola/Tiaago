@@ -1,6 +1,6 @@
 // import { RxDashboard } from "react-icons/rx";
 import type { IconBaseProps } from "react-icons";
-import { IoSearch, IoSettingsOutline, IoHelpCircleOutline, IoLinkOutline } from "react-icons/io5";
+import { IoSearch, IoSettingsOutline, IoHelpCircleOutline, IoLinkOutline, IoBarChartOutline } from "react-icons/io5";
 
 import { DashboardNavItemV3 } from "@/app/common/types";
 import MoneyBagIcon from "@/app/common/icons/MoneyBagIcon";
@@ -198,6 +198,11 @@ export const recruiterNavItems: DashboardNavItemV3[] = [
   //     </svg>
   //   ),
   // },
+  {
+    name: "Reports",
+    href: `${baseHref}/reports`,
+    Icon: IoBarChartOutline,
+  },
   {
     name: "Integrations",
     href: `${baseHref}/integrations`,

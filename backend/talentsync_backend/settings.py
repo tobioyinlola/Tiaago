@@ -81,6 +81,7 @@ INSTALLED_APPS = [
     "ats_integrations.apps.AtsIntegrationsConfig",
     "talent_network.apps.TalentNetworkConfig",
     "ai_interviews.apps.AiInterviewsConfig",
+    "reports.apps.ReportsConfig",
     # 3rd party apps
     "allauth",
     "allauth.account",
