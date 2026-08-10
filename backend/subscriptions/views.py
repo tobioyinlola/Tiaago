@@ -908,6 +908,15 @@ def get_wallet_usage(request):
         assessment_charged=True, assessment_charged_at__gte=month_start
     ).count()
 
+    # AI interviews are billed separately (BillingService.charge_ai_interview
+    # against AIInterview.billing_charged), not through CandidateBillingRecord,
+    # since a candidate can have an AI interview without a job_application-keyed
+    # resume screening/assessment row.
+    from ai_interviews.models import AIInterview
+    ai_interviews_used = AIInterview.objects.filter(
+        organisation=company, billing_charged=True, billing_charged_at__gte=month_start
+    ).count()
+
     # total amount spent this month
     total_spent = wallet.transactions.filter(
         transaction_type="debit", created_at__gte=month_start
@@ -919,6 +928,7 @@ def get_wallet_usage(request):
 
         "resumes_used": resumes_used,
         "assessments_used": assessments_used,
+        "ai_interviews_used": ai_interviews_used,
         "total_amount_spent": total_spent,
     }, status=status.HTTP_200_OK)
 

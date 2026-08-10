@@ -19,6 +19,17 @@ const RECOMMENDATIONS: { value: InterviewRecommendationValue; label: string; col
 
 const CONFIDENCE: InterviewConfidenceValue[] = ["LOW", "MEDIUM", "HIGH"];
 
+// Submitting a decision also syncs the candidate's pipeline stage (see
+// scheduler.review_views.InterviewDecisionView) -- surfaced here so the
+// recruiter isn't surprised that Strong No/No fires a rejection email
+// immediately on submit.
+const PIPELINE_NOTE: Partial<Record<InterviewRecommendationValue, string>> = {
+  STRONG_YES: "Submitting will move this candidate to Offer Extended.",
+  YES: "Submitting will move this candidate to Offer Extended.",
+  NO: "Submitting will reject this candidate and email them the reason now.",
+  STRONG_NO: "Submitting will reject this candidate and email them the reason now.",
+};
+
 const scoreColor = (score: number | null) => {
   if (score === null) return "text-secondary-black";
   if (score >= 70) return "text-success";
@@ -129,6 +140,19 @@ const DecisionPanel = ({
             ))}
           </div>
         </div>
+
+        {recommendation && PIPELINE_NOTE[recommendation] && (
+          <p
+            className={cn(
+              "text-xs rounded-lg px-3 py-2 border",
+              recommendation === "NO" || recommendation === "STRONG_NO"
+                ? "text-destructive bg-destructive/5 border-destructive/20"
+                : "text-success bg-success/5 border-success/20"
+            )}
+          >
+            {PIPELINE_NOTE[recommendation]}
+          </p>
+        )}
 
         <button
           type='button'

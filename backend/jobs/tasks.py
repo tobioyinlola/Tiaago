@@ -1032,9 +1032,9 @@ def send_interview_slot_invite(job_application_id):
         )
         return
 
-    base = str(settings.FRONTEND_URL).rstrip("/") + "/"
+    base = str(settings.FRONTEND_URL).rstrip("/")
     if job_application.applicant_id:
-        slots_url = f"https://{base}talents/jobs/{job.public_id}/interview-slots"
+        slots_url = f"{base}/talents/jobs/{job.public_id}/interview-slots"
     else:
         # Guest applicant -- no login to reach the talent-only slots page,
         # so route through the same token-based guest flow used by
@@ -1046,7 +1046,7 @@ def send_interview_slot_invite(job_application_id):
                 job_application.id,
             )
             return
-        slots_url = f"https://{base}jobs/interview-slots/{assessment.invite_token}"
+        slots_url = f"{base}/jobs/interview-slots/{assessment.invite_token}"
 
     candidate_email = job_application.candidate_email
     candidate_name = job_application.candidate_full_name

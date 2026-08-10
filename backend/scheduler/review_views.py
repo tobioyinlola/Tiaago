@@ -162,12 +162,41 @@ class RegenerateInterviewSummaryView(APIView):
         return Response(_serialize_summary(summary), status=HTTP_200_OK)
 
 
+def _rejection_reason_from_summary(summary):
+    """Best-effort human-readable reason for the candidate's rejection
+    email, built from whatever the AI summary (or the recruiter's edits to
+    it) actually contains -- concerns is an array of {text, severity}
+    objects, see InterviewSummary.concerns."""
+    concern_texts = [
+        c.get("text", "").strip()
+        for c in (summary.concerns or [])
+        if isinstance(c, dict) and c.get("text", "").strip()
+    ]
+    if concern_texts:
+        return "; ".join(concern_texts)
+    if summary.executive_summary.strip():
+        return summary.executive_summary.strip()
+    return "This candidate was not selected to move forward after the interview."
+
+
 class InterviewDecisionView(APIView):
     """POST /api/schedulers/<pk>/decision/ -- "Submit Decision" in the
     review page's fixed right panel. Finalises the recommendation/confidence/
     overall_score the recruiter chose (which may differ from the AI's own
     suggestion) and stamps submitted_at, which is what moves the interview
-    from the "Needs Review" tab to "Completed" on the interviews list."""
+    from the "Needs Review" tab to "Completed" on the interviews list.
+
+    Also syncs JobApplication.status -- mirrors
+    ai_interviews.views.RecruiterAIInterviewDecisionView so a human-interview
+    decision advances the pipeline exactly like an AI-interview one does.
+    STRONG_YES/YES move the candidate to Offer Extended; NO/STRONG_NO reject
+    them (with a reason drawn from the summary, through the same
+    send_manual_rejection_mail flow a manual Kanban-board reject uses, so the
+    candidate gets the same reasoned rejection email either way); MAYBE
+    leaves the pipeline status alone for the recruiter to decide by hand.
+    Re-submitting a decision (e.g. after editing confidence) is safe to
+    repeat -- the JobApplication update is idempotent and the rejection
+    email only fires on the transition INTO Rejected, not on every resubmit."""
 
     permission_classes = [IsAuthenticated]
 
@@ -192,6 +221,27 @@ class InterviewDecisionView(APIView):
             summary.overall_score = request.data["overall_score"]
         summary.submitted_at = timezone.now()
         summary.save(update_fields=["recommendation", "confidence", "overall_score", "submitted_at"])
+
+        if interview.job_application_id:
+            from jobs.models import JobApplication
+            from jobs.tasks import REJECTION_MAIL_DELAY_SECONDS, send_manual_rejection_mail
+
+            job_application = JobApplication.objects.filter(id=interview.job_application_id).first()
+            if job_application:
+                if recommendation in (InterviewSummary.Recommendation.STRONG_YES, InterviewSummary.Recommendation.YES):
+                    job_application.status = JobApplication.JobApplicationStatus.OFFER_EXTENDED
+                    job_application.save(update_fields=["status"])
+                elif recommendation in (InterviewSummary.Recommendation.NO, InterviewSummary.Recommendation.STRONG_NO):
+                    was_already_rejected = job_application.status == JobApplication.JobApplicationStatus.REJECTED
+                    job_application.status = JobApplication.JobApplicationStatus.REJECTED
+                    job_application.save(update_fields=["status"])
+                    if not was_already_rejected:
+                        send_manual_rejection_mail.apply_async(
+                            args=[job_application.id, _rejection_reason_from_summary(summary)],
+                            countdown=REJECTION_MAIL_DELAY_SECONDS,
+                        )
+                # MAYBE: pipeline status is left untouched.
+
         return Response(_serialize_summary(summary), status=HTTP_200_OK)
 
 

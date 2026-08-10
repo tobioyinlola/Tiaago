@@ -145,13 +145,13 @@ class AIInterview(TimeStampedModel):
     )
     recruiter_override_reason = models.TextField(blank=True, default="")
 
-    # Billing -- mirrors scheduler.Scheduler.interview_package_charged/amount.
-    # Free-allowance status is derived on the fly (first 3 charged AI
-    # interviews per organisation) rather than stored, matching
-    # BillingService.charge_interview_package's own convention -- see
-    # billing_service.charge_ai_interview.
+    # Billing -- charged from the same wallet.free_credits_remaining pool as
+    # resume screening/assessment (free_allowance_used just records whether
+    # this particular interview was covered by a free credit or charged
+    # against the wallet balance) -- see billing_service.charge_ai_interview.
     billing_charged = models.BooleanField(default=False)
     billing_amount = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    billing_charged_at = models.DateTimeField(null=True, blank=True)
     free_allowance_used = models.BooleanField(default=False)
 
     audio_recording_url = models.URLField(blank=True, null=True)

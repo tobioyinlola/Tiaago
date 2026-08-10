@@ -219,6 +219,13 @@ def get_email_template_and_context(
             "countdown": "soon",
             **meeting_ctx,
         }
+        # The Daily.co room is private -- the bare room_url _flatten_meeting
+        # falls back to can't actually be joined without a token. Callers on
+        # the token-based join flow (see jobs.views._claim_interview_slot)
+        # pass the real app join_url explicitly; older/manual-scheduler
+        # meetings without a candidate_join_token keep the room_url fallback.
+        if kwargs.get("join_url"):
+            context["join_url"] = kwargs["join_url"]
 
     elif email_type == "meeting_cancelled_by_company":
         md = kwargs.get("meeting_details") or {}
@@ -313,6 +320,11 @@ def get_email_template_and_context(
             "countdown": kwargs.get("countdown", "in 30 minutes"),
             **meeting_ctx,
         }
+        # See the matching comment in "meeting_reminder" above -- the
+        # recruiter's join link is the authenticated dashboard workspace,
+        # not the raw (private, token-gated) Daily.co room_url.
+        if kwargs.get("join_url"):
+            context["join_url"] = kwargs["join_url"]
 
     elif email_type == "interview_candidate_feedback_mail":
         template_file = "emails/interview_candidate_feedback.html"
@@ -560,10 +572,10 @@ def meeting_invite_mail(user, company_name, meeting_details):
         email_type="meeting_invite",
     )
 
-def meeting_invite_reminder(user, company_name, meeting_details):
+def meeting_invite_reminder(user, company_name, meeting_details, join_url=None):
     template, ctx = get_email_template_and_context(
         user, "meeting_reminder", company_name=company_name,
-        meeting_details=meeting_details,
+        meeting_details=meeting_details, join_url=join_url,
     )
     if not template:
         return None
@@ -660,7 +672,7 @@ def recruiter_interview_acceptance_mail(user, company_name, meeting_details, can
     )
 
 
-def recruiter_interview_reminder_mail(user, candidate_name, company_name, meeting_details):
+def recruiter_interview_reminder_mail(user, candidate_name, company_name, meeting_details, join_url=None):
     """30-minutes-before reminder to the recruiter -- `user` is the company
     rep being emailed; `candidate_name` is passed explicitly since `user`
     here is not the candidate (matching the pattern to the confusingly-
@@ -669,7 +681,7 @@ def recruiter_interview_reminder_mail(user, candidate_name, company_name, meetin
     existing quirk in this codebase, not repeated here)."""
     template, ctx = get_email_template_and_context(
         user, "recruiter_interview_reminder_mail", company_name=company_name,
-        candidate_name=candidate_name, meeting_details=meeting_details,
+        candidate_name=candidate_name, meeting_details=meeting_details, join_url=join_url,
     )
     if not template:
         return None
