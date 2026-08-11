@@ -12,11 +12,17 @@ class InterviewQuestionsRequest(BaseModel):
     weak_areas: List[str] = []
     duration_minutes: int = 10
     questions_count: int = 6
+    # Computed Django-side from Job.role_category (+ a title-keyword
+    # fallback) -- see ai_interviews.tasks._is_technical_role. Swaps in a
+    # genuinely technical question slot instead of the generic SITUATIONAL
+    # one -- see interview_questions_service.py's
+    # TECHNICAL_QUESTION_TYPES_BY_COUNT.
+    is_technical_role: bool = False
 
 
 class GeneratedInterviewQuestion(BaseModel):
     number: int
-    type: str  # OPENER | MOTIVATION | EXPERIENCE | SITUATIONAL | CHALLENGE | CLOSING
+    type: str  # OPENER | MOTIVATION | EXPERIENCE | SITUATIONAL | TECHNICAL | CULTURAL_FIT | CLOSING
     text: str
     expected_duration_seconds: int = 90
     followup_if_vague: str = ""

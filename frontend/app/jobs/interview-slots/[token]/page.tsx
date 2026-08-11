@@ -19,7 +19,7 @@ const GuestInterviewSlotsPage = async ({ params }: Props) => {
 
   if (!res.success) {
     return (
-      <div className='p-8 max-md:px-4 flex flex-col gap-6 sm:gap-8 max-w-2xl mx-auto'>
+      <div className='p-8 max-md:px-4 flex flex-col gap-6 sm:gap-8 max-w-4xl mx-auto'>
         <div className='border-b border-gray-200 pb-1'>
           <h1 className='text-2xl font-semibold font-space-grotesk'>
             Pick your interview time

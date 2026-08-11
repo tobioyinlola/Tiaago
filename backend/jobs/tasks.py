@@ -1096,3 +1096,46 @@ def send_manual_rejection_mail(job_application_id, reason):
     except Exception:
         logger.exception("Failed to send manual rejection mail for job_application %s", job_application_id)
 
+
+@shared_task(name="send_interview_scheduled_notice_mail")
+def send_interview_scheduled_notice_mail(job_application_id):
+    """Fired when a recruiter manually moves a candidate to
+    INTERVIEW_SCHEDULED on the applications board (see
+    jobs.views.JobApplicationRetrieveUpdateView.put) -- previously a silent
+    status write with no candidate-facing signal at all, unlike every other
+    stage move. Deliberately generic (see emails.interview_scheduled_notice_mail)
+    since this bypass doesn't go through the real slot-claim/Daily.co flow
+    that jobs.views._claim_interview_slot's own confirmation email covers."""
+    job_application = JobApplication.objects.select_related("job", "job__company").filter(
+        id=job_application_id
+    ).first()
+    if not job_application:
+        return
+    try:
+        emails.interview_scheduled_notice_mail(
+            job_application.as_email_recipient(),
+            job_application.job.company.company_name,
+            job_application.job.title,
+        )
+    except Exception:
+        logger.exception("Failed to send interview scheduled notice for job_application %s", job_application_id)
+
+
+@shared_task(name="send_offer_extended_notice_mail")
+def send_offer_extended_notice_mail(job_application_id):
+    """Fired when a recruiter moves a candidate to OFFER_EXTENDED on the
+    applications board -- previously no candidate-facing signal at all."""
+    job_application = JobApplication.objects.select_related("job", "job__company").filter(
+        id=job_application_id
+    ).first()
+    if not job_application:
+        return
+    try:
+        emails.offer_extended_notice_mail(
+            job_application.as_email_recipient(),
+            job_application.job.company.company_name,
+            job_application.job.title,
+        )
+    except Exception:
+        logger.exception("Failed to send offer extended notice for job_application %s", job_application_id)
+

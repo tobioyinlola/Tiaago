@@ -1,0 +1,8 @@
+{% extends "emails/base.html" %}
+{% block title %}You have an offer{% endblock %}
+{% block preheader %}{{ company|default:"The hiring team" }} would like to extend you an offer for {{ role|default:"the role" }}.{% endblock %}
+{% block content %}
+  <h1 class="h1" style="margin:0 0 14px; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:33px; line-height:1.15; letter-spacing:-0.6px; font-weight:800; color:#0F172A;">{{ company|default:"The hiring team" }} wants to hire you</h1>
+
+  <p style="margin:0 0 24px; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:16px; line-height:1.65; color:#475569;">Congratulations, {{ first_name|default:"there" }}. After reviewing your interviews, {{ company|default:"the team" }} would like to extend you an offer for the {{ role|default:"role" }} position. Someone from their team will reach out directly with the details.</p>
+{% endblock %}

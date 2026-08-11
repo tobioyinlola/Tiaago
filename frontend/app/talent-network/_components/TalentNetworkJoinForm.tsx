@@ -146,8 +146,8 @@ const TalentNetworkJoinForm = ({ groupedCountries }: Props) => {
           You&apos;re officially part of the TIAAGO Talent Network.
         </h2>
         <p className="text-sm text-secondary-black max-w-md mx-auto">
-          We&apos;ll notify you whenever a relevant opportunity becomes available. Check your inbox to confirm your email
-          address.
+          We&apos;ll notify you whenever a relevant opportunity becomes available. Check your inbox (and your spam or
+          junk folder, just in case) to confirm your email address and start getting mail updates.
         </p>
       </div>
     );

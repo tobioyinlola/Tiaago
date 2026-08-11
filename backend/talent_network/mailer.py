@@ -116,7 +116,13 @@ def notify_member_of_job(notification: JobMatchNotification) -> bool:
         "job": job,
         "company_name": company.company_name if company else "",
         "matched_criteria": notification.matched_criteria,
-        "apply_url": f"{tracking_base}/click/{notification.id}/",
+        # Straight to the real frontend job page -- never a backend
+        # redirect hop (BASE_URL isn't validated as required-in-prod the
+        # way FRONTEND_URL is, so a misconfigured/unset BASE_URL used to
+        # silently embed an unreachable localhost link here). ?tn= is read
+        # by the apply page itself to record the click -- see
+        # TrackClickView's docstring.
+        "apply_url": f"{job.get_apply_url()}?tn={notification.id}",
         "open_pixel_url": f"{tracking_base}/open/{notification.id}/",
         "unsubscribe_url": f"{settings.FRONTEND_URL.rstrip('/')}/unsubscribe?token={member.unsubscribe_token}",
     })

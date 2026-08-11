@@ -33,7 +33,7 @@ const InterviewTimer = ({
     <span
       className={cn(
         "font-mono text-[20px] tabular-nums",
-        ratio >= 0.9 ? "text-red-400 animate-pulse" : ratio >= 0.8 ? "text-amber-400" : "text-white"
+        ratio >= 0.9 ? "text-red-600 animate-pulse" : ratio >= 0.8 ? "text-amber-600" : "text-primaryBlack"
       )}
     >
       {formatElapsed(elapsedMs)}

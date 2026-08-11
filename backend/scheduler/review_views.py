@@ -224,13 +224,20 @@ class InterviewDecisionView(APIView):
 
         if interview.job_application_id:
             from jobs.models import JobApplication
-            from jobs.tasks import REJECTION_MAIL_DELAY_SECONDS, send_manual_rejection_mail
+            from jobs.tasks import (
+                REJECTION_MAIL_DELAY_SECONDS,
+                send_manual_rejection_mail,
+                send_offer_extended_notice_mail,
+            )
 
             job_application = JobApplication.objects.filter(id=interview.job_application_id).first()
             if job_application:
                 if recommendation in (InterviewSummary.Recommendation.STRONG_YES, InterviewSummary.Recommendation.YES):
+                    was_already_extended = job_application.status == JobApplication.JobApplicationStatus.OFFER_EXTENDED
                     job_application.status = JobApplication.JobApplicationStatus.OFFER_EXTENDED
                     job_application.save(update_fields=["status"])
+                    if not was_already_extended:
+                        send_offer_extended_notice_mail.delay(job_application.id)
                 elif recommendation in (InterviewSummary.Recommendation.NO, InterviewSummary.Recommendation.STRONG_NO):
                     was_already_rejected = job_application.status == JobApplication.JobApplicationStatus.REJECTED
                     job_application.status = JobApplication.JobApplicationStatus.REJECTED

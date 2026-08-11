@@ -52,11 +52,11 @@ export const companyDescriptionValidationSchema = Yup.object().shape({
 });
 
 export const jobRequirementValidationSchema = Yup.object().shape({
-  job_requirement: richtextValidationSchema(1000, "Job requirements"),
+  job_requirement: richtextValidationSchema(3000, "Job requirements"),
 });
 
 export const jobDescriptionValidationSchema = Yup.object().shape({
-  description: richtextValidationSchema(1000, "Job description"),
+  description: richtextValidationSchema(3000, "Job description"),
 });
 
 type JobBasicDetailsFormValues = Yup.InferType<

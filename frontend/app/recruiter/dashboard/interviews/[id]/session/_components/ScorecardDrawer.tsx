@@ -219,12 +219,16 @@ const ScorecardDrawer = ({
       <button
         type='button'
         onClick={onToggle}
-        className='h-12 shrink-0 bg-deep-blue flex items-center justify-between px-4'
+        className='h-12 shrink-0 bg-white border-b border-[#EAECF0] flex items-center justify-between px-4'
       >
-        <span className='text-white text-sm font-medium'>
+        <span className='text-primaryBlack text-sm font-medium'>
           Competency Scorecard — {scoredCount} of {totalCount} scored
         </span>
-        {open ? <ChevronDown className='w-4 h-4 text-white' /> : <ChevronUp className='w-4 h-4 text-white' />}
+        {open ? (
+          <ChevronDown className='w-4 h-4 text-secondary-black' />
+        ) : (
+          <ChevronUp className='w-4 h-4 text-secondary-black' />
+        )}
       </button>
 
       {open && (

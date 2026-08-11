@@ -6,11 +6,18 @@ recruiter's live "estimated reach" preview on the job wizard's publish step
 (jobs.views), so the number a recruiter sees before publishing is exactly
 the number that determines who actually gets emailed.
 
-Weights (of the total 100-point score):
-  Role       40%  -- job.role_category must be one the member said they're
-                     interested in. All-or-nothing: a job with no
-                     role_category set can never match (safe default for
-                     legacy/uncategorized jobs).
+Eligibility is role-only, by explicit product decision: job.role_category
+must be one the member said they're interested in. A job with no
+role_category set can never match (safe default for legacy/uncategorized
+jobs). Location/industry/experience are still scored below and stored on
+each JobMatchNotification (matched_criteria) purely for reporting -- e.g.
+"this member also happens to be in the right location/industry" -- but
+none of them gate the alert. Location in particular must never suppress a
+role match: a member who wants this role gets notified regardless of
+where the job is or whether it's remote.
+
+Weights (of the total 100-point informational score):
+  Role       40%  -- see above; also the sole gate on is_match.
   Location   20%  -- average of two independent yes/no signals:
                        - work mode matches the member's stated preference
                        - the job's country is one of the member's preferred
@@ -25,8 +32,6 @@ Weights (of the total 100-point score):
                      one bracket away, half credit if the job simply didn't
                      specify a requirement (not enough information to
                      disqualify), zero otherwise.
-
-A member is eligible for notification once their total score is >= 60.
 """
 
 from dataclasses import dataclass, field
@@ -39,8 +44,6 @@ if TYPE_CHECKING:
 
     from .models import TalentNetworkMember
 
-MATCH_THRESHOLD = 60
-
 ROLE_WEIGHT = 40
 LOCATION_WEIGHT = 20
 INDUSTRY_WEIGHT = 20
@@ -51,10 +54,13 @@ EXPERIENCE_WEIGHT = 20
 class MatchResult:
     score: int
     breakdown: dict = field(default_factory=dict)
+    role_matched: bool = False
 
     @property
     def is_match(self) -> bool:
-        return self.score >= MATCH_THRESHOLD
+        # Role alone gates the alert -- see module docstring. score/breakdown
+        # (including the location component) are kept purely for reporting.
+        return self.role_matched
 
 
 def _role_score(member: "TalentNetworkMember", job: "Job") -> float:
@@ -121,6 +127,7 @@ def score_member_for_job(member: "TalentNetworkMember", job: "Job") -> MatchResu
 
     return MatchResult(
         score=total,
+        role_matched=role == 1.0,
         breakdown={
             "role": {"matched": role == 1.0, "weight": ROLE_WEIGHT, "points": round(role * ROLE_WEIGHT)},
             "location": {"score": location, "weight": LOCATION_WEIGHT, "points": round(location * LOCATION_WEIGHT)},

@@ -436,7 +436,9 @@ const CreateJobForm = ({
                             error={error}
                             touched={touched[name]}
                             richtextProps={{
-                              maxChars: 1000,
+                              // Matches jobRequirementValidationSchema/jobDescriptionValidationSchema/
+                              // companyDescriptionValidationSchema in form.constants.ts.
+                              maxChars: name === "about_company" ? 1000 : 3000,
                               minHeight: 180,
                             }}
                           />

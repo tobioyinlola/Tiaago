@@ -2,7 +2,7 @@ import csv
 
 from django.db.models import Count, Q
 from django.db.models.functions import TruncMonth
-from django.http import HttpResponse, HttpResponseRedirect
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
@@ -141,14 +141,26 @@ class TrackOpenView(APIView):
 
 
 class TrackClickView(APIView):
+    """GET /api/talent-network/track/click/<id>/ -- fired client-side (a
+    fire-and-forget beacon from the job apply page, see ?tn= handling in
+    frontend/app/(home)/jobs/[job_id]/apply/page.tsx) rather than being the
+    email button's own href. The button links straight to the job's real
+    frontend URL (job.get_apply_url()) so it always works even if BASE_URL
+    isn't configured for this environment; click analytics are recorded
+    once the candidate actually lands on that page instead of via a
+    server-side redirect hop through the backend's own (sometimes
+    unconfigured/unreachable) public domain."""
+
     permission_classes = [AllowAny]
 
     def get(self, request, notification_id):
-        notification = get_object_or_404(JobMatchNotification.objects.select_related("job"), id=notification_id)
+        notification = JobMatchNotification.objects.filter(id=notification_id).first()
+        if not notification:
+            return Response(status=status.HTTP_204_NO_CONTENT)
         JobMatchNotification.objects.filter(id=notification.id).exclude(
             status__in=[JobMatchNotification.Status.CLICKED, JobMatchNotification.Status.APPLIED]
         ).update(status=JobMatchNotification.Status.CLICKED, clicked_at=timezone.now())
-        return HttpResponseRedirect(notification.job.get_apply_url())
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 # ── Admin: overview / members / analytics ──────────────────────────────────

@@ -3,6 +3,7 @@ older manual-scheduler CRUD) to keep each file focused. All operate on
 the same `Scheduler` model."""
 
 import logging
+from datetime import timedelta
 
 from django.utils import timezone
 from rest_framework.views import APIView
@@ -33,6 +34,16 @@ from .models import (
 from .services import DailyRoomProvisioningError, create_meeting_token
 
 logger = logging.getLogger(__name__)
+
+# Matches JOIN_WINDOW_MINUTES on the frontend (recruiter dashboard's
+# InterviewJoinButton, interviews.constants.ts) and the "room will open 30
+# minutes before your interview" copy in the candidate confirmation/reminder
+# emails -- the Daily.co token's nbf must actually honor this window on both
+# the recruiter and candidate join paths below, or those promises are false:
+# without it, a token minted with nbf=start_dt is rejected by Daily.co for
+# anyone arriving before the exact scheduled second, regardless of what any
+# button or email claims.
+JOIN_WINDOW_MINUTES = 30
 
 
 def _get_owned_interview(request, pk, select_related=()):
@@ -128,6 +139,18 @@ class CandidateJoinView(APIView):
                 {"error": "This interview's video room isn't ready yet. Please try again shortly."},
                 status=HTTP_400_BAD_REQUEST,
             )
+        room_opens_at = timezone.make_aware(
+            timezone.datetime.combine(interview.meeting_date, interview.start_time)
+        ) - timedelta(minutes=JOIN_WINDOW_MINUTES)
+        if timezone.now() < room_opens_at:
+            # Same "opens 30 minutes before" promise as the confirmation/
+            # reminder emails -- caught here with a friendly message instead
+            # of letting the join attempt fail deep inside the Daily.co
+            # client SDK once nbf actually rejects it.
+            return Response(
+                {"error": f"The room opens {JOIN_WINDOW_MINUTES} minutes before your interview starts. Please come back closer to your scheduled time."},
+                status=HTTP_400_BAD_REQUEST,
+            )
         if interview.recording_enabled and not consent_given:
             return Response(
                 {"error": "Recording consent is required to join this interview."}, status=HTTP_400_BAD_REQUEST
@@ -140,7 +163,7 @@ class CandidateJoinView(APIView):
                 interview.room_name,
                 is_owner=False,
                 participant_name=interview.talent.full_name if interview.talent else "Candidate",
-                nbf=int(start_dt.timestamp()),
+                nbf=int((start_dt - timedelta(minutes=JOIN_WINDOW_MINUTES)).timestamp()),
                 exp=int(end_dt.timestamp()),
             )
         except DailyRoomProvisioningError as e:
@@ -235,7 +258,7 @@ class StartInterviewView(APIView):
                 interview.room_name,
                 is_owner=True,
                 participant_name=request.user.get_full_name() or request.user.email,
-                nbf=int(start_dt.timestamp()),
+                nbf=int((start_dt - timedelta(minutes=JOIN_WINDOW_MINUTES)).timestamp()),
                 exp=int(end_dt.timestamp()) + 3600,  # matches the join-page CTA's 4-hour-from-scheduled-time window
                 enable_recording=enable_recording,
             )

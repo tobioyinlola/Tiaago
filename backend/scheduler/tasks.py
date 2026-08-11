@@ -184,7 +184,9 @@ def candidate_interview_confirmation_mail(user_id, company_name, meeting_id):
         meeting_instance = Scheduler.objects.get(id=meeting_id)
         user = User.objects.get(id=user_id) if user_id else meeting_instance.candidate_email_recipient()
         meeting_details = get_meeting_details(meeting_instance)
-        return emails.candidate_interview_confirmation_mail(user, company_name, meeting_details)
+        return emails.candidate_interview_confirmation_mail(
+            user, company_name, meeting_details, join_url=_candidate_join_url(meeting_instance)
+        )
     except (Scheduler.DoesNotExist, User.DoesNotExist):
         logger.error(f"candidate_interview_confirmation_mail: meeting {meeting_id} or user {user_id} not found")
         return None

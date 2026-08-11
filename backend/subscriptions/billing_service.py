@@ -93,8 +93,13 @@ def _notify_free_tier_exhausted(organisation):
     wallet = get_or_create_wallet(organisation)
     resume_price = _format_money(get_action_price("resume_screening", wallet.currency), wallet.currency)
     assessment_price = _format_money(get_action_price("assessment", wallet.currency), wallet.currency)
+    # AI interview is priced flat NGN regardless of wallet currency (see
+    # BillingService.charge_ai_interview), unlike resume/assessment above.
+    ai_interview_price = _format_money(get_pricing_decimal("ai_interview_price_ngn", "800.00"), "NGN")
     try:
-        emails.free_tier_exhausted_mail(recipient, resume_price, assessment_price, _wallet_url(), limit)
+        emails.free_tier_exhausted_mail(
+            recipient, resume_price, assessment_price, _wallet_url(), limit, ai_interview_price=ai_interview_price,
+        )
     except Exception:
         logger.exception("Failed to send free-tier-exhausted email for company %s", organisation.id)
 
@@ -186,7 +191,8 @@ class BillingService:
         message = (
             f"Your Tiaago wallet balance is running low. Current balance: "
             f"{_format_money(wallet.balance, wallet.currency)}. Add funds to continue "
-            f"screening candidates and sending assessments."
+            f"screening candidates and sending assessments -- if your balance reaches zero, "
+            f"all of your active job listings will be automatically paused."
         )
         recipient = _notify_billing_alert(company, "Your wallet balance is running low", message)
         if not recipient:
@@ -480,58 +486,61 @@ class BillingService:
             wallet = Wallet.objects.select_for_update().get(pk=wallet.pk)
 
             if not free_allowance and wallet.balance < total_due:
-                return {"success": False, "reason": "insufficient_funds", "amount_charged": Decimal("0.00")}
+                result = {"success": False, "reason": "insufficient_funds", "amount_charged": Decimal("0.00")}
+            else:
+                job_application = interview.get_job_application()
+                job = job_application.job if job_application else None
+                candidate = interview.talent
+                candidate_name = candidate.full_name if candidate else "the candidate"
+                job_title = job.title if job else interview.title
 
-            job_application = interview.get_job_application()
-            job = job_application.job if job_application else None
-            candidate = interview.talent
-            candidate_name = candidate.full_name if candidate else "the candidate"
-            job_title = job.title if job else interview.title
-
-            if not free_allowance:
-                wallet.debit(
-                    amount=package_price,
-                    description=f"Interview package — {candidate_name} for {job_title}",
-                    currency=wallet.currency,
-                    service_type=WalletTransaction.ServiceType.INTERVIEW,
-                    job=job,
-                    candidate=candidate,
-                    metadata={"scheduler_id": str(interview.id)},
-                )
-                if includes_recording:
+                if not free_allowance:
                     wallet.debit(
-                        amount=recording_price,
-                        description=f"Interview recording — {candidate_name} for {job_title}",
+                        amount=package_price,
+                        description=f"Interview package — {candidate_name} for {job_title}",
                         currency=wallet.currency,
                         service_type=WalletTransaction.ServiceType.INTERVIEW,
                         job=job,
                         candidate=candidate,
-                        metadata={"scheduler_id": str(interview.id), "addon": "recording"},
+                        metadata={"scheduler_id": str(interview.id)},
                     )
-            else:
-                logger.info(f"Interview {interview.id} covered by free allowance for company {organisation.id}")
+                    if includes_recording:
+                        wallet.debit(
+                            amount=recording_price,
+                            description=f"Interview recording — {candidate_name} for {job_title}",
+                            currency=wallet.currency,
+                            service_type=WalletTransaction.ServiceType.INTERVIEW,
+                            job=job,
+                            candidate=candidate,
+                            metadata={"scheduler_id": str(interview.id), "addon": "recording"},
+                        )
+                else:
+                    logger.info(f"Interview {interview.id} covered by free allowance for company {organisation.id}")
 
-            interview.interview_package_charged = True
-            interview.interview_package_amount = package_price
-            interview.free_allowance_used = free_allowance
-            update_fields = ["interview_package_charged", "interview_package_amount", "free_allowance_used"]
-            if includes_recording:
-                interview.recording_addon_charged = True
-                interview.recording_addon_amount = recording_price
-                update_fields += ["recording_addon_charged", "recording_addon_amount"]
-            interview.save(update_fields=update_fields)
+                interview.interview_package_charged = True
+                interview.interview_package_amount = package_price
+                interview.free_allowance_used = free_allowance
+                update_fields = ["interview_package_charged", "interview_package_amount", "free_allowance_used"]
+                if includes_recording:
+                    interview.recording_addon_charged = True
+                    interview.recording_addon_amount = recording_price
+                    update_fields += ["recording_addon_charged", "recording_addon_amount"]
+                interview.save(update_fields=update_fields)
 
-            amount_charged = Decimal("0.00") if free_allowance else total_due
+                amount_charged = Decimal("0.00") if free_allowance else total_due
+                result = {
+                    "success": True,
+                    "reason": "free_allowance" if free_allowance else "charged",
+                    "amount_charged": amount_charged,
+                }
 
-        if not free_allowance:
-            wallet = get_or_create_wallet(organisation)
+        wallet = get_or_create_wallet(organisation)
+        if result["reason"] in ("charged", "insufficient_funds"):
             BillingService.check_and_send_low_balance_alert(wallet)
+            if result["reason"] == "insufficient_funds":
+                _pause_company_jobs_for_wallet_exhaustion(organisation)
 
-        return {
-            "success": True,
-            "reason": "free_allowance" if free_allowance else "charged",
-            "amount_charged": amount_charged,
-        }
+        return result
 
     @staticmethod
     def charge_ai_interview(organisation, ai_interview):
@@ -612,6 +621,8 @@ class BillingService:
         wallet = get_or_create_wallet(organisation)
         if result["reason"] in ("charged", "insufficient_funds"):
             BillingService.check_and_send_low_balance_alert(wallet)
+            if result["reason"] == "insufficient_funds":
+                _pause_company_jobs_for_wallet_exhaustion(organisation)
         elif result["reason"] == "free_credit" and just_exhausted:
             _notify_free_tier_exhausted(organisation)
 

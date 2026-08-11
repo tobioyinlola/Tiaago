@@ -44,6 +44,32 @@ def _candidate_recipient(interview):
     return "", ""
 
 
+TECHNICAL_ROLE_CATEGORIES = {
+    "ENGINEERING", "BACKEND_ENGINEERING", "FRONTEND_ENGINEERING", "FULL_STACK",
+    "DEVOPS", "AI_ML", "DATA",
+}
+# Fallback for jobs with no role_category set (it's optional -- see
+# Job.role_category's own help_text) -- catches the common technical job
+# titles a recruiter might type without having picked a category.
+TECHNICAL_TITLE_KEYWORDS = (
+    "engineer", "engineering", "developer", "programmer", "software",
+    "backend", "back-end", "frontend", "front-end", "full stack", "fullstack",
+    "devops", "sre", "site reliability", "data scientist", "data engineer",
+    "machine learning", "ml engineer", "ai engineer", "qa engineer",
+    "quality assurance engineer", "architect", "sysadmin", "system administrator",
+)
+
+
+def _is_technical_role(job) -> bool:
+    """Whether this job warrants a genuinely technical AI-interview question
+    -- see interview_questions_service.py's TECHNICAL_QUESTION_TYPES_BY_COUNT
+    on the AI service side for what that actually changes."""
+    if job.role_category in TECHNICAL_ROLE_CATEGORIES:
+        return True
+    title = (job.title or "").lower()
+    return any(keyword in title for keyword in TECHNICAL_TITLE_KEYWORDS)
+
+
 def _get_or_generate_job_questions(job, company_name):
     """Returns this job's AI-interview question list, generating it once
     (via the AI service) and caching on Job.ai_interview_questions the
@@ -76,6 +102,7 @@ def _get_or_generate_job_questions(job, company_name):
             "weak_areas": [],
             "duration_minutes": job.ai_interview_duration_minutes,
             "questions_count": job.ai_interview_questions_count,
+            "is_technical_role": _is_technical_role(job),
         }
         result = AIService.generate_ai_interview_questions(payload)
         questions = result.get("questions") if result else None
