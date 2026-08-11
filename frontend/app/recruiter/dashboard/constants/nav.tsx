@@ -198,11 +198,12 @@ export const recruiterNavItems: DashboardNavItemV3[] = [
   //     </svg>
   //   ),
   // },
-  {
-    name: "Reports",
-    href: `${baseHref}/reports`,
-    Icon: IoBarChartOutline,
-  },
+  // Hidden for now -- keep this wired up in the code for whenever it's needed again.
+  // {
+  //   name: "Reports",
+  //   href: `${baseHref}/reports`,
+  //   Icon: IoBarChartOutline,
+  // },
   {
     name: "Integrations",
     href: `${baseHref}/integrations`,
