@@ -1,0 +1,8 @@
+{% extends "emails/base.html" %}
+{% block title %}Your interview has been scheduled{% endblock %}
+{% block preheader %}{{ company|default:"The hiring team" }} has scheduled your interview for {{ role|default:"the role" }}.{% endblock %}
+{% block content %}
+  <h1 class="h1" style="margin:0 0 14px; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:33px; line-height:1.15; letter-spacing:-0.6px; font-weight:800; color:#0F172A;">Your interview is scheduled</h1>
+
+  <p style="margin:0 0 24px; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:16px; line-height:1.65; color:#475569;">Good news, {{ first_name|default:"there" }}. {{ company|default:"The hiring team" }} has moved you forward to the interview stage for the {{ role|default:"role" }} position. They'll be in touch directly with the time and details.</p>
+{% endblock %}

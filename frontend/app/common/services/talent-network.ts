@@ -42,3 +42,15 @@ export const confirmTalentNetworkMembership = async (token: string) => {
     return { success: false as const, error: await handleServerApiCallError(error) };
   }
 };
+
+// Fire-and-forget click analytics for a Talent Network job-match email --
+// called from the job apply page when it's reached via a `?tn=` link (see
+// talent_network.mailer.notify_member_of_job / TrackClickView). Never
+// throws: a tracking failure must never affect the page that calls it.
+export const trackTalentNetworkClick = async (notificationId: string): Promise<void> => {
+  try {
+    await serverKyInstance.get(`talent-network/track/click/${notificationId}/`);
+  } catch (error) {
+    console.log("trackTalentNetworkClick Error: ", error);
+  }
+};

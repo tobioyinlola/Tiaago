@@ -18,6 +18,10 @@ const ConfirmMembershipButton = ({ token }: { token: string }) => {
         <p className="text-sm font-medium text-primaryBlack">
           You&apos;re officially part of the TIAAGO Talent Network.
         </p>
+        <p className="text-xs text-secondary-black max-w-sm text-center">
+          Job opportunity emails will come from TIAAGO -- add us to your contacts and check your spam or junk
+          folder occasionally so you never miss an update.
+        </p>
       </div>
     );
   }

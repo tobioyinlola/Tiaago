@@ -365,7 +365,21 @@ const UserBilling = ({
                 <span className='font-semibold'>
                   {freeCreditsRemaining} of {freeTierLimit} free credits remaining.
                 </span>{" "}
-                Every candidate you screen, assess, or AI-interview uses one free credit until these run out.
+                Every candidate you screen, assess, or AI-interview uses one free credit until these run out. Once
+                they do, we deduct from your wallet balance instead -- if that balance ever runs out, all of your
+                active job listings are automatically paused until you top up.
+              </p>
+            </div>
+          )}
+
+          {freeCreditsRemaining === 0 && (
+            <div className='mb-4 sm:mb-6 bg-amber-50 border border-amber-200 rounded-lg p-3 sm:p-4 flex items-center gap-3'>
+              <Info size={20} className='text-amber-600 flex-shrink-0' />
+              <p className='text-xs sm:text-sm text-amber-800'>
+                <span className='font-semibold'>Your free credits are used up.</span> We now deduct from your
+                wallet balance for every candidate you screen, assess, or AI-interview. If your balance runs out,
+                all of your active job listings are automatically paused -- and no longer accept applications --
+                until you fund your wallet.
               </p>
             </div>
           )}

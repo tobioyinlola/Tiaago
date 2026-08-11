@@ -31,16 +31,37 @@ QUESTION_TYPES_BY_COUNT = {
     5: ["OPENER", "EXPERIENCE", "SITUATIONAL", "CULTURAL_FIT", "CLOSING"],
     6: ["OPENER", "MOTIVATION", "EXPERIENCE", "SITUATIONAL", "CULTURAL_FIT", "CLOSING"],
 }
+# Technical roles (job.role_category in ENGINEERING/DATA/AI_ML/DEVOPS/etc,
+# or a title-keyword match -- see ai_interviews.tasks._is_technical_role)
+# swap SITUATIONAL for a genuinely technical deep-dive slot, since a
+# generic "realistic scenario" question is exactly the kind of soft,
+# non-differentiating question a technical interview shouldn't lean on.
+# CULTURAL_FIT stays in every bucket -- it's a deliberate, recent product
+# priority, not something a technical focus should crowd out.
+TECHNICAL_QUESTION_TYPES_BY_COUNT = {
+    4: ["OPENER", "TECHNICAL", "CULTURAL_FIT", "CLOSING"],
+    5: ["OPENER", "TECHNICAL", "EXPERIENCE", "CULTURAL_FIT", "CLOSING"],
+    6: ["OPENER", "MOTIVATION", "TECHNICAL", "EXPERIENCE", "CULTURAL_FIT", "CLOSING"],
+}
 
 QUESTIONS_SYSTEM_PROMPT = (
-    "You are an expert recruiter designing questions for a structured AI voice "
-    "interview. Questions must sound completely natural when spoken aloud. "
-    "Short, conversational sentences only. No lists or bullet points in question "
-    "text. Every question must be specific to this job and this candidate -- "
-    "never generic or cliche ('tell me about a time you failed' is banned). "
-    "Pull a real detail from the job description or resume into the question "
-    "itself so it feels like a genuine, curious conversation, not a template. "
-    "Return only valid JSON."
+    "You are a sharp, senior technical recruiter designing questions for a "
+    "structured AI voice interview. Questions must sound completely natural "
+    "when spoken aloud. Short, conversational sentences only. No lists or "
+    "bullet points in question text. Every question must be specific to this "
+    "job and this candidate -- never generic or cliche ('tell me about a time "
+    "you failed' is banned, and so is any question that could be copy-pasted "
+    "onto a completely different job posting unchanged). Pull a real, named "
+    "detail from the job description, requirements, or resume into the "
+    "question itself -- a specific tool, metric, project, responsibility, or "
+    "phrase from the JD -- so it feels like a genuine, curious conversation "
+    "with someone who actually read their background, not a template. Every "
+    "question should require the candidate to demonstrate real judgment or "
+    "reasoning to answer well, not just recall a fact or describe a feeling -- "
+    "favor 'how did you decide', 'what would you do differently', 'walk me "
+    "through your reasoning' over 'tell me about' or 'describe'. A strong "
+    "candidate should have to think for a moment before answering; a weak "
+    "candidate should have nowhere generic to hide. Return only valid JSON."
 )
 
 QUESTIONS_USER_PROMPT_TEMPLATE = """Job: {job_title} at {company_name}
@@ -60,13 +81,30 @@ what brought them to this role.
 MOTIVATION (60-90 sec): Why this specific role right now. Reference the job
 description specifically.
 
-EXPERIENCE (90-120 sec): Reference something specific from their resume. Make
-it feel personal.
+EXPERIENCE (90-120 sec): Pick the single most relevant project, role, or
+achievement on their resume for this job and dig into it -- ask what their
+actual contribution was, a decision they made, or a specific outcome
+(a number, a result, a trade-off), not just "tell me about your background."
+Make it feel like you noticed something specific and want to understand it
+better.
 
-SITUATIONAL (90-120 sec): A realistic scenario from this specific role.
+SITUATIONAL (90-120 sec): A realistic, moderately difficult scenario this
+person would actually face in this exact role (use the job description's own
+responsibilities to build it) -- ask how they'd approach it and why, not what
+the "right" textbook answer is. Should have no single obviously-correct
+answer, so it actually differentiates strong candidates from weak ones.
 
-CHALLENGE (60-90 sec): A professional challenge relevant to this role type and
-what they learned.
+TECHNICAL (120-150 sec): A genuinely technical, hands-on question that only
+someone who has actually done this kind of work could answer well. Ground it
+in a specific technology, system, or responsibility named in the job
+description or requirements -- e.g. how they'd debug/design/optimize
+something concrete in that stack, a real trade-off they'd have to weigh, or a
+technical decision from their own resume they'd have to defend and explain
+the reasoning behind. Ask for their reasoning and approach out loud, not a
+one-word or textbook-definition answer -- this should be the most
+intellectually demanding question of the interview and feel like a real
+working conversation between two people who know the domain, not a trivia
+quiz.
 
 CULTURAL_FIT (60-90 sec): How they like to work -- team style, feedback,
 pace, or what kind of environment brings out their best. Ground it in
@@ -137,7 +175,8 @@ def generate_interview_questions(request: InterviewQuestionsRequest) -> Intervie
     questions."""
     chat = _get_json_chat_client()
 
-    question_types = QUESTION_TYPES_BY_COUNT.get(request.questions_count, QUESTION_TYPES_BY_COUNT[6])
+    type_buckets = TECHNICAL_QUESTION_TYPES_BY_COUNT if request.is_technical_role else QUESTION_TYPES_BY_COUNT
+    question_types = type_buckets.get(request.questions_count, type_buckets[6])
 
     human_prompt = QUESTIONS_USER_PROMPT_TEMPLATE.format(
         job_title=request.job_title or "the role",

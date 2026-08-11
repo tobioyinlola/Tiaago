@@ -88,8 +88,8 @@ const CandidateVideoCall = ({
   }, [call, url, token]);
 
   return (
-    <div className='fixed inset-0 bg-deep-blue flex items-center justify-center'>
-      <span className='loading loading-dots loading-lg text-white' />
+    <div className='fixed inset-0 bg-white flex items-center justify-center'>
+      <span className='loading loading-dots loading-lg text-primary' />
     </div>
   );
 };

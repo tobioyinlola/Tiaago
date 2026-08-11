@@ -146,8 +146,8 @@ const WorkspaceView = ({
 
   if (phase === "error") {
     return (
-      <div className='fixed inset-0 bg-deep-blue flex items-center justify-center p-6'>
-        <div className='bg-white rounded-2lg p-8 max-w-md text-center flex flex-col items-center gap-3'>
+      <div className='fixed inset-0 bg-white flex items-center justify-center p-6'>
+        <div className='border border-[#EAECF0] rounded-2lg p-8 max-w-md text-center flex flex-col items-center gap-3'>
           <p className='font-semibold text-primaryBlack'>Could not start this interview</p>
           <p className='text-sm text-secondary-black'>{errorMessage}</p>
           <button
@@ -164,9 +164,9 @@ const WorkspaceView = ({
 
   if (phase === "starting" || !call) {
     return (
-      <div className='fixed inset-0 bg-deep-blue flex flex-col items-center justify-center gap-3'>
-        <span className='loading loading-dots loading-lg text-white' />
-        <p className='text-white/70 text-sm'>Setting up your interview room...</p>
+      <div className='fixed inset-0 bg-white flex flex-col items-center justify-center gap-3'>
+        <span className='loading loading-dots loading-lg text-primary' />
+        <p className='text-secondary-black text-sm'>Setting up your interview room...</p>
       </div>
     );
   }
@@ -174,17 +174,17 @@ const WorkspaceView = ({
   return (
     <DailyProvider callObject={call}>
       <div className='fixed inset-0 flex flex-col bg-[#F5F6F7]'>
-        <header className='h-14 shrink-0 bg-deep-blue flex items-center justify-between px-4'>
+        <header className='h-14 shrink-0 bg-white border-b border-[#EAECF0] flex items-center justify-between px-4'>
           <div className='flex items-center gap-3 min-w-0'>
-            <p className='text-white text-sm font-medium truncate'>{candidateName}</p>
-            <span className='text-white/50 text-xs truncate max-sm:hidden'>{jobTitle}</span>
+            <p className='text-primaryBlack text-sm font-medium truncate'>{candidateName}</p>
+            <span className='text-secondary-black text-xs truncate max-sm:hidden'>{jobTitle}</span>
           </div>
           <InterviewTimer startedAt={startedAt} durationMinutes={durationMinutes} />
           <div className='flex items-center gap-3'>
             {recordingEnabled && (
               <span className='flex items-center gap-1.5'>
                 <span className='w-2 h-2 rounded-full bg-red-500 animate-pulse' />
-                <span className='text-white text-xs font-medium'>REC</span>
+                <span className='text-primaryBlack text-xs font-medium'>REC</span>
               </span>
             )}
             <button

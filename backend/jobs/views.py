@@ -91,8 +91,10 @@ from .tasks import (
     carry_out_resume_analysis,
     generate_job_assessment_questions_task,
     send_assessment_link,
+    send_interview_scheduled_notice_mail,
     send_interview_slot_invite,
     send_manual_rejection_mail,
+    send_offer_extended_notice_mail,
 )
 from emails import emails
 from rest_framework.permissions import AllowAny
@@ -901,14 +903,16 @@ class JobApplicationRetrieveUpdateView(RetrieveUpdateAPIView):
         self.perform_update(serializer)
 
         # A recruiter manually advancing a candidate should trigger the same
-        # candidate-facing invite the automatic pipeline sends for that same
+        # candidate-facing signal the automatic pipeline sends for that same
         # transition (see jobs.tasks.carry_out_resume_analysis for REVIEWED,
         # skill_assessment.tasks.mark_skill_assessment_submission for
-        # PENDING_DECISION) -- both invite functions are already idempotent,
-        # safe to call unconditionally. Only these two statuses currently
-        # have a reusable candidate-facing invite; the rest (INTERVIEW_SCHEDULED
-        # in particular, which is only ever supposed to reflect a real
-        # claimed slot/Daily.co room) stay plain status writes, same as before.
+        # PENDING_DECISION) -- every movable status now has a candidate-facing
+        # email so a manual board move is never silent. INTERVIEW_SCHEDULED
+        # is normally only ever reached via a real claimed slot/Daily.co room
+        # (which sends its own detailed confirmation, see
+        # jobs.views._claim_interview_slot) -- send_interview_scheduled_notice_mail
+        # below only fires for the manual-board-move bypass of that flow, so
+        # the candidate still hears *something* instead of nothing.
         if status_value != previous_status:
             job = instance.job
             if status_value == JobApplication.JobApplicationStatus.REVIEWED:
@@ -922,6 +926,10 @@ class JobApplicationRetrieveUpdateView(RetrieveUpdateAPIView):
                     provision_ai_interview(job, instance)
                 else:
                     send_interview_slot_invite.delay(instance.id)
+            elif status_value == JobApplication.JobApplicationStatus.INTERVIEW_SCHEDULED:
+                send_interview_scheduled_notice_mail.delay(instance.id)
+            elif status_value == JobApplication.JobApplicationStatus.OFFER_EXTENDED:
+                send_offer_extended_notice_mail.delay(instance.id)
             elif status_value == JobApplication.JobApplicationStatus.REJECTED:
                 send_manual_rejection_mail.apply_async(
                     args=[instance.id, rejection_reason], countdown=REJECTION_MAIL_DELAY_SECONDS

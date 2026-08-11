@@ -29,6 +29,8 @@ EmailType = Literal[
     "talent_assessment_pass_mail",
     "recruiter_interview_acceptance_mail",
     "recruiter_interview_reminder_mail",
+    "interview_scheduled_notice_mail",
+    "offer_extended_notice_mail",
     "talent_vetting_pass",
     "talent_vetting_fail",
     "application_received",
@@ -282,18 +284,41 @@ def get_email_template_and_context(
             "profile_url": settings.TIAAGO_TALENT_LOGIN_URL,
         }
 
+    elif email_type == "interview_scheduled_notice_mail":
+        template_file = "emails/interview_scheduled_notice.html"
+        context = {
+            "first_name": user.first_name,
+            "company": kwargs.get("company_name", ""),
+            "role": kwargs.get("role", ""),
+        }
+
+    elif email_type == "offer_extended_notice_mail":
+        template_file = "emails/offer_extended_notice.html"
+        context = {
+            "first_name": user.first_name,
+            "company": kwargs.get("company_name", ""),
+            "role": kwargs.get("role", ""),
+        }
+
     elif email_type == "candidate_interview_confirmation_mail":
-        # Reuses interview_invite.html (which now only shows When/Format if
-        # actually provided, see _flatten_meeting) -- there was previously no
-        # candidate-facing confirmation at all once they picked a slot.
+        # Own dedicated template (not shared with meeting_invite/
+        # send_interview_invite, which have their own unrelated "Confirm and
+        # prepare" CTA copy) -- this one leads with the actual join link plus
+        # the "room opens 30 min before" message, or a "still finalizing"
+        # note when join_url isn't available yet (Daily.co provisioning
+        # failed/still retrying -- see jobs.views._claim_interview_slot).
         md = kwargs.get("meeting_details") or {}
         meeting_ctx = _flatten_meeting(md, kwargs.get("company_name"))
-        template_file = "emails/interview_invite.html"
+        template_file = "emails/candidate_interview_confirmation.html"
         context = {
             "first_name": user.first_name,
             "role": md.get("title", ""),
             **meeting_ctx,
         }
+        if kwargs.get("join_url"):
+            context["join_url"] = kwargs["join_url"]
+        else:
+            context["join_url"] = None
 
     elif email_type == "recruiter_interview_acceptance_mail":
         md = kwargs.get("meeting_details") or {}
@@ -462,6 +487,7 @@ def get_email_template_and_context(
             "first_name": user.first_name,
             "resume_screening_price": kwargs.get("resume_screening_price", ""),
             "assessment_price": kwargs.get("assessment_price", ""),
+            "ai_interview_price": kwargs.get("ai_interview_price", ""),
             "wallet_url": kwargs.get("wallet_url", ""),
         }
 
@@ -643,13 +669,48 @@ def talent_assessment_pass_mail(user):
     )
 
 
-def candidate_interview_confirmation_mail(user, company_name, meeting_details):
+def interview_scheduled_notice_mail(user, company_name, role):
+    """Sent when a recruiter manually moves a candidate to INTERVIEW_SCHEDULED
+    on the applications board -- see jobs.tasks.send_interview_scheduled_notice_mail.
+    Deliberately generic (no meeting time/link) since a manual board move
+    doesn't go through the real slot-claim/Daily.co flow that
+    candidate_interview_confirmation_mail covers -- there's no real meeting
+    to reference yet."""
+    template, ctx = get_email_template_and_context(
+        user, "interview_scheduled_notice_mail", company_name=company_name, role=role,
+    )
+    if not template:
+        return None
+    return _send_with_latest_flow(
+        user.email, "Your interview has been scheduled", template, ctx,
+        email_type="interview_scheduled_notice_mail",
+    )
+
+
+def offer_extended_notice_mail(user, company_name, role):
+    """Sent when a recruiter moves a candidate to OFFER_EXTENDED on the
+    applications board -- see jobs.tasks.send_offer_extended_notice_mail.
+    Deliberately doesn't state compensation/start date -- no such data is
+    captured anywhere in the offer-extension flow today, so this only
+    confirms an offer is coming and defers specifics to the recruiter."""
+    template, ctx = get_email_template_and_context(
+        user, "offer_extended_notice_mail", company_name=company_name, role=role,
+    )
+    if not template:
+        return None
+    return _send_with_latest_flow(
+        user.email, "You have an offer", template, ctx,
+        email_type="offer_extended_notice_mail",
+    )
+
+
+def candidate_interview_confirmation_mail(user, company_name, meeting_details, join_url=None):
     """Candidate-side confirmation once they've picked an interview slot --
     previously only the recruiter got a confirmation email; the candidate
     got nothing beyond the synchronous API response."""
     template, ctx = get_email_template_and_context(
         user, "candidate_interview_confirmation_mail", company_name=company_name,
-        meeting_details=meeting_details,
+        meeting_details=meeting_details, join_url=join_url,
     )
     if not template:
         return None
@@ -884,13 +945,14 @@ def low_balance_alert_mail(user, balance, threshold, currency, wallet_url):
     )
 
 
-def free_tier_exhausted_mail(user, resume_screening_price, assessment_price, wallet_url, free_tier_limit=20):
+def free_tier_exhausted_mail(user, resume_screening_price, assessment_price, wallet_url, free_tier_limit=20, ai_interview_price=None):
     """Sent once, the moment an organisation's last free credit is used --
     tells them their wallet will now be charged for every candidate."""
     subject = f"You've used all {free_tier_limit} of your free candidate processings"
     template, ctx = get_email_template_and_context(
         user, "free_tier_exhausted", resume_screening_price=resume_screening_price,
         assessment_price=assessment_price, wallet_url=wallet_url, free_tier_limit=free_tier_limit,
+        ai_interview_price=ai_interview_price,
     )
     if not template:
         return None
