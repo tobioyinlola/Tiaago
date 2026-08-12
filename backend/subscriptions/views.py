@@ -1851,7 +1851,7 @@ def bachs_wallet_fund_webhook(request):
         return JsonResponse({'error': 'Invalid request method'}, status=405)
 
     payload = request.body
-    signature = request.headers.get('bachs-signature', '')
+    signature = request.headers.get('x-bachs-signature', '')
 
     if not verify_bachs_webhook_signature(payload, signature):
         logger.error("Invalid Bachs webhook signature")
