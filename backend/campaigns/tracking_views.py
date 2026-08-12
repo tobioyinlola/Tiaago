@@ -2,13 +2,14 @@ import base64
 import logging
 from urllib.parse import unquote
 
+from django.db import models
 from django.http import HttpResponse, HttpResponseRedirect
 from django.utils import timezone
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from campaigns.models import CampaignLinkClick, CampaignSend, EmailCampaign, EmailUnsubscribe
+from campaigns.models import CampaignEmail, CampaignLinkClick, CampaignSend, EmailCampaign, EmailUnsubscribe
 
 logger = logging.getLogger(__name__)
 
@@ -23,10 +24,10 @@ class TrackOpenView(APIView):
         updated = CampaignSend.objects.filter(id=send_id, opened_at__isnull=True).update(
             opened_at=timezone.now(), status=CampaignSend.Status.OPENED
         )
-        if not updated:
-            # Already opened, or send id unknown -- still return the pixel;
-            # tracking endpoints must never surface an error to the inbox.
-            pass
+        if updated:
+            CampaignEmail.objects.filter(
+                sends__id=send_id
+            ).update(total_opened=models.F("total_opened") + 1)
         return HttpResponse(_TRACKING_PIXEL, content_type="image/gif")
 
 
@@ -40,12 +41,17 @@ class TrackClickView(APIView):
         if send:
             CampaignLinkClick.objects.create(campaign_send=send, link_url=target_url[:1000])
             update_fields = {}
-            if not send.clicked_at:
+            was_first_click = not send.clicked_at
+            if was_first_click:
                 update_fields["clicked_at"] = timezone.now()
             if send.status not in (CampaignSend.Status.CLICKED, CampaignSend.Status.UNSUBSCRIBED):
                 update_fields["status"] = CampaignSend.Status.CLICKED
             if update_fields:
                 CampaignSend.objects.filter(id=send_id).update(**update_fields)
+            if was_first_click:
+                CampaignEmail.objects.filter(id=send.campaign_email_id).update(
+                    total_clicked=models.F("total_clicked") + 1
+                )
 
         if not target_url:
             return HttpResponseRedirect("https://www.tiaago.com/")
@@ -71,6 +77,18 @@ class UnsubscribeView(APIView):
         send = CampaignSend.objects.filter(unsubscribe_token=token).select_related("campaign").first()
         if not send:
             return Response({"error": "Invalid or expired unsubscribe link."}, status=404)
+
+        if send.campaign.audience_pool == EmailCampaign.AudiencePool.TALENT_NETWORK:
+            # talent_network's own send path (notify_member_of_job) only
+            # checks TalentNetworkMember.status, not EmailUnsubscribe -- so
+            # for this pool, flipping status here (rather than relying on
+            # EmailUnsubscribe alone) is what actually stops future sends.
+            from talent_network.choices import TalentNetworkMemberStatus
+            from talent_network.models import TalentNetworkMember
+
+            TalentNetworkMember.objects.filter(email=send.recipient_email).update(
+                status=TalentNetworkMemberStatus.UNSUBSCRIBED
+            )
 
         EmailUnsubscribe.objects.get_or_create(
             email=send.recipient_email,

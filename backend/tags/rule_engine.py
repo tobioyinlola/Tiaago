@@ -70,6 +70,16 @@ def _wallet_funded(signals, scope_ids):
     return {c for c in scope_ids if c in signals["wallet_ever_topped_up"]}
 
 
+def _free_tier_user(signals, scope_ids):
+    topped_up = signals["wallet_ever_topped_up"]
+    credits = signals["free_credits_remaining"]
+    return {c for c in scope_ids if c not in topped_up and float(credits.get(c) or 0) > 0}
+
+
+def _paid_user(signals, scope_ids):
+    return {c for c in scope_ids if c in signals["wallet_ever_topped_up"]}
+
+
 def _low_wallet_balance(signals, scope_ids):
     balances = signals["wallet_balances"]
     return {c for c in scope_ids if float(balances.get(c) or 0) < 500}
@@ -186,6 +196,8 @@ def _inactive_30_days(signals, scope_ids):
 
 THRESHOLD_RULES = [
     ("wallet-funded", _wallet_funded),
+    ("free-tier-user", _free_tier_user),
+    ("paid-user", _paid_user),
     ("low-wallet-balance", _low_wallet_balance),
     ("light-spender", _light_spender),
     ("medium-spender", _medium_spender),

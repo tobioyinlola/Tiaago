@@ -1,31 +1,29 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 
 import { getCampaign } from "@/app/common/services/campaigns";
-import CampaignWizard from "../../_components/CampaignWizard";
+import CampaignBuilder from "../../_components/CampaignBuilder";
 
 export const metadata = {
-  title: "Edit Campaign",
+  title: "Campaign Builder",
 };
 
 const EditCampaignPage = async ({ params }: { params: Promise<{ id: string }> }) => {
   const { id } = await params;
   const campaign = await getCampaign(id).catch(() => null);
   if (!campaign) return notFound();
-  if (campaign.status !== "DRAFT" && campaign.status !== "SCHEDULED") {
-    return (
-      <div className="p-8 text-center text-sm text-muted-foreground">
-        This campaign is {campaign.status.toLowerCase()} and can no longer be edited.
-      </div>
-    );
+  // SENDING/SENT/CANCELLED campaigns have nothing left to edit -- the
+  // report page is the useful destination for them. DRAFT/SCHEDULED/PAUSED
+  // stay editable (PAUSED needs the builder for its Resume control too).
+  if (["SENDING", "SENT", "CANCELLED"].includes(campaign.status)) {
+    redirect(`/admin/campaigns/${id}/analytics`);
   }
 
   return (
     <>
-      <div className="border-b w-full border-border pb-1 mb-6">
-        <h1 className="text-2xl font-bold mb-1 font-space-grotesk">Edit Campaign</h1>
-        <h4 className="text-foreground text-sm md:text-base">{campaign.name}</h4>
+      <div className="mb-6">
+        <h1 className="font-space-grotesk text-2xl font-bold text-[#1A3C5E]">Campaign Builder</h1>
       </div>
-      <CampaignWizard initialCampaign={campaign} />
+      <CampaignBuilder initialCampaign={campaign} />
     </>
   );
 };

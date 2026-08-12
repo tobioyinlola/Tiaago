@@ -43,3 +43,20 @@ def build_merge_context(company, recipient_name):
         "pipeline_count": str(pipeline_count),
         "account_age_days": str(account_age_days),
     }
+
+
+def build_talent_network_merge_context(member, recipient_name):
+    """Talent Network sends have no Company/wallet -- merge tags instead
+    reflect the member's own profile, live from TalentNetworkMember."""
+    return {
+        "first_name": recipient_name or member.first_name,
+        "last_name": member.last_name,
+        "full_name": member.full_name,
+        "job_title": member.job_title or "",
+        "years_experience": member.years_experience or "",
+        "interested_roles": ", ".join(member.interested_roles or []),
+        "industry": ", ".join(member.industry or []),
+        "preferred_work_type": member.preferred_work_type or "",
+        "city": member.city or "",
+        "country": member.country or "",
+    }

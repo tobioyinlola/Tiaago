@@ -59,7 +59,7 @@ def _render_text(block):
     align = block.get("align") if block.get("align") in ("left", "center") else "left"
     body = block.get("html") or ""  # trusted staff-authored rich text HTML, not user input
     return _wrap_row(
-        f'<div style="padding:16px 32px;font-size:{font_size};line-height:1.6;color:#1F2937;text-align:{align};font-family:Arial,Helvetica,sans-serif;">{body}</div>'
+        f'<div style="padding:16px 32px;font-size:{font_size};line-height:1.6;color:#444444;text-align:{align};font-family:Arial,Helvetica,sans-serif;">{body}</div>'
     )
 
 
@@ -89,7 +89,7 @@ def _render_image(block):
 
 
 def _render_divider(block):
-    colour = _esc(block.get("colour") or "#E5E7EB")
+    colour = _esc(block.get("colour") or "#E0E0E0")
     return _wrap_row(
         f'<div style="padding:0 32px;"><hr style="border:none;border-top:1px solid {colour};margin:8px 0;" /></div>'
     )
@@ -106,7 +106,7 @@ def _render_stat(block):
     return _wrap_row(
         f'<div style="padding:16px 32px;text-align:center;font-family:Arial,Helvetica,sans-serif;">'
         f'<div style="font-size:36px;font-weight:bold;color:{DEFAULT_HEADER_COLOUR};">{{{{{merge_tag}}}}}</div>'
-        f'<div style="font-size:13px;color:#6B7280;margin-top:4px;">{label}</div>'
+        f'<div style="font-size:13px;color:#9E9E9E;margin-top:4px;">{label}</div>'
         f"</div>"
     )
 
@@ -117,18 +117,18 @@ def _render_footer(block):
     privacy_url = _esc(block.get("privacy_url") or DEFAULT_FOOTER["privacy_url"])
     social_links = block.get("social_links") or []
     social_html = " &middot; ".join(
-        f'<a href="{_esc(s.get("url"))}" style="color:#6B7280;">{_esc(s.get("platform"))}</a>' for s in social_links
+        f'<a href="{_esc(s.get("url"))}" style="color:#9E9E9E;">{_esc(s.get("platform"))}</a>' for s in social_links
     )
     address_html = f" &middot; {address}" if address else ""
     social_row_html = f'<div style="margin-top:8px;">{social_html}</div>' if social_html else ""
     return _wrap_row(
-        f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#F9FAFB;">'
-        f'<tr><td style="padding:24px 32px;text-align:center;font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#6B7280;">'
+        f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#F4F4F4;">'
+        f'<tr><td style="padding:24px 32px;text-align:center;font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#9E9E9E;">'
         f"<div>{company_name}{address_html}</div>"
         f"{social_row_html}"
         f'<div style="margin-top:12px;">'
-        f'<a href="{{{{unsubscribe_url}}}}" style="color:#6B7280;text-decoration:underline;">Unsubscribe</a>'
-        f' &middot; <a href="{privacy_url}" style="color:#6B7280;text-decoration:underline;">Privacy Policy</a>'
+        f'<a href="{{{{unsubscribe_url}}}}" style="color:#9E9E9E;text-decoration:underline;">Unsubscribe</a>'
+        f' &middot; <a href="{privacy_url}" style="color:#9E9E9E;text-decoration:underline;">Privacy Policy</a>'
         f"</div></td></tr></table>"
     )
 
@@ -187,7 +187,7 @@ def render_blocks(blocks):
 
     html_body = (
         '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" '
-        'style="background-color:#F3F4F6;padding:24px 0;">'
+        'style="background-color:#F4F4F4;padding:24px 0;">'
         "<tr><td align=\"center\">"
         f'<table role="presentation" width="{CONTAINER_WIDTH}" cellpadding="0" cellspacing="0" '
         f'style="width:{CONTAINER_WIDTH}px;max-width:100%;background-color:#ffffff;">'

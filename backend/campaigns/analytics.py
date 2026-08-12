@@ -2,12 +2,14 @@ from datetime import timedelta
 
 from django.db.models import Count
 
-from campaigns.models import CampaignLinkClick, CampaignSend
+from campaigns.models import CampaignEmail, CampaignLinkClick, CampaignSend
 
 
 def get_campaign_analytics(campaign):
     sends = CampaignSend.objects.filter(campaign=campaign)
-    total_recipients = sends.count()
+    # Distinct recipients, not distinct sends -- a sequence gives one
+    # recipient multiple CampaignSend rows (one per step it reaches).
+    total_recipients = sends.values("recipient_email").distinct().count()
     bounced = sends.filter(status=CampaignSend.Status.BOUNCED).count()
     sent_or_beyond = sends.exclude(
         status__in=[CampaignSend.Status.QUEUED, CampaignSend.Status.FAILED]
@@ -54,7 +56,27 @@ def get_campaign_analytics(campaign):
         .values("id", "recipient_name", "organisation__company_name", "recipient_email", "status", "opened_at", "clicked_at")
     )
 
+    by_email = []
+    for step in CampaignEmail.objects.filter(campaign=campaign).order_by("sequence_number"):
+        step_sends = sends.filter(campaign_email=step)
+        step_delivered = step_sends.exclude(
+            status__in=[CampaignSend.Status.QUEUED, CampaignSend.Status.FAILED]
+        ).count()
+        step_opened = step_sends.filter(opened_at__isnull=False).count()
+        step_clicked = step_sends.filter(clicked_at__isnull=False).count()
+        by_email.append({
+            "campaign_email_id": str(step.id),
+            "sequence_number": step.sequence_number,
+            "subject": step.subject or (step.email_template.subject_line if step.email_template else ""),
+            "status": step.status,
+            "total_sent": step.total_sent,
+            "delivered": step_delivered,
+            "open_rate_pct": round((step_opened / step_delivered) * 100, 1) if step_delivered else 0,
+            "click_rate_pct": round((step_clicked / step_delivered) * 100, 1) if step_delivered else 0,
+        })
+
     return {
+        "by_email": by_email,
         "summary": {
             "total_recipients": total_recipients,
             "delivered": delivered,

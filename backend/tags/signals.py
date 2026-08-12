@@ -21,7 +21,7 @@ from analytics.utils import _bulk_company_signal_maps
 from create_user.models import CompanyTeamMember, CustomUser
 from skill_assessment.models import GeneralSkillAssessment, ResumeAnalysis
 from sourcing.models import PipelineCandidate
-from subscriptions.models import WalletTransaction
+from subscriptions.models import Wallet, WalletTransaction
 
 
 def build_signal_maps():
@@ -46,6 +46,10 @@ def build_signal_maps():
     signals["wallet_ever_topped_up"] = set(
         WalletTransaction.objects.filter(service_type=WalletTransaction.ServiceType.WALLET_TOPUP)
         .values_list("wallet__company_id", flat=True)
+    )
+
+    signals["free_credits_remaining"] = dict(
+        Wallet.objects.values_list("company_id", "free_credits_remaining")
     )
 
     # Full per-company activity date lists (resume + assessment), for the
