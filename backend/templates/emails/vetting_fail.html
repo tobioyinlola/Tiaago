@@ -4,7 +4,9 @@
 {% block content %}
   <h1 class="h1" style="margin:0 0 14px; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:33px; line-height:1.15; letter-spacing:-0.6px; font-weight:800; color:#0F172A;">An update on your application</h1>
 
-  <p style="margin:0 0 24px; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:16px; line-height:1.65; color:#475569;">Thank you for applying to the {{ job_title|default:"open role" }} position at {{ company_name|default:"the hiring company" }}. After reviewing your profile, the team has decided not to move forward at this time.</p>
+  <p style="margin:0 0 24px; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:16px; line-height:1.65; color:#475569;">Thank you for applying to the {{ job_title|default:"open role" }} position at {{ company_name|default:"the hiring company" }}. Your profile did not meet the criteria the hiring team set for this stage, so you will not automatically move forward right now.</p>
+
+  <p style="margin:0 0 24px; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:16px; line-height:1.65; color:#475569;">This isn't a final decision -- the hiring team can still review your application further, move you to the next stage, or reach out directly if they'd like to.</p>
 
   {% if feedback_areas %}
   <p style="margin:0 0 14px; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:16px; line-height:1.65; color:#475569;">Here are some areas to focus on:</p>

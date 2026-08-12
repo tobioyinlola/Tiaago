@@ -3,10 +3,14 @@
 Your assessment results.
 
 We appreciate the effort you put into your {{ job_title|default:"skill" }}
-assessment. Unfortunately, you did not reach the passing threshold this time.
+assessment. Your score did not reach the threshold the hiring team set for
+this stage, so you will not automatically move forward right now.
 
   Assessment score: {{ score|default:"58%" }}
   Status: Did not pass
+
+This isn't a final decision -- the hiring team can still review your
+results, move you to the next stage, or reach out directly if they'd like to.
 
 Questions about your results? Reach us at support@tiaago.com.
 

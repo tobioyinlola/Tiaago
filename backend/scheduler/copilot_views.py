@@ -162,7 +162,7 @@ class CandidateJoinView(APIView):
             participant_token = create_meeting_token(
                 interview.room_name,
                 is_owner=False,
-                participant_name=interview.talent.full_name if interview.talent else "Candidate",
+                participant_name=interview.candidate_full_name or "Candidate",
                 nbf=int((start_dt - timedelta(minutes=JOIN_WINDOW_MINUTES)).timestamp()),
                 exp=int(end_dt.timestamp()),
             )
@@ -186,7 +186,7 @@ class CandidateJoinView(APIView):
                 notify_user(
                     interview.company.company_rep,
                     title="Candidate is ready",
-                    message=f"{interview.talent.full_name if interview.talent else 'The candidate'} has joined and is ready.",
+                    message=f"{interview.candidate_full_name or 'The candidate'} has joined and is ready.",
                     notification_type=Notification.Type.INTERVIEW,
                     link_path="recruiter/dashboard/interviews",
                     link_label="Join interview",
@@ -397,7 +397,7 @@ class InterviewPreparationView(APIView):
             )
             real_score = submission.total_score if submission else None
         data["interview"] = {
-            "candidate_name": interview.talent.full_name if interview.talent else "",
+            "candidate_name": interview.candidate_full_name,
             "job_title": interview.job_title or interview.title,
             "application_date": job_application.applied_date if job_application else None,
             "assessment_score": real_score,

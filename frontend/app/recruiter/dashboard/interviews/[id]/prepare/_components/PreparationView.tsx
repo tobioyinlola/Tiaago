@@ -104,12 +104,7 @@ const PreparationView = ({
       <div
         className={showBanner ? "opacity-40 pointer-events-none select-none" : "animate-[fadeIn_0.4s_ease]"}
       >
-        <PrepHeader
-          interviewId={interviewId}
-          header={prep.interview}
-          onRegenerate={handleRegenerate}
-          regenerating={regenerating}
-        />
+        <PrepHeader interviewId={interviewId} header={prep.interview} />
 
         {showError ? (
           <div className='mt-6 flex flex-col items-center text-center gap-3 bg-white border border-dashed border-[#D0D5DD] rounded-2lg p-10'>

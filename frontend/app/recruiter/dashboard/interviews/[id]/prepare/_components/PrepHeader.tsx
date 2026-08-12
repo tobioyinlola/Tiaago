@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { RefreshCw, Video } from "lucide-react";
+import { Video } from "lucide-react";
 
 import { ID, InterviewPrepHeader } from "@/app/common/types";
 import { cn } from "@/app/common/utils";
@@ -22,13 +22,9 @@ const initials = (name?: string | null) =>
 const PrepHeader = ({
   interviewId,
   header,
-  onRegenerate,
-  regenerating,
 }: {
   interviewId: ID;
   header?: InterviewPrepHeader;
-  onRegenerate: () => void;
-  regenerating: boolean;
 }) => {
   const scoreBand = assessmentScoreBand(header?.assessment_score ?? null);
   const applicationDate = formatApplicationDate(header?.application_date);
@@ -71,15 +67,6 @@ const PrepHeader = ({
         </div>
 
         <div className='flex items-center gap-2 shrink-0'>
-          <button
-            type='button'
-            onClick={onRegenerate}
-            disabled={regenerating}
-            className='btn btn-outline btn-sm rounded-lg gap-1.5'
-          >
-            <RefreshCw className={cn("w-3.5 h-3.5", regenerating && "animate-spin")} />
-            Regenerate brief
-          </button>
           <Link
             href={startHref}
             className='btn btn-sm rounded-lg gap-1.5 !bg-success !text-white border-none hover:!bg-success/90'

@@ -1579,21 +1579,26 @@ def submit_general_skill_assessment_answers(talent, skill_assessment, request_da
                         existing_secs[obj.skill_assessment_section_id] = obj
                     submission.skill_assessment_section_submissions.add(*new_sec_submissions)
 
-                # (b) prevent duplicates (for THIS submission) and build MCQ answers
+                # (b) build MCQ answers -- upsert against any rows that already exist
+                # for this section (e.g. the blank ones force_complete_submission
+                # backfills for a section the candidate was mid-way through when a
+                # critical proctoring violation forced the submission). Bulk-creating
+                # new rows alongside those blanks instead of overwriting them would
+                # double the question count mark_mcq() divides by, deflating the
+                # score for a section the candidate actually completed.
+                mcq_answers_to_update = []
                 if submitted_mcq:
-                    already_mcq_sec_ids = set(
-                        CandidateAssessmentMCQAnswer.objects.filter(
+                    existing_mcq_answers = {
+                        (a.section_submission_id, a.question_id): a
+                        for a in CandidateAssessmentMCQAnswer.objects.filter(
                             section_submission__in=existing_secs.values()
-                        ).values_list("section_submission__skill_assessment_section_id", flat=True)
-                    )
+                        )
+                    }
                     for s in answers:
                         sec_id = s["section_id"]
                         mcq_ans = s.get("mcq_answers", []) or []
                         if not mcq_ans:
                             continue
-                        if sec_id in already_mcq_sec_ids:
-                            pass
-                            #return Response(status=400, data={"error": f"MCQ already submitted for section {sec_id}"})
                         sec_sub = existing_secs[sec_id]
                         sel_map = {a["mcq_id"]: a["selected_option_index"] for a in mcq_ans}
 
@@ -1603,13 +1608,20 @@ def submit_general_skill_assessment_answers(talent, skill_assessment, request_da
 
                         for link in links:
                             q = link.mcq
-                            mcq_answers_to_create.append(
-                                CandidateAssessmentMCQAnswer(
-                                    section_submission=sec_sub,
-                                    question=q,
-                                    selected_answer_index=sel_map.get(q.id),
+                            selected = sel_map.get(q.id)
+                            existing = existing_mcq_answers.get((sec_sub.id, q.id))
+                            if existing:
+                                if existing.selected_answer_index != selected:
+                                    existing.selected_answer_index = selected
+                                    mcq_answers_to_update.append(existing)
+                            else:
+                                mcq_answers_to_create.append(
+                                    CandidateAssessmentMCQAnswer(
+                                        section_submission=sec_sub,
+                                        question=q,
+                                        selected_answer_index=selected,
+                                    )
                                 )
-                            )
 
                 # (c) prevent duplicates (for THIS submission) and build Coding answers
                 if submitted_coding:
@@ -1642,20 +1654,21 @@ def submit_general_skill_assessment_answers(talent, skill_assessment, request_da
                                 )
                             )
 
-                # (d) prevent duplicates (for THIS submission) and build open-ended answers
+                # (d) build open-ended answers -- same upsert-against-blanks rule as
+                # MCQ above (see comment on (b)).
+                open_ended_answers_to_update = []
                 if submitted_open_ended:
-                    already_open_ended_sec_ids = set(
-                        CandidateAssessmentOpenEndedAnswer.objects.filter(
+                    existing_open_ended_answers = {
+                        (a.section_submission_id, a.open_ended_question_id): a
+                        for a in CandidateAssessmentOpenEndedAnswer.objects.filter(
                             section_submission__in=existing_secs.values()
-                        ).values_list("section_submission__skill_assessment_section_id", flat=True)
-                    )
+                        )
+                    }
                     for s in answers:
                         sec_id = s["section_id"]
                         oe_ans = s.get("open_ended_answers", []) or []
                         if not oe_ans:
                             continue
-                        if sec_id in already_open_ended_sec_ids:
-                            pass
                         sec_sub = existing_secs[sec_id]
                         allowed = {q.id: q for q in sections[sec_id].open_ended_questions.all()}
 
@@ -1664,16 +1677,27 @@ def submit_general_skill_assessment_answers(talent, skill_assessment, request_da
                             question = allowed.get(q_id)
                             if not question:
                                 return Response(status=400, data={"error": f"Question {q_id} not in section {sec_id}"})
-                            open_ended_answers_to_create.append(
-                                CandidateAssessmentOpenEndedAnswer(
-                                    section_submission=sec_sub,
-                                    open_ended_question=question,
-                                    answer_text=(ans.get("answer_text") or "").strip(),
+                            text = (ans.get("answer_text") or "").strip()
+                            existing = existing_open_ended_answers.get((sec_sub.id, question.id))
+                            if existing:
+                                if existing.answer_text != text:
+                                    existing.answer_text = text
+                                    open_ended_answers_to_update.append(existing)
+                            else:
+                                open_ended_answers_to_create.append(
+                                    CandidateAssessmentOpenEndedAnswer(
+                                        section_submission=sec_sub,
+                                        open_ended_question=question,
+                                        answer_text=text,
+                                    )
                                 )
-                            )
 
                 if mcq_answers_to_create:
                     CandidateAssessmentMCQAnswer.objects.bulk_create(mcq_answers_to_create)
+                if mcq_answers_to_update:
+                    CandidateAssessmentMCQAnswer.objects.bulk_update(mcq_answers_to_update, ["selected_answer_index"])
+                if open_ended_answers_to_update:
+                    CandidateAssessmentOpenEndedAnswer.objects.bulk_update(open_ended_answers_to_update, ["answer_text"])
                 if coding_answers_to_create:
                     CandidateAssessmentCodingAnswer.objects.bulk_create(coding_answers_to_create)
                 if open_ended_answers_to_create:
