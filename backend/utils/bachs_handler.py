@@ -19,15 +19,9 @@ Key Bachs API rules this module encodes:
 - Every POST to the Bachs API needs an Idempotency-Key header, format
   "<topup_id>-<timestamp>".
 
-NOTE ON WEBHOOK SIGNATURE ALGORITHM: Bachs' exact signing scheme could not
-be confirmed from public docs at build time (docs.bachs.io did not surface
-the webhook-signing page via search). verify_webhook_signature() below
-assumes HMAC-SHA256 over the raw body, hex-digest, in the `bachs-signature`
-header -- the most common convention (used by e.g. GitHub, and structurally
-identical to how Paystack's own HMAC-SHA512 verification works elsewhere in
-this codebase). CONFIRM this against the real Bachs dashboard docs before
-going live -- if the algorithm is wrong, every webhook will be rejected as
-an invalid signature and no wallet will ever be credited.
+WEBHOOK SIGNATURE ALGORITHM: confirmed against the Bachs dashboard --
+HMAC-SHA256 over the raw body, hex-digest, sent in the `X-Bachs-Signature`
+header (read case-insensitively via request.headers in the webhook view).
 """
 
 import hashlib
@@ -180,7 +174,7 @@ def verify_webhook_signature(raw_body: bytes, signature_header: str) -> bool:
     """Verifies a Bachs webhook's signature using BACHS_WEBHOOK_SECRET, with
     a constant-time comparison (same reasoning as the Paystack webhook's
     hmac.compare_digest usage -- see subscriptions.views). See this
-    module's docstring for the signature-algorithm caveat."""
+    module's docstring for the confirmed algorithm/header."""
     if not signature_header:
         return False
     secret = settings.BACHS_WEBHOOK_SECRET
