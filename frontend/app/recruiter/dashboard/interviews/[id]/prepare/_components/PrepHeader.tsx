@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Video } from "lucide-react";
+import { Download, Video } from "lucide-react";
 
 import { ID, InterviewPrepHeader } from "@/app/common/types";
 import { cn } from "@/app/common/utils";
@@ -66,7 +66,15 @@ const PrepHeader = ({
           </div>
         </div>
 
-        <div className='flex items-center gap-2 shrink-0'>
+        <div className='flex items-center gap-2 shrink-0 print:hidden'>
+          <button
+            type='button'
+            onClick={() => window.print()}
+            className='btn btn-outline btn-sm rounded-lg gap-1.5'
+          >
+            <Download className='w-3.5 h-3.5' />
+            Export brief
+          </button>
           <Link
             href={startHref}
             className='btn btn-sm rounded-lg gap-1.5 !bg-success !text-white border-none hover:!bg-success/90'
@@ -80,7 +88,7 @@ const PrepHeader = ({
       {/* Pinned so "Start Interview" stays reachable on a long brief without scrolling back up. */}
       <Link
         href={startHref}
-        className='fixed bottom-6 right-6 z-30 btn rounded-full shadow-lg gap-2 !bg-success !text-white border-none hover:!bg-success/90 max-sm:btn-circle'
+        className='fixed bottom-6 right-6 z-30 btn rounded-full shadow-lg gap-2 !bg-success !text-white border-none hover:!bg-success/90 max-sm:btn-circle print:hidden'
         aria-label='Start Interview'
       >
         <Video className='w-4 h-4' />

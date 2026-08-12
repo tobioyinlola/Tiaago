@@ -1,6 +1,6 @@
 import logging
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import requests
 from django.conf import settings
@@ -8,6 +8,18 @@ from django.utils import timezone
 from rest_framework.status import HTTP_400_BAD_REQUEST, HTTP_500_INTERNAL_SERVER_ERROR
 
 logger = logging.getLogger(__name__)
+
+# Matches JOIN_WINDOW_MINUTES on the frontend (recruiter dashboard's
+# InterviewJoinButton, interviews.constants.ts) and the "room will open 30
+# minutes before your interview" copy in the candidate confirmation/reminder
+# emails. Defined here (rather than only in copilot_views.py, which imports
+# it from here) because provision_daily_room below needs it too: the ROOM's
+# own nbf/exp (set once, at slot-claim time) has to grant the same early-join
+# buffer as the per-participant meeting tokens minted later, or Daily.co
+# rejects entry before the room's own nbf regardless of how permissive the
+# token is -- a valid token for a room that itself isn't open yet still
+# can't join, which is exactly the "video room isn't ready" symptom.
+JOIN_WINDOW_MINUTES = 30
 
 
 class DailyRoomProvisioningError(Exception):
@@ -32,8 +44,19 @@ def provision_daily_room(meeting_date, start_time, end_time):
     """
     start_dt = datetime.combine(meeting_date, start_time)
     end_dt = datetime.combine(meeting_date, end_time)
-    epoch_start_time_in_seconds = int(timezone.make_aware(start_dt).timestamp())
-    epoch_end_time_in_seconds = int(timezone.make_aware(end_dt).timestamp())
+    # The room itself must be open at least as early as JOIN_WINDOW_MINUTES
+    # before the scheduled start (matching every join token minted against
+    # it later) and for a grace period after the scheduled end -- an nbf/exp
+    # scoped to the exact start/end left no room for the early-join window
+    # every other part of the app promises (buttons, emails), and a
+    # recruiter/candidate arriving even one second before the exact start
+    # was rejected by Daily.co with the room not existing/ready yet.
+    epoch_start_time_in_seconds = int(
+        (timezone.make_aware(start_dt) - timedelta(minutes=JOIN_WINDOW_MINUTES)).timestamp()
+    )
+    epoch_end_time_in_seconds = int(
+        (timezone.make_aware(end_dt) + timedelta(hours=1)).timestamp()
+    )
 
     daily_api_token = getattr(settings, "DAILY_API_TOKEN", None)
     if not daily_api_token:
@@ -46,8 +69,11 @@ def provision_daily_room(meeting_date, start_time, end_time):
         request_data = {
             "privacy": "private",
             "properties": {
-                "nbf": str(epoch_start_time_in_seconds),
-                "exp": str(epoch_end_time_in_seconds),
+                # Daily.co's API expects nbf/exp as integer Unix timestamps,
+                # not strings -- sent as str() before, which is incorrect
+                # per Daily's documented room-properties schema.
+                "nbf": epoch_start_time_in_seconds,
+                "exp": epoch_end_time_in_seconds,
             },
         }
         logger.info(f"Sending request to Daily.co with data: {request_data}")
@@ -104,8 +130,8 @@ def provision_daily_room(meeting_date, start_time, end_time):
             "properties": {
                 "room_name": room_name,
                 "eject_at_token_exp": True,
-                "nbf": str(epoch_start_time_in_seconds),
-                "exp": str(epoch_end_time_in_seconds),
+                "nbf": epoch_start_time_in_seconds,
+                "exp": epoch_end_time_in_seconds,
                 "is_owner": True,
                 "enable_screenshare": True,
             }
@@ -180,9 +206,9 @@ def create_meeting_token(room_name, is_owner, participant_name=None, nbf=None, e
     if participant_name:
         properties["user_name"] = participant_name
     if nbf is not None:
-        properties["nbf"] = str(nbf)
+        properties["nbf"] = int(nbf)
     if exp is not None:
-        properties["exp"] = str(exp)
+        properties["exp"] = int(exp)
     if enable_recording:
         # Only meaningful on the owner/recruiter token -- Daily.co requires
         # is_owner for a participant to be allowed to start a cloud recording.

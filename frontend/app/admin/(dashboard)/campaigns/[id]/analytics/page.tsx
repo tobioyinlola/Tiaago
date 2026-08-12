@@ -8,7 +8,7 @@ import CampaignStatusBadge from "../../_components/CampaignStatusBadge";
 import RecipientsTable from "./RecipientsTable";
 
 export const metadata = {
-  title: "Campaign Analytics",
+  title: "Campaign Report",
 };
 
 const CampaignAnalyticsPage = async ({ params }: { params: Promise<{ id: string }> }) => {
@@ -20,13 +20,18 @@ const CampaignAnalyticsPage = async ({ params }: { params: Promise<{ id: string 
   if (!campaign || !analytics) return notFound();
 
   const hourLabels = analytics.opens_over_time_48h.map(p => `${p.hour}h`);
+  const firstStep = [...campaign.emails].sort((a, b) => a.sequence_number - b.sequence_number)[0];
 
   return (
     <>
-      <div className="border-b w-full border-border pb-1 mb-6 flex items-center justify-between flex-wrap gap-2">
+      <div className="border-b w-full border-[#E0E0E0] pb-1 mb-6 flex items-center justify-between flex-wrap gap-2">
         <div>
-          <h1 className="text-2xl font-bold mb-1 font-space-grotesk">{campaign.name}</h1>
-          <h4 className="text-foreground text-sm md:text-base">{campaign.subject_line}</h4>
+          <h1 className="text-2xl font-bold mb-1 font-space-grotesk" style={{ color: "#1A3C5E" }}>
+            {campaign.name}
+          </h1>
+          <h4 className="text-sm md:text-base" style={{ color: "#9E9E9E" }}>
+            {firstStep?.subject || "—"} &middot; {campaign.audience_pool === "TALENT_NETWORK" ? "Talent Network" : "Companies"}
+          </h4>
         </div>
         <CampaignStatusBadge status={campaign.status} />
       </div>
@@ -39,6 +44,29 @@ const CampaignAnalyticsPage = async ({ params }: { params: Promise<{ id: string 
         <StatCard label="Unsubscribes" value={analytics.summary.unsubscribes} />
         <StatCard label="Bounces" value={analytics.summary.bounces} />
       </div>
+
+      {analytics.by_email.length > 1 && (
+        <>
+          <h3 className="text-lg font-medium mb-4" style={{ color: "#1A3C5E" }}>
+            Sequence breakdown
+          </h3>
+          <div className="rounded-lg border border-[#E0E0E0] divide-y divide-[#E0E0E0] mb-8">
+            {analytics.by_email.map(step => (
+              <div key={step.campaign_email_id} className="flex items-center justify-between gap-4 px-4 py-3 text-sm flex-wrap">
+                <div className="min-w-0">
+                  <span className="rounded-full bg-[#EAF0F6] px-2 py-0.5 text-[10px] font-semibold mr-2" style={{ color: "#1A3C5E" }}>
+                    Email {step.sequence_number}
+                  </span>
+                  <span className="font-medium text-[#444444]">{step.subject || "—"}</span>
+                </div>
+                <div className="text-xs text-[#9E9E9E] whitespace-nowrap">
+                  {step.total_sent} sent &middot; {step.delivered} delivered &middot; {step.open_rate_pct}% opened &middot; {step.click_rate_pct}% clicked
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
 
       <ChartContainer>
         <section className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
@@ -53,23 +81,27 @@ const CampaignAnalyticsPage = async ({ params }: { params: Promise<{ id: string 
         </section>
       </ChartContainer>
 
-      <h3 className="text-gray-900 text-lg font-medium mb-4">Link performance</h3>
-      <div className="rounded-lg border divide-y mb-8">
+      <h3 className="text-lg font-medium mb-4" style={{ color: "#1A3C5E" }}>
+        Link performance
+      </h3>
+      <div className="rounded-lg border border-[#E0E0E0] divide-y divide-[#E0E0E0] mb-8">
         {analytics.link_performance.length ? (
           analytics.link_performance.map((link, i) => (
             <div key={i} className="flex items-center justify-between px-4 py-3 text-sm gap-4">
-              <span className="truncate text-primary">{link.link_url}</span>
-              <span className="text-muted-foreground whitespace-nowrap">
+              <span className="truncate" style={{ color: "#1A3C5E" }}>{link.link_url}</span>
+              <span className="text-[#9E9E9E] whitespace-nowrap">
                 {link.total_clicks} clicks &middot; {link.unique_clicks} unique &middot; {link.pct_of_recipients}% of recipients
               </span>
             </div>
           ))
         ) : (
-          <p className="px-4 py-8 text-center text-sm text-muted-foreground">No link clicks recorded yet.</p>
+          <p className="px-4 py-8 text-center text-sm text-[#9E9E9E]">No link clicks recorded yet.</p>
         )}
       </div>
 
-      <h3 className="text-gray-900 text-lg font-medium mb-4">Recipients</h3>
+      <h3 className="text-lg font-medium mb-4" style={{ color: "#1A3C5E" }}>
+        Recipients
+      </h3>
       <RecipientsTable recipients={analytics.recipients} />
     </>
   );

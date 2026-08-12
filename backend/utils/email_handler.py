@@ -139,7 +139,7 @@ class EmailHandler:
                 pass
         return None
 
-    def _send_via_resend(self, subject, html, security=False, text_body=None, from_override=None, headers=None):
+    def _send_via_resend(self, subject, html, security=False, text_body=None, from_override=None, headers=None, reply_to_override=None):
         """Send through the Resend HTTP API.
 
         Returns the Resend message id (str) on 2xx, None on failure.
@@ -155,8 +155,9 @@ class EmailHandler:
             "text": text_body or "See HTML version for full content.",
             "html": html,
         }
-        if RESEND_REPLY_TO:
-            payload["reply_to"] = RESEND_REPLY_TO
+        reply_to = reply_to_override or RESEND_REPLY_TO
+        if reply_to:
+            payload["reply_to"] = reply_to
         if headers:
             payload["headers"] = headers
         response = requests.post(
@@ -175,7 +176,7 @@ class EmailHandler:
         except ValueError:
             return ""
 
-    def _send_via_mailgun(self, subject, html, from_email, text_body=None) -> bool:
+    def _send_via_mailgun(self, subject, html, from_email, text_body=None, reply_to_override=None) -> bool:
         """Send through the Mailgun HTTP API. Returns True on 200."""
         data = {
             "from": from_email,
@@ -184,6 +185,8 @@ class EmailHandler:
             "text": text_body or "See HTML version for full content.",
             "html": html,
         }
+        if reply_to_override:
+            data["h:Reply-To"] = reply_to_override
         response = requests.post(
             f"https://api.mailgun.net/v3/{MAILGUN_DOMAIN}/messages",
             auth=("api", MAILGUN_API_KEY),

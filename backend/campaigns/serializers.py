@@ -1,7 +1,7 @@
 from rest_framework import serializers
 
 from campaigns.block_renderer import ensure_footer, render_blocks
-from campaigns.models import CampaignSend, EmailCampaign, EmailTemplate
+from campaigns.models import CampaignEmail, CampaignSend, EmailCampaign, EmailTemplate
 
 
 class EmailTemplateSerializer(serializers.ModelSerializer):
@@ -32,23 +32,39 @@ class EmailTemplateSerializer(serializers.ModelSerializer):
         return super().update(instance, validated_data)
 
 
+class CampaignEmailSerializer(serializers.ModelSerializer):
+    email_template_name = serializers.CharField(source="email_template.name", read_only=True, default=None)
+
+    class Meta:
+        model = CampaignEmail
+        fields = [
+            "id", "campaign", "sequence_number", "email_template", "email_template_name",
+            "subject", "preview_text", "from_name", "reply_to",
+            "send_delay_type", "send_delay_hours", "send_delay_days", "condition_type",
+            "status", "sent_at", "total_sent", "total_opened", "total_clicked", "created_at",
+        ]
+        read_only_fields = ["id", "status", "sent_at", "total_sent", "total_opened", "total_clicked", "created_at"]
+
+
 class EmailCampaignSerializer(serializers.ModelSerializer):
     audience_segment_name = serializers.CharField(source="audience_segment.name", read_only=True, default=None)
     audience_tag_name = serializers.CharField(source="audience_tag.name", read_only=True, default=None)
-    email_template_name = serializers.CharField(source="email_template.name", read_only=True, default=None)
     recipient_count = serializers.SerializerMethodField()
+    emails = CampaignEmailSerializer(many=True, read_only=True)
 
     class Meta:
         model = EmailCampaign
         fields = [
-            "id", "name", "subject_line", "preview_text",
+            "id", "name", "audience_pool",
             "audience_type", "audience_segment", "audience_segment_name",
             "audience_tag", "audience_tag_name", "manual_organisation_ids",
-            "email_template", "email_template_name", "template_variables",
+            "tn_role_categories", "tn_industries", "tn_years_experience", "tn_work_type",
             "status", "schedule_type", "scheduled_for", "sent_at",
-            "created_by_admin", "created_at", "updated_at", "recipient_count",
+            "created_by_admin", "created_at", "updated_at", "recipient_count", "emails",
         ]
         read_only_fields = ["id", "status", "sent_at", "created_by_admin", "created_at", "updated_at"]
 
     def get_recipient_count(self, obj):
-        return CampaignSend.objects.filter(campaign=obj).count()
+        # Distinct recipients, not distinct sends -- a sequence gives one
+        # recipient multiple CampaignSend rows (one per step).
+        return CampaignSend.objects.filter(campaign=obj).values("recipient_email").distinct().count()

@@ -218,7 +218,7 @@ def get_email_template_and_context(
         template_file = "emails/interview_reminder.html"
         context = {
             "first_name": user.first_name,
-            "countdown": "soon",
+            "countdown": kwargs.get("countdown") or "soon",
             **meeting_ctx,
         }
         # The Daily.co room is private -- the bare room_url _flatten_meeting
@@ -342,7 +342,7 @@ def get_email_template_and_context(
         context = {
             "candidate_name": kwargs.get("candidate_name") or "the candidate",
             "role": md.get("title", ""),
-            "countdown": kwargs.get("countdown", "in 30 minutes"),
+            "countdown": kwargs.get("countdown") or "soon",
             **meeting_ctx,
         }
         # See the matching comment in "meeting_reminder" above -- the
@@ -598,15 +598,16 @@ def meeting_invite_mail(user, company_name, meeting_details):
         email_type="meeting_invite",
     )
 
-def meeting_invite_reminder(user, company_name, meeting_details, join_url=None):
+def meeting_invite_reminder(user, company_name, meeting_details, join_url=None, countdown=None):
     template, ctx = get_email_template_and_context(
         user, "meeting_reminder", company_name=company_name,
-        meeting_details=meeting_details, join_url=join_url,
+        meeting_details=meeting_details, join_url=join_url, countdown=countdown,
     )
     if not template:
         return None
+    subject = f"Your interview starts {countdown}" if countdown else "Your interview starts soon"
     return _send_with_latest_flow(
-        user.email, "Your interview starts soon", template, ctx,
+        user.email, subject, template, ctx,
         email_type="meeting_reminder",
     )
 
@@ -733,21 +734,24 @@ def recruiter_interview_acceptance_mail(user, company_name, meeting_details, can
     )
 
 
-def recruiter_interview_reminder_mail(user, candidate_name, company_name, meeting_details, join_url=None):
-    """30-minutes-before reminder to the recruiter -- `user` is the company
-    rep being emailed; `candidate_name` is passed explicitly since `user`
-    here is not the candidate (matching the pattern to the confusingly-
-    named `candidate_name` context var over in recruiter_interview_acceptance_mail,
+def recruiter_interview_reminder_mail(user, candidate_name, company_name, meeting_details, join_url=None, countdown=None):
+    """1-hour and 15-minutes-before reminder to the recruiter (see
+    scheduler.tasks.REMINDER_TIER_LABELS) -- `user` is the company rep being
+    emailed; `candidate_name` is passed explicitly since `user` here is not
+    the candidate (matching the pattern to the confusingly-named
+    `candidate_name` context var over in recruiter_interview_acceptance_mail,
     which is actually populated from the recruiter's own name -- that's an
     existing quirk in this codebase, not repeated here)."""
     template, ctx = get_email_template_and_context(
         user, "recruiter_interview_reminder_mail", company_name=company_name,
         candidate_name=candidate_name, meeting_details=meeting_details, join_url=join_url,
+        countdown=countdown,
     )
     if not template:
         return None
+    subject = f"Your interview starts {countdown}" if countdown else "Your interview starts soon"
     return _send_with_latest_flow(
-        user.email, "Your interview starts in 30 minutes", template, ctx,
+        user.email, subject, template, ctx,
         email_type="recruiter_interview_reminder_mail",
     )
 

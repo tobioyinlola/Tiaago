@@ -16,6 +16,11 @@ export const metadata = {
 
 const formatExact = (value: string | null) => (value ? format(new Date(value), "MMM dd, yyyy hh:mm a") : "—");
 
+const firstSubject = (campaign: EmailCampaign) => {
+  const first = [...campaign.emails].sort((a, b) => a.sequence_number - b.sequence_number)[0];
+  return first?.subject || first?.email_template_name || "—";
+};
+
 const AdminCampaignsPage = async () => {
   const errors: DisplayErrorMessagesProps["errors"] = [];
   const campaigns = await getCampaigns().catch(async e => {
@@ -30,22 +35,26 @@ const AdminCampaignsPage = async () => {
       className: "text-left",
       render: row => (
         <Link
-          href={row.status === "SENT" || row.status === "SENDING" ? `/admin/campaigns/${row.id}/analytics` : `/admin/campaigns/${row.id}/edit`}
-          className="font-medium text-primary hover:underline"
+          href={["SENT", "SENDING", "CANCELLED"].includes(row.status) ? `/admin/campaigns/${row.id}/analytics` : `/admin/campaigns/${row.id}/edit`}
+          className="font-medium hover:underline"
+          style={{ color: "#1A3C5E" }}
         >
           {row.name}
         </Link>
       ),
     },
-    { key: "subject_line", header: "Subject line", className: "text-left", render: row => row.subject_line || "—" },
+    { key: "subject", header: "First subject", className: "text-left", render: firstSubject },
     { key: "status", header: "Status", render: row => <CampaignStatusBadge status={row.status} /> },
+    { key: "pool", header: "Audience pool", render: row => (row.audience_pool === "TALENT_NETWORK" ? "Talent Network" : "Companies") },
     {
       key: "audience",
       header: "Audience",
       render: row =>
-        row.audience_segment_name || row.audience_tag_name || (row.manual_organisation_ids.length ? `${row.manual_organisation_ids.length} manual orgs` : "—"),
+        row.audience_pool === "TALENT_NETWORK"
+          ? "Talent Network filters"
+          : row.audience_segment_name || row.audience_tag_name || (row.manual_organisation_ids.length ? `${row.manual_organisation_ids.length} manual orgs` : row.audience_type === "ALL" ? "All recruiters" : "—"),
     },
-    { key: "email_template_name", header: "Template", render: row => row.email_template_name ?? "—" },
+    { key: "emails", header: "Emails", render: row => row.emails.length },
     { key: "recipient_count", header: "Recipients", render: row => row.recipient_count },
     { key: "scheduled_for", header: "Scheduled for", render: row => formatExact(row.scheduled_for) },
     { key: "sent_at", header: "Sent at", render: row => formatExact(row.sent_at) },
@@ -54,12 +63,16 @@ const AdminCampaignsPage = async () => {
   return (
     <>
       <DisplayErrorMessages errors={errors} />
-      <div className="border-b w-full border-border pb-1 mb-6 flex items-center justify-between flex-wrap gap-2">
+      <div className="border-b w-full border-[#E0E0E0] pb-1 mb-6 flex items-center justify-between flex-wrap gap-2">
         <div>
-          <h1 className="text-2xl font-bold mb-1 font-space-grotesk">Campaigns</h1>
-          <h4 className="text-foreground text-sm md:text-base">Email campaigns sent to segments, tags, or hand-picked organisations.</h4>
+          <h1 className="text-2xl font-bold mb-1 font-space-grotesk" style={{ color: "#1A3C5E" }}>
+            Campaigns
+          </h1>
+          <h4 className="text-sm md:text-base" style={{ color: "#9E9E9E" }}>
+            Email campaigns and drip sequences sent to companies or the Talent Network.
+          </h4>
         </div>
-        <Link href="/admin/campaigns/new" className="btn btn-primary btn-sm">
+        <Link href="/admin/campaigns/new" className="btn btn-sm text-white hover:opacity-90" style={{ backgroundColor: "#1A3C5E" }}>
           + New campaign
         </Link>
       </div>
