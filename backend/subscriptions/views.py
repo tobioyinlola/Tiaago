@@ -1,4 +1,5 @@
 import requests
+import uuid
 from urllib.parse import urlparse
 from django.contrib.auth import get_user_model
 from django.conf import settings
@@ -43,6 +44,8 @@ from .models import (
     Wallet,
     WalletTopup,
     PricingConfig,
+    PlatformSetting,
+    BachsWebhookLog,
     FreePlan,
     UserUsage,
     WalletUserUsage,
@@ -60,10 +63,14 @@ from .serializers import (
     UserUsageSerializer,
     SubscriptionTransactionSerializer,
 )
-from .helper import determine_plan_usage, determine_free_plan_usage, get_pricing_decimal, get_action_price, COUNTRY_CURRENCY_MAP
+from .helper import (
+    determine_plan_usage, determine_free_plan_usage, get_pricing_decimal, get_action_price, COUNTRY_CURRENCY_MAP,
+    get_active_gateway, clear_active_gateway_cache, ACTIVE_GATEWAY_SETTING_KEY, VALID_PAYMENT_GATEWAYS,
+)
 from .billing_service import get_or_create_wallet, _resume_company_jobs_after_wallet_topup
 from emails import emails
 from utils.stripe_sub_handler import create_stripe_product_price, create_checkout_session, stripe_api_key, fund_wallet_stripe
+from utils.bachs_handler import BachsHandler, bachs_amount_to_minor_units, verify_webhook_signature as verify_bachs_webhook_signature
 import stripe
 from create_user.models import Company
 from create_user.permissions import get_user_company
@@ -632,22 +639,44 @@ class StripeSubscriptionViewSet(
     
 # Paystack or Stripe funding of wallet
 class FundWalletView(APIView):
+    """Creates a wallet top-up checkout session. Which gateway actually
+    handles it is decided server-side by get_active_gateway() (admin-
+    editable, see PlatformSettingUpdateView) -- NOT by a `provider` field
+    in the request body anymore. The old behaviour (frontend picks
+    Paystack-for-Nigeria / Stripe-for-everyone-else and tells the backend
+    which one via `provider`) is superseded by this; see
+    UserBilling.tsx's commented-out isNigerian-based selection for where
+    that hardcoding used to live on the frontend side.
+
+    Bachs is the default (handles both NGN and USD). Paystack (NGN only)
+    and Stripe (USD only) are fully preserved below and remain fully live
+    -- an admin can switch to either at any time via /admin/pricing and
+    top-ups will route there immediately; they are simply not the default
+    anymore."""
+
     permission_classes = [IsAuthenticated, IsUserVerified]
-    
+
     def post(self, request):
-        provider = request.data.get('provider')
         amount = request.data.get('amount')
         success_url = request.data.get('success_url')
 
-        if not provider or not amount or not success_url:
-            return Response({'error': 'provider, amount, and success_url are required.'}, status=status.HTTP_400_BAD_REQUEST)
+        if not amount:
+            return Response({'error': 'amount is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        active_gateway = get_active_gateway()
+
+        # success_url is only meaningful for Stripe (its Checkout Session
+        # needs a redirect target passed in at creation time) -- Bachs and
+        # Paystack build their own return/callback URLs server-side.
+        if active_gateway == 'stripe' and not success_url:
+            return Response({'error': 'success_url is required.'}, status=status.HTTP_400_BAD_REQUEST)
 
         # success_url is client-supplied and handed straight to Stripe as the
         # post-payment redirect target -- without pinning it to our own
         # origin, this is an open redirect (attacker gets a legitimate
         # Stripe checkout page for the victim, then redirects them to a
         # phishing page after a real payment succeeds).
-        if not _is_allowed_redirect_url(success_url):
+        if success_url and not _is_allowed_redirect_url(success_url):
             logger.warning(
                 "Rejected success_url %r for wallet funding -- does not match FRONTEND_URL %r",
                 success_url, settings.FRONTEND_URL,
@@ -662,17 +691,79 @@ class FundWalletView(APIView):
             amount_decimal = Decimal(str(amount))
         except Exception:
             return Response({'error': 'Invalid amount.'}, status=status.HTTP_400_BAD_REQUEST)
+        if amount_decimal <= 0:
+            return Response({'error': 'Amount must be a positive number.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        min_key = "minimum_topup_usd" if provider == "stripe" else "minimum_topup_ngn"
-        minimum = get_pricing_decimal(min_key, "10.00" if provider == "stripe" else "5000.00")
+        wallet = get_or_create_wallet(company)
+        currency = wallet.currency or "USD"
+
+        min_key = "minimum_topup_usd" if currency == "USD" else "minimum_topup_ngn"
+        minimum = get_pricing_decimal(min_key, "10.00" if currency == "USD" else "5000.00")
         if amount_decimal < minimum:
             return Response(
                 {'error': f'Minimum top-up amount is {minimum}.'}, status=status.HTTP_400_BAD_REQUEST
             )
 
-        wallet = get_or_create_wallet(company)
+        # ─────────────────────────────────────────────────────────────────
+        # BACHS -- default gateway (handles both NGN and USD). See
+        # utils/bachs_handler.py and bachs_wallet_fund_webhook below.
+        # ─────────────────────────────────────────────────────────────────
+        if active_gateway == 'bachs':
+            # provider_payment_id is unique + required, but the real Bachs
+            # checkout id doesn't exist until after the API call below --
+            # pre-generate the topup's own id and use a placeholder derived
+            # from it (overwritten with the real chk_... id on success, and
+            # the row is deleted entirely on failure) rather than loosening
+            # the column to nullable.
+            topup_id = uuid.uuid4()
+            topup = WalletTopup.objects.create(
+                id=topup_id, wallet=wallet, organisation=company, amount=amount_decimal, currency=currency,
+                payment_provider=WalletTopup.Provider.BACHS, provider_payment_id=f"pending-{topup_id}",
+            )
+            try:
+                bachs = BachsHandler()
+                bachs.create_or_get_customer(company, email=request.user.email, name=company.company_name or request.user.email)
 
-        if provider == 'stripe':
+                frontend_base = str(settings.FRONTEND_URL).rstrip('/')
+                return_url = f"{frontend_base}/billing/bachs/callback?topup_id={topup_id}"
+                cancel_url = f"{frontend_base}/recruiter/dashboard/billing?cancelled=true"
+
+                result = bachs.create_checkout_session(
+                    topup_id=topup_id, amount=amount_decimal, currency=currency,
+                    customer_email=request.user.email, customer_name=company.company_name or request.user.email,
+                    return_url=return_url, cancel_url=cancel_url,
+                    organisation_id=company.id, wallet_id=wallet.id,
+                )
+                if result and result.get("checkoutUrl") and result.get("checkoutId"):
+                    topup.provider_payment_id = result["checkoutId"]
+                    topup.save(update_fields=["provider_payment_id"])
+                    logger.debug(f"Bachs wallet funding session created successfully for user {request.user.email}")
+                    return Response(
+                        {'status': 'wallet funding session created',
+                         'data': {'checkout_url': result["checkoutUrl"], 'checkout_id': result["checkoutId"]}},
+                        status=status.HTTP_201_CREATED,
+                    )
+                topup.delete()
+                logger.error("Failed to create Bachs wallet funding session.")
+                return Response({'error': 'Failed to create wallet funding session.'}, status=status.HTTP_400_BAD_REQUEST)
+            except Exception as e:
+                topup.delete()
+                logger.exception(f"Error creating Bachs wallet funding session for user {request.user.email}")
+                return Response({'error': f'Error creating wallet funding session: {e}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        # ─────────────────────────────────────────────────────────────────
+        # STRIPE INTEGRATION
+        # Not the active gateway by default -- selectable via the admin
+        # gateway setting (/admin/pricing), and fully live/functional when
+        # selected. USD only.
+        # ─────────────────────────────────────────────────────────────────
+        elif active_gateway == 'stripe':
+            if currency != "USD":
+                return Response(
+                    {'error': 'The active payment gateway (Stripe) only supports USD top-ups. '
+                              'Ask an admin to switch the active gateway to Bachs.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
             # create checkout session
             try:
                 session = fund_wallet_stripe(
@@ -694,7 +785,20 @@ class FundWalletView(APIView):
             except Exception as e:
                 logger.error(f"Error creating Stripe wallet funding session: {e}")
                 return Response({'error': 'Error creating wallet funding session.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        else:
+
+        # ─────────────────────────────────────────────────────────────────
+        # PAYSTACK INTEGRATION
+        # Not the active gateway by default -- selectable via the admin
+        # gateway setting (/admin/pricing), and fully live/functional when
+        # selected. NGN only.
+        # ─────────────────────────────────────────────────────────────────
+        else:  # active_gateway == 'paystack'
+            if currency != "NGN":
+                return Response(
+                    {'error': 'The active payment gateway (Paystack) only supports NGN top-ups. '
+                              'Ask an admin to switch the active gateway to Bachs.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
             # create Paystack checkout session
             try:
                 paystack_handler = PayStackSubscriptionHandler()
@@ -725,6 +829,33 @@ class FundWalletView(APIView):
             except Exception as e:
                 logger.exception(f"Error creating Paystack wallet funding session for user {request.user.email}")
                 return Response({'error': f'Error creating wallet funding session: {e}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class WalletTopupStatusView(APIView):
+    """GET /subscriptions/topup/<id>/status/ -- polled by the Bachs callback
+    page while a top-up is still PENDING. Read-only: webhooks are the only
+    thing that ever credits a wallet or transitions a topup's status (see
+    bachs_wallet_fund_webhook) -- this view never writes anything."""
+
+    permission_classes = [IsAuthenticated, IsUserVerified]
+
+    def get(self, request, topup_id):
+        company = get_user_company(request.user)
+        if not company:
+            return Response({'error': 'No company associated with this account.'}, status=status.HTTP_403_FORBIDDEN)
+
+        topup = WalletTopup.objects.filter(id=topup_id, organisation=company).first()
+        if not topup:
+            return Response({'error': 'Top-up not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        return Response({
+            'id': str(topup.id),
+            'status': topup.status,
+            'amount': str(topup.amount),
+            'currency': topup.currency,
+            'payment_provider': topup.payment_provider,
+            'failure_reason': topup.failure_reason,
+        })
 
 
 # view to get wallet transaction based on user
@@ -1624,6 +1755,202 @@ def stripe_wallet_fund_webhook(request):
     return JsonResponse({'status': 'success'}, status=200)
 
 
+def _credit_wallet_from_bachs_payment(data, log_entry, event_type):
+    """Mirrors _credit_wallet_from_paystack_charge above -- same idempotency/
+    crediting/email pattern, adapted to Bachs' payload shape and its
+    decimal-string amounts (converted back to minor units here, per Bachs'
+    "money is always a decimal string" rule -- see utils.bachs_handler)."""
+    try:
+        payment_id = data.get('id')
+        checkout_id = data.get('checkout_id')
+        metadata = data.get('metadata') or {}
+        amount_string = data.get('amount')
+        currency = (data.get('currency') or '').upper()
+        topup_id = metadata.get('topup_id')
+
+        topup = WalletTopup.objects.filter(provider_payment_id=checkout_id).first() if checkout_id else None
+        if not topup and topup_id:
+            topup = WalletTopup.objects.filter(id=topup_id).first()
+
+        if not topup:
+            logger.error(f"Bachs webhook: no WalletTopup found for checkout_id={checkout_id} topup_id={topup_id}")
+            log_entry.notes = f"No matching WalletTopup for checkout_id={checkout_id} topup_id={topup_id}"
+            log_entry.save()
+            return JsonResponse({'status': 'topup not found'}, status=200)
+
+        wallet = topup.wallet
+
+        # Idempotency -- critical: Bachs (like Paystack/Stripe) may retry a
+        # webhook delivery, and this must never credit the same payment
+        # twice. Checked two ways, same as the Paystack/Stripe handlers.
+        already_credited = (topup.status == WalletTopup.Status.COMPLETED) or (
+            WalletTransaction.objects.filter(wallet=wallet, transaction_type="credit", reference=payment_id).exists()
+        )
+        if already_credited:
+            logger.info(f"Duplicate Bachs webhook ignored for payment: {payment_id}")
+            log_entry.processed = True
+            log_entry.notes = f"Duplicate webhook ignored for payment: {payment_id}"
+            log_entry.save()
+            return JsonResponse({'status': 'already processed'}, status=200)
+
+        # bachs_amount_to_minor_units is used for the log/metadata trail
+        # (kobo/cents), but wallet.credit() itself takes the major-unit
+        # Decimal, same as every other provider's webhook here.
+        bachs_amount_to_minor_units(amount_string)
+        amount_major = Decimal(str(amount_string))
+        credit_currency = currency or topup.currency
+
+        txn = wallet.credit(
+            amount=amount_major, reference=payment_id, description="Wallet funding via Bachs",
+            currency=credit_currency, service_type=WalletTransaction.ServiceType.WALLET_TOPUP,
+        )
+
+        try:
+            _resume_company_jobs_after_wallet_topup(topup.organisation)
+        except Exception:
+            logger.exception("Failed to auto-resume billing-paused jobs for company %s", topup.organisation_id)
+
+        topup.status = WalletTopup.Status.COMPLETED
+        topup.provider_status = event_type
+        topup.completed_at = timezone.now()
+        topup.metadata = {**(topup.metadata or {}), "bachs_payment_id": payment_id}
+        topup.save(update_fields=["status", "provider_status", "completed_at", "metadata"])
+
+        try:
+            emails.wallet_topup_confirmed_mail(
+                topup.organisation.company_rep, amount_major, txn.balance_after, credit_currency, _wallet_url()
+            )
+        except Exception:
+            logger.exception("Failed to send wallet-topup-confirmed email for company %s", topup.organisation_id)
+
+        from tags.tasks import evaluate_company_tags
+        evaluate_company_tags.delay(topup.organisation_id)
+
+        log_entry.processed = True
+        log_entry.notes = "Wallet funded successfully via Bachs."
+        log_entry.save()
+        return JsonResponse({'status': 'wallet funded successfully'}, status=200)
+    except Exception as e:
+        logger.error(f"Error processing Bachs wallet funding webhook: {e}")
+        return JsonResponse({'error': 'Error processing event'}, status=500)
+
+
+# Bachs wallet funding webhook -- default gateway. Mirrors
+# paystack_wallet_fund_webhook's structure exactly.
+@csrf_exempt
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def bachs_wallet_fund_webhook(request):
+    """Per Bachs docs: webhooks are the ONLY source of truth for crediting a
+    wallet (never the return_url redirect -- the /billing/bachs/callback
+    page only ever reads status, never writes it), and every handler here
+    must return 200 even on a processing error so Bachs doesn't retry
+    forever. The one deliberate exception is an invalid signature, which
+    returns 401 so a genuinely spoofed request is rejected outright."""
+    if request.method != "POST":
+        return JsonResponse({'error': 'Invalid request method'}, status=405)
+
+    payload = request.body
+    signature = request.headers.get('bachs-signature', '')
+
+    if not verify_bachs_webhook_signature(payload, signature):
+        logger.error("Invalid Bachs webhook signature")
+        return JsonResponse({'error': 'Invalid signature'}, status=401)
+
+    try:
+        event = json.loads(payload)
+    except (json.JSONDecodeError, TypeError):
+        logger.error("Invalid Bachs webhook payload -- not valid JSON")
+        return JsonResponse({'status': 'ignored'}, status=200)
+
+    event_type = event.get('event') or event.get('type')
+    data = event.get('data', {}) or {}
+
+    # Log webhook event to DB -- same "log everything first" pattern as
+    # PaystackWebhookLog above.
+    log_entry = BachsWebhookLog.objects.create(event=event_type, payload=event)
+    logger.info(f"Bachs webhook received: {event_type}")
+
+    if event_type == 'collection.succeeded':
+        return _credit_wallet_from_bachs_payment(data, log_entry, event_type)
+
+    elif event_type == 'collection.failed':
+        try:
+            checkout_id = data.get('checkout_id')
+            metadata = data.get('metadata') or {}
+            topup_id = metadata.get('topup_id')
+
+            topup = WalletTopup.objects.filter(provider_payment_id=checkout_id).first() if checkout_id else None
+            if not topup and topup_id:
+                topup = WalletTopup.objects.filter(id=topup_id).first()
+
+            if not topup:
+                log_entry.processed = True
+                log_entry.notes = f"No matching WalletTopup for checkout_id={checkout_id} topup_id={topup_id}"
+                log_entry.save()
+                return JsonResponse({'status': 'topup not found'}, status=200)
+
+            if topup.status in (WalletTopup.Status.FAILED, WalletTopup.Status.COMPLETED):
+                log_entry.processed = True
+                log_entry.notes = f"Ignored collection.failed -- topup already {topup.status}"
+                log_entry.save()
+                return JsonResponse({'status': 'already resolved'}, status=200)
+
+            failure_reason = data.get('failure_reason') or data.get('message') or "Payment failed"
+            topup.status = WalletTopup.Status.FAILED
+            topup.provider_status = event_type
+            topup.failed_at = timezone.now()
+            topup.failure_reason = str(failure_reason)[:500]
+            topup.save(update_fields=["status", "provider_status", "failed_at", "failure_reason"])
+
+            try:
+                emails.wallet_topup_failed_mail(
+                    topup.organisation.company_rep, topup.amount, topup.currency, failure_reason, _wallet_url()
+                )
+            except Exception:
+                logger.exception("Failed to send wallet-topup-failed email for topup %s", topup.id)
+
+            log_entry.processed = True
+            log_entry.notes = "Wallet funding failed."
+            log_entry.save()
+            return JsonResponse({'status': 'wallet funding failed'}, status=200)
+        except Exception as e:
+            logger.error(f"Error processing Bachs wallet funding failure webhook: {e}")
+            return JsonResponse({'error': 'Error processing event'}, status=500)
+
+    elif event_type == 'checkout.completed':
+        # Do NOT credit the wallet here -- wait for collection.succeeded.
+        log_entry.processed = True
+        log_entry.notes = "checkout.completed -- awaiting collection.succeeded to credit."
+        log_entry.save()
+        return JsonResponse({'status': 'acknowledged'}, status=200)
+
+    elif event_type == 'checkout.expired':
+        try:
+            checkout_id = data.get('id') or data.get('checkout_id')
+            topup = WalletTopup.objects.filter(provider_payment_id=checkout_id).first() if checkout_id else None
+            if topup and topup.status == WalletTopup.Status.PENDING:
+                topup.status = WalletTopup.Status.FAILED
+                topup.provider_status = event_type
+                topup.failed_at = timezone.now()
+                topup.failure_reason = "Checkout session expired"
+                topup.save(update_fields=["status", "provider_status", "failed_at", "failure_reason"])
+            log_entry.processed = True
+            log_entry.notes = f"Checkout expired: {checkout_id}"
+            log_entry.save()
+            return JsonResponse({'status': 'checkout expired'}, status=200)
+        except Exception as e:
+            logger.error(f"Error processing Bachs checkout.expired webhook: {e}")
+            return JsonResponse({'error': 'Error processing event'}, status=500)
+
+    else:
+        logger.info(f"Unhandled Bachs event: {event_type}")
+        log_entry.processed = True
+        log_entry.notes = f"Unhandled event: {event_type}"
+        log_entry.save()
+        return JsonResponse({'status': 'unhandled event'}, status=200)
+
+
 def _serialize_pricing_row(row):
     return {
         "key": row.key,
@@ -1680,3 +2007,68 @@ class PricingConfigUpdateView(APIView):
         )
 
         return Response(_serialize_pricing_row(row))
+
+
+def _serialize_platform_setting_row(row):
+    return {
+        "key": row.key,
+        "value": row.value,
+        "description": row.description,
+        "updated_at": row.updated_at,
+        "updated_by": row.updated_by.get_full_name() if row.updated_by else None,
+    }
+
+
+class PlatformSettingListView(APIView):
+    """GET /subscriptions/platform-settings/ -- same shape/permissions as
+    PricingConfigListView above, for non-numeric admin-editable settings
+    (currently just active_payment_gateway)."""
+
+    permission_classes = [requirePermission("revenue.view")]
+
+    def get(self, request):
+        rows = PlatformSetting.objects.select_related("updated_by").order_by("key")
+        return Response([_serialize_platform_setting_row(r) for r in rows])
+
+
+class PlatformSettingUpdateView(APIView):
+    """PATCH /subscriptions/platform-settings/<key>/ -- updates a single
+    platform setting. active_payment_gateway is validated against
+    VALID_PAYMENT_GATEWAYS instead of PricingConfigUpdateView's
+    Decimal-only validation, and clears the in-process gateway cache
+    (subscriptions.helper.get_active_gateway) immediately on save so the
+    switch takes effect for the very next top-up request."""
+
+    permission_classes = [requirePermission("revenue.manage")]
+
+    def patch(self, request, key):
+        row = PlatformSetting.objects.filter(key=key).first()
+        if not row:
+            return Response({"error": "Unknown setting key"}, status=status.HTTP_404_NOT_FOUND)
+
+        new_value = request.data.get("value")
+        if new_value is None or str(new_value).strip() == "":
+            return Response({"error": "value is required"}, status=status.HTTP_400_BAD_REQUEST)
+        new_value = str(new_value).strip()
+
+        if key == ACTIVE_GATEWAY_SETTING_KEY and new_value not in VALID_PAYMENT_GATEWAYS:
+            return Response(
+                {"error": f"value must be one of: {', '.join(sorted(VALID_PAYMENT_GATEWAYS))}"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        old_value = row.value
+        row.value = new_value
+        row.updated_by = request.user
+        row.save(update_fields=["value", "updated_by", "updated_at"])
+
+        if key == ACTIVE_GATEWAY_SETTING_KEY:
+            clear_active_gateway_cache()
+
+        from staff.utils import log_staff_activity
+        log_staff_activity(
+            request.user, "platform_setting.update", "PlatformSetting", row.key,
+            {"old_value": old_value, "new_value": row.value},
+        )
+
+        return Response(_serialize_platform_setting_row(row))

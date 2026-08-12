@@ -557,6 +557,17 @@ STRIPE_SECRET_KEY = env("STRIPE_SECRET_KEY", default="")
 STRIPE_WEBHOOK_SECRET_KEY = env("STRIPE_WEBHOOK_SECRET_KEY", default="")
 STRIPE_SUBSCRIPTION_WEBHOOK_KEY = env("STRIPE_SUBSCRIPTION_WEBHOOK_KEY", default="")
 
+# Bachs (default wallet top-up gateway -- see utils/bachs_handler.py). Handles
+# both NGN and USD, unlike Paystack (NGN-only) and Stripe (USD-only) above.
+BACHS_ENVIRONMENT = env("BACHS_ENVIRONMENT", default="sandbox")  # "sandbox" or "live"
+BACHS_API_KEY_SANDBOX = env("BACHS_API_KEY_SANDBOX", default="")
+BACHS_API_KEY_LIVE = env("BACHS_API_KEY_LIVE", default="")
+BACHS_WEBHOOK_SECRET = env("BACHS_WEBHOOK_SECRET", default="")
+BACHS_TOPUP_PRODUCT_ID_NGN = env("BACHS_TOPUP_PRODUCT_ID_NGN", default="")
+BACHS_TOPUP_PRODUCT_ID_USD = env("BACHS_TOPUP_PRODUCT_ID_USD", default="")
+BACHS_BASE_URL_SANDBOX = "https://sandbox-api.bachs.io"
+BACHS_BASE_URL_LIVE = "https://api.bachs.io"
+
 try:
     SERVICE_PRICING = json.loads(env("SERVICE_PRICING"))
 except Exception:

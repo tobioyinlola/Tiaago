@@ -321,16 +321,18 @@ export const updateWalletSettings = async (payload: {
   }
 };
 
-export const fundWallet = async (
-  amount: number,
-  provider: "stripe" | "paystack"
-) => {
+// Which gateway actually processes this is decided server-side by the
+// admin-editable active_payment_gateway setting (see FundWalletView /
+// subscriptions.helper.get_active_gateway on the backend) -- `provider` is
+// no longer sent from here. success_url is only used when Stripe happens
+// to be the active gateway; Bachs/Paystack build their own redirect
+// targets server-side.
+export const fundWallet = async (amount: number) => {
   try {
     const result = await serverKyInstance
       .post("subscriptions/fund-wallet/", {
         json: {
           amount,
-          provider,
           success_url: `${BASE_URL}/recruiter/dashboard/billing`,
         },
       })
@@ -349,6 +351,27 @@ export const fundWallet = async (
       success: false,
       error: errMsg,
     };
+  }
+};
+
+export type WalletTopupStatus = {
+  id: string;
+  status: "pending" | "completed" | "failed" | "refunded";
+  amount: string;
+  currency: string;
+  payment_provider: string;
+  failure_reason: string;
+};
+
+// Read-only -- polled by the Bachs callback page while a top-up is still
+// pending. Never credits anything itself; only the backend webhook does
+// that (Bachs docs: webhooks are the only source of truth for crediting).
+export const getWalletTopupStatus = async (topupId: string): Promise<WalletTopupStatus | null> => {
+  try {
+    const data = await serverKyInstance.get(`subscriptions/topup/${topupId}/status/`).json<WalletTopupStatus>();
+    return data;
+  } catch {
+    return null;
   }
 };
 

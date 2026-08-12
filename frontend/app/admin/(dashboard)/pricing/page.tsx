@@ -2,11 +2,13 @@ import { redirect } from "next/navigation";
 
 import { getCurrentUser } from "@/app/common/services/profile";
 import { getPricingConfig } from "@/app/common/services/pricing";
+import { getPlatformSettings } from "@/app/common/services/platform-settings";
 import DisplayErrorMessages, {
   DisplayErrorMessagesProps,
 } from "@/app/common/components/DisplayErrorMessages";
 import { handleServerApiCallError } from "@/app/common/utils";
 import PricingSection from "./_components/PricingSection";
+import PaymentGatewaySection from "./_components/PaymentGatewaySection";
 
 export const metadata = {
   title: "Pricing",
@@ -39,8 +41,14 @@ const PricingPage = async () => {
     errors.push({ message: error, title: "Error loading pricing" });
     return [];
   });
+  const platformSettings = await getPlatformSettings().catch(async e => {
+    const error = await handleServerApiCallError(e);
+    errors.push({ message: error, title: "Error loading payment gateway setting" });
+    return [];
+  });
 
   const byKey = Object.fromEntries(pricing.map(row => [row.key, row]));
+  const activeGatewayRow = platformSettings.find(row => row.key === "active_payment_gateway");
 
   return (
     <div className="p-4 sm:p-6 max-w-3xl">
@@ -52,6 +60,8 @@ const PricingPage = async () => {
         Changing prices affects all new transactions immediately. Existing wallet balances and
         pending transactions are not affected.
       </div>
+
+      <PaymentGatewaySection row={activeGatewayRow} canManage={canManage} />
 
       <PricingSection
         title="USD Pricing"
