@@ -94,7 +94,7 @@ const PreparationView = ({
     <div className='dashboard-content-constraint p-6 md:p-8 flex flex-col gap-6 pb-24'>
       <Link
         href={`/recruiter/dashboard/interviews/${interviewId}`}
-        className='text-sm text-secondary-black hover:text-primary w-fit'
+        className='text-sm text-secondary-black hover:text-primary w-fit print:hidden'
       >
         ← Back to interview
       </Link>

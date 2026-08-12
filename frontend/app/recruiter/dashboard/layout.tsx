@@ -97,10 +97,10 @@ const RecruiterDashboardLayout = async ({ children }: PropsWithChildren) => {
         lastName={splitCompanyName[1] || ""}
         profilePic={recruiter.profile_pic}
         email={recruiter.email}
-        className='bg-sidebar border-b border-sidebar-border'
+        className='bg-sidebar border-b border-sidebar-border print:hidden'
       />
       <div className='lg:flex'>
-        <div className='max-lg:drawer'>
+        <div className='max-lg:drawer print:hidden'>
           <input id='mobile-drawer' type='checkbox' className='drawer-toggle' />
           <div className='max-lg:drawer-side top-[5rem] z-10 h-[calc(100svh-5rem)]'>
             <label

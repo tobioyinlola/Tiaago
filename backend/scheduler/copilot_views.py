@@ -31,19 +31,9 @@ from .models import (
     InterviewSummary,
     InterviewCandidateFeedback,
 )
-from .services import DailyRoomProvisioningError, create_meeting_token
+from .services import DailyRoomProvisioningError, create_meeting_token, JOIN_WINDOW_MINUTES
 
 logger = logging.getLogger(__name__)
-
-# Matches JOIN_WINDOW_MINUTES on the frontend (recruiter dashboard's
-# InterviewJoinButton, interviews.constants.ts) and the "room will open 30
-# minutes before your interview" copy in the candidate confirmation/reminder
-# emails -- the Daily.co token's nbf must actually honor this window on both
-# the recruiter and candidate join paths below, or those promises are false:
-# without it, a token minted with nbf=start_dt is rejected by Daily.co for
-# anyone arriving before the exact scheduled second, regardless of what any
-# button or email claims.
-JOIN_WINDOW_MINUTES = 30
 
 
 def _get_owned_interview(request, pk, select_related=()):
@@ -427,9 +417,12 @@ class InterviewPreparationView(APIView):
 
 
 class RegenerateInterviewPreparationView(APIView):
-    """POST /api/schedulers/<pk>/preparation/regenerate/ -- "Regenerate
-    brief" button. Unlike the GET endpoint's auto-trigger, this always
-    re-runs generation even if a brief is already READY."""
+    """POST /api/schedulers/<pk>/preparation/regenerate/ -- retries
+    generation after a FAILED attempt (see the "Retry brief" control in
+    PreparationView.tsx). A brief that's already READY is final -- the
+    frontend's "Regenerate brief" button was removed for exactly that reason,
+    and this rejects the request server-side too rather than relying on the
+    UI alone to enforce it."""
 
     permission_classes = [IsAuthenticated]
 
@@ -441,6 +434,11 @@ class RegenerateInterviewPreparationView(APIView):
         from .tasks import generate_interview_preparation_task
 
         prep, _created = InterviewPreparation.objects.get_or_create(interview=interview)
+        if prep.generation_status == InterviewPreparation.GenerationStatus.READY:
+            return Response(
+                {"error": "This brief has already been generated and can't be regenerated."},
+                status=HTTP_400_BAD_REQUEST,
+            )
         prep.generation_status = InterviewPreparation.GenerationStatus.GENERATING
         prep.save(update_fields=["generation_status"])
         generate_interview_preparation_task.delay(str(interview.id), force=True)

@@ -45,6 +45,17 @@ def _recruiter_join_url(meeting_instance):
     return f"{base}/recruiter/dashboard/interviews/{meeting_instance.id}/session"
 
 
+# Reminder tiers fired by jobs.views._claim_interview_slot -- "in 30 minutes"
+# used to be hardcoded into the email copy/subject regardless of which tier
+# actually fired (there was only ever one), which went stale once the second
+# (1-hour) tier was added. Both send_meeting_reminder and
+# recruiter_interview_reminder_mail below key off this same map.
+REMINDER_TIER_LABELS = {
+    "1_hour": "in 1 hour",
+    "15_min": "in 15 minutes",
+}
+
+
 def get_meeting_details(meeting_instance):
     """Prepare meeting details for email templates."""
     try:
@@ -73,10 +84,15 @@ def get_meeting_details(meeting_instance):
 
 
 @shared_task
-def send_meeting_reminder(user_id, company_name, meeting_id):
+def send_meeting_reminder(user_id, company_name, meeting_id, tier=None):
     """Send a meeting reminder to the candidate. user_id may be None for a
     guest (account-less) candidate -- meeting_instance.candidate_email_recipient()
-    is used instead in that case (see jobs.views claim_interview_slot)."""
+    is used instead in that case (see jobs.views claim_interview_slot).
+
+    `tier` is one of REMINDER_TIER_LABELS's keys ("1_hour"/"15_min") and
+    drives the countdown copy/subject -- None (e.g. the older manual-scheduler
+    flow, which only ever schedules one reminder) falls back to generic
+    "soon" copy in emails.meeting_invite_reminder."""
     logger.info(f"Sending meeting reminder for meeting {meeting_id} to user {user_id}")
     try:
         meeting_instance = Scheduler.objects.get(id=meeting_id)
@@ -92,7 +108,9 @@ def send_meeting_reminder(user_id, company_name, meeting_id):
         if meeting_time > now and meeting_instance.accepted:
             meeting_details = get_meeting_details(meeting_instance)
             result = emails.meeting_invite_reminder(
-                user, company_name, meeting_details, join_url=_candidate_join_url(meeting_instance)
+                user, company_name, meeting_details,
+                join_url=_candidate_join_url(meeting_instance),
+                countdown=REMINDER_TIER_LABELS.get(tier),
             )
             logger.info(f"Successfully sent reminder email for meeting {meeting_id}")
             return result
@@ -220,8 +238,10 @@ def recruiter_interview_acceptance_mail(user_id, company_name, meeting_id):
 
 
 @shared_task
-def recruiter_interview_reminder_mail(user_id, candidate_name, company_name, meeting_id):
-    """30-minutes-before reminder to the recruiter: email + in-app."""
+def recruiter_interview_reminder_mail(user_id, candidate_name, company_name, meeting_id, tier=None):
+    """1-hour and 15-minutes-before reminder to the recruiter: email + in-app
+    (see REMINDER_TIER_LABELS and jobs.views._claim_interview_slot, which
+    fires this task once per tier)."""
     try:
         user = User.objects.get(id=user_id)
         meeting_instance = Scheduler.objects.get(id=meeting_id)
@@ -233,11 +253,13 @@ def recruiter_interview_reminder_mail(user_id, candidate_name, company_name, mee
         logger.info(f"Skipped recruiter reminder: meeting {meeting_id} is cancelled")
         return None
 
+    countdown = REMINDER_TIER_LABELS.get(tier, "soon")
     meeting_details = get_meeting_details(meeting_instance)
     try:
         emails.recruiter_interview_reminder_mail(
             user, candidate_name, company_name, meeting_details,
             join_url=_recruiter_join_url(meeting_instance),
+            countdown=countdown,
         )
     except Exception:
         logger.exception(f"Failed to send recruiter interview reminder email for meeting {meeting_id}")
@@ -246,7 +268,7 @@ def recruiter_interview_reminder_mail(user_id, candidate_name, company_name, mee
         notify_user(
             user,
             title="Interview starting soon",
-            message=f"Your interview with {candidate_name} starts in 30 minutes.",
+            message=f"Your interview with {candidate_name} starts {countdown}.",
             notification_type=Notification.Type.INTERVIEW,
             link_path=f"recruiter/dashboard/interviews/{meeting_id}/session",
             link_label="Join interview",

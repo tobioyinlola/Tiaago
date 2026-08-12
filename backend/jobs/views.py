@@ -637,7 +637,7 @@ def _claim_interview_slot(job, job_application, slot_id):
         update_fields = []
         for tier, reminder_eta in reminder_etas.items():
             candidate_reminder = send_meeting_reminder.apply_async(
-                (candidate_user_id, job.company.company_name, str(meeting.id)), eta=reminder_eta
+                (candidate_user_id, job.company.company_name, str(meeting.id), tier), eta=reminder_eta
             )
             if tier == "15_min":
                 meeting.candidate_reminder_task_id = candidate_reminder.id
@@ -645,7 +645,7 @@ def _claim_interview_slot(job, job_application, slot_id):
 
             if job.company.company_rep_id:
                 recruiter_reminder = recruiter_interview_reminder_mail.apply_async(
-                    (job.company.company_rep_id, meeting.candidate_full_name, job.company.company_name, str(meeting.id)),
+                    (job.company.company_rep_id, meeting.candidate_full_name, job.company.company_name, str(meeting.id), tier),
                     eta=reminder_eta,
                 )
                 if tier == "15_min":
