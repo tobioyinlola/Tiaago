@@ -3,10 +3,11 @@ from decimal import Decimal, InvalidOperation
 from rest_framework.response import Response
 from rest_framework.status import HTTP_402_PAYMENT_REQUIRED
 from subscriptions.models import (
-    WalletUserUsage, UserUsage, WalletTransaction, PricingConfig,
+    WalletUserUsage, UserUsage, WalletTransaction, PricingConfig, PlatformSetting,
     StripeSubscription, PaystackSubscription,
 )
 from django.db import transaction
+import time
 import uuid
 
 
@@ -32,6 +33,40 @@ def get_pricing_int(key: str, default=0) -> int:
         return int(value)
     except (TypeError, ValueError):
         return int(default)
+
+
+ACTIVE_GATEWAY_SETTING_KEY = "active_payment_gateway"
+ACTIVE_GATEWAY_CACHE_SECONDS = 60
+VALID_PAYMENT_GATEWAYS = {"bachs", "paystack", "stripe"}
+
+# Module-level, per-process cache -- avoids a DB hit on every wallet
+# top-up request for a value that changes rarely (an admin toggling the
+# gateway). clear_active_gateway_cache() is called the instant an admin
+# saves a change (see PlatformSettingUpdateView), so a switch is visible to
+# new requests immediately in the process that handled the save, and to
+# every other worker process within ACTIVE_GATEWAY_CACHE_SECONDS.
+_active_gateway_cache = {"value": None, "expires_at": 0.0}
+
+
+def get_active_gateway(default: str = "bachs") -> str:
+    """Which payment gateway processes new wallet top-ups right now --
+    admin-editable via /admin/pricing (PlatformSetting key
+    'active_payment_gateway'). Falls back to `default` if the row is
+    missing or holds an unrecognised value."""
+    now = time.monotonic()
+    if _active_gateway_cache["value"] is not None and now < _active_gateway_cache["expires_at"]:
+        return _active_gateway_cache["value"]
+
+    row = PlatformSetting.objects.filter(key=ACTIVE_GATEWAY_SETTING_KEY).first()
+    value = row.value if row and row.value in VALID_PAYMENT_GATEWAYS else default
+    _active_gateway_cache["value"] = value
+    _active_gateway_cache["expires_at"] = now + ACTIVE_GATEWAY_CACHE_SECONDS
+    return value
+
+
+def clear_active_gateway_cache():
+    _active_gateway_cache["value"] = None
+    _active_gateway_cache["expires_at"] = 0.0
 
 
 def get_action_price(action: str, currency: str) -> Decimal:

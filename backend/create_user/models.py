@@ -223,6 +223,11 @@ class Company(models.Model):
     company_name = models.CharField(max_length=255, blank=True)
     company_email = models.CharField(max_length=50, db_index=True)
     country = models.CharField(max_length=100, null=True, blank=True)
+    # Bachs customer object id for this org (cust_...), created lazily on
+    # first wallet top-up via bachs_handler.create_or_get_customer -- mirrors
+    # CustomUser.stripe_customer_id/paystack_customer_id's naming, but lives
+    # here since Bachs customers are per-organisation, not per-user.
+    bachs_customer_id = models.CharField(max_length=100, unique=True, null=True, blank=True)
     logo = models.ImageField(upload_to="company_logos/%Y/%m/%d/")
     role = models.ForeignKey(
         Role,

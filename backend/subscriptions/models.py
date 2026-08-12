@@ -179,7 +179,22 @@ class PaystackWebhookLog(models.Model):
     received_at = models.DateTimeField(auto_now_add=True)
     processed = models.BooleanField(default=False)
     notes = models.TextField(blank=True, null=True)
-    
+
+    def __str__(self):
+        return f"{self.event} - {self.received_at.strftime('%Y-%m-%d %H:%M:%S')}"
+
+
+class BachsWebhookLog(models.Model):
+    """Same shape as PaystackWebhookLog -- every Bachs webhook (whether
+    processed, ignored, or errored) gets a row here first, before any
+    business logic runs, so a delivery is never silently lost."""
+
+    event = models.CharField(max_length=100)
+    payload = models.JSONField()
+    received_at = models.DateTimeField(auto_now_add=True)
+    processed = models.BooleanField(default=False)
+    notes = models.TextField(blank=True, null=True)
+
     def __str__(self):
         return f"{self.event} - {self.received_at.strftime('%Y-%m-%d %H:%M:%S')}"
 
@@ -583,6 +598,7 @@ class WalletTopup(models.Model):
     string."""
 
     class Provider(models.TextChoices):
+        BACHS = "bachs", "Bachs"
         STRIPE = "stripe", "Stripe"
         PAYSTACK = "paystack", "Paystack"
 
@@ -627,6 +643,28 @@ class PricingConfig(models.Model):
     description = models.CharField(max_length=500, blank=True, default="")
     updated_by_admin = models.ForeignKey(
         CustomUser, on_delete=models.SET_NULL, null=True, blank=True, related_name="pricing_config_updates"
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.key} = {self.value}"
+
+
+class PlatformSetting(models.Model):
+    """Admin-editable key/value platform settings that aren't numeric prices
+    -- PricingConfig above is validated as a positive Decimal at the API
+    layer (see PricingConfigUpdateView), so it can't hold a string
+    discriminator like a gateway name. Same shape as PricingConfig
+    otherwise, for the same reason (admin-editable, no deploy needed).
+    Currently used for `active_payment_gateway` (see
+    subscriptions.billing_service.get_active_gateway)."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    key = models.CharField(max_length=100, unique=True)
+    value = models.CharField(max_length=255)
+    description = models.CharField(max_length=500, blank=True, default="")
+    updated_by = models.ForeignKey(
+        CustomUser, on_delete=models.SET_NULL, null=True, blank=True, related_name="platform_setting_updates"
     )
     updated_at = models.DateTimeField(auto_now=True)
 

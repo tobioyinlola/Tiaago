@@ -98,9 +98,19 @@ const UserBilling = ({
   const [selectedAmount, setSelectedAmount] = useState<number | null>(null);
   const [showEmptyState, setShowEmptyState] = useState(false);
   const [showFundModal, setShowFundModal] = useState(false);
-  const [selectedProvider] = useState<"paystack" | "stripe" | null>(
-    isNigerian ? "paystack" : "stripe"
-  );
+  // ─────────────────────────────────────────────────────────────────────
+  // PAYSTACK/STRIPE-BY-COUNTRY SELECTION -- commented out, superseded.
+  // Which gateway processes a top-up is now decided server-side by the
+  // admin-editable active_payment_gateway setting (/admin/pricing), not by
+  // this frontend's country guess. Bachs (the new default) handles both
+  // NGN and USD, so this per-country branch is no longer needed to pick a
+  // provider -- the backend's FundWalletView reads get_active_gateway()
+  // itself. Left here, commented, as the reference for reactivating a
+  // client-side provider indicator if that's ever wanted again.
+  // const [selectedProvider] = useState<"paystack" | "stripe" | null>(
+  //   isNigerian ? "paystack" : "stripe"
+  // );
+  // ─────────────────────────────────────────────────────────────────────
   const [fundCurrency, setFundCurrency] = useState<Currency>(currency);
   const [autoRecharge, setAutoRecharge] = useState<AutoRecharge | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -188,12 +198,12 @@ const UserBilling = ({
   };
 
   const handleProceedToPayment = async () => {
-    if (!selectedAmount || !selectedProvider) {
-      toast.error("Please select an amount and payment provider");
+    if (!selectedAmount) {
+      toast.error("Please select an amount");
       return;
     }
     setIsFunding(true);
-    const response = await fundWallet(selectedAmount, selectedProvider);
+    const response = await fundWallet(selectedAmount);
     if (
       response.success &&
       (response.data?.checkout_url || response.data?.authorization_url)
@@ -1112,9 +1122,9 @@ const UserBilling = ({
 
                 <button
                   onClick={handleProceedToPayment}
-                  disabled={!selectedAmount || !selectedProvider || isFunding}
+                  disabled={!selectedAmount || isFunding}
                   className={`w-full py-3 rounded-lg font-medium transition-colors flex items-center justify-center gap-2 ${
-                    selectedAmount && selectedProvider
+                    selectedAmount
                       ? "bg-primary text-white hover:bg-primary-dark"
                       : "bg-gray-100 text-gray-400 cursor-not-allowed"
                   }`}
