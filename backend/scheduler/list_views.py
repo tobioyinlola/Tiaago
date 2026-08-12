@@ -39,10 +39,9 @@ def _tab_queryset(company, tab):
 
 
 def _serialize(interview, tab):
-    talent = interview.talent
     data = {
         "id": str(interview.id),
-        "candidate_name": talent.full_name if talent else "",
+        "candidate_name": interview.candidate_full_name,
         "job_title": interview.job_title or interview.title,
         "meeting_date": interview.meeting_date,
         "start_time": interview.start_time,

@@ -64,7 +64,7 @@ class InterviewReviewView(APIView):
         talent = interview.talent
 
         return Response({
-            "candidate_name": talent.full_name if talent else "",
+            "candidate_name": interview.candidate_full_name,
             "job_title": interview.job_title or interview.title,
             "company_name": interview.company.company_name if interview.company else "",
             "meeting_date": interview.meeting_date,

@@ -75,6 +75,7 @@ const AssessmentCodingTask = ({
   const [timeAlmostUp, setTimeAlmostUp] = useState(false);
   const [endDateTime, setEndDateTime] = useState<Date>();
   const [code, setCode] = useState("\n".repeat(10));
+  const [descExpanded, setDescExpanded] = useState(false);
   const assessmentDurationInMinutes = getAssessmentDurationInMinutes(
     assessment,
     true
@@ -333,8 +334,11 @@ const AssessmentCodingTask = ({
           </div>
         ) : (
           <>
-            {/* show instructions here */}
-            <div className='mb-3'>
+            {/* On mobile the description is clamped and expandable so it
+             * can't eat the whole viewport before the candidate ever
+             * reaches the editor -- desktop has enough height to show it
+             * in full by default. */}
+            <div className='mb-3 w-full'>
               <h2
                 className='text-2xl md:text-3xl font-semibold mb-1 text-primary-black text-center select-none'
                 onCopy={e => {
@@ -346,7 +350,10 @@ const AssessmentCodingTask = ({
                 {coding_task?.title ?? "No title"}
               </h2>
               <p
-                className='text-base text-secondary-black select-none'
+                className={cn(
+                  "text-base text-secondary-black select-none",
+                  !descExpanded && "line-clamp-3 md:line-clamp-none"
+                )}
                 onCopy={e => {
                   e.preventDefault();
                   toast.error("Copying assessment content is not allowed");
@@ -355,16 +362,27 @@ const AssessmentCodingTask = ({
               >
                 {coding_task?.description ?? "No description"}
               </p>
+              {(coding_task?.description?.length ?? 0) > 140 && (
+                <button
+                  type='button'
+                  onClick={() => setDescExpanded(v => !v)}
+                  className='md:hidden mt-1 text-sm font-medium text-primary'
+                >
+                  {descExpanded ? "Show less" : "Show more"}
+                </button>
+              )}
             </div>
-            <CodeMirrorEditor
-              value={code}
-              onPaste={handleCodeMirrorPaste}
-              onDrop={handleCodeMirrorDrop}
-              onContextMenu={handleContextMenu}
-              className='min-h-[300px] w-full flex-1'
-              onChange={disabled ? undefined : setCode}
-              placeholder='Please enter your code.'
-            />
+            <div className='w-full flex-1 rounded-lg border border-[#EAECF0] overflow-hidden'>
+              <CodeMirrorEditor
+                value={code}
+                onPaste={handleCodeMirrorPaste}
+                onDrop={handleCodeMirrorDrop}
+                onContextMenu={handleContextMenu}
+                className='min-h-[300px] h-full w-full'
+                onChange={disabled ? undefined : setCode}
+                placeholder='Please enter your code.'
+              />
+            </div>
           </>
         )}
       </div>

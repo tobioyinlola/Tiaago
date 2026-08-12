@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Loader2, RefreshCw, ShieldCheck, Sparkles, FolderOpen } from "lucide-react";
+import { Loader2, RefreshCw, ShieldCheck, Sparkles, FolderOpen, Trash2 } from "lucide-react";
 import { FormikErrors, FormikTouched } from "formik";
 
 import { cn } from "@/app/common/utils";
@@ -137,6 +137,24 @@ const AssessmentGenerationStep = ({
         ),
       };
     });
+    setFieldValue("assessment_questions", next);
+  };
+
+  // Lets the recruiter trim a generated batch down to exactly the questions
+  // they want candidates to take -- there was previously no way to drop a
+  // question, only edit its text/options in place, so a recruiter who
+  // regenerated a larger batch than they needed had no way to pick a subset.
+  // Removing the last question in a section drops the (now-empty) section too.
+  const removeQuestion = (sectionIndex: number, questionIndex: number) => {
+    const next = values.assessment_questions
+      .map((section, sIdx) => {
+        if (sIdx !== sectionIndex) return section;
+        return {
+          ...section,
+          questions: section.questions.filter((_, qIdx) => qIdx !== questionIndex),
+        };
+      })
+      .filter(section => section.questions.length > 0);
     setFieldValue("assessment_questions", next);
   };
 
@@ -378,15 +396,26 @@ const AssessmentGenerationStep = ({
                       key={questionIndex}
                       className='pb-5 border-b border-[#EAECF0] last:border-b-0 last:pb-0'
                     >
-                      <textarea
-                        className='textarea textarea-bordered w-full text-sm'
-                        value={question.question}
-                        onChange={e =>
-                          updateQuestion(sectionIndex, questionIndex, {
-                            question: e.target.value,
-                          })
-                        }
-                      />
+                      <div className='flex items-start gap-2'>
+                        <textarea
+                          className='textarea textarea-bordered w-full text-sm'
+                          value={question.question}
+                          onChange={e =>
+                            updateQuestion(sectionIndex, questionIndex, {
+                              question: e.target.value,
+                            })
+                          }
+                        />
+                        <button
+                          type='button'
+                          onClick={() => removeQuestion(sectionIndex, questionIndex)}
+                          className='btn btn-ghost btn-sm btn-square text-secondary-black hover:text-error shrink-0'
+                          title='Remove this question'
+                          aria-label='Remove this question'
+                        >
+                          <Trash2 className='h-4 w-4' />
+                        </button>
+                      </div>
                       <div className='grid sm:grid-cols-2 gap-2 mt-3'>
                         {question.options.map((option, optionIndex) => (
                           <label

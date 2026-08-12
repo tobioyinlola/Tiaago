@@ -4,7 +4,9 @@
 {% block content %}
   <h1 class="h1" style="margin:0 0 14px; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:33px; line-height:1.15; letter-spacing:-0.6px; font-weight:800; color:#0F172A;">Your assessment results</h1>
 
-  <p style="margin:0 0 24px; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:16px; line-height:1.65; color:#475569;">We appreciate the effort you put into your {{ job_title|default:"skill" }} assessment. Unfortunately, you did not reach the passing threshold this time.</p>
+  <p style="margin:0 0 24px; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:16px; line-height:1.65; color:#475569;">We appreciate the effort you put into your {{ job_title|default:"skill" }} assessment. Your score did not reach the threshold the hiring team set for this stage, so you will not automatically move forward right now.</p>
+
+  <p style="margin:0 0 24px; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:16px; line-height:1.65; color:#475569;">This isn't a final decision -- the hiring team can still review your results, move you to the next stage, or reach out directly if they'd like to.</p>
 
   <!-- big stat number (error color) -->
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 20px; background-color:#F8FAFC; border:1px solid #E2E8F0; border-radius:0;">

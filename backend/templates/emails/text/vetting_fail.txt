@@ -3,8 +3,13 @@
 An update on your application.
 
 Thank you for applying to the {{ job_title|default:"open role" }} position at
-{{ company_name|default:"the hiring company" }}. After reviewing your profile,
-the team has decided not to move forward at this time.
+{{ company_name|default:"the hiring company" }}. Your profile did not meet the
+criteria the hiring team set for this stage, so you will not automatically
+move forward right now.
+
+This isn't a final decision -- the hiring team can still review your
+application further, move you to the next stage, or reach out directly if
+they'd like to.
 {% if feedback_areas %}
 Here are some areas to focus on:
 {% for area in feedback_areas %}
