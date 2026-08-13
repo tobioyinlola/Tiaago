@@ -2919,6 +2919,16 @@ class AIOperationsFeedback(APIView, PaginationHandlerMixin):
             ).order_by("created_at")
         }
 
+        # Latest (highest-round) human interview per application -- lets the
+        # applications board offer "Move to 2nd interview" only where it's
+        # actually valid (round 1 done, AI-interview jobs have no Scheduler
+        # rows at all). setdefault + "-round" ordering keeps the first (=
+        # highest round) row seen per application.
+        from scheduler.models import Scheduler
+        scheduler_map = {}
+        for s in Scheduler.objects.filter(job_application__in=job_applications).order_by("job_application_id", "-round"):
+            scheduler_map.setdefault(s.job_application_id, s)
+
         from payments.models import ReportPAYGFlowStatus
         flow_status_map = {
             f.job_application_id: f.status
@@ -3092,6 +3102,8 @@ class AIOperationsFeedback(APIView, PaginationHandlerMixin):
                 "current_company": current_company_map.get(job_apps.applicant_id, "") if has_account else "",
                 "status": job_apps.status,
                 "status_label": job_apps.get_status_display(),
+                "latest_interview_id": str(scheduler_map[job_apps.id].id) if job_apps.id in scheduler_map else None,
+                "latest_interview_round": scheduler_map[job_apps.id].round if job_apps.id in scheduler_map else None,
             })
 
         #return leaderbord in descending order

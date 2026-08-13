@@ -1272,6 +1272,8 @@ export type AssessmentStack = {
 
 export type AiFeedbackItem = {
   application_id: ID;
+  latest_interview_id: string | null;
+  latest_interview_round: number | null;
   talent_id: ID;
   talent_name: string;
   role: string;

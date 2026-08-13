@@ -5,6 +5,7 @@ import { Clock, Video, Circle, Sparkles, UserRound } from "lucide-react";
 import { cn } from "@/app/common/utils";
 import { RecruiterInterview, RecruiterInterviewTab } from "@/app/common/types";
 import InterviewJoinButton from "./InterviewJoinButton";
+import StatusNotesModal from "./StatusNotesModal";
 import {
   formatInterviewStart,
   interviewTypeLabel,
@@ -74,9 +75,7 @@ const InterviewCard = ({
 }) => {
   const baseHref = `/recruiter/dashboard/interviews/${interview.id}`;
   const prepareHref = `${baseHref}/prepare`;
-  // Live interviews join the real video workspace; a needs-review/completed
-  // interview is already over, so its button opens the review page instead.
-  const workspaceHref = tab === "live" ? `${baseHref}/session` : `${baseHref}/review`;
+  const sessionHref = `${baseHref}/session`;
   const startsAt = parseInterviewStart(
     interview.meeting_date,
     interview.start_time
@@ -173,21 +172,23 @@ const InterviewCard = ({
           Prepare
         </Link>
 
-        {tab === "upcoming" ? (
+        {tab === "upcoming" && (
           <InterviewJoinButton
             id={interview.id}
             startsAt={startsAt ? startsAt.getTime() : null}
           />
-        ) : (
+        )}
+        {tab === "live" && (
           <Link
-            href={workspaceHref}
+            href={sessionHref}
             className='btn btn-sm btn-primary text-white rounded-lg gap-1.5 border-none'
           >
             <Video className='w-3.5 h-3.5' />
-            {/* The interview is already over on the review/completed tabs, so
-                "join" would be a lie -- same destination, honest label. */}
-            {tab === "live" ? "Join Interview" : "Open Interview"}
+            Join Interview
           </Link>
+        )}
+        {(tab === "needs_review" || tab === "completed") && (
+          <StatusNotesModal interviewId={interview.id} />
         )}
       </div>
     </div>

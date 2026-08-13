@@ -1,6 +1,6 @@
 import { useDraggable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
-import { PiEye, PiUserPlus } from "react-icons/pi";
+import { PiEye, PiUserPlus, PiArrowClockwise } from "react-icons/pi";
 
 import { AiFeedbackItem, JobApplication } from "@/app/common/types";
 import { cn } from "@/app/common/utils";
@@ -46,15 +46,24 @@ const ApplicationCard = ({
   onView,
   onAddToPipeline,
   onMoveStage,
+  onAdvanceRound,
   moving,
+  advancingRound,
 }: {
   item: AiFeedbackItem;
   onView: () => void;
   onAddToPipeline: () => void;
   onMoveStage: (status: JobApplication["status"]) => void;
+  onAdvanceRound: () => void;
   moving: boolean;
+  advancingRound: boolean;
 }) => {
   const locked = isStageLocked(item);
+  // Only a candidate who's done exactly round 1 of a human (Daily.co)
+  // interview is eligible -- AI-interview jobs have no Scheduler rows at
+  // all (latest_interview_round stays null), and the backend's
+  // advance-round endpoint itself caps at round 1 -> 2 only.
+  const canAdvanceRound = item.latest_interview_round === 1 && item.status !== "REJECTED";
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: item.application_id,
     data: { item },
@@ -148,6 +157,18 @@ const ApplicationCard = ({
         >
           <PiUserPlus className='text-lg' />
         </button>
+        {canAdvanceRound && (
+          <button
+            type='button'
+            onClick={onAdvanceRound}
+            disabled={advancingRound}
+            aria-label={`Move ${item.talent_name} to a second interview`}
+            title='Move to 2nd interview'
+            className='w-8 h-8 shrink-0 flex items-center justify-center rounded-lg text-[#7F7F7F] hover:text-primary hover:bg-primary/5 disabled:opacity-50'
+          >
+            <PiArrowClockwise className='text-lg' />
+          </button>
+        )}
       </div>
     </div>
   );

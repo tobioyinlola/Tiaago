@@ -16,6 +16,7 @@ import {
 } from "@/app/common/types";
 import { addToPipeline, getCategories } from "@/app/common/services/sourcing";
 import { updateJobApplicationStatus } from "@/app/common/services/jobs";
+import { advanceInterviewRound } from "@/app/common/services/interview-review";
 import AIFeedbackModal from "./AIFeedbackModal";
 import BoardColumn from "./BoardColumn";
 import { getColumnKey, isBackwardMove, isStageLocked } from "./boardStages";
@@ -216,6 +217,7 @@ export const JobApplicationsTable = ({
     data[0]
   );
   const [movingId, setMovingId] = useState<AiFeedbackItem["application_id"] | null>(null);
+  const [advancingRoundId, setAdvancingRoundId] = useState<AiFeedbackItem["application_id"] | null>(null);
   const [addingToPipelineId, setAddingToPipelineId] = useState<
     AiFeedbackItem["application_id"] | null
   >(null);
@@ -363,6 +365,22 @@ export const JobApplicationsTable = ({
     setRejectionReasonText("");
   };
 
+  // Same advance-round endpoint the interviews list's StatusNotesModal uses
+  // (see scheduler.review_views.AdvanceInterviewRoundView) -- offered here
+  // too so a recruiter doesn't have to leave the applications board to
+  // invite a candidate to their second interview.
+  const handleAdvanceRound = async (item: AiFeedbackItem) => {
+    if (!item.latest_interview_id || advancingRoundId != null) return;
+    setAdvancingRoundId(item.application_id);
+    const res = await advanceInterviewRound(item.latest_interview_id);
+    setAdvancingRoundId(null);
+    if (!res.success) {
+      toast.error(res.error);
+      return;
+    }
+    toast.success("Candidate invited to a second interview");
+  };
+
   const handleDragEnd = (event: DragEndEvent) => {
     const overId = event.over?.id;
     if (overId == null) return;
@@ -421,6 +439,8 @@ export const JobApplicationsTable = ({
                       onView={handleView}
                       onAddToPipeline={handleAddToPipelineClick}
                       onMoveStage={requestMoveStage}
+                      onAdvanceRound={handleAdvanceRound}
+                      advancingRoundId={advancingRoundId}
                     />
                   );
                 })}
