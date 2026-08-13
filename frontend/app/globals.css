@@ -244,6 +244,17 @@ body:has(#mobile-drawer:checked) {
   animation: scroll 30s linear infinite;
 }
 
+.animate-testimonial-scroll {
+  animation: scroll 60s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-infinite-scroll,
+  .animate-testimonial-scroll {
+    animation: none;
+  }
+}
+
 /* slick slider */
 .slick-dots li {
   width: 17px !important;

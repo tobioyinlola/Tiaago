@@ -3,12 +3,16 @@ import Link from "next/link";
 
 import Footer from "@/app/common/components/Layout/Footer";
 import { CustomAuthButton } from "@/app/common/components/AuthButton";
+import { getPublicPricingConfig } from "@/app/common/services/pricing";
+import { getDefaultCurrency } from "@/app/common/utils/geo";
+import { buildPricingTiers, FREE_TIER_LIMIT } from "@/app/(home)/pricing/constants";
 import UseCaseHero from "../_components/UseCaseHero";
 import SectionHeading from "../_components/SectionHeading";
 import WorkflowSteps from "../_components/WorkflowSteps";
 import PricingRecapCard from "../_components/PricingRecapCard";
 import CTABanner from "../_components/CTABanner";
 import UseCaseFaq from "../_components/UseCaseFaq";
+import Reveal from "../_components/Reveal";
 import MandateCostSlider from "../_components/visuals/MandateCostSlider";
 import BeforeAfterBar from "../_components/visuals/BeforeAfterBar";
 import DocumentMockup from "../_components/visuals/DocumentMockup";
@@ -54,7 +58,12 @@ const FAQ_DATA = [
   },
 ];
 
-const RecruitmentAgenciesPage = () => (
+const RecruitmentAgenciesPage = async () => {
+  const [pricing, currency] = await Promise.all([getPublicPricingConfig(), getDefaultCurrency()]);
+  const pricingTiers = buildPricingTiers(pricing);
+  const freeTierLimit = Number(pricing.free_tier_limit) || FREE_TIER_LIMIT;
+
+  return (
   <>
     <main className='pt-24'>
       <UseCaseHero
@@ -77,21 +86,21 @@ const RecruitmentAgenciesPage = () => (
       />
 
       {/* The Math */}
-      <section className='py-16 md:py-24 bg-white'>
+      <Reveal as='section' className='py-16 md:py-24 bg-white'>
         <div className='md:container mx-auto px-4'>
           <SectionHeading
             headline='You already know what a quiet month costs you in tool fees.'
             body='Most screening and ATS tools charge you the same amount whether you have 40 open clients or four. Tiaago doesn’t. You pay only when candidates are actually moving through your pipeline. No seats, no monthly minimum, no renewal call.'
           />
-          <MandateCostSlider />
+          <MandateCostSlider pricingTiers={pricingTiers} />
           <p className='text-center text-sm font-onest text-[#5F6264] mt-8'>
             Pipeline management, team invites, and candidate tracking are free forever. You only pay for screening and assessments.
           </p>
         </div>
-      </section>
+      </Reveal>
 
       {/* How It Works */}
-      <section id='how-it-works' className='py-16 md:py-24 bg-[#F8FAFC]'>
+      <Reveal as='section' id='how-it-works' className='py-16 md:py-24 bg-[#F8FAFC]'>
         <div className='md:container mx-auto px-4'>
           <SectionHeading
             headline='One link in, a ranked shortlist out.'
@@ -107,10 +116,10 @@ const RecruitmentAgenciesPage = () => (
             </p>
           </div>
         </div>
-      </section>
+      </Reveal>
 
       {/* Time Reclaimed */}
-      <section className='py-16 md:py-24 bg-white'>
+      <Reveal as='section' className='py-16 md:py-24 bg-white'>
         <div className='md:container mx-auto px-4 grid md:grid-cols-2 gap-12 items-center'>
           <div>
             <p className='text-7xl font-onest font-semibold text-black mb-2'>40%</p>
@@ -133,10 +142,10 @@ const RecruitmentAgenciesPage = () => (
             </Link>
           </div>
         </div>
-      </section>
+      </Reveal>
 
       {/* Client-Facing Credibility */}
-      <section className='py-16 md:py-24 bg-[#F8FAFC]'>
+      <Reveal as='section' className='py-16 md:py-24 bg-[#F8FAFC]'>
         <div className='md:container mx-auto px-4'>
           <SectionHeading
             headline='Hand your client a shortlist they can’t argue with.'
@@ -147,10 +156,10 @@ const RecruitmentAgenciesPage = () => (
             Sample candidate summary: screening criteria, assessment score, and interview notes in one document.
           </p>
         </div>
-      </section>
+      </Reveal>
 
       {/* Scale Without Headcount */}
-      <section className='py-20 md:py-28 bg-white'>
+      <Reveal as='section' className='py-20 md:py-28 bg-white'>
         <div className='md:container mx-auto px-4 text-center max-w-2xl'>
           <h2 className='text-3xl md:text-4xl font-medium font-onest text-black mb-4'>
             Take the next client without hiring the next recruiter.
@@ -163,7 +172,7 @@ const RecruitmentAgenciesPage = () => (
             . Agencies use the margin this creates to take on new clients before deciding they need to grow the team.
           </p>
         </div>
-      </section>
+      </Reveal>
 
       {/* FAQ */}
       <section className='py-16 md:py-24 bg-[#F8FAFC]'>
@@ -171,12 +180,12 @@ const RecruitmentAgenciesPage = () => (
       </section>
 
       {/* Pricing Recap */}
-      <section className='py-16 md:py-24 bg-white'>
+      <Reveal as='section' className='py-16 md:py-24 bg-white'>
         <div className='md:container mx-auto px-4'>
           <SectionHeading headline='No subscription. No seats. Just usage.' />
-          <PricingRecapCard />
+          <PricingRecapCard pricingTiers={pricingTiers} freeTierLimit={freeTierLimit} currency={currency} />
         </div>
-      </section>
+      </Reveal>
     </main>
 
     <CTABanner
@@ -190,6 +199,7 @@ const RecruitmentAgenciesPage = () => (
     />
     <Footer />
   </>
-);
+  );
+};
 
 export default RecruitmentAgenciesPage;

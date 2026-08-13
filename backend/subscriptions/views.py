@@ -1972,6 +1972,35 @@ class PricingConfigListView(APIView):
         return Response([_serialize_pricing_row(r) for r in rows])
 
 
+PUBLIC_PRICING_KEYS = (
+    "resume_screening_usd",
+    "resume_screening_ngn",
+    "assessment_usd",
+    "assessment_ngn",
+    "ai_interview_price_ngn",
+    "free_tier_limit",
+)
+
+
+class PublicPricingConfigView(APIView):
+    """GET /subscriptions/pricing-config/public/ -- no auth required. Only
+    the handful of keys actually shown on the marketing site (pricing page,
+    cost calculator, FAQ, use-case pages) -- deliberately not the full
+    PricingConfigListView payload, which also carries internal-only keys
+    (minimum_topup_*, interview_package_price_ngn, etc.) and requires staff
+    'revenue.view'. This is the single source those public pages read from
+    instead of hardcoding numbers that silently drift from whatever an admin
+    actually set in /admin/pricing -- see PricingConfigUpdateView below,
+    which is what admins write to."""
+
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request):
+        rows = PricingConfig.objects.filter(key__in=PUBLIC_PRICING_KEYS)
+        values = {row.key: row.value for row in rows}
+        return Response(values)
+
+
 class PricingConfigUpdateView(APIView):
     """PATCH /subscriptions/pricing-config/<key>/ -- updates a single
     pricing value and logs the change to StaffActivityLog with the old and

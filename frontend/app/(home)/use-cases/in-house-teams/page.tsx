@@ -4,12 +4,16 @@ import Link from "next/link";
 import Footer from "@/app/common/components/Layout/Footer";
 import { CustomAuthButton } from "@/app/common/components/AuthButton";
 import CustomButton from "@/app/common/components/CustomButton";
+import { getPublicPricingConfig } from "@/app/common/services/pricing";
+import { getDefaultCurrency } from "@/app/common/utils/geo";
+import { buildPricingTiers, FREE_TIER_LIMIT } from "@/app/(home)/pricing/constants";
 import UseCaseHero from "../_components/UseCaseHero";
 import SectionHeading from "../_components/SectionHeading";
 import WorkflowSteps from "../_components/WorkflowSteps";
 import PricingRecapCard from "../_components/PricingRecapCard";
 import CTABanner from "../_components/CTABanner";
 import UseCaseFaq from "../_components/UseCaseFaq";
+import Reveal from "../_components/Reveal";
 import RankedShortlistCard from "../_components/visuals/RankedShortlistCard";
 import StackConsolidation from "../_components/visuals/StackConsolidation";
 import SimpleLineGraph from "../_components/visuals/SimpleLineGraph";
@@ -57,7 +61,12 @@ const FAQ_DATA = [
   },
 ];
 
-const InHouseTeamsPage = () => (
+const InHouseTeamsPage = async () => {
+  const [pricing, currency] = await Promise.all([getPublicPricingConfig(), getDefaultCurrency()]);
+  const pricingTiers = buildPricingTiers(pricing);
+  const freeTierLimit = Number(pricing.free_tier_limit) || FREE_TIER_LIMIT;
+
+  return (
   <>
     <main className='pt-24'>
       <UseCaseHero
@@ -84,7 +93,7 @@ const InHouseTeamsPage = () => (
       />
 
       {/* The Real Problem Isn't Volume */}
-      <section className='py-16 md:py-24 bg-white'>
+      <Reveal as='section' className='py-16 md:py-24 bg-white'>
         <div className='md:container mx-auto px-4'>
           <SectionHeading
             headline='Two recruiters, the same job, two different shortlists.'
@@ -112,10 +121,10 @@ const InHouseTeamsPage = () => (
             Consistency, not just speed, is what closes the credibility gap with hiring managers.
           </p>
         </div>
-      </section>
+      </Reveal>
 
       {/* One Standard, Every Requisition */}
-      <section id='standard' className='py-16 md:py-24 bg-[#F8FAFC]'>
+      <Reveal as='section' id='standard' className='py-16 md:py-24 bg-[#F8FAFC]'>
         <div className='md:container mx-auto px-4'>
           <SectionHeading
             headline='Every requisition runs the same screening logic, no matter who owns it.'
@@ -133,10 +142,10 @@ const InHouseTeamsPage = () => (
             />
           </div>
         </div>
-      </section>
+      </Reveal>
 
       {/* How It Works */}
-      <section className='py-16 md:py-24 bg-white'>
+      <Reveal as='section' className='py-16 md:py-24 bg-white'>
         <div className='md:container mx-auto px-4'>
           <SectionHeading
             headline='One pipeline, applied identically across your team.'
@@ -157,10 +166,10 @@ const InHouseTeamsPage = () => (
             </p>
           </div>
         </div>
-      </section>
+      </Reveal>
 
       {/* Replace the Stack, Not Add to It */}
-      <section className='py-16 md:py-24 bg-[#F8FAFC]'>
+      <Reveal as='section' className='py-16 md:py-24 bg-[#F8FAFC]'>
         <div className='md:container mx-auto px-4'>
           <SectionHeading
             headline="You don't need a sixth tool. You need your other five to talk to each other."
@@ -173,10 +182,10 @@ const InHouseTeamsPage = () => (
             </Link>
           </div>
         </div>
-      </section>
+      </Reveal>
 
       {/* Scale Through Growth Phases */}
-      <section className='py-16 md:py-24 bg-white'>
+      <Reveal as='section' className='py-16 md:py-24 bg-white'>
         <div className='md:container mx-auto px-4 grid md:grid-cols-2 gap-12 items-center'>
           <div>
             <SimpleLineGraph
@@ -213,10 +222,10 @@ const InHouseTeamsPage = () => (
             </a>
           </div>
         </div>
-      </section>
+      </Reveal>
 
       {/* What Hiring Managers See */}
-      <section className='py-16 md:py-24 bg-[#F8FAFC]'>
+      <Reveal as='section' className='py-16 md:py-24 bg-[#F8FAFC]'>
         <div className='md:container mx-auto px-4'>
           <SectionHeading
             headline='A shortlist your hiring managers can actually trust.'
@@ -224,7 +233,7 @@ const InHouseTeamsPage = () => (
           />
           <DocumentMockup title='Shortlist, shared with hiring manager' />
         </div>
-      </section>
+      </Reveal>
 
       {/* FAQ */}
       <section className='py-16 md:py-24 bg-white'>
@@ -232,12 +241,17 @@ const InHouseTeamsPage = () => (
       </section>
 
       {/* Pricing Recap */}
-      <section className='py-16 md:py-24 bg-[#F8FAFC]'>
+      <Reveal as='section' className='py-16 md:py-24 bg-[#F8FAFC]'>
         <div className='md:container mx-auto px-4'>
           <SectionHeading headline='Your cost scales with hiring volume, not with team size.' />
-          <PricingRecapCard extraLine='Add recruiters to your team at no additional cost. You’re only billed for screening and assessment activity.' />
+          <PricingRecapCard
+            pricingTiers={pricingTiers}
+            freeTierLimit={freeTierLimit}
+            currency={currency}
+            extraLine='Add recruiters to your team at no additional cost. You’re only billed for screening and assessment activity.'
+          />
         </div>
-      </section>
+      </Reveal>
     </main>
 
     <CTABanner
@@ -264,6 +278,7 @@ const InHouseTeamsPage = () => (
     />
     <Footer />
   </>
-);
+  );
+};
 
 export default InHouseTeamsPage;

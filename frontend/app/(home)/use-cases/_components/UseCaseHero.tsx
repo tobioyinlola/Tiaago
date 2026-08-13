@@ -1,10 +1,25 @@
+"use client";
+
 import Image from "next/image";
 import Link from "next/link";
 import { ReactNode } from "react";
+import { m, Variants } from "framer-motion";
+
+const containerVariants: Variants = {
+  hidden: {},
+  visible: { transition: { staggerChildren: 0.12, delayChildren: 0.05 } },
+};
+
+const itemVariants: Variants = {
+  hidden: { opacity: 0, y: 18 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.55, ease: "easeOut" } },
+};
 
 /** Shared hero for the 3 use-case pages -- reuses the site's established
  * top-of-page pattern (radial gradient + background pattern image, see
- * Contact/Pricing). */
+ * Contact/Pricing). Content staggers in on mount (not scroll-triggered --
+ * it's above the fold, visible immediately) so the page feels alive from
+ * the first paint instead of the whole product feeling static. */
 const UseCaseHero = ({
   eyebrow,
   headline,
@@ -22,7 +37,7 @@ const UseCaseHero = ({
   secondaryLabel?: string;
   trustCaption?: string;
 }) => (
-  <section className='relative pt-16 md:pt-[102px] pb-14 md:pb-20 bg-[radial-gradient(100%_100%_at_50%_0%,#FFFFFF_70%,#EEEFFF_100%)]'>
+  <section className='relative pt-16 md:pt-[102px] pb-14 md:pb-20 bg-[radial-gradient(100%_100%_at_50%_0%,#FFFFFF_70%,#EEEFFF_100%)] overflow-hidden'>
     <Image
       src='/assets/images/Pricing Background pattern.png'
       alt=''
@@ -30,18 +45,32 @@ const UseCaseHero = ({
       fill
     />
     <div className='md:container mx-auto px-4 relative'>
-      <div className='max-w-3xl mx-auto text-center'>
-        <span className='inline-block text-xs font-jetbrains-mono uppercase tracking-widest text-primary mb-4'>
+      <m.div
+        className='max-w-3xl mx-auto text-center'
+        variants={containerVariants}
+        initial='hidden'
+        animate='visible'
+      >
+        <m.span
+          variants={itemVariants}
+          className='inline-block text-xs font-jetbrains-mono uppercase tracking-widest text-primary mb-4'
+        >
           {eyebrow}
-        </span>
-        <h1 className='text-4xl md:text-[52px] leading-[1.1] font-medium font-onest text-black mb-5'>
+        </m.span>
+        <m.h1
+          variants={itemVariants}
+          className='text-4xl md:text-[52px] leading-[1.1] font-medium font-onest text-black mb-5'
+        >
           {headline}
-        </h1>
-        <p className='text-lg font-onest max-w-[620px] text-center mx-auto text-[#5F6264] mb-8'>
+        </m.h1>
+        <m.p
+          variants={itemVariants}
+          className='text-lg font-onest max-w-[620px] text-center mx-auto text-[#5F6264] mb-8'
+        >
           {subhead}
-        </p>
+        </m.p>
 
-        <div className='flex flex-col items-center gap-4'>
+        <m.div variants={itemVariants} className='flex flex-col items-center gap-4'>
           {primaryCta}
           {secondaryHref && secondaryLabel && (
             <Link
@@ -51,12 +80,14 @@ const UseCaseHero = ({
               {secondaryLabel}
             </Link>
           )}
-        </div>
+        </m.div>
 
         {trustCaption && (
-          <p className='mt-10 text-xs font-onest text-[#5F6264]'>{trustCaption}</p>
+          <m.p variants={itemVariants} className='mt-10 text-xs font-onest text-[#5F6264]'>
+            {trustCaption}
+          </m.p>
         )}
-      </div>
+      </m.div>
     </div>
   </section>
 );

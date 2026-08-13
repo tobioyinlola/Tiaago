@@ -1,5 +1,7 @@
 import { ReactNode } from "react";
 
+import Reveal from "./Reveal";
+
 /** Light close, matching the homepage's "Automate with TIAAGO" section
  * (radial gradient, dark headline, blue pill CTA) instead of a navy
  * full-bleed block -- identical treatment across all 3 pages so the shared
@@ -18,7 +20,7 @@ const CTABanner = ({
   friction?: string[];
 }) => (
   <section className='bg-white px-4'>
-    <div className='max-w-[1200px] mx-auto bg-[radial-gradient(100%_100%_at_50%_0%,#FFFFFF_70%,#EEEFFF_100%)] py-16 md:py-24 rounded-2xl text-center'>
+    <Reveal className='max-w-[1200px] mx-auto bg-[radial-gradient(100%_100%_at_50%_0%,#FFFFFF_70%,#EEEFFF_100%)] py-16 md:py-24 rounded-2xl text-center'>
       <h2 className='text-3xl md:text-[42px] leading-tight font-medium font-onest text-black max-w-2xl mx-auto mb-8'>
         {headline}
       </h2>
@@ -29,7 +31,7 @@ const CTABanner = ({
       {!!friction?.length && (
         <p className='mt-6 text-sm font-onest text-[#9E9E9E]'>{friction.join(" · ")}</p>
       )}
-    </div>
+    </Reveal>
   </section>
 );
 

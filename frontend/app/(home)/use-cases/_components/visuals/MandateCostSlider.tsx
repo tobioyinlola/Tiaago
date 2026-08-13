@@ -3,25 +3,25 @@
 import { useState } from "react";
 
 import TwoPanelCompare from "./TwoPanelCompare";
-import { pricingTiers } from "@/app/(home)/pricing/constants";
+import { pricingTiers as fallbackPricingTiers, PricingTier } from "@/app/(home)/pricing/constants";
 
 /** Illustrative funnel assumption for turning "open mandates" into a
  * candidate count: not a claim about any specific search, just enough to
  * make the flat-fee-vs-usage-based cost gap tangible and draggable. Real
- * per-candidate prices come from pricing/constants.tsx (kept in sync with
- * the backend's PricingConfig -- see that file's comments). */
+ * per-candidate prices come from the page's server-side fetch of the live
+ * PricingConfig (see each use-case page's page.tsx), passed in as `pricingTiers`. */
 const RESUMES_PER_MANDATE = 45;
 const ASSESSMENTS_PER_MANDATE = 12;
 const FLAT_FEE_MONTHLY_USD = 299;
 const MAX_MANDATES = 40;
 const DEFAULT_MANDATES = 8;
 
-const resumePrice = pricingTiers.find(t => t.name === "Resume Screening")?.pricePerUnit ?? 0;
-const assessmentPrice = pricingTiers.find(t => t.name === "Assessment")?.pricePerUnit ?? 0;
-const costPerMandate = RESUMES_PER_MANDATE * resumePrice + ASSESSMENTS_PER_MANDATE * assessmentPrice;
-
-const MandateCostSlider = () => {
+const MandateCostSlider = ({ pricingTiers = fallbackPricingTiers }: { pricingTiers?: PricingTier[] }) => {
   const [mandates, setMandates] = useState(DEFAULT_MANDATES);
+
+  const resumePrice = pricingTiers.find(t => t.name === "Resume Screening")?.pricePerUnit ?? 0;
+  const assessmentPrice = pricingTiers.find(t => t.name === "Assessment")?.pricePerUnit ?? 0;
+  const costPerMandate = RESUMES_PER_MANDATE * resumePrice + ASSESSMENTS_PER_MANDATE * assessmentPrice;
 
   const tiaagoCost = mandates * costPerMandate;
   const maxBarValue = Math.max(FLAT_FEE_MONTHLY_USD, tiaagoCost);

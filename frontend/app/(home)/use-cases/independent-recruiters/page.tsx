@@ -3,12 +3,16 @@ import Link from "next/link";
 
 import Footer from "@/app/common/components/Layout/Footer";
 import { CustomAuthButton } from "@/app/common/components/AuthButton";
+import { getPublicPricingConfig } from "@/app/common/services/pricing";
+import { getDefaultCurrency } from "@/app/common/utils/geo";
+import { buildPricingTiers, FREE_TIER_LIMIT } from "@/app/(home)/pricing/constants";
 import UseCaseHero from "../_components/UseCaseHero";
 import SectionHeading from "../_components/SectionHeading";
 import WorkflowSteps from "../_components/WorkflowSteps";
 import PricingRecapCard from "../_components/PricingRecapCard";
 import CTABanner from "../_components/CTABanner";
 import UseCaseFaq from "../_components/UseCaseFaq";
+import Reveal from "../_components/Reveal";
 import AgencyVsYou from "../_components/visuals/AgencyVsYou";
 import SimpleLineGraph from "../_components/visuals/SimpleLineGraph";
 import StageTimeline from "../_components/visuals/StageTimeline";
@@ -54,7 +58,12 @@ const FAQ_DATA = [
   },
 ];
 
-const IndependentRecruitersPage = () => (
+const IndependentRecruitersPage = async () => {
+  const [pricing, currency] = await Promise.all([getPublicPricingConfig(), getDefaultCurrency()]);
+  const pricingTiers = buildPricingTiers(pricing);
+  const freeTierLimit = Number(pricing.free_tier_limit) || FREE_TIER_LIMIT;
+
+  return (
   <>
     <main className='pt-24'>
       <UseCaseHero
@@ -76,7 +85,7 @@ const IndependentRecruitersPage = () => (
       />
 
       {/* Why You Lose Clients */}
-      <section className='py-16 md:py-24 bg-white'>
+      <Reveal as='section' className='py-16 md:py-24 bg-white'>
         <div className='md:container mx-auto px-4'>
           <SectionHeading
             headline="A 15-person agency isn't beating you on talent. They're beating you on turnaround."
@@ -85,10 +94,10 @@ const IndependentRecruitersPage = () => (
           <AgencyVsYou />
           <p className='text-center text-xs font-onest text-[#667085] mt-8'>Same speed. Same documentation. One person.</p>
         </div>
-      </section>
+      </Reveal>
 
       {/* How It Works */}
-      <section id='how-it-works' className='py-16 md:py-24 bg-[#F8FAFC]'>
+      <Reveal as='section' id='how-it-works' className='py-16 md:py-24 bg-[#F8FAFC]'>
         <div className='md:container mx-auto px-4'>
           <SectionHeading
             headline='Your process, minus the manual part.'
@@ -104,10 +113,10 @@ const IndependentRecruitersPage = () => (
             </p>
           </div>
         </div>
-      </section>
+      </Reveal>
 
       {/* No Fixed Costs */}
-      <section className='py-16 md:py-24 bg-white'>
+      <Reveal as='section' className='py-16 md:py-24 bg-white'>
         <div className='md:container mx-auto px-4 grid md:grid-cols-2 gap-12 items-center'>
           <div>
             <SimpleLineGraph
@@ -145,10 +154,10 @@ const IndependentRecruitersPage = () => (
             </Link>
           </div>
         </div>
-      </section>
+      </Reveal>
 
       {/* Never Lose a Candidate */}
-      <section className='py-16 md:py-24 bg-[#F8FAFC]'>
+      <Reveal as='section' className='py-16 md:py-24 bg-[#F8FAFC]'>
         <div className='md:container mx-auto px-4'>
           <SectionHeading
             headline='The good candidate you forgot to follow up with is now working somewhere else.'
@@ -161,10 +170,10 @@ const IndependentRecruitersPage = () => (
             </Link>
           </div>
         </div>
-      </section>
+      </Reveal>
 
       {/* Assessment Infrastructure */}
-      <section className='py-16 md:py-24 bg-white'>
+      <Reveal as='section' className='py-16 md:py-24 bg-white'>
         <div className='md:container mx-auto px-4'>
           <SectionHeading
             headline='Offer clients a real assessment, not a gut-feel phone screen.'
@@ -177,7 +186,7 @@ const IndependentRecruitersPage = () => (
             </Link>
           </div>
         </div>
-      </section>
+      </Reveal>
 
       {/* FAQ */}
       <section className='py-16 md:py-24 bg-[#F8FAFC]'>
@@ -185,12 +194,12 @@ const IndependentRecruitersPage = () => (
       </section>
 
       {/* Pricing Recap */}
-      <section id='pricing' className='py-16 md:py-24 bg-white'>
+      <Reveal as='section' id='pricing' className='py-16 md:py-24 bg-white'>
         <div className='md:container mx-auto px-4'>
           <SectionHeading headline='No subscription. No seats. Just usage.' />
-          <PricingRecapCard />
+          <PricingRecapCard pricingTiers={pricingTiers} freeTierLimit={freeTierLimit} currency={currency} />
         </div>
-      </section>
+      </Reveal>
     </main>
 
     <CTABanner
@@ -204,6 +213,7 @@ const IndependentRecruitersPage = () => (
     />
     <Footer />
   </>
-);
+  );
+};
 
 export default IndependentRecruitersPage;
