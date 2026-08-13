@@ -115,8 +115,8 @@ class BachsHandler(APIHandler):
             result = response.json()
             logger.debug(f"Bachs Create Checkout Session Response: {result}")
 
-            if response.status_code in (200, 201) and result.get("id"):
-                checkout_id = result["id"]
+            if response.status_code in (200, 201) and result.get("checkout_id"):
+                checkout_id = result["checkout_id"]
                 checkout_url = result.get("checkout_url") or result.get("url")
                 logger.info(f"Bachs checkout session created successfully: {checkout_id}")
                 return {"checkoutUrl": checkout_url, "checkoutId": checkout_id}
@@ -157,8 +157,8 @@ class BachsHandler(APIHandler):
         try:
             response = self.requests.post(url, json={"email": email, "name": name}, headers=headers)
             result = response.json()
-            if response.status_code in (200, 201) and result.get("id"):
-                customer_id = result["id"]
+            if response.status_code in (200, 201) and result.get("customer_id"):
+                customer_id = result["customer_id"]
                 organisation.bachs_customer_id = customer_id
                 organisation.save(update_fields=["bachs_customer_id"])
                 logger.info(f"Bachs customer created for organisation {organisation.id}: {customer_id}")
