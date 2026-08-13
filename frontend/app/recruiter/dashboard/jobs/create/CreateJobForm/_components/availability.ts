@@ -29,12 +29,19 @@ const SLOT_DURATION_MINUTES = 30;
 /** Expands a day-of-week + time-range availability picker into concrete
  * date-based interview slots -- the shape the backend actually accepts --
  * by generating the next `weeksAhead` occurrences of each selected weekday,
- * starting from tomorrow (never today, so a slot can't already be in the
- * past by the time the job goes live), and chunking the recruiter's chosen
- * time range into individual 30-minute slots within each day (e.g.
- * "9:00 AM - 5:00 PM" becomes sixteen 9:00-9:30, 9:30-10:00, ... 16:30-17:00
- * slots) rather than one single all-day slot -- a candidate needs to pick a
- * specific 30-minute time, not book out someone's entire day. */
+ * starting from today (included if today's weekday is selected and part of
+ * the time range is still ahead -- a candidate opening their invite this
+ * evening should be able to book a slot later tonight, not only from
+ * tomorrow), and chunking the recruiter's chosen time range into individual
+ * 30-minute slots within each day (e.g. "9:00 AM - 5:00 PM" becomes sixteen
+ * 9:00-9:30, 9:30-10:00, ... 16:30-17:00 slots) rather than one single
+ * all-day slot -- a candidate needs to pick a specific 30-minute time, not
+ * book out someone's entire day. Today's slots that have already started are
+ * skipped so nothing already-past gets offered (see also the matching
+ * backend filter in JobInterviewSlotListView/GuestInterviewSlotListView,
+ * which excludes past slots even after they've been stored -- this
+ * generation-time skip only covers the moment the recruiter sets up
+ * availability). */
 export const expandAvailabilityToSlots = (
   availability: InterviewAvailabilityInput,
   weeksAhead = 4
@@ -47,26 +54,32 @@ export const expandAvailabilityToSlots = (
   if (endMinutes <= startMinutes) return [];
 
   const slots: InterviewSlotInput[] = [];
-  const tomorrow = new Date();
-  tomorrow.setHours(0, 0, 0, 0);
-  tomorrow.setDate(tomorrow.getDate() + 1);
+  const now = new Date();
+  const todayStart = new Date(now);
+  todayStart.setHours(0, 0, 0, 0);
+  const todayStr = formatLocalDate(todayStart);
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
 
   for (const day of days_of_week) {
-    // Days from tomorrow to the first occurrence of this weekday on/after it.
-    const offset = (day - tomorrow.getDay() + 7) % 7;
-    const firstOccurrence = new Date(tomorrow);
-    firstOccurrence.setDate(tomorrow.getDate() + offset);
+    // Days from today to the first occurrence of this weekday on/after it
+    // -- 0 when today itself is one of the selected days.
+    const offset = (day - todayStart.getDay() + 7) % 7;
+    const firstOccurrence = new Date(todayStart);
+    firstOccurrence.setDate(todayStart.getDate() + offset);
 
     for (let week = 0; week < weeksAhead; week++) {
       const date = new Date(firstOccurrence);
       date.setDate(firstOccurrence.getDate() + week * 7);
       const dateStr = formatLocalDate(date);
+      const isToday = dateStr === todayStr;
 
       for (
         let slotStart = startMinutes;
         slotStart + SLOT_DURATION_MINUTES <= endMinutes;
         slotStart += SLOT_DURATION_MINUTES
       ) {
+        if (isToday && slotStart <= nowMinutes) continue;
+
         slots.push({
           date: dateStr,
           start_time: fromMinutes(slotStart),

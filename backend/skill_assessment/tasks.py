@@ -482,6 +482,11 @@ DEFAULT_PASSING_GRADE = getattr(settings, "SKILL_ASSESSMENT_PASSING_GRADE_DEFAUL
     retry_backoff=5,
     retry_jitter=True,
     max_retries=3,
+    # Coding sections call the AI service for grading -- capped so a burst of
+    # candidates finishing assessments at once (e.g. right before a deadline)
+    # can't flood it faster than it (and OpenAI's own rate limits, shared
+    # with resume screening/generation/AI interviews) can sustain.
+    rate_limit="30/m",
 )
 def mark_skill_assessment_submission(self, skill_assessment_submission_id: int):
     submission = (
@@ -783,7 +788,7 @@ def _canonical_difficulty(lower_val: str) -> str:
 
     
 
-@shared_task(name="create_talent_coding_assessment_task_v2", bind=True, max_retries=2)
+@shared_task(name="create_talent_coding_assessment_task_v2", bind=True, max_retries=2, rate_limit="30/m")
 def create_talent_coding_assessment_task_v2(
     self,
     stack_id,

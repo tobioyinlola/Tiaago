@@ -372,24 +372,39 @@ def assess_candidate(job_description: str, assessment_type: str, num_questions: 
        - Frame questions generically about technologies, architectures, and practices mentioned in the job
        - Keep all questions technology-focused and company-agnostic
     
-    4. NO REPETITION OR REUSE:
-       - Avoid repetition or reusing previously generated questions
-       - Do not reframe, reword, or tweak existing questions
-       - Every question must be distinct, covering different subtopics or skills relevant to the job
-       - The goal is to ensure comprehensive coverage of the skill area without redundancy
-    
+    4. NO REPETITION OR REUSE -- QUESTIONS MUST BE MEANINGFULLY DIFFERENT, NOT JUST REWORDED:
+       - Two questions are duplicates if they test the same fact, rule, or concept even when the wording,
+         scenario, or numbers differ. Before finalizing, mentally compare every pair of questions in this
+         batch and reject any pair where a candidate who understood one could answer the other purely by
+         pattern-matching, without applying different knowledge.
+       - Vary what's actually being tested across the batch: different sub-skills, different failure
+         modes/edge cases, different levels of reasoning (recall a fact vs. apply it to a scenario vs.
+         diagnose what went wrong) -- not the same core idea in a new outfit.
+       - Vary the scenario/context used to frame each question so no two questions read as templated
+         variations of each other.
+       - The goal is comprehensive coverage of the skill area, with every question earning its place.
+
     5. QUESTION DIFFICULTY & QUALITY:
        - Each question should test conceptual understanding, critical thinking, and problem-solving ability
        - For technical roles, focus on practical, real-world, or coding scenarios NOT definition-based theory
        - ❌ BAD: "What is the usefulness of React in front-end development?"
        - ✅ GOOD: "How would you optimize component re-rendering in React to improve performance?"
        - For non-technical roles, test fundamental knowledge, reasoning, decision making and applied knowledge
-    
-    6. OPTIONS AND ANSWERS:
-       - Avoid "odd one out" or obviously incorrect options
-       - All options should be plausible, forcing candidates to truly understand the question
-       - The correct answer should be clear only to those who genuinely understand the concept being tested
-       - Maintain solid distractors that make guessing difficult and ensure reliability of results
+
+    6. OPTIONS AND ANSWERS -- MAKE THE CORRECT ANSWER UNGUESSABLE WITHOUT DOMAIN KNOWLEDGE:
+       - All 4 options must be similar in length, specificity, and confidence of phrasing. A correct answer
+         that's noticeably longer, more detailed, or more assertively worded than the distractors is a
+         giveaway -- match their style exactly.
+       - Never make the correct answer the only "positive"/best-practice-sounding option with the rest
+         phrased negatively or dismissively; if one option sounds like the obviously "nice" choice, that's
+         a tell candidates will exploit without knowing the material.
+       - Never let a distractor be absurd, irrelevant, or trivially wrong. Every wrong option must represent
+         a realistic misconception or common mistake that someone with partial understanding could actually
+         pick -- not a random wrong fact.
+       - Do not make the correct answer the structural "odd one out" (the only one with different grammar,
+         format, or level of technical detail) -- all 4 must be interchangeable in form.
+       - Vary which letter (A-D) holds the correct answer across questions -- do not default to the same
+         position every time.
     
     ========================================
 
@@ -583,17 +598,22 @@ def assess_candidate(job_description: str, assessment_type: str, num_questions: 
        - CRITICAL: Do NOT include company names, brand names, or product names in questions
        - Extract TECHNOLOGIES and SKILLS from the job description, then frame questions generically
        - Example: Job description mentions "Go" and "distributed systems" → Ask about Go concurrency patterns or distributed system design, NOT "Vurt's payment infrastructure"
-       - NO repetition or reuse - each question must be distinct and cover different subtopics
+       - NO repetition or reuse - each question must be distinct and cover different subtopics. Two
+         questions that test the same underlying fact/rule with different wording or numbers still count
+         as duplicates -- reject those before responding.
        - For technical roles: Focus on practical coding scenarios, NOT definition-based theory
-       - All options must be plausible - avoid "odd one out" answers
-    
+       - All options must be plausible, similar in length/detail/confidence of phrasing, and each wrong
+         option must reflect a realistic misconception rather than an obviously silly one - avoid "odd one
+         out" answers and avoid making the correct answer the only "positive"-sounding option
+
     CRITICAL REQUIREMENTS FOR MCQ QUESTIONS:
     - Use the FULL job description provided below to understand the role requirements
     - Extract the TECHNICAL SKILLS, TECHNOLOGIES, and ROLE REQUIREMENTS from the job description
     - Frame questions GENERICALLY about these technologies and practices - NO company-specific context
     - Focus on real-world scenarios and challenges the candidate would face in this role
     - Present situations requiring problem-solving and applied skills, not generic definitions
-    - Create 4 balanced, plausible options where candidates cannot simply pick the "odd one out"
+    - Create 4 balanced, plausible options, matched in length and phrasing style, where candidates cannot
+      simply pick the "odd one out" or the most confidently-worded option as the correct answer
     - The correct answer must demonstrate the most effective/professional approach for this role
 
     UNIQUENESS REQUIREMENTS:
@@ -601,6 +621,8 @@ def assess_candidate(job_description: str, assessment_type: str, num_questions: 
     - Avoid repetitive patterns or similar question structures
     - Ensure variety in complexity levels and question types
     - Each question should present a unique challenge or situation
+    - Before finalizing, compare every pair of questions: if a candidate could answer one just by having
+      seen the other (same core concept, different dressing), rewrite or replace one of them
     
     DIFFICULTY REQUIREMENTS:
     - Create CHALLENGING questions that properly assess candidate competency
@@ -620,6 +642,8 @@ def assess_candidate(job_description: str, assessment_type: str, num_questions: 
     ✓ 3. Every question tests a *different* skill or scenario
     ✓ 4. All four options are plausible; none are "obviously wrong"
     ✓ 5. The correct answer is not the longest or shortest option more than 50% of the time
+    ✓ 6. No two questions in this batch test the same underlying concept, even worded differently
+    ✓ 7. No wrong option is absurd/irrelevant, and none is the only "positive"-sounding choice
     ✓ 6. For coding questions: I have 4-6 test cases covering normal, edge, boundary, error cases
 
     ⚠️ If any item fails verification, FIX IT before responding. The system requires {num_questions} questions.
@@ -1091,6 +1115,12 @@ def generate_culture_fit_questions(company_info: str, num_questions: int) -> Cul
 
     system_prompt = """You are an AI assistant specialized in creating culture fit assessment questions. Generate multiple-choice questions that evaluate a candidate's alignment with the company's values, culture, and work environment.
 
+    Every question must probe a different value or aspect of the culture -- no two questions should test
+    the same underlying value with different wording. All 4 options must be similar in length and tone;
+    never make the correct option the only one that sounds obviously positive/ideal, or a candidate can
+    guess it without genuinely reflecting on fit -- every distractor should be a plausible, reasonable-
+    sounding answer that just isn't the best match for this company.
+
     Create exactly {num_questions} questions following this format:
     {{
         "questions": [
@@ -1299,11 +1329,17 @@ def generate_mcq_batch(job_description: str, num_questions: int, batch_num: int,
 
         3. AVOID COMPANY REFERENCES: Keep questions neutral and role-focused. Do not reference specific companies.
 
-        4. NO REPETITION: Every question must be distinct, covering different subtopics. Avoid reframing or reusing existing questions.
+        4. NO REPETITION: Every question must be distinct, covering different subtopics. Avoid reframing or
+           reusing existing questions -- two questions testing the same underlying concept with different
+           wording still count as duplicates. Before finalizing, compare every pair in this batch and
+           replace any where understanding one would let a candidate answer the other by pattern-matching.
 
         5. QUESTION QUALITY: Test conceptual understanding, critical thinking, and problem-solving. Focus on practical scenarios, not definitions.
 
-        6. OPTIONS AND ANSWERS: All options must be plausible. Avoid "odd one out" answers. Solid distractors required.
+        6. OPTIONS AND ANSWERS: All 4 options must be plausible, similar in length and confidence of
+           phrasing, and each wrong option must reflect a realistic misconception, not an obviously silly
+           one. Avoid "odd one out" answers and avoid making the correct answer the only "positive"-sounding
+           or most-detailed option -- that's a giveaway candidates will exploit without knowing the material.
 
         ========================================
 
@@ -1509,11 +1545,15 @@ def generate_categorized_mcq_batch(job_description: str, category: str, num_ques
 
         5. AVOID COMPANY REFERENCES: Keep questions neutral and role-focused. Do not reference specific companies.
 
-        6. NO REPETITION: Every question must be distinct, covering different subtopics/snippets.
+        6. NO REPETITION: Every question must be distinct, covering different subtopics/snippets -- two
+           questions probing the same underlying bug class or concept with a different snippet still count
+           as duplicates. Compare every pair before finalizing and replace any that overlap.
 
         7. OPTIONS AND ANSWERS: All 4 options must be plausible (e.g. subtly wrong outputs, off-by-one
-           variants, plausible-but-wrong fixes). Avoid "odd one out" answers. Only one option is correct.
-           Options may themselves contain short code/values, not just prose.
+           variants, plausible-but-wrong fixes), similar in length/format/confidence, and only one correct.
+           Avoid "odd one out" answers -- never let the correct option be the only one that looks
+           "cleaner" or more complete than the rest. Options may themselves contain short code/values,
+           not just prose.
 
         ========================================
 
@@ -1579,11 +1619,18 @@ Count your questions and verify:
 
         4. AVOID COMPANY REFERENCES: Keep questions neutral and role-focused. Do not reference specific companies.
 
-        5. NO REPETITION: Every question must be distinct, covering different subtopics within the category.
+        5. NO REPETITION: Every question must be distinct, covering different subtopics within the category
+           -- two questions testing the same underlying concept with different wording or numbers still
+           count as duplicates. Before finalizing, compare every pair of questions in this batch and replace
+           any where understanding one would let a candidate answer the other by pattern-matching alone.
 
         6. QUESTION QUALITY: Test conceptual understanding, critical thinking, and problem-solving using practical scenarios, not rote definitions.
 {practical_guidance}
-        7. OPTIONS AND ANSWERS: All 4 options must be plausible. Avoid "odd one out" answers. Only one option is correct.
+        7. OPTIONS AND ANSWERS: All 4 options must be plausible, similar in length and confidence of
+           phrasing, and only one correct. Avoid "odd one out" answers -- every wrong option must reflect a
+           realistic misconception, not an obviously silly one -- and never make the correct answer the
+           only "positive"-sounding or most-detailed option, since that's a giveaway candidates will exploit
+           without knowing the material. Vary which letter (A-D) holds the correct answer across questions.
 
         ========================================
 
@@ -1612,8 +1659,11 @@ MANDATORY VERIFICATION BEFORE RESPONDING:
 Count your questions and verify:
 1. I generated EXACTLY {num_questions} questions (the "questions" array has {num_questions} items)
 2. No question mentions any company, brand, or product name
-3. Every question is clearly about "{category}" and tests a different scenario
-4. All four options are plausible; none are "obviously wrong\""""
+3. Every question is clearly about "{category}" and tests a different scenario -- no two questions in
+   this batch test the same underlying concept even if worded differently
+4. All four options are plausible; none are "obviously wrong", and none is the only "positive"-sounding
+   or noticeably longer/more detailed option -- that pattern makes the answer guessable without knowledge
+   of "{category}\""""
 
         messages = [
             {"role": "system", "content": system_prompt},
@@ -2098,11 +2148,17 @@ def generate_technical_mcq_batch(job_description: str, num_questions: int, batch
 
         3. AVOID COMPANY REFERENCES: Keep questions neutral and role-focused. Do not reference specific companies.
 
-        4. NO REPETITION: Every question must be distinct, covering different subtopics. Avoid reframing or reusing existing questions.
+        4. NO REPETITION: Every question must be distinct, covering different subtopics. Avoid reframing or
+           reusing existing questions -- two questions testing the same underlying concept with different
+           wording still count as duplicates. Before finalizing, compare every pair in this batch and
+           replace any where understanding one would let a candidate answer the other by pattern-matching.
 
         5. QUESTION QUALITY: Test conceptual understanding, critical thinking, and problem-solving. Focus on practical coding scenarios, NOT definition-based theory.
 
-        6. OPTIONS AND ANSWERS: All options must be plausible. Avoid "odd one out" answers. Solid distractors required.
+        6. OPTIONS AND ANSWERS: All 4 options must be plausible, similar in length and confidence of
+           phrasing, and each wrong option must reflect a realistic misconception, not an obviously silly
+           one. Avoid "odd one out" answers and avoid making the correct answer the only "positive"-sounding
+           or most-detailed option -- that's a giveaway candidates will exploit without knowing the material.
 
         ========================================
 
@@ -2736,13 +2792,19 @@ def generate_language_specific_coding_assessment(
     
     3. AVOID COMPANY REFERENCES: Keep questions neutral and professional. Do not reference specific companies or assume the candidate works at a specific company.
     
-    4. NO REPETITION OR REUSE: Every question must be distinct, covering different subtopics or skills. Avoid reframing, reusing, or tweaking existing questions.
-    
+    4. NO REPETITION OR REUSE: Every question must be distinct, covering different subtopics or skills.
+       Avoid reframing, reusing, or tweaking existing questions -- two questions probing the same
+       underlying concept with different wording or a different snippet still count as duplicates. Compare
+       every pair before finalizing and replace any that overlap.
+
     5. QUESTION DIFFICULTY & QUALITY: Focus on practical, real-world coding scenarios NOT definition-based theory. Test conceptual understanding, critical thinking, and problem-solving ability.
        - ❌ BAD: "What is the usefulness of React in front-end development?"
        - ✅ GOOD: "How would you optimize component re-rendering in React to improve performance?"
-    
-    6. OPTIONS AND ANSWERS: For MCQ coding questions, all options must be plausible. Avoid "odd one out" answers. Solid distractors required.
+
+    6. OPTIONS AND ANSWERS: For MCQ coding questions, all 4 options must be plausible, similar in length
+       and confidence of phrasing. Avoid "odd one out" answers and never make the correct answer the only
+       "cleaner"/more-detailed/positive-sounding option -- every wrong option must reflect a realistic
+       mistake, not an obviously silly one. Solid distractors required.
     
     ========================================
 

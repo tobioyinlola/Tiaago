@@ -214,11 +214,11 @@ export type CampaignAnalytics = {
 export const defaultBlockFor = (type: EmailBlock["type"]): EmailBlock => {
   switch (type) {
     case "HEADER":
-      return { type: "HEADER", background_colour: "#1A3C5E", subtitle: "" };
+      return { type: "HEADER", background_colour: "#1C3477", subtitle: "" };
     case "TEXT":
       return { type: "TEXT", html: "<p>New text block</p>", font_size: "body", align: "left" };
     case "BUTTON":
-      return { type: "BUTTON", label: "Click here", url: "", colour: "#1D9E75", align: "center" };
+      return { type: "BUTTON", label: "Click here", url: "", colour: "#5465FF", align: "center" };
     case "IMAGE":
       return { type: "IMAGE", url: "", alt: "" };
     case "DIVIDER":

@@ -483,6 +483,20 @@ def _get_passing_job_application(user, job_id):
     return job_application if has_passed else None
 
 
+def _unclaimed_future_slots(job_id):
+    """Unclaimed slots for a job that haven't started yet -- a slot can go
+    stale between being generated (expandAvailabilityToSlots, which itself
+    only skips slots already past *at generation time*) and a candidate
+    actually opening the picker, so this re-checks against the current time
+    on every read rather than trusting is_claimed alone. Naive local-time
+    comparison, matching the recruiter-local dates/times slots are already
+    stored in (see expandAvailabilityToSlots's own comment)."""
+    now = timezone.localtime(timezone.now())
+    return JobInterviewAvailabilitySlot.objects.filter(job_id=job_id, is_claimed=False).filter(
+        Q(date__gt=now.date()) | Q(date=now.date(), start_time__gte=now.time())
+    )
+
+
 class JobInterviewSlotListView(ListAPIView):
     """Unclaimed interview slots for a job -- visible only to a talent who has
     passed that job's assessment stage."""
@@ -494,7 +508,7 @@ class JobInterviewSlotListView(ListAPIView):
         job = Job.objects.filter(public_id=self.kwargs["public_id"]).first()
         if not job:
             return JobInterviewAvailabilitySlot.objects.none()
-        return JobInterviewAvailabilitySlot.objects.filter(job_id=job.id, is_claimed=False)
+        return _unclaimed_future_slots(job.id)
 
     def list(self, request, *args, **kwargs):
         job = Job.objects.filter(public_id=self.kwargs["public_id"]).first()
@@ -722,7 +736,7 @@ class GuestInterviewSlotListView(APIView):
                 status=HTTP_403_FORBIDDEN,
             )
         job = job_application.job
-        slots = JobInterviewAvailabilitySlot.objects.filter(job_id=job.id, is_claimed=False)
+        slots = _unclaimed_future_slots(job.id)
         return Response({
             "job_title": job.title,
             "company_name": job.company.company_name,
@@ -760,6 +774,7 @@ class JobRetrieveUpdateView(RetrieveUpdateAPIView):
     
     def update(self, request, *args, **kwargs):
         from jobs.tasks import send_job_status_notification
+        from subscriptions.billing_service import get_or_create_wallet
 
         partial = request.method == 'PATCH'
         instance = self.get_object()
@@ -770,6 +785,27 @@ class JobRetrieveUpdateView(RetrieveUpdateAPIView):
         old_status = instance.job_status
         serializer = self.get_serializer(instance, data=request.data, partial=partial)
         serializer.is_valid(raise_exception=True)
+
+        # A recruiter with an exhausted wallet can't flip a job's status at
+        # all (not just re-activating one that got auto-paused for billing --
+        # see BillingService._pause_company_jobs_for_wallet_exhaustion) until
+        # they top up. Without this, manually toggling status was a way to
+        # route around the auto-pause and keep accepting applications the
+        # wallet can no longer pay to process. Staff can still override.
+        requested_status = serializer.validated_data.get("job_status")
+        if (
+            company
+            and not request.user.is_staff
+            and requested_status is not None
+            and requested_status != old_status
+        ):
+            wallet = get_or_create_wallet(company)
+            if wallet.balance <= 0:
+                return Response(
+                    {"detail": "Your wallet balance is exhausted. Fund your wallet before changing this job's status."},
+                    status=HTTP_400_BAD_REQUEST,
+                )
+
         self.perform_update(serializer)
 
         if getattr(instance, '_prefetched_objects_cache', None):
@@ -893,7 +929,7 @@ class JobApplicationRetrieveUpdateView(RetrieveUpdateAPIView):
             status_value == JobApplication.JobApplicationStatus.PENDING_DECISION
             and status_value != previous_status
             and not instance.job.ai_interview_enabled
-            and not instance.job.interview_availability_slots.filter(is_claimed=False).exists()
+            and not _unclaimed_future_slots(instance.job_id).exists()
         ):
             return Response(
                 {"detail": "Publish at least one interview time slot for this job before inviting a candidate to interview."},
