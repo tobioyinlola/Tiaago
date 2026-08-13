@@ -19,6 +19,8 @@ const BoardColumn = ({
   onView,
   onAddToPipeline,
   onMoveStage,
+  onAdvanceRound,
+  advancingRoundId,
 }: {
   columnKey: string;
   label: string;
@@ -33,6 +35,8 @@ const BoardColumn = ({
   onView: (item: AiFeedbackItem) => void;
   onAddToPipeline: (item: AiFeedbackItem) => void;
   onMoveStage: (item: AiFeedbackItem, status: JobApplication["status"]) => void;
+  onAdvanceRound: (item: AiFeedbackItem) => void;
+  advancingRoundId: AiFeedbackItem["application_id"] | null;
 }) => {
   const { setNodeRef, isOver } = useDroppable({ id: columnKey, disabled: !droppable });
   const visible = items.slice(0, visibleCount);
@@ -70,7 +74,9 @@ const BoardColumn = ({
                 onView={() => onView(item)}
                 onAddToPipeline={() => onAddToPipeline(item)}
                 onMoveStage={status => onMoveStage(item, status)}
+                onAdvanceRound={() => onAdvanceRound(item)}
                 moving={movingId === item.application_id}
+                advancingRound={advancingRoundId === item.application_id}
               />
             ))}
             {items.length > visible.length && (

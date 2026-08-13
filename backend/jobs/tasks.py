@@ -1055,6 +1055,7 @@ def send_interview_slot_invite(job_application_id):
     (see jobs.views.JobApplicationRetrieveUpdateView.put), and
     ai_interviews.tasks.send_ai_interview_proceed_invite, which delegates
     here instead of re-implementing this same branching."""
+    from scheduler.models import Scheduler
     from skill_assessment.models import GeneralSkillAssessment
 
     job_application = JobApplication.objects.select_related("job", "job__company").filter(
@@ -1064,6 +1065,12 @@ def send_interview_slot_invite(job_application_id):
         return
 
     job = job_application.job
+    # A prior Scheduler row means this candidate already had (at least) a
+    # first round -- see jobs.views._claim_interview_slot's round=count()+1
+    # -- so this fresh invite (fired from either the manual PENDING_DECISION
+    # move or scheduler.review_views.AdvanceInterviewRoundView) is for their
+    # second round.
+    is_second_round = Scheduler.objects.filter(job_application=job_application).exists()
 
     if not job.interview_availability_slots.filter(is_claimed=False).exists():
         logger.warning(
@@ -1103,7 +1110,7 @@ def send_interview_slot_invite(job_application_id):
     }
     try:
         EmailHandler(recipients=[candidate_email]).send_mail(
-            subject="Pick your interview time",
+            subject="Pick your second interview time" if is_second_round else "Pick your interview time",
             context=context,
             template="emails/interview_slot_selection.html",
             email_type=EmailTypes.INTERVIEW_SLOT_SELECTION_MAIL,
