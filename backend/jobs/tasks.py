@@ -728,9 +728,19 @@ def on_analyze_resume(
     return None, None, None
 
 
-@shared_task
+@shared_task(rate_limit="60/m")
 def carry_out_resume_analysis(job_application_id):
-    """This function is called immediately after a user applies for a job that is marked as `hire with AI`"""
+    """This function is called immediately after a user applies for a job that is marked as `hire with AI`.
+
+    rate_limit caps how many of these run per minute across all workers --
+    without it, a burst of applications landing at once (many candidates
+    across many companies applying near-simultaneously) would fire an equally
+    large burst of concurrent AI-service calls. A failure here isn't lost --
+    on_analyze_resume returning nothing already routes to PendingResumeAnalysis
+    for the (separately rate-limited) retry sweep -- but better to shape the
+    load up front than lean entirely on that safety net. Tune to whatever the
+    AI service/OpenAI tier can actually sustain alongside every other caller
+    (assessment generation/grading, AI interviews) sharing the same budget."""
 
     job_application = (
         JobApplication.objects.prefetch_related("job", "applicant")
@@ -841,115 +851,145 @@ MAX_PENDING_RESUME_ANALYSIS_ATTEMPTS = 5
 
 @shared_task(name="carry_out_pending_resume_analyses")
 def carry_out_pending_resume_analyses():
-    """Carry out resume analyses that failed on the first try or on subsequent tries"""
-
-    pending_analyses = (
-        PendingResumeAnalysis.objects.all()
-        .prefetch_related("job_application__job", "job_application__applicant")
-        .order_by("created_at")
+    """Fans out one independent task per pending resume analysis instead of
+    processing them inline in a single sequential loop. Each retry is a real,
+    blocking OpenAI call (several seconds) -- a burst of failures (e.g. many
+    candidates applying near-simultaneously while the AI service was briefly
+    overloaded) used to pin this one task working through the backlog one
+    candidate at a time, potentially for hours, blocking a worker slot and
+    delaying every other pending item behind it. Dispatching each item as its
+    own task lets Celery's normal concurrency plus retry_pending_resume_analysis's
+    rate_limit share the backlog safely instead of serializing it."""
+    pending_ids = list(
+        PendingResumeAnalysis.objects.order_by("created_at").values_list("id", flat=True)
     )
-    for pending_resume_analysis in pending_analyses:
-        job_application: JobApplication = pending_resume_analysis.job_application
-        if job_application:
-            flow_status, _ = ReportPAYGFlowStatus.objects.get_or_create(job_application=job_application)
+    for pending_id in pending_ids:
+        retry_pending_resume_analysis.delay(pending_id)
+    return f"Dispatched {len(pending_ids)} pending resume analysis retries"
 
-            if pending_resume_analysis.attempts >= MAX_PENDING_RESUME_ANALYSIS_ATTEMPTS:
-                logger.error(
-                    "Giving up on pending resume analysis for job_application %s after %s attempts",
-                    job_application.id, pending_resume_analysis.attempts,
-                )
-                pending_resume_analysis.delete()
-                flow_status.status = ReportPAYGFlowStatus.Status.FAILED
-                flow_status.error_message = (
-                    f"Resume could not be analyzed after {MAX_PENDING_RESUME_ANALYSIS_ATTEMPTS} attempts. "
-                    "Giving up -- please contact support if this persists."
-                )
-                flow_status.save()
-                continue
 
-            flow_status.status = ReportPAYGFlowStatus.Status.STARTED
-            flow_status.error_message = ""
-            flow_status.save()
-            job = job_application.job
-            resume_name = pending_resume_analysis.resume_name
-            resume_path = pending_resume_analysis.resume_path
-            resume_analysis_obj, recommendation, areas_for_improvement = (
-                on_analyze_resume(
-                    job_application=pending_resume_analysis.job_application,
-                    resume_name=resume_name,
-                    resume_path=resume_path,
-                    job_description=job.description,
+@shared_task(name="retry_pending_resume_analysis", rate_limit="30/m")
+def retry_pending_resume_analysis(pending_resume_analysis_id):
+    """One candidate's resume-analysis retry (see carry_out_pending_resume_analyses).
+    rate_limit caps this at 30/minute across all workers so a large backlog
+    can't hammer the AI service (and, transitively, OpenAI's own rate limits)
+    all at once -- tune to whatever the AI service can actually sustain."""
+    pending_resume_analysis = (
+        PendingResumeAnalysis.objects.select_related("job_application__job", "job_application__applicant")
+        .filter(id=pending_resume_analysis_id)
+        .first()
+    )
+    if not pending_resume_analysis:
+        return "Pending resume analysis not found -- already processed or deleted"
+
+    job_application: JobApplication = pending_resume_analysis.job_application
+    if not job_application:
+        pending_resume_analysis.delete()
+        return "Orphaned pending resume analysis deleted (no job application)"
+
+    flow_status, _ = ReportPAYGFlowStatus.objects.get_or_create(job_application=job_application)
+
+    if pending_resume_analysis.attempts >= MAX_PENDING_RESUME_ANALYSIS_ATTEMPTS:
+        logger.error(
+            "Giving up on pending resume analysis for job_application %s after %s attempts",
+            job_application.id, pending_resume_analysis.attempts,
+        )
+        pending_resume_analysis.delete()
+        flow_status.status = ReportPAYGFlowStatus.Status.FAILED
+        flow_status.error_message = (
+            f"Resume could not be analyzed after {MAX_PENDING_RESUME_ANALYSIS_ATTEMPTS} attempts. "
+            "Giving up -- please contact support if this persists."
+        )
+        flow_status.save()
+        return "Gave up after max attempts"
+
+    flow_status.status = ReportPAYGFlowStatus.Status.STARTED
+    flow_status.error_message = ""
+    flow_status.save()
+    job = job_application.job
+    resume_name = pending_resume_analysis.resume_name
+    resume_path = pending_resume_analysis.resume_path
+    resume_analysis_obj, recommendation, areas_for_improvement = (
+        on_analyze_resume(
+            job_application=job_application,
+            resume_name=resume_name,
+            resume_path=resume_path,
+            job_description=job.description,
+        )
+    )
+    if not resume_analysis_obj:
+        pending_resume_analysis.attempts += 1
+        pending_resume_analysis.save(update_fields=["attempts"])
+        flow_status.status = ReportPAYGFlowStatus.Status.FAILED
+        flow_status.error_message = (
+            f"Resume analysis attempt {pending_resume_analysis.attempts}/"
+            f"{MAX_PENDING_RESUME_ANALYSIS_ATTEMPTS} failed -- will retry."
+        )
+        flow_status.save()
+        return "Attempt failed -- will retry on next sweep"
+
+    # Bill for the resume screening, same rule as the primary path in
+    # carry_out_resume_analysis: subscription seat first, wallet (free
+    # credit then real charge) fallback.
+    company = job.company
+    usage = UserUsage.objects.filter(company=company).first()
+    billing_blocked = False
+    if not has_active_subscription_capacity(company, usage, determiner="resume-analyzes"):
+        billing_result = BillingService.process_resume_candidate_screening(job_application)
+        billing_blocked = not billing_result["success"]
+
+    # At this point the (billable) AI analysis has already succeeded and
+    # been saved. A failure in the downstream steps below must NOT leave the
+    # pending record in place, otherwise this sweeper re-runs the AI analysis
+    # on every beat tick and burns OpenAI credits indefinitely. So we always
+    # delete the pending record and surface downstream errors via flow_status.
+    downstream_error = None
+    if billing_blocked:
+        downstream_error = (
+            "Insufficient wallet balance -- resume screening result withheld. "
+            "The recruiter must top up their wallet to continue."
+        )
+    else:
+        try:
+            create_talent_screening(job_application, resume_analysis_obj)
+            if resume_analysis_obj.total_score >= job.get_screening_threshold():
+                send_assessment_link.apply_async(
+                    args=[job_application.id],
+                    countdown=ACCEPTANCE_MAIL_DELAY_SECONDS,
                 )
+            else:
+                send_rejection_mail.apply_async(
+                    args=[job.id, job_application.id, areas_for_improvement],
+                    countdown=REJECTION_MAIL_DELAY_SECONDS,
+                )
+        except Exception as e:
+            downstream_error = str(e)
+            logger.error(
+                "Post-analysis step failed for pending resume analysis "
+                f"(job_application_id={job_application.id}): {e}"
             )
-            if not resume_analysis_obj:
-                pending_resume_analysis.attempts += 1
-                pending_resume_analysis.save(update_fields=["attempts"])
-                flow_status.status = ReportPAYGFlowStatus.Status.FAILED
-                flow_status.error_message = (
-                    f"Resume analysis attempt {pending_resume_analysis.attempts}/"
-                    f"{MAX_PENDING_RESUME_ANALYSIS_ATTEMPTS} failed -- will retry."
-                )
-                flow_status.save()
-            if resume_analysis_obj:
-                # Bill for the resume screening, same rule as the primary
-                # path in carry_out_resume_analysis: subscription seat
-                # first, wallet (free credit then real charge) fallback.
-                company = job.company
-                usage = UserUsage.objects.filter(company=company).first()
-                billing_blocked = False
-                if not has_active_subscription_capacity(company, usage, determiner="resume-analyzes"):
-                    billing_result = BillingService.process_resume_candidate_screening(job_application)
-                    billing_blocked = not billing_result["success"]
 
-                # At this point the (billable) AI analysis has already succeeded and
-                # been saved. A failure in the downstream steps below must NOT leave the
-                # pending record in place, otherwise this sweeper re-runs the AI analysis
-                # on every beat tick and burns OpenAI credits indefinitely. So we always
-                # delete the pending record and surface downstream errors via flow_status.
-                downstream_error = None
-                if billing_blocked:
-                    downstream_error = (
-                        "Insufficient wallet balance -- resume screening result withheld. "
-                        "The recruiter must top up their wallet to continue."
-                    )
-                else:
-                    try:
-                        create_talent_screening(job_application, resume_analysis_obj)
-                        if resume_analysis_obj.total_score >= job.get_screening_threshold():
-                            send_assessment_link.apply_async(
-                                args=[job_application.id],
-                                countdown=ACCEPTANCE_MAIL_DELAY_SECONDS,
-                            )
-                        else:
-                            send_rejection_mail.apply_async(
-                                args=[job.id, job_application.id, areas_for_improvement],
-                                countdown=REJECTION_MAIL_DELAY_SECONDS,
-                            )
-                    except Exception as e:
-                        downstream_error = str(e)
-                        logger.error(
-                            "Post-analysis step failed for pending resume analysis "
-                            f"(job_application_id={job_application.id}): {e}"
-                        )
+    pending_resume_analysis.delete()
 
-                pending_resume_analysis.delete()
-
-                if downstream_error:
-                    flow_status.status = ReportPAYGFlowStatus.Status.FAILED
-                    flow_status.error_message = f"Post-analysis error: {downstream_error}"
-                else:
-                    flow_status.status = ReportPAYGFlowStatus.Status.COMPLETED
-                    flow_status.error_message = ""
-                flow_status.save()
+    if downstream_error:
+        flow_status.status = ReportPAYGFlowStatus.Status.FAILED
+        flow_status.error_message = f"Post-analysis error: {downstream_error}"
+    else:
+        flow_status.status = ReportPAYGFlowStatus.Status.COMPLETED
+        flow_status.error_message = ""
+    flow_status.save()
+    return "Completed"
 
 
-@shared_task(bind=True, name="generate_job_assessment_questions_task", max_retries=2)
+@shared_task(bind=True, name="generate_job_assessment_questions_task", max_retries=2, rate_limit="30/m")
 def generate_job_assessment_questions_task(self, request_id, description, job_requirement, role_id):
     """Runs the job-creation wizard's Step 3 AI question generation out of
     band -- see jobs.views.GenerateAssessmentQuestionsView, which used to make
     this call synchronously (up to the AI service's 240s ceiling) inside the
     request/response cycle. Retries on transport failures the same way
-    skill_assessment.tasks.create_talent_coding_assessment_task_v2 does."""
+    skill_assessment.tasks.create_talent_coding_assessment_task_v2 does.
+    rate_limit shares the same AI-service capacity budget as resume screening
+    and grading -- see carry_out_resume_analysis's rate_limit comment."""
     request_row = AssessmentQuestionGenerationRequest.objects.filter(id=request_id).first()
     if not request_row:
         logger.warning("AssessmentQuestionGenerationRequest %s not found", request_id)

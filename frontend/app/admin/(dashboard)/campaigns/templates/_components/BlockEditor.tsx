@@ -279,7 +279,7 @@ const BlockCanvasPreview = ({ block }: { block: EmailBlock }) => {
     case "STAT":
       return (
         <div className="p-4 text-center">
-          <div className="text-3xl font-bold" style={{ color: "#1A3C5E" }}>{`{{${block.merge_tag}}}`}</div>
+          <div className="text-3xl font-bold" style={{ color: "#1C3477" }}>{`{{${block.merge_tag}}}`}</div>
           <div className="text-xs text-muted-foreground mt-1">{block.label}</div>
         </div>
       );
@@ -364,7 +364,7 @@ const BlockSettings = ({
           <input type="text" className="input input-bordered input-sm" value={block.url} onChange={e => onChange({ url: e.target.value })} />
           <label className="text-xs font-medium">Colour</label>
           <div className="flex items-center gap-2">
-            {["#1D9E75", "#1A3C5E"].map(preset => (
+            {["#5465FF", "#1C3477"].map(preset => (
               <button
                 key={preset}
                 type="button"

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Download, Video } from "lucide-react";
+import { Video } from "lucide-react";
 
 import { ID, InterviewPrepHeader } from "@/app/common/types";
 import { cn } from "@/app/common/utils";
@@ -67,14 +67,6 @@ const PrepHeader = ({
         </div>
 
         <div className='flex items-center gap-2 shrink-0 print:hidden'>
-          <button
-            type='button'
-            onClick={() => window.print()}
-            className='btn btn-outline btn-sm rounded-lg gap-1.5'
-          >
-            <Download className='w-3.5 h-3.5' />
-            Export brief
-          </button>
           <Link
             href={startHref}
             className='btn btn-sm rounded-lg gap-1.5 !bg-success !text-white border-none hover:!bg-success/90'

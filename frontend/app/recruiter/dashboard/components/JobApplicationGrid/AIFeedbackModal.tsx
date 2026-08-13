@@ -30,6 +30,7 @@ import {
 } from "@/app/common/utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/app/common/components/ui/tabs";
 import { IntegrityScoreBadge } from "@/app/common/components/dashboard/ProctoringBadges";
+import InfoTooltip from "@/app/common/components/InfoTooltip";
 import ProctoringReportTab from "./ProctoringReportTab";
 import AssessmentQuestionsTab from "./AssessmentQuestionsTab";
 import AIInterviewTab from "./AIInterviewTab";
@@ -421,6 +422,7 @@ const AIFeedbackModal: React.FC<AIFeedbackModalProps> = ({
                   <div className='flex items-center mb-2'>
                     {getStatusIcon(aiFeedback.resume_role_match_status)}
                     <span className='ml-2 font-medium'>Role Match</span>
+                    <InfoTooltip description='How closely the candidate&apos;s past job titles, responsibilities, and background line up with what this specific role requires.' />
                   </div>
                   <div className='text-sm capitalize'>
                     {fromSlug(aiFeedback.resume_role_match_status)}
@@ -461,6 +463,7 @@ const AIFeedbackModal: React.FC<AIFeedbackModalProps> = ({
                   <div className='flex items-center mb-2'>
                     {getStatusIcon(aiFeedback.resume_experience_validation)}
                     <span className='ml-2 font-medium'>Experience</span>
+                    <InfoTooltip description='Whether the candidate&apos;s years and depth of relevant experience meet what this role calls for.' />
                   </div>
                   <div className='text-sm capitalize'>
                     {fromSlug(aiFeedback.resume_experience_validation)}
