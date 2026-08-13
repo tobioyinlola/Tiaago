@@ -802,9 +802,11 @@ class FundWalletView(APIView):
             # create Paystack checkout session
             try:
                 paystack_handler = PayStackSubscriptionHandler()
+                frontend_base = str(settings.FRONTEND_URL).rstrip('/')
                 response = paystack_handler.fund_wallet(
                     customer_email=request.user.email,
                     amount=amount,
+                    callback_url=f"{frontend_base}/recruiter/dashboard/billing",
                 ) or {}
                 if response.get("status") and response.get("data"):
                     reference = response["data"].get("reference")
