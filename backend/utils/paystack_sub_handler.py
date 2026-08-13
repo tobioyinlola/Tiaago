@@ -72,7 +72,7 @@ class PayStackSubscriptionHandler(APIHandler):
         
     
     # method to fund wallet
-    def fund_wallet(self, customer_email: str, amount: str):
+    def fund_wallet(self, customer_email: str, amount: str, callback_url: str = None):
         url = f"{base_url}/transaction/initialize"
         headers = base_headers
         data = {
@@ -82,7 +82,13 @@ class PayStackSubscriptionHandler(APIHandler):
                 "type": "wallet_funding"
             }
         }
-        
+        # Without this, Paystack redirects to whatever default callback URL
+        # is configured in the merchant dashboard instead of back to the
+        # Tiaago billing page -- same callback_url role Stripe's success_url
+        # and Bachs' return_url play for their own checkouts.
+        if callback_url:
+            data["callback_url"] = callback_url
+
         try:
             response = self.requests.post(url, json=data, headers=headers)
             result = response.json()
