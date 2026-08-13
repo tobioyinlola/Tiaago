@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { ChevronDown, ChevronUp, Minus, Plus, Star } from "lucide-react";
+import { Minus, Plus, Star } from "lucide-react";
 
 import { CompetencyScore, ID, InterviewScorecard } from "@/app/common/types";
 import { cn } from "@/app/common/utils";
@@ -219,16 +219,13 @@ const ScorecardDrawer = ({
       <button
         type='button'
         onClick={onToggle}
-        className='h-12 shrink-0 bg-white border-b border-[#EAECF0] flex items-center justify-between px-4'
+        aria-expanded={open}
+        className='h-12 shrink-0 bg-white border-b border-[#EAECF0] flex items-center justify-between px-4 hover:bg-[#FAFAFB] transition-colors'
       >
         <span className='text-primaryBlack text-sm font-medium'>
           Competency Scorecard — {scoredCount} of {totalCount} scored
         </span>
-        {open ? (
-          <ChevronDown className='w-4 h-4 text-secondary-black' />
-        ) : (
-          <ChevronUp className='w-4 h-4 text-secondary-black' />
-        )}
+        <span className='w-8 h-1 rounded-full bg-[#D0D5DD]' aria-hidden='true' />
       </button>
 
       {open && (

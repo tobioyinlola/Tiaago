@@ -923,6 +923,8 @@ export type InterviewReview = {
   summary: InterviewSummaryData | null;
   feedback: InterviewCandidateFeedbackData | null;
   has_candidate_email: boolean;
+  job_application_id: string | null;
+  round: number;
 };
 
 export type InterviewNotesData = {

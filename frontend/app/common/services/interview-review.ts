@@ -65,7 +65,7 @@ export const regenerateInterviewSummary = async (interviewId: ID): Promise<ApiRe
 
 export const submitInterviewDecision = async (
   interviewId: ID,
-  payload: { recommendation: string; confidence: string; overall_score?: number }
+  payload: { recommendation: string; confidence: string; overall_score?: number; rejection_reason?: string }
 ): Promise<ApiResponse<InterviewSummaryData>> => {
   try {
     const data = await serverKyInstance
@@ -75,6 +75,22 @@ export const submitInterviewDecision = async (
   } catch (error) {
     const errMsg = await handleServerApiCallError(error);
     console.log("submitInterviewDecision Error: ", errMsg);
+    return { success: false, error: errMsg };
+  }
+};
+
+// "Advance to 2nd interview" -- re-invites the candidate to interview the
+// same way the first round did (see scheduler.review_views.InterviewAdvanceRoundView),
+// as an alternative to submitting a Yes/No recommendation.
+export const advanceInterviewRound = async (interviewId: ID): Promise<ApiResponse<{ status: string }>> => {
+  try {
+    const data = await serverKyInstance
+      .post(`schedulers/${interviewId}/advance-round/`)
+      .json<{ status: string }>();
+    return { success: true, data };
+  } catch (error) {
+    const errMsg = await handleServerApiCallError(error);
+    console.log("advanceInterviewRound Error: ", errMsg);
     return { success: false, error: errMsg };
   }
 };

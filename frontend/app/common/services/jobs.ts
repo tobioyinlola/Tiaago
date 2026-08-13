@@ -101,6 +101,25 @@ export const trackJobView = async (applyToken: string): Promise<void> => {
   }
 };
 
+export interface DashboardStats {
+  active_jobs: number;
+  standalone_assessments: number;
+  pipeline_candidates: number;
+  outreach_sent: number;
+}
+
+/** The recruiter dashboard's 4 headline stat cards, in one call. Never
+ * throws: a failed fetch falls back to all-zero cards rather than breaking
+ * the dashboard. */
+export const getDashboardStats = async (): Promise<DashboardStats> => {
+  try {
+    return await serverKyInstance.get<DashboardStats>("jobs/dashboard-stats/").json();
+  } catch (error) {
+    console.log("getDashboardStats Error: ", error);
+    return { active_jobs: 0, standalone_assessments: 0, pipeline_candidates: 0, outreach_sent: 0 };
+  }
+};
+
 /** Basic public/approved-only job data (title, company) keyed on public_id --
  * for pages (like a talent's own interview-slots page) that only have a
  * job's public_id and aren't its owning recruiter, so getJob()'s owner-only

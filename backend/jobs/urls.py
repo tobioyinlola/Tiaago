@@ -40,10 +40,12 @@ from .views import (
     PortfolioEducationDetailView,
     CompanyProfileView,
     JobDraftSaveView,
+    DashboardStatsView,
 )
 
 urlpatterns = [
     path("", JobListCreateView.as_view(), name="job-list-create"),
+    path("dashboard-stats/", DashboardStatsView.as_view(), name="dashboard-stats"),
     path("draft/", JobDraftSaveView.as_view(), name="job-draft-save"),
     path("generate-assessment-questions/", GenerateAssessmentQuestionsView.as_view(), name="generate-assessment-questions"),
     path(

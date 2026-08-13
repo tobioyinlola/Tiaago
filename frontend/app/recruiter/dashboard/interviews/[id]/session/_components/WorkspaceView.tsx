@@ -6,17 +6,24 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
-import { ID, InterviewCompetency, PreparationQuestion } from "@/app/common/types";
+import { ID } from "@/app/common/types";
 import { startInterview, endInterview } from "@/app/common/services/interview-workspace";
-import { getInterviewPreparation, updateInterviewPreparationQuestions } from "@/app/common/services/interview-preparation";
 import { useInterviewTranscription } from "@/app/common/hooks/useInterviewTranscription";
 import VideoColumn from "./VideoColumn";
-import QuestionsPanel from "./QuestionsPanel";
-import NotesEditor from "./NotesEditor";
-import AICopilotPanel from "./AICopilotPanel";
 import ScorecardDrawer from "./ScorecardDrawer";
 import InterviewTimer from "./InterviewTimer";
 import EndInterviewModal from "./EndInterviewModal";
+// ─────────────────────────────────────────────────────────────────────────
+// AI COPILOT -- commented out, not the active layout for now. Reactivate by
+// restoring this import, the questions/competencies/notes state block, and
+// the AICopilotPanel usage below (all left in place, just commented out) --
+// see PreparationQuestion/InterviewCompetency imports and
+// getInterviewPreparation/updateInterviewPreparationQuestions services,
+// which are only needed again once this comes back.
+// import { InterviewCompetency, PreparationQuestion } from "@/app/common/types";
+// import { getInterviewPreparation, updateInterviewPreparationQuestions } from "@/app/common/services/interview-preparation";
+// import AICopilotPanel from "./AICopilotPanel";
+// ─────────────────────────────────────────────────────────────────────────
 
 type Phase = "starting" | "in-call" | "error";
 
@@ -45,30 +52,37 @@ const WorkspaceView = ({
   const [transcriptionWsUrl, setTranscriptionWsUrl] = useState<string | null>(null);
   const [startedAt] = useState(() => Date.now());
 
-  const [questions, setQuestions] = useState<PreparationQuestion[]>([]);
-  const [competencies, setCompetencies] = useState<InterviewCompetency[]>([]);
-  const [activeQuestion, setActiveQuestion] = useState<PreparationQuestion | null>(null);
-
-  const [notesAppendText, setNotesAppendText] = useState<{ text: string; token: number } | null>(null);
-  const appendToNotes = (text: string) =>
-    setNotesAppendText({ text, token: Date.now() });
+  // ───────────────────────────────────────────────────────────────────────
+  // AI COPILOT -- commented out along with the panel itself (see imports
+  // above). This state existed only to feed QuestionsPanel/NotesEditor/
+  // AICopilotPanel; nothing else in this file reads it.
+  // const [questions, setQuestions] = useState<PreparationQuestion[]>([]);
+  // const [competencies, setCompetencies] = useState<InterviewCompetency[]>([]);
+  // const [activeQuestion, setActiveQuestion] = useState<PreparationQuestion | null>(null);
+  // const [notesAppendText, setNotesAppendText] = useState<{ text: string; token: number } | null>(null);
+  // const appendToNotes = (text: string) =>
+  //   setNotesAppendText({ text, token: Date.now() });
+  // ───────────────────────────────────────────────────────────────────────
 
   const [scorecardOpen, setScorecardOpen] = useState(false);
   const [endModalOpen, setEndModalOpen] = useState(false);
   const [ending, setEnding] = useState(false);
 
-  const { segments, suggestions, evidenceByCompetency, sendActiveQuestion } = useInterviewTranscription({
+  // Kept running even with the AI Copilot UI hidden -- this hook doesn't
+  // just power the live suggestions panel, it streams audio chunks to the
+  // backend's transcription websocket, which is what populates the
+  // Scorecard's AI-suggested scores and evidence quotes after the call.
+  // Turning this off would silently break that pipeline, not just hide a
+  // panel, so it stays wired to the call regardless of the panel's
+  // visibility. Its returned live-suggestion data just isn't rendered
+  // anywhere right now.
+  useInterviewTranscription({
     wsUrl: transcriptionWsUrl,
     accessToken,
     call,
     startedAt,
     enabled: phase === "in-call",
   });
-
-  const handleSetActive = (question: PreparationQuestion | null) => {
-    setActiveQuestion(question);
-    sendActiveQuestion(question?.text ?? null);
-  };
 
   // Full viewport, no page scroll -- restore on unmount.
   useEffect(() => {
@@ -113,23 +127,24 @@ const WorkspaceView = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [interviewId]);
 
-  useEffect(() => {
-    getInterviewPreparation(interviewId)
-      .then(prep => {
-        setQuestions(prep.questions || []);
-        setCompetencies(prep.competencies || []);
-      })
-      .catch(() => {});
-  }, [interviewId]);
-
-  const persistQuestions = async (next: PreparationQuestion[]) => {
-    setQuestions(next);
-    try {
-      await updateInterviewPreparationQuestions(interviewId, next);
-    } catch {
-      toast.error("Could not save question progress.");
-    }
-  };
+  // AI COPILOT -- commented out along with the panel/state above.
+  // useEffect(() => {
+  //   getInterviewPreparation(interviewId)
+  //     .then(prep => {
+  //       setQuestions(prep.questions || []);
+  //       setCompetencies(prep.competencies || []);
+  //     })
+  //     .catch(() => {});
+  // }, [interviewId]);
+  //
+  // const persistQuestions = async (next: PreparationQuestion[]) => {
+  //   setQuestions(next);
+  //   try {
+  //     await updateInterviewPreparationQuestions(interviewId, next);
+  //   } catch {
+  //     toast.error("Could not save question progress.");
+  //   }
+  // };
 
   const handleEndInterview = async () => {
     setEnding(true);
@@ -174,17 +189,19 @@ const WorkspaceView = ({
   return (
     <DailyProvider callObject={call}>
       <div className='fixed inset-0 flex flex-col bg-[#F5F6F7]'>
-        <header className='h-14 shrink-0 bg-white border-b border-[#EAECF0] flex items-center justify-between px-4'>
-          <div className='flex items-center gap-3 min-w-0'>
+        <header className='h-14 shrink-0 bg-white border-b border-[#EAECF0] flex items-center justify-between gap-2 px-3 sm:px-4'>
+          <div className='flex items-center gap-3 min-w-0 flex-1'>
             <p className='text-primaryBlack text-sm font-medium truncate'>{candidateName}</p>
             <span className='text-secondary-black text-xs truncate max-sm:hidden'>{jobTitle}</span>
           </div>
-          <InterviewTimer startedAt={startedAt} durationMinutes={durationMinutes} />
-          <div className='flex items-center gap-3'>
+          <div className='shrink-0'>
+            <InterviewTimer startedAt={startedAt} durationMinutes={durationMinutes} />
+          </div>
+          <div className='flex items-center gap-3 shrink-0 flex-1 justify-end'>
             {recordingEnabled && (
               <span className='flex items-center gap-1.5'>
                 <span className='w-2 h-2 rounded-full bg-red-500 animate-pulse' />
-                <span className='text-primaryBlack text-xs font-medium'>REC</span>
+                <span className='text-primaryBlack text-xs font-medium max-sm:hidden'>REC</span>
               </span>
             )}
             <button
@@ -192,45 +209,20 @@ const WorkspaceView = ({
               onClick={() => setEndModalOpen(true)}
               className='btn btn-sm rounded-lg !bg-red-600 !text-white border-none hover:!bg-red-700'
             >
-              End Interview
+              <span className='max-sm:hidden'>End Interview</span>
+              <span className='sm:hidden'>End</span>
             </button>
           </div>
         </header>
 
-        <div className='flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-10 gap-px bg-[#EAECF0]'>
-          <div className='lg:col-span-3 bg-black min-h-0'>
-            <VideoColumn roomUrl={roomUrl} token={participantToken} candidateName={candidateName} />
-          </div>
-
-          <div className='lg:col-span-4 bg-[#F5F6F7] min-h-0 flex flex-col gap-px overflow-hidden'>
-            <div className='flex-[55] min-h-0 bg-white overflow-y-auto'>
-              <QuestionsPanel
-                questions={questions}
-                competencies={competencies}
-                onChange={persistQuestions}
-                onSetActive={handleSetActive}
-                onUseFollowup={appendToNotes}
-              />
-            </div>
-            <div className='flex-[45] min-h-0 bg-white overflow-hidden'>
-              <NotesEditor interviewId={interviewId} appendSignal={notesAppendText} />
-            </div>
-          </div>
-
-          <div className='lg:col-span-3 bg-white min-h-0 overflow-y-auto'>
-            <AICopilotPanel
-              interviewId={interviewId}
-              activeQuestion={activeQuestion}
-              questions={questions}
-              competencies={competencies}
-              durationMinutes={durationMinutes}
-              startedAt={startedAt}
-              onUseFollowup={appendToNotes}
-              segments={segments}
-              suggestions={suggestions}
-              evidenceByCompetency={evidenceByCompetency}
-            />
-          </div>
+        {/* AI Copilot side panel commented out -- video now fills the full
+            width, matching the candidate's own full-screen call view (see
+            CandidateVideoCall.tsx). Reactivate by restoring the flex-row
+            split below (video: lg:flex-1, panel: lg:w-[400px] xl:w-[440px])
+            and the <AICopilotPanel /> usage, alongside the state/imports
+            commented out above. */}
+        <div className='flex-1 min-h-0 bg-black pb-12'>
+          <VideoColumn roomUrl={roomUrl} token={participantToken} candidateName={candidateName} />
         </div>
 
         <ScorecardDrawer

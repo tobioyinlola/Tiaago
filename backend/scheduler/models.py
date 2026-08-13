@@ -77,6 +77,13 @@ class Scheduler(models.Model):
         null=True,
         blank=True,
     )
+    # Which interview round this is for the candidate's job application --
+    # 1 for the first interview, 2 for a second, etc. Derived at creation
+    # time from how many prior Scheduler rows already exist for the same
+    # job_application (see jobs.views._claim_interview_slot) rather than
+    # tracked anywhere else, since job_application already allows multiple
+    # scheduled_meetings and this is just a label for "which one is this."
+    round = models.PositiveSmallIntegerField(default=1)
     company = models.ForeignKey(
         Company,
         related_name="schedules",

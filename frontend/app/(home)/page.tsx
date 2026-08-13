@@ -166,14 +166,13 @@ const Recruiters = () => {
           <div className='md:container mx-auto pt-[77px] md:pt-[142px] px-4 sm:px-6 lg:px-8 mt-[84px] relative border-x border-white/10'>
             <div className='max-w-5xl mx-auto text-center'>
               <h1 className='text-[32px] md:text-5xl font-bold md:font-semibold text-white mb-2 font-onest'>
-                Recruit effortlessly with Tiaago&apos;s all-in-one hiring
-                platform
+                Your next hire is already in your pipeline.
               </h1>
 
               <p className='text-lg md:text-lg max-md:font-medium text-white/70 font-onest mb-8 sm:mb-10 max-w-3xl mx-auto px-4 sm:px-0'>
-                Source candidates, organize your pipeline, automate screening,
-                assess real skills, and run data-driven interviews without
-                switching tools.
+                Tiaago screens resumes, generates assessments, and surfaces your
+                best candidates automatically so you spend more time making
+                placements and less time reading CVs.
               </p>
 
               <div className='flex gap-3 sm:gap-4 justify-center'>
@@ -197,13 +196,16 @@ const Recruiters = () => {
             </div>
 
             <div className='bg-[#0A0A0A0A] p-2 md:p-3 rounded-xl mt-[95px]'>
-              <Image
-                src='/assets/images/home/hero.png'
-                alt='Hero image'
-                className='object-cover rounded-xl w-full mx-auto'
-                width={1416}
-                height={907.47998046875}
-              />
+              <div className='relative w-full rounded-xl overflow-hidden shadow-2xl' style={{ aspectRatio: "16 / 9" }}>
+                <iframe
+                  src='https://www.youtube.com/embed/_QLWQnn2hSs'
+                  title='Tiaago product walkthrough'
+                  className='absolute inset-0 w-full h-full rounded-xl border-0'
+                  allow='accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share'
+                  allowFullScreen
+                  loading='lazy'
+                />
+              </div>
             </div>
           </div>
         </section>

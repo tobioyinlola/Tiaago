@@ -25,6 +25,23 @@ const PRICE_FIELDS = {
     { key: "assessment_ngn", label: "Assessment price", suffix: "per candidate" },
     { key: "minimum_topup_ngn", label: "Minimum top-up amount", suffix: "" },
   ],
+  interviews: [
+    {
+      key: "ai_interview_price_ngn",
+      label: "AI interview price",
+      suffix: "per candidate -- first 3 per organisation are free",
+    },
+    {
+      key: "interview_package_price_ngn",
+      label: "Human interview package price",
+      suffix: "per candidate -- first 3 per organisation are free",
+    },
+    {
+      key: "interview_recording_addon_price_ngn",
+      label: "Interview recording add-on",
+      suffix: "on top of the interview package, when recording is enabled",
+    },
+  ],
 };
 
 const PricingPage = async () => {
@@ -74,6 +91,13 @@ const PricingPage = async () => {
         title="NGN Pricing"
         currencySymbol="₦"
         fields={PRICE_FIELDS.ngn.map(f => ({ ...f, row: byKey[f.key] }))}
+        canManage={canManage}
+      />
+
+      <PricingSection
+        title="Interview Pricing (NGN, flat regardless of wallet currency)"
+        currencySymbol="₦"
+        fields={PRICE_FIELDS.interviews.map(f => ({ ...f, row: byKey[f.key] }))}
         canManage={canManage}
       />
     </div>

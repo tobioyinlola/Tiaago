@@ -9,7 +9,6 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
-import { isThisMonth } from "date-fns";
 import { LuExternalLink, LuPlus } from "react-icons/lu";
 
 import DisplayErrorMessages, {
@@ -18,7 +17,7 @@ import DisplayErrorMessages, {
 
 import { Job } from "@/app/common/types";
 import SortIcon from "@/app/common/icons/SortIcon";
-import { getJobs } from "@/app/common/services/jobs";
+import { getJobs, getDashboardStats } from "@/app/common/services/jobs";
 import { getPipeline } from "@/app/common/services/sourcing";
 import ScrollArea from "@/app/common/components/ScrollArea";
 import { getCurrentUser } from "@/app/common/services/profile";
@@ -34,8 +33,8 @@ export const metadata = {
 const RecruiterDashboard = async () => {
   const errors: DisplayErrorMessagesProps["errors"] = [];
 
-  // Fetch user, jobs, pipeline, and role in parallel -- they are independent
-  const [userRes, jobsRes, teamRoleData, pipeline] = await Promise.all([
+  // Fetch user, jobs, pipeline, role, and stats in parallel -- they are independent
+  const [userRes, jobsRes, teamRoleData, pipeline, dashboardStats] = await Promise.all([
     getCurrentUser("recruiter"),
     getJobs(1, 5).catch(async e => {
       const error = await handleServerApiCallError(e);
@@ -48,6 +47,7 @@ const RecruiterDashboard = async () => {
     }),
     getTeamRole().catch(() => null),
     getPipeline().catch(() => null),
+    getDashboardStats(),
   ]);
   const currentUser = userRes.currentUser;
   const teamRole = teamRoleData?.role ?? "admin";
@@ -55,18 +55,13 @@ const RecruiterDashboard = async () => {
   // Unfinished drafts aren't real postings yet -- keep them out of the
   // dashboard's recent-jobs preview, same as the full Jobs Posted list.
   const jobsPosted = (jobsRes?.results || []).filter(job => job.job_status !== "DRAFT");
-  const pipelineCount = pipeline?.total_in_pipeline ?? 0;
-
-  const activeJobsThisMonth = jobsPosted.filter(job => {
-    const jobDate = new Date(job.date_created);
-    return isThisMonth(jobDate) && job.job_status === "ACTIVE";
-  });
+  const pipelineCount = pipeline?.total_in_pipeline ?? dashboardStats.pipeline_candidates;
 
   const stats = [
     {
       icon: Users,
-      label: "Candidates Sourced",
-      value: "0",
+      label: "Pipeline Candidates",
+      value: dashboardStats.pipeline_candidates,
       unit: "total",
       gradient: "from-primary/20 to-primary/5",
       iconColor: "text-primary",
@@ -74,8 +69,8 @@ const RecruiterDashboard = async () => {
     },
     {
       icon: FileText,
-      label: "Assessments Created",
-      value: "0",
+      label: "Standalone Assessments",
+      value: dashboardStats.standalone_assessments,
       unit: "total",
       gradient: "from-info/20 to-info/5",
       iconColor: "text-info",
@@ -84,8 +79,8 @@ const RecruiterDashboard = async () => {
     {
       icon: CalendarCheck,
       label: "Active Jobs",
-      value: activeJobsThisMonth.length,
-      unit: "this month",
+      value: dashboardStats.active_jobs,
+      unit: "total",
       gradient: "from-success/20 to-success/5",
       iconColor: "text-success",
       borderColor: "border-success/20",
@@ -93,7 +88,7 @@ const RecruiterDashboard = async () => {
     {
       icon: Mail,
       label: "Outreach Sent",
-      value: "0",
+      value: dashboardStats.outreach_sent,
       unit: "total",
       gradient: "from-warning/20 to-warning/5",
       iconColor: "text-warning",

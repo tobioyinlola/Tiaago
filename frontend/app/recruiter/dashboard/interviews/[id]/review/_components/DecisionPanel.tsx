@@ -6,8 +6,17 @@ import { CheckCircle2 } from "lucide-react";
 
 import { ID, InterviewConfidenceValue, InterviewRecommendationValue, InterviewReview } from "@/app/common/types";
 import { cn } from "@/app/common/utils";
-import { submitInterviewDecision } from "@/app/common/services/interview-review";
+import { advanceInterviewRound, submitInterviewDecision } from "@/app/common/services/interview-review";
 import { getInterviewScorecard } from "@/app/common/services/interview-workspace";
+import { Button } from "@/app/common/components/ui/button";
+import { Textarea } from "@/app/common/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/app/common/components/ui/dialog";
 
 const RECOMMENDATIONS: { value: InterviewRecommendationValue; label: string; color: string }[] = [
   { value: "STRONG_YES", label: "Strong Yes", color: "border-success bg-success/5 text-success" },
@@ -19,6 +28,8 @@ const RECOMMENDATIONS: { value: InterviewRecommendationValue; label: string; col
 
 const CONFIDENCE: InterviewConfidenceValue[] = ["LOW", "MEDIUM", "HIGH"];
 
+const REJECTING_RECOMMENDATIONS: InterviewRecommendationValue[] = ["NO", "STRONG_NO"];
+
 // Submitting a decision also syncs the candidate's pipeline stage (see
 // scheduler.review_views.InterviewDecisionView) -- surfaced here so the
 // recruiter isn't surprised that Strong No/No fires a rejection email
@@ -26,8 +37,8 @@ const CONFIDENCE: InterviewConfidenceValue[] = ["LOW", "MEDIUM", "HIGH"];
 const PIPELINE_NOTE: Partial<Record<InterviewRecommendationValue, string>> = {
   STRONG_YES: "Submitting will move this candidate to Offer Extended.",
   YES: "Submitting will move this candidate to Offer Extended.",
-  NO: "Submitting will reject this candidate and email them the reason now.",
-  STRONG_NO: "Submitting will reject this candidate and email them the reason now.",
+  NO: "Submitting will reject this candidate -- you'll be asked for a reason to email them.",
+  STRONG_NO: "Submitting will reject this candidate -- you'll be asked for a reason to email them.",
 };
 
 const scoreColor = (score: number | null) => {
@@ -53,6 +64,12 @@ const DecisionPanel = ({
   const [weightedScore, setWeightedScore] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  const [rejectModalOpen, setRejectModalOpen] = useState(false);
+  const [rejectionReason, setRejectionReason] = useState("");
+
+  const [advancing, setAdvancing] = useState(false);
+  const [advanced, setAdvanced] = useState(false);
+
   useEffect(() => {
     getInterviewScorecard(interviewId).then(res => {
       if (res.success) setWeightedScore(res.data.overall_score);
@@ -60,17 +77,18 @@ const DecisionPanel = ({
   }, [interviewId]);
 
   const submitted = !!review.summary?.submitted_at;
+  const alreadyRejected = review.summary?.recommendation
+    ? REJECTING_RECOMMENDATIONS.includes(review.summary.recommendation) && submitted
+    : false;
 
-  const handleSubmit = async () => {
-    if (!recommendation || !confidence) {
-      toast.error("Choose a recommendation and confidence level first.");
-      return;
-    }
+  const doSubmit = async (extra?: { rejection_reason?: string }) => {
+    if (!recommendation || !confidence) return;
     setSubmitting(true);
     const res = await submitInterviewDecision(interviewId, {
       recommendation,
       confidence,
       overall_score: weightedScore ?? undefined,
+      ...extra,
     });
     setSubmitting(false);
     if (!res.success) {
@@ -78,8 +96,45 @@ const DecisionPanel = ({
       return;
     }
     toast.success("Decision submitted");
+    setRejectModalOpen(false);
+    setRejectionReason("");
     onReviewChange({ ...review, summary: res.data });
   };
+
+  const handleSubmit = async () => {
+    if (!recommendation || !confidence) {
+      toast.error("Choose a recommendation and confidence level first.");
+      return;
+    }
+    // A reason is only required the first time this application actually
+    // transitions into Rejected -- resubmitting an already-rejected
+    // decision (e.g. after editing confidence) skips straight through,
+    // matching the backend's own idempotency.
+    if (REJECTING_RECOMMENDATIONS.includes(recommendation) && !alreadyRejected) {
+      setRejectModalOpen(true);
+      return;
+    }
+    await doSubmit();
+  };
+
+  const handleConfirmReject = async () => {
+    if (!rejectionReason.trim()) return;
+    await doSubmit({ rejection_reason: rejectionReason.trim() });
+  };
+
+  const handleAdvanceRound = async () => {
+    setAdvancing(true);
+    const res = await advanceInterviewRound(interviewId);
+    setAdvancing(false);
+    if (!res.success) {
+      toast.error(res.error);
+      return;
+    }
+    toast.success("Candidate invited to a second interview");
+    setAdvanced(true);
+  };
+
+  const canAdvanceRound = review.round < 2 && !advanced && !!review.job_application_id;
 
   return (
     <aside className='w-[300px] shrink-0 bg-white border-l border-[#EAECF0] flex flex-col overflow-y-auto'>
@@ -89,6 +144,19 @@ const DecisionPanel = ({
             <CheckCircle2 className='w-3.5 h-3.5' />
             Decision submitted
           </div>
+        )}
+
+        {advanced && (
+          <div className='flex items-center gap-2 text-primary text-xs font-medium bg-primary/5 border border-primary/20 rounded-lg px-3 py-2'>
+            <CheckCircle2 className='w-3.5 h-3.5' />
+            Invited to a second interview
+          </div>
+        )}
+
+        {review.round > 1 && (
+          <span className='text-[11px] font-medium text-primary bg-primary/10 px-2 py-0.5 rounded-full w-fit'>
+            Interview #{review.round}
+          </span>
         )}
 
         <div>
@@ -162,7 +230,57 @@ const DecisionPanel = ({
         >
           {submitting ? "Submitting..." : submitted ? "Update Decision" : "Submit Decision"}
         </button>
+
+        {canAdvanceRound && (
+          <>
+            <div className='flex items-center gap-2 text-[11px] text-secondary-black'>
+              <span className='flex-1 border-t border-[#EAECF0]' />
+              or
+              <span className='flex-1 border-t border-[#EAECF0]' />
+            </div>
+            <div>
+              <button
+                type='button'
+                onClick={handleAdvanceRound}
+                disabled={advancing}
+                className='btn btn-outline rounded-lg w-full'
+              >
+                {advancing ? "Inviting..." : "Advance to 2nd interview"}
+              </button>
+              <p className='text-[11px] text-secondary-black mt-1.5'>
+                Invites this candidate to a second interview, the same way the first one worked -- they&apos;ll
+                get an email to pick a new time slot.
+              </p>
+            </div>
+          </>
+        )}
       </div>
+
+      <Dialog open={rejectModalOpen} onOpenChange={open => !open && setRejectModalOpen(false)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reject candidate</DialogTitle>
+          </DialogHeader>
+          <p className='text-sm text-secondary-black'>
+            A reason is required so it can be included in the rejection email sent to{" "}
+            <span className='font-medium'>{review.candidate_name}</span>.
+          </p>
+          <Textarea
+            value={rejectionReason}
+            onChange={e => setRejectionReason(e.target.value)}
+            rows={4}
+            placeholder='Why is this candidate being rejected?'
+          />
+          <DialogFooter>
+            <Button variant='outline' onClick={() => setRejectModalOpen(false)} disabled={submitting}>
+              Cancel
+            </Button>
+            <Button variant='destructive' disabled={!rejectionReason.trim() || submitting} onClick={handleConfirmReject}>
+              {submitting ? "Rejecting..." : "Reject candidate"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </aside>
   );
 };

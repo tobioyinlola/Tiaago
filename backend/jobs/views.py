@@ -345,6 +345,45 @@ class JobListCreateView(ListCreateAPIView):
         return Response(serializer.data, status=HTTP_201_CREATED)
 
 
+class DashboardStatsView(APIView):
+    """GET /jobs/dashboard-stats/ -- the recruiter dashboard's 4 headline
+    numbers in one call: total active jobs (uncapped, unlike the "this
+    month" figure the dashboard used to compute client-side from its
+    5-job preview fetch), standalone assessments (company-owned, not tied
+    to a job -- same filter GeneralSkillAssessmentAPIView.get uses),
+    candidates currently in the pipeline, and outreach emails actually
+    sent. All scoped to the caller's company."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        company = get_user_company(request.user)
+        if not company:
+            return Response({
+                "active_jobs": 0,
+                "standalone_assessments": 0,
+                "pipeline_candidates": 0,
+                "outreach_sent": 0,
+            })
+
+        from skill_assessment.models import GeneralSkillAssessment
+        from sourcing.models import OutreachEmail, PipelineCandidate
+
+        active_jobs = Job.objects.filter(company=company, job_status=Job.JobStatus.ACTIVE).count()
+        standalone_assessments = GeneralSkillAssessment.objects.filter(
+            company=company, job_application__isnull=True, source_template__isnull=True
+        ).count()
+        pipeline_candidates = PipelineCandidate.objects.filter(company=company).count()
+        outreach_sent = OutreachEmail.objects.filter(company=company, status=OutreachEmail.Status.SENT).count()
+
+        return Response({
+            "active_jobs": active_jobs,
+            "standalone_assessments": standalone_assessments,
+            "pipeline_candidates": pipeline_candidates,
+            "outreach_sent": outreach_sent,
+        })
+
+
 class JobDraftSaveView(GenericAPIView):
     """Auto-save endpoint for the job-creation wizard. Upserts a single
     job_status=DRAFT row per company -- never creates a second one (the
@@ -558,6 +597,7 @@ def _claim_interview_slot(job, job_application, slot_id):
             accepted=True,
             description=f"Interview for {job.title} at {job.company.company_name}",
             duration_minutes=duration_minutes or 45,
+            round=Scheduler.objects.filter(job_application=job_application).count() + 1,
         )
 
         room_created = False
@@ -970,6 +1010,9 @@ class JobApplicationRetrieveUpdateView(RetrieveUpdateAPIView):
                 send_manual_rejection_mail.apply_async(
                     args=[instance.id, rejection_reason], countdown=REJECTION_MAIL_DELAY_SECONDS
                 )
+                from .services import cancel_pending_tasks_for_rejected_application
+
+                cancel_pending_tasks_for_rejected_application(instance.id)
 
         if getattr(instance, "_prefetched_objects_cache", None):
             # If 'prefetch_related' has been applied to a queryset, we need to

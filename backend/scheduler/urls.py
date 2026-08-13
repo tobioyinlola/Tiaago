@@ -24,6 +24,7 @@ from .review_views import (
     InterviewSummaryEditView,
     RegenerateInterviewSummaryView,
     InterviewDecisionView,
+    InterviewAdvanceRoundView,
     InterviewFeedbackEditView,
     SendInterviewFeedbackView,
 )
@@ -67,6 +68,7 @@ urlpatterns = [
         name='interview-summary-regenerate',
     ),
     path("<uuid:pk>/decision/", InterviewDecisionView.as_view(), name='interview-decision'),
+    path("<uuid:pk>/advance-round/", InterviewAdvanceRoundView.as_view(), name='interview-advance-round'),
     path("<uuid:pk>/feedback/", InterviewFeedbackEditView.as_view(), name='interview-feedback-edit'),
     path("<uuid:pk>/feedback/send/", SendInterviewFeedbackView.as_view(), name='interview-feedback-send'),
     path("interview-settings/", CompanyInterviewSettingsView.as_view(), name='company-interview-settings'),

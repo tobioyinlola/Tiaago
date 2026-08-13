@@ -1,7 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { AlertOctagon, MessageCircle, Sparkles } from "lucide-react";
+import {
+  AlertOctagon,
+  ListChecks,
+  Lightbulb,
+  MessageCircle,
+  MessageSquareText,
+  NotebookPen,
+  Sparkles,
+  TrendingUp,
+} from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
 import {
   CompetencyEvidence,
@@ -16,8 +26,18 @@ import { cn } from "@/app/common/utils";
 import { getInterviewScorecard } from "@/app/common/services/interview-workspace";
 import TranscriptTab from "./TranscriptTab";
 import SuggestionsTab from "./SuggestionsTab";
+import QuestionsPanel from "./QuestionsPanel";
+import NotesEditor from "./NotesEditor";
 
-type Tab = "suggestions" | "transcript" | "insights";
+type Tab = "guide" | "notes" | "suggestions" | "transcript" | "insights";
+
+const TABS: { key: Tab; label: string; icon: LucideIcon }[] = [
+  { key: "guide", label: "Guide", icon: ListChecks },
+  { key: "notes", label: "Notes", icon: NotebookPen },
+  { key: "suggestions", label: "Suggestions", icon: Lightbulb },
+  { key: "transcript", label: "Transcript", icon: MessageSquareText },
+  { key: "insights", label: "Insights", icon: TrendingUp },
+];
 
 const AICopilotPanel = ({
   interviewId,
@@ -27,6 +47,9 @@ const AICopilotPanel = ({
   durationMinutes,
   startedAt,
   onUseFollowup,
+  onChangeQuestions,
+  onSetActiveQuestion,
+  notesAppendSignal,
   segments,
   suggestions,
   evidenceByCompetency,
@@ -38,11 +61,14 @@ const AICopilotPanel = ({
   durationMinutes: number;
   startedAt: number;
   onUseFollowup: (text: string) => void;
+  onChangeQuestions: (questions: PreparationQuestion[]) => void;
+  onSetActiveQuestion: (question: PreparationQuestion | null) => void;
+  notesAppendSignal: { text: string; token: number } | null;
   segments: TranscriptSegment[];
   suggestions: CopilotSuggestionEvent[];
   evidenceByCompetency: Record<string, CompetencyEvidence[]>;
 }) => {
-  const [tab, setTab] = useState<Tab>("suggestions");
+  const [tab, setTab] = useState<Tab>("guide");
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
   const [elapsedMinutes, setElapsedMinutes] = useState(() =>
     Math.floor((Date.now() - startedAt) / 60000)
@@ -68,6 +94,8 @@ const AICopilotPanel = ({
     (_, i) => !dismissed.has(`${activeQuestion?.id}-${i}`)
   );
 
+  const isPanelTab = tab === "guide" || tab === "notes" || tab === "transcript";
+
   return (
     <div className='flex flex-col h-full'>
       <div className='flex items-center justify-between gap-2 px-4 py-3 border-b border-[#EAECF0] shrink-0'>
@@ -76,30 +104,51 @@ const AICopilotPanel = ({
           <p className='text-sm font-semibold text-primaryBlack'>AI Copilot</p>
         </div>
         {tab === "transcript" && !!segments.length && (
-          <span className='flex items-center gap-1 text-[10px] text-secondary-black'>
+          <span className='flex items-center gap-1 text-[10px] font-medium text-secondary-black'>
             <span className='w-1.5 h-1.5 rounded-full bg-success animate-pulse' />
             Live
           </span>
         )}
       </div>
 
-      <div className='flex border-b border-[#EAECF0] shrink-0'>
-        {(["suggestions", "transcript", "insights"] as Tab[]).map(t => (
+      <div className='flex overflow-x-auto border-b border-[#EAECF0] shrink-0 no-scrollbar'>
+        {TABS.map(({ key, label, icon: Icon }) => (
           <button
-            key={t}
+            key={key}
             type='button'
-            onClick={() => setTab(t)}
+            onClick={() => setTab(key)}
             className={cn(
-              "flex-1 text-xs font-medium py-2.5 capitalize border-b-2 -mb-px",
-              tab === t ? "border-primary text-primary" : "border-transparent text-secondary-black"
+              "flex shrink-0 items-center gap-1.5 whitespace-nowrap px-3.5 py-2.5 text-xs font-medium border-b-2 -mb-px transition-colors",
+              tab === key
+                ? "border-primary text-primary"
+                : "border-transparent text-secondary-black hover:text-primaryBlack"
             )}
           >
-            {t}
+            <Icon className='w-3.5 h-3.5' strokeWidth={2} />
+            {label}
           </button>
         ))}
       </div>
 
-      <div className={cn("flex-1 overflow-y-auto", tab === "transcript" ? "" : "p-4")}>
+      <div className={cn("flex-1 min-h-0", isPanelTab ? "overflow-hidden" : "overflow-y-auto p-4")}>
+        {tab === "guide" && (
+          <div className='h-full'>
+            <QuestionsPanel
+              questions={questions}
+              competencies={competencies}
+              onChange={onChangeQuestions}
+              onSetActive={onSetActiveQuestion}
+              onUseFollowup={onUseFollowup}
+            />
+          </div>
+        )}
+
+        {tab === "notes" && (
+          <div className='h-full'>
+            <NotesEditor interviewId={interviewId} appendSignal={notesAppendSignal} />
+          </div>
+        )}
+
         {tab === "suggestions" && (
           <div className='flex flex-col gap-4 p-4'>
             {(ratio >= 0.75 || unaskedCount > 0) && (

@@ -473,6 +473,9 @@ class RecruiterAIInterviewDecisionView(APIView):
                 JobApplication.objects.filter(id=interview.job_application_id).update(
                     status=JobApplication.JobApplicationStatus.REJECTED
                 )
+                from jobs.services import cancel_pending_tasks_for_rejected_application
+
+                cancel_pending_tasks_for_rejected_application(interview.job_application_id)
 
         return Response(_serialize_interview_detail(interview), status=HTTP_200_OK)
 

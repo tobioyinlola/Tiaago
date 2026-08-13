@@ -5,9 +5,9 @@ import { useState } from "react";
 import { Gift, ArrowRight } from "lucide-react";
 
 import {
-  pricingTiers,
+  pricingTiers as fallbackPricingTiers,
   currencyRates,
-  FREE_TIER_LIMIT,
+  FREE_TIER_LIMIT as FALLBACK_freeTierLimit,
   type Currency,
   type PricingTier,
 } from "../constants";
@@ -17,13 +17,27 @@ import { formatPrice as formatPriceUtil } from "@/app/common/utils";
 import Testimonials from "../../_components/Testimonials";
 import { CustomAuthButton } from "@/app/common/components/AuthButton";
 
-const Pricing = () => {
+const Pricing = ({
+  pricingTiers = fallbackPricingTiers,
+  freeTierLimit = FALLBACK_freeTierLimit,
+  defaultCurrency = "USD",
+}: {
+  /** Live from the admin-editable PricingConfig -- see pricing/page.tsx.
+   * Defaults only cover a caller that skips server-side fetching entirely. */
+  pricingTiers?: PricingTier[];
+  freeTierLimit?: number;
+  /** Visitor's geo-detected currency (NGN in Nigeria, USD elsewhere -- see
+   * common/utils/geo.ts) -- just the initial selection, the dropdown below
+   * still lets anyone switch currency manually. */
+  defaultCurrency?: Currency;
+}) => {
   const [usage, setUsage] = useState<{ [key: string]: number }>({
     "Resume Screening": 100,
     Assessment: 60,
+    "AI Interview": 10,
   });
 
-  const [selectedCurrency, setSelectedCurrency] = useState<Currency>("USD");
+  const [selectedCurrency, setSelectedCurrency] = useState<Currency>(defaultCurrency);
 
   // NGN uses the real backend price per tier directly (not derived via
   // currencyRates.NGN -- see the comment on PricingTier.pricePerUnitNGN).
@@ -46,12 +60,12 @@ const Pricing = () => {
 
   const getFreeCandidates = () => {
     const totalCandidates = getTotalCandidates();
-    return Math.min(totalCandidates, FREE_TIER_LIMIT);
+    return Math.min(totalCandidates, freeTierLimit);
   };
 
   const getPaidCandidates = () => {
     const totalCandidates = getTotalCandidates();
-    return Math.max(totalCandidates - FREE_TIER_LIMIT, 0);
+    return Math.max(totalCandidates - freeTierLimit, 0);
   };
 
   const calculatePaidCost = () => {
@@ -63,7 +77,7 @@ const Pricing = () => {
       (total, [tierName, count]) => {
         const tier = pricingTiers.find(t => t.name === tierName);
         if (!tier) return total;
-        const paidCount = Math.max(count - (FREE_TIER_LIMIT * count) / totalCandidates, 0);
+        const paidCount = Math.max(count - (freeTierLimit * count) / totalCandidates, 0);
         return total + getUnitPrice(tier) * paidCount;
       },
       0
@@ -93,12 +107,12 @@ const Pricing = () => {
           <div className='md:container mx-auto px-4 relative'>
             <div className='max-w-3xl mx-auto text-center'>
               <h1 className='text-4xl md:text-[60px] font-medium text-black font-onest mb-3 md:leading-[70px]'>
-                Choose the plan that fits your workflow
+                Simple, pay-as-you-go pricing
               </h1>
               <p className='text-sm md:text-lg text-[#5F6264] font-onest mb-6'>
-                Flexible pricing designed to scale with your needs. Whether
-                you’re a recruiter agency or a recuiter, find the right plan to
-                unlock all the features you need.
+                One transparent rate per candidate -- no tiers to pick between, no
+                seats to negotiate. Scale up or down with your hiring, and only
+                ever pay for what you actually use.
               </p>
             </div>
           </div>

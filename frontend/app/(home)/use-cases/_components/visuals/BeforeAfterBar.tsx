@@ -1,19 +1,30 @@
+"use client";
+
+import { m } from "framer-motion";
+
 /** Horizontal stacked-bar time-allocation visual for "Time Reclaimed" --
  * before: mostly screening (muted grey), after: mostly candidate/client
  * conversations (primary), both against a brand-navy "everything
- * else" remainder. */
+ * else" remainder. Bars grow into place from 0 width on scroll-in, so the
+ * "before" bar visibly reads as heavier than "after". */
 const Row = ({ label, screeningPct }: { label: string; screeningPct: number }) => (
   <div className='mb-6 last:mb-0'>
     <p className='text-xs font-jetbrains-mono uppercase tracking-widest text-[#667085] mb-2'>{label}</p>
     <div className='w-full h-10 rounded-lg overflow-hidden flex border border-[#E4E7EC]'>
-      <div
+      <m.div
         className={screeningPct >= 40 ? "bg-[#CBD2D9]" : "bg-primary"}
-        style={{ width: `${screeningPct}%` }}
+        initial={{ width: 0 }}
+        whileInView={{ width: `${screeningPct}%` }}
+        viewport={{ once: true, amount: 0.6 }}
+        transition={{ duration: 0.8, ease: "easeOut" }}
         title='Screening'
       />
-      <div
+      <m.div
         className={screeningPct >= 40 ? "bg-brand-navy" : "bg-brand-navy/80"}
-        style={{ width: `${100 - screeningPct}%` }}
+        initial={{ width: 0 }}
+        whileInView={{ width: `${100 - screeningPct}%` }}
+        viewport={{ once: true, amount: 0.6 }}
+        transition={{ duration: 0.8, ease: "easeOut", delay: 0.1 }}
         title='Candidate & client conversations'
       />
     </div>

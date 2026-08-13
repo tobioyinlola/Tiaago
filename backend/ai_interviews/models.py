@@ -27,6 +27,7 @@ class AIInterview(TimeStampedModel):
         NO_SHOW = "NO_SHOW", _("No show")
         ABANDONED = "ABANDONED", _("Abandoned")
         FAILED = "FAILED", _("Failed")
+        CANCELLED = "CANCELLED", _("Cancelled")
 
     class Recommendation(models.TextChoices):
         PROCEED = "PROCEED", _("Proceed")
