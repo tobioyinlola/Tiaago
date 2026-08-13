@@ -43,8 +43,14 @@ def _format_money(amount, currency):
 
 def get_or_create_wallet(company: Company) -> Wallet:
     """Currency is derived from the organisation's country -- Nigeria pays
-    in NGN via Paystack, everyone else pays in USD via Stripe."""
-    currency = COUNTRY_CURRENCY_MAP.get(company.country, "USD")
+    in NGN via Paystack, everyone else pays in USD via Stripe.
+
+    Reads company.company_rep.country (CustomUser.country, required at
+    signup), not company.country -- the latter is a separate, always-blank
+    field (null=True/blank=True, never actually populated anywhere) that
+    silently defaulted every wallet to USD regardless of the rep's real
+    country."""
+    currency = COUNTRY_CURRENCY_MAP.get(company.company_rep.country, "USD")
     wallet, _created = Wallet.objects.get_or_create(
         company=company,
         defaults={
