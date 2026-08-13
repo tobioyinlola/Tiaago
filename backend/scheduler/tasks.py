@@ -222,7 +222,8 @@ def recruiter_interview_acceptance_mail(user_id, company_name, meeting_id):
         meeting_details = get_meeting_details(meeting_instance)
         candidate_name = meeting_instance.candidate_full_name or "The candidate"
         result = emails.recruiter_interview_acceptance_mail(
-            user, company_name, meeting_details, candidate_name=candidate_name
+            user, company_name, meeting_details, candidate_name=candidate_name,
+            join_url=_recruiter_join_url(meeting_instance),
         )
         logger.info(f"Successfully sent interview acceptance notification for meeting {meeting_id}")
         return result

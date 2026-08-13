@@ -334,6 +334,12 @@ def get_email_template_and_context(
             "pipeline_url": settings.TIAAGO_STARTUP_LOGIN_URL,
             **meeting_ctx,
         }
+        # See the matching comment on recruiter_interview_reminder_mail below --
+        # the recruiter's join link is the authenticated dashboard workspace
+        # (scheduler.tasks._recruiter_join_url), not the raw, private Daily.co
+        # room_url that meeting_ctx would otherwise fall back to.
+        if kwargs.get("join_url"):
+            context["join_url"] = kwargs["join_url"]
 
     elif email_type == "recruiter_interview_reminder_mail":
         md = kwargs.get("meeting_details") or {}
@@ -721,10 +727,10 @@ def candidate_interview_confirmation_mail(user, company_name, meeting_details, j
     )
 
 
-def recruiter_interview_acceptance_mail(user, company_name, meeting_details, candidate_name=None):
+def recruiter_interview_acceptance_mail(user, company_name, meeting_details, candidate_name=None, join_url=None):
     template, ctx = get_email_template_and_context(
         user, "recruiter_interview_acceptance_mail", company_name=company_name,
-        meeting_details=meeting_details, candidate_name=candidate_name,
+        meeting_details=meeting_details, candidate_name=candidate_name, join_url=join_url,
     )
     if not template:
         return None

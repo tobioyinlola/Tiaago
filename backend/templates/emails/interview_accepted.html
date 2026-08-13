@@ -20,9 +20,15 @@
           <td align="right" style="padding:10px 0; font-family:'Inter',Arial,sans-serif; font-size:14px; font-weight:600; color:#0F172A; border-bottom:1px solid #EAEEF5;">{{ role|default:"Senior Frontend Engineer" }}</td>
         </tr>
         <tr>
-          <td style="padding:10px 0 18px; font-family:'Inter',Arial,sans-serif; font-size:14px; color:#64748B;">When</td>
-          <td align="right" style="padding:10px 0 18px; font-family:'Inter',Arial,sans-serif; font-size:14px; font-weight:600; color:#0F172A;">{{ when|default:"Thu, Jun 19 &middot; 2:00 PM WAT" }}</td>
+          <td style="padding:10px 0{% if join_url %} 10px{% else %} 18px{% endif %}; font-family:'Inter',Arial,sans-serif; font-size:14px; color:#64748B;{% if join_url %} border-bottom:1px solid #EAEEF5;{% endif %}">When</td>
+          <td align="right" style="padding:10px 0{% if join_url %} 10px{% else %} 18px{% endif %}; font-family:'Inter',Arial,sans-serif; font-size:14px; font-weight:600; color:#0F172A;{% if join_url %} border-bottom:1px solid #EAEEF5;{% endif %}">{{ when|default:"Thu, Jun 19 &middot; 2:00 PM WAT" }}</td>
         </tr>
+        {% if join_url %}
+        <tr>
+          <td style="padding:10px 0 18px; font-family:'Inter',Arial,sans-serif; font-size:14px; color:#64748B;">Interview room</td>
+          <td align="right" style="padding:10px 0 18px; font-family:'Inter',Arial,sans-serif; font-size:14px; font-weight:600;"><a href="{{ join_url }}" target="_blank" style="color:#1C3477; text-decoration:underline;">Open link&nbsp;&rarr;</a></td>
+        </tr>
+        {% endif %}
       </table>
     </td></tr>
   </table>

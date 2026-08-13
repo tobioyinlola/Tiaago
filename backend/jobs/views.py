@@ -558,6 +558,7 @@ def _claim_interview_slot(job, job_application, slot_id):
             accepted=True,
             description=f"Interview for {job.title} at {job.company.company_name}",
             duration_minutes=duration_minutes or 45,
+            round=Scheduler.objects.filter(job_application=job_application).count() + 1,
         )
 
         room_created = False

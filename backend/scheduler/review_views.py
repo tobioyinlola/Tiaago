@@ -79,6 +79,8 @@ class InterviewReviewView(APIView):
             "summary": _serialize_summary(summary),
             "feedback": _serialize_feedback(feedback),
             "has_candidate_email": bool(talent and talent.user and talent.user.email),
+            "job_application_id": str(interview.job_application_id) if interview.job_application_id else None,
+            "round": interview.round,
         }, status=HTTP_200_OK)
 
 
@@ -162,23 +164,6 @@ class RegenerateInterviewSummaryView(APIView):
         return Response(_serialize_summary(summary), status=HTTP_200_OK)
 
 
-def _rejection_reason_from_summary(summary):
-    """Best-effort human-readable reason for the candidate's rejection
-    email, built from whatever the AI summary (or the recruiter's edits to
-    it) actually contains -- concerns is an array of {text, severity}
-    objects, see InterviewSummary.concerns."""
-    concern_texts = [
-        c.get("text", "").strip()
-        for c in (summary.concerns or [])
-        if isinstance(c, dict) and c.get("text", "").strip()
-    ]
-    if concern_texts:
-        return "; ".join(concern_texts)
-    if summary.executive_summary.strip():
-        return summary.executive_summary.strip()
-    return "This candidate was not selected to move forward after the interview."
-
-
 class InterviewDecisionView(APIView):
     """POST /api/schedulers/<pk>/decision/ -- "Submit Decision" in the
     review page's fixed right panel. Finalises the recommendation/confidence/
@@ -190,13 +175,17 @@ class InterviewDecisionView(APIView):
     ai_interviews.views.RecruiterAIInterviewDecisionView so a human-interview
     decision advances the pipeline exactly like an AI-interview one does.
     STRONG_YES/YES move the candidate to Offer Extended; NO/STRONG_NO reject
-    them (with a reason drawn from the summary, through the same
-    send_manual_rejection_mail flow a manual Kanban-board reject uses, so the
-    candidate gets the same reasoned rejection email either way); MAYBE
-    leaves the pipeline status alone for the recruiter to decide by hand.
-    Re-submitting a decision (e.g. after editing confidence) is safe to
-    repeat -- the JobApplication update is idempotent and the rejection
-    email only fires on the transition INTO Rejected, not on every resubmit."""
+    them, through the same send_manual_rejection_mail flow a manual
+    Kanban-board reject uses so the candidate gets an identically-shaped
+    rejection email either way -- the reason is now recruiter-typed
+    (`rejection_reason`), required on an actual transition into Rejected,
+    same as the Kanban board's own requirement
+    (jobs.views.JobApplicationRetrieveUpdateView.put), rather than
+    auto-derived from the AI summary; MAYBE leaves the pipeline status alone
+    for the recruiter to decide by hand. Re-submitting a decision (e.g.
+    after editing confidence) is safe to repeat -- the JobApplication update
+    is idempotent and the rejection reason/email are only required/fired on
+    the transition INTO Rejected, not on every resubmit."""
 
     permission_classes = [IsAuthenticated]
 
@@ -214,6 +203,22 @@ class InterviewDecisionView(APIView):
         if confidence not in InterviewSummary.Confidence.values:
             return Response({"error": "A valid confidence level is required."}, status=HTTP_400_BAD_REQUEST)
 
+        is_rejecting = recommendation in (InterviewSummary.Recommendation.NO, InterviewSummary.Recommendation.STRONG_NO)
+        rejection_reason = (request.data.get("rejection_reason") or "").strip()
+
+        job_application = None
+        already_rejected = False
+        if interview.job_application_id:
+            from jobs.models import JobApplication
+
+            job_application = JobApplication.objects.filter(id=interview.job_application_id).first()
+            already_rejected = bool(
+                job_application and job_application.status == JobApplication.JobApplicationStatus.REJECTED
+            )
+
+        if is_rejecting and not already_rejected and not rejection_reason:
+            return Response({"error": "A reason is required to reject this candidate."}, status=HTTP_400_BAD_REQUEST)
+
         summary, _created = InterviewSummary.objects.get_or_create(interview=interview)
         summary.recommendation = recommendation
         summary.confidence = confidence
@@ -222,34 +227,97 @@ class InterviewDecisionView(APIView):
         summary.submitted_at = timezone.now()
         summary.save(update_fields=["recommendation", "confidence", "overall_score", "submitted_at"])
 
-        if interview.job_application_id:
-            from jobs.models import JobApplication
+        if job_application:
             from jobs.tasks import (
                 REJECTION_MAIL_DELAY_SECONDS,
                 send_manual_rejection_mail,
                 send_offer_extended_notice_mail,
             )
 
-            job_application = JobApplication.objects.filter(id=interview.job_application_id).first()
-            if job_application:
-                if recommendation in (InterviewSummary.Recommendation.STRONG_YES, InterviewSummary.Recommendation.YES):
-                    was_already_extended = job_application.status == JobApplication.JobApplicationStatus.OFFER_EXTENDED
-                    job_application.status = JobApplication.JobApplicationStatus.OFFER_EXTENDED
-                    job_application.save(update_fields=["status"])
-                    if not was_already_extended:
-                        send_offer_extended_notice_mail.delay(job_application.id)
-                elif recommendation in (InterviewSummary.Recommendation.NO, InterviewSummary.Recommendation.STRONG_NO):
-                    was_already_rejected = job_application.status == JobApplication.JobApplicationStatus.REJECTED
-                    job_application.status = JobApplication.JobApplicationStatus.REJECTED
-                    job_application.save(update_fields=["status"])
-                    if not was_already_rejected:
-                        send_manual_rejection_mail.apply_async(
-                            args=[job_application.id, _rejection_reason_from_summary(summary)],
-                            countdown=REJECTION_MAIL_DELAY_SECONDS,
-                        )
-                # MAYBE: pipeline status is left untouched.
+            if recommendation in (InterviewSummary.Recommendation.STRONG_YES, InterviewSummary.Recommendation.YES):
+                was_already_extended = job_application.status == JobApplication.JobApplicationStatus.OFFER_EXTENDED
+                job_application.status = JobApplication.JobApplicationStatus.OFFER_EXTENDED
+                job_application.save(update_fields=["status"])
+                if not was_already_extended:
+                    send_offer_extended_notice_mail.delay(job_application.id)
+            elif is_rejecting:
+                job_application.status = JobApplication.JobApplicationStatus.REJECTED
+                job_application.save(update_fields=["status"])
+                if not already_rejected:
+                    send_manual_rejection_mail.apply_async(
+                        args=[job_application.id, rejection_reason],
+                        countdown=REJECTION_MAIL_DELAY_SECONDS,
+                    )
+                from jobs.services import cancel_pending_tasks_for_rejected_application
+
+                cancel_pending_tasks_for_rejected_application(job_application.id)
+            # MAYBE: pipeline status is left untouched.
 
         return Response(_serialize_summary(summary), status=HTTP_200_OK)
+
+
+class InterviewAdvanceRoundView(APIView):
+    """POST /api/schedulers/<pk>/advance-round/ -- "Advance to 2nd interview"
+    in the review page's decision panel, an alternative to submitting a
+    Yes/No recommendation when the recruiter instead wants another round.
+    Re-runs exactly the same invite-a-candidate-to-interview flow a fresh
+    move to PENDING_DECISION triggers (see
+    jobs.views.JobApplicationRetrieveUpdateView.put's PENDING_DECISION
+    branch) -- the candidate is emailed a link to pick a new slot from
+    whatever the recruiter has published, and
+    jobs.views._claim_interview_slot creates a brand new Scheduler row
+    (tagged with the next round number) once they do. Capped at round 1 ->
+    2 only -- a completed interview that's already round 2+ has no further
+    "advance" action, matching the second round's own decision options
+    (Offer/Reject/Maybe only, no 3rd round)."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        from jobs.models import JobApplication
+        from jobs.tasks import send_interview_slot_invite
+        from jobs.views import _unclaimed_future_slots
+
+        interview, error = _get_owned_interview(request, pk)
+        if error:
+            return error
+
+        if interview.round >= 2:
+            return Response(
+                {"error": "This candidate has already had a second interview."}, status=HTTP_400_BAD_REQUEST
+            )
+        if not interview.job_application_id:
+            return Response(
+                {"error": "This interview has no linked application to advance."}, status=HTTP_400_BAD_REQUEST
+            )
+
+        job_application = JobApplication.objects.select_related("job").filter(
+            id=interview.job_application_id
+        ).first()
+        if not job_application:
+            return Response(
+                {"error": "This interview has no linked application to advance."}, status=HTTP_400_BAD_REQUEST
+            )
+
+        job = job_application.job
+        if job.ai_interview_enabled:
+            return Response(
+                {"error": "AI-interview jobs don't use this second-round flow."}, status=HTTP_400_BAD_REQUEST
+            )
+        if not _unclaimed_future_slots(job.id).exists():
+            return Response(
+                {
+                    "error": "Publish at least one interview time slot for this job before inviting "
+                             "the candidate to a second interview.",
+                },
+                status=HTTP_400_BAD_REQUEST,
+            )
+
+        job_application.status = JobApplication.JobApplicationStatus.PENDING_DECISION
+        job_application.save(update_fields=["status"])
+        send_interview_slot_invite.delay(job_application.id)
+
+        return Response({"status": "invited"}, status=HTTP_200_OK)
 
 
 class InterviewFeedbackEditView(APIView):
