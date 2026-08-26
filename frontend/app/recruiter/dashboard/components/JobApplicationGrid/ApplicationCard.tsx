@@ -14,7 +14,15 @@ import {
   SelectValue,
 } from "@/app/common/components/ui/select";
 
-export type MovableStatus = "REVIEWED" | "PENDING_DECISION" | "INTERVIEW_SCHEDULED" | "OFFER_EXTENDED" | "REJECTED";
+export type MovableStatus =
+  | "REVIEWED"
+  | "PENDING_DECISION"
+  | "VENDOR_AI_INTERVIEW"
+  | "INTERVIEW_SCHEDULED"
+  | "INTERVIEW_COMPLETED"
+  | "SECOND_INTERVIEW"
+  | "OFFER_EXTENDED"
+  | "REJECTED";
 
 // Mirrors jobs.views.JobApplicationRetrieveUpdateView.put's TALENT_ONLY_STATUS_UPDATE
 // guard -- OFFER_ACCEPTED/OFFER_DECLINED/WITHDRAWN can only ever be set by the
@@ -24,7 +32,10 @@ export type MovableStatus = "REVIEWED" | "PENDING_DECISION" | "INTERVIEW_SCHEDUL
 export const MOVABLE_STATUSES: { value: MovableStatus; label: string }[] = [
   { value: "REVIEWED", label: "Skill Assessment -- sends assessment invite" },
   { value: "PENDING_DECISION", label: "Interview -- sends interview invite" },
+  { value: "VENDOR_AI_INTERVIEW", label: "Vendor AI Interview -- vendor name + link required" },
   { value: "INTERVIEW_SCHEDULED", label: "Interview Scheduled" },
+  { value: "INTERVIEW_COMPLETED", label: "Interview Completed" },
+  { value: "SECOND_INTERVIEW", label: "Second Interview -- sends a new slot invite" },
   { value: "OFFER_EXTENDED", label: "Offer Extended" },
   { value: "REJECTED", label: "Rejected -- reason required" },
 ];

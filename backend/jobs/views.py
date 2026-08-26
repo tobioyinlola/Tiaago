@@ -95,6 +95,7 @@ from .tasks import (
     send_interview_slot_invite,
     send_manual_rejection_mail,
     send_offer_extended_notice_mail,
+    send_vendor_interview_invite,
 )
 from emails import emails
 from rest_framework.permissions import AllowAny
@@ -976,6 +977,40 @@ class JobApplicationRetrieveUpdateView(RetrieveUpdateAPIView):
                 status=HTTP_400_BAD_REQUEST,
             )
 
+        # A second round reuses the first round's slot-pick flow, so it has the
+        # same precondition: without a published, unclaimed slot the invite
+        # would no-op and the candidate would sit on "Interview scheduled"
+        # with nothing to pick. Mirrors the identical guard in
+        # scheduler.review_views.AdvanceInterviewRoundView.
+        if (
+            status_value == JobApplication.JobApplicationStatus.SECOND_INTERVIEW
+            and status_value != previous_status
+            and not _unclaimed_future_slots(instance.job_id).exists()
+        ):
+            return Response(
+                {"detail": "Publish at least one interview time slot for this job before inviting a candidate to a second interview."},
+                status=HTTP_400_BAD_REQUEST,
+            )
+
+        # The vendor stage is manual by design -- no third-party API is wired
+        # up -- so the recruiter must supply the tool's name and the
+        # candidate's link, otherwise the invite email has nothing to send.
+        if (
+            status_value == JobApplication.JobApplicationStatus.VENDOR_AI_INTERVIEW
+            and status_value != previous_status
+        ):
+            vendor_name = (
+                serializer.validated_data.get("vendor_name") or instance.vendor_name or ""
+            ).strip()
+            vendor_url = (
+                serializer.validated_data.get("vendor_interview_url") or instance.vendor_interview_url or ""
+            ).strip()
+            if not vendor_name or not vendor_url:
+                return Response(
+                    {"detail": "A vendor name and interview link are required to move a candidate to a vendor AI interview."},
+                    status=HTTP_400_BAD_REQUEST,
+                )
+
         self.perform_update(serializer)
 
         # A recruiter manually advancing a candidate should trigger the same
@@ -1002,6 +1037,22 @@ class JobApplicationRetrieveUpdateView(RetrieveUpdateAPIView):
                     provision_ai_interview(job, instance)
                 else:
                     send_interview_slot_invite.delay(instance.id)
+            elif status_value == JobApplication.JobApplicationStatus.SECOND_INTERVIEW:
+                # Same invite the first round uses -- send_interview_slot_invite
+                # detects the existing Scheduler row and switches the subject to
+                # "Pick your second interview time" on its own.
+                send_interview_slot_invite.delay(instance.id)
+            elif status_value == JobApplication.JobApplicationStatus.VENDOR_AI_INTERVIEW:
+                send_vendor_interview_invite.delay(instance.id)
+            elif status_value == JobApplication.JobApplicationStatus.INTERVIEW_COMPLETED:
+                # Deliberately silent. This stage is bookkeeping for the
+                # recruiter's board -- the candidate already received the
+                # post-interview feedback email from
+                # scheduler.copilot_views.SendInterviewFeedbackView (recruiter-
+                # reviewed, so it says something real). A second automatic
+                # "your interview is complete" would tell them nothing they
+                # were not just party to, and would race the feedback mail.
+                pass
             elif status_value == JobApplication.JobApplicationStatus.INTERVIEW_SCHEDULED:
                 send_interview_scheduled_notice_mail.delay(instance.id)
             elif status_value == JobApplication.JobApplicationStatus.OFFER_EXTENDED:

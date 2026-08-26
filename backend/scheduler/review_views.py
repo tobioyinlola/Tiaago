@@ -313,11 +313,21 @@ class InterviewAdvanceRoundView(APIView):
                 status=HTTP_400_BAD_REQUEST,
             )
 
-        job_application.status = JobApplication.JobApplicationStatus.PENDING_DECISION
+        # SECOND_INTERVIEW rather than PENDING_DECISION: the candidate is at the
+        # same point in the funnel either way (waiting to pick a slot), but the
+        # board needs to distinguish a second round from a first, and sending
+        # them back to the first-round column read as though nothing happened.
+        job_application.status = JobApplication.JobApplicationStatus.SECOND_INTERVIEW
         job_application.save(update_fields=["status"])
         send_interview_slot_invite.delay(job_application.id)
 
-        return Response({"status": "invited"}, status=HTTP_200_OK)
+        return Response(
+            {
+                "status": "invited",
+                "application_status": JobApplication.JobApplicationStatus.SECOND_INTERVIEW,
+            },
+            status=HTTP_200_OK,
+        )
 
 
 class InterviewFeedbackEditView(APIView):

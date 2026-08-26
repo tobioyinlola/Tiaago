@@ -316,15 +316,26 @@ export const getJobApplications = async (page = 1, page_size = 10) => {
   }
 };
 
+/** Vendor tool details, required by the backend only when moving a candidate
+ * into VENDOR_AI_INTERVIEW (see jobs.views.JobApplicationRetrieveUpdateView.put). */
+export type VendorInterviewDetails = { name: string; url: string };
+
 export const updateJobApplicationStatus = async (
   id: ID,
   status: JobApplication["status"],
-  rejectionReason?: string
+  rejectionReason?: string,
+  vendor?: VendorInterviewDetails
 ): Promise<ApiResponse<JobApplication>> => {
   try {
     const data = await serverKyInstance
       .put(`jobs/job-applications/${id}/`, {
-        json: { status, ...(rejectionReason ? { rejection_reason: rejectionReason } : {}) },
+        json: {
+          status,
+          ...(rejectionReason ? { rejection_reason: rejectionReason } : {}),
+          ...(vendor
+            ? { vendor_name: vendor.name, vendor_interview_url: vendor.url }
+            : {}),
+        },
       })
       .json<JobApplication>();
     return {

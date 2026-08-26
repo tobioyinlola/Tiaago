@@ -15,7 +15,10 @@ import {
   User,
 } from "@/app/common/types";
 import { addToPipeline, getCategories } from "@/app/common/services/sourcing";
-import { updateJobApplicationStatus } from "@/app/common/services/jobs";
+import {
+  updateJobApplicationStatus,
+  type VendorInterviewDetails,
+} from "@/app/common/services/jobs";
 import { advanceInterviewRound } from "@/app/common/services/interview-review";
 import AIFeedbackModal from "./AIFeedbackModal";
 import BoardColumn from "./BoardColumn";
@@ -26,6 +29,7 @@ import ProfileModal from "@/app/common/components/ProfileModal";
 import { cn, handlePlural } from "@/app/common/utils";
 import { Button } from "@/app/common/components/ui/button";
 import { Textarea } from "@/app/common/components/ui/textarea";
+import { Input } from "@/app/common/components/ui/input";
 import {
   Dialog,
   DialogContent,
@@ -49,6 +53,9 @@ const STATUS_LABELS: Record<string, string> = {
   REVIEWED: "Skill Assessment",
   INTERVIEW_SCHEDULED: "Interview scheduled",
   PENDING_DECISION: "Interview",
+  VENDOR_AI_INTERVIEW: "Vendor AI interview",
+  INTERVIEW_COMPLETED: "Interview completed",
+  SECOND_INTERVIEW: "Second interview",
   OFFER_EXTENDED: "Offer extended",
   OFFER_ACCEPTED: "Offer accepted",
   OFFER_DECLINED: "Offer declined",
@@ -62,6 +69,9 @@ const STATUS_BADGE_STYLES: Record<string, string> = {
   REVIEWED: "bg-[#EEF4FF] text-[#3580B5]",
   INTERVIEW_SCHEDULED: "bg-[#F4F3FF] text-[#5925DC]",
   PENDING_DECISION: "bg-[#F4F3FF] text-[#5925DC]",
+  VENDOR_AI_INTERVIEW: "bg-[#F4F3FF] text-[#5925DC]",
+  INTERVIEW_COMPLETED: "bg-[#EEF4FF] text-[#3580B5]",
+  SECOND_INTERVIEW: "bg-[#F4F3FF] text-[#5925DC]",
   OFFER_EXTENDED: "bg-[#ECFDF3] text-[#027A48]",
   OFFER_ACCEPTED: "bg-[#ECFDF3] text-[#027A48]",
   OFFER_DECLINED: "bg-[#FFEDED] text-[#B53535]",
@@ -84,8 +94,16 @@ const getBoardColumns = (aiInterviewEnabled: boolean): BoardColumnDef[] => [
   { key: "APPLIED", label: "Applied", droppable: false },
   { key: "RESUME_SCREENING", label: "Resume Screening", droppable: false },
   { key: "REVIEWED", label: "Skill Assessment", droppable: true },
+  // The interview stage branches: PENDING_DECISION is the in-house interview
+  // (AI or human, per the job's own setting -- a job is only ever one, never
+  // both), VENDOR_AI_INTERVIEW is a third-party tool the recruiter runs
+  // elsewhere and links the candidate to. Both feed Interview Scheduled ->
+  // Interview Completed.
   { key: "PENDING_DECISION", label: aiInterviewEnabled ? "AI Interview" : "Human Interview", droppable: true },
+  { key: "VENDOR_AI_INTERVIEW", label: "Vendor AI Interview", droppable: true },
   { key: "INTERVIEW_SCHEDULED", label: "Interview Scheduled", droppable: true },
+  { key: "INTERVIEW_COMPLETED", label: "Interview Completed", droppable: true },
+  { key: "SECOND_INTERVIEW", label: "Second Interview", droppable: true },
   { key: "OFFER_EXTENDED", label: "Offer Extended", droppable: true },
   { key: "REJECTED", label: "Rejected", droppable: true },
   { key: "CLOSED", label: "Closed", droppable: false },
@@ -237,6 +255,15 @@ export const JobApplicationsTable = ({
   const [rejectionReasonText, setRejectionReasonText] = useState("");
   const [rejecting, setRejecting] = useState(false);
 
+  // VENDOR_AI_INTERVIEW needs the tool's name and the candidate's link before
+  // the backend will accept the move -- the stage is manual, with no vendor
+  // API behind it, and those two values are what the candidate's invite email
+  // is built from. Same dialog-before-commit shape as the rejection reason.
+  const [vendorTarget, setVendorTarget] = useState<AiFeedbackItem | null>(null);
+  const [vendorNameText, setVendorNameText] = useState("");
+  const [vendorUrlText, setVendorUrlText] = useState("");
+  const [savingVendor, setSavingVendor] = useState(false);
+
   const [visibleCounts, setVisibleCounts] = useState<Record<string, number>>({});
   // Every column is collapsible at every breakpoint. Starts with only
   // non-empty columns expanded so a candidate-heavy stage isn't buried
@@ -302,7 +329,8 @@ export const JobApplicationsTable = ({
   const handleMoveStage = async (
     item: AiFeedbackItem,
     newStatus: JobApplication["status"],
-    reason?: string
+    reason?: string,
+    vendor?: VendorInterviewDetails
   ) => {
     if (newStatus === item.status || movingId != null) return;
     const previous = item;
@@ -314,7 +342,7 @@ export const JobApplicationsTable = ({
           : a
       )
     );
-    const res = await updateJobApplicationStatus(item.application_id, newStatus, reason);
+    const res = await updateJobApplicationStatus(item.application_id, newStatus, reason, vendor);
     setMovingId(null);
     if (!res.success) {
       toast.error(res.error);
@@ -327,6 +355,10 @@ export const JobApplicationsTable = ({
       toast.success("Moved to Skill Assessment", { description: "Assessment invite sent to the candidate." });
     } else if (newStatus === "PENDING_DECISION") {
       toast.success("Moved to Interview", { description: "Interview invite sent to the candidate." });
+    } else if (newStatus === "VENDOR_AI_INTERVIEW") {
+      toast.success("Moved to Vendor AI Interview", { description: "Interview link sent to the candidate." });
+    } else if (newStatus === "SECOND_INTERVIEW") {
+      toast.success("Moved to Second Interview", { description: "A new slot invite was sent to the candidate." });
     } else if (newStatus === "REJECTED") {
       toast.success("Candidate rejected", { description: "Rejection email sent to the candidate." });
     } else {
@@ -353,7 +385,26 @@ export const JobApplicationsTable = ({
       setRejectionReasonText("");
       return;
     }
+    if (newStatus === "VENDOR_AI_INTERVIEW") {
+      setVendorTarget(item);
+      setVendorNameText("");
+      setVendorUrlText("");
+      return;
+    }
     handleMoveStage(item, newStatus);
+  };
+
+  const handleConfirmVendor = async () => {
+    if (!vendorTarget || !vendorNameText.trim() || !vendorUrlText.trim()) return;
+    setSavingVendor(true);
+    await handleMoveStage(vendorTarget, "VENDOR_AI_INTERVIEW", undefined, {
+      name: vendorNameText.trim(),
+      url: vendorUrlText.trim(),
+    });
+    setSavingVendor(false);
+    setVendorTarget(null);
+    setVendorNameText("");
+    setVendorUrlText("");
   };
 
   const handleConfirmReject = async () => {
@@ -378,7 +429,27 @@ export const JobApplicationsTable = ({
       toast.error(res.error);
       return;
     }
-    toast.success("Candidate invited to a second interview");
+    // The backend has moved this application to SECOND_INTERVIEW and emailed
+    // the candidate a fresh slot-pick link. Without mirroring that here the
+    // card stayed sitting in "Interview Scheduled" -- which is what testers
+    // reported as "the second interview doesn't offer time slots", since from
+    // the board it looked as though nothing had happened at all. The manual
+    // move path (handleMoveStage) has always updated optimistically, which is
+    // why only the second-interview action showed the stale stage.
+    setApplications(prev =>
+      prev.map(a =>
+        a.application_id === item.application_id
+          ? {
+              ...a,
+              status: "SECOND_INTERVIEW",
+              status_label: STATUS_LABELS.SECOND_INTERVIEW,
+            }
+          : a
+      )
+    );
+    toast.success("Candidate invited to a second interview", {
+      description: "They've been emailed a link to pick a new time slot.",
+    });
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -551,6 +622,76 @@ export const JobApplicationsTable = ({
               onClick={handleConfirmReject}
             >
               Reject candidate
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog
+        open={!!vendorTarget}
+        onOpenChange={open => {
+          if (!open) {
+            setVendorTarget(null);
+            setVendorNameText("");
+            setVendorUrlText("");
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Send to a vendor AI interview</DialogTitle>
+          </DialogHeader>
+          <p className='text-sm text-secondary-black'>
+            This interview runs on a third-party tool, so we email{" "}
+            <span className='font-medium'>{vendorTarget?.talent_name}</span> the
+            link you paste below. Tiaago does not run or score this interview.
+          </p>
+          <div className='flex flex-col gap-1.5'>
+            <label
+              htmlFor='vendor-name'
+              className='text-sm font-medium text-primary-black'
+            >
+              Interview tool
+            </label>
+            <Input
+              id='vendor-name'
+              value={vendorNameText}
+              onChange={e => setVendorNameText(e.target.value)}
+              placeholder='e.g. HireVue'
+            />
+          </div>
+          <div className='flex flex-col gap-1.5'>
+            <label
+              htmlFor='vendor-url'
+              className='text-sm font-medium text-primary-black'
+            >
+              Candidate&apos;s interview link
+            </label>
+            <Input
+              id='vendor-url'
+              type='url'
+              value={vendorUrlText}
+              onChange={e => setVendorUrlText(e.target.value)}
+              placeholder='https://...'
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              variant='outline'
+              onClick={() => {
+                setVendorTarget(null);
+                setVendorNameText("");
+                setVendorUrlText("");
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              disabled={
+                !vendorNameText.trim() || !vendorUrlText.trim() || savingVendor
+              }
+              onClick={handleConfirmVendor}
+            >
+              Send interview link
             </Button>
           </DialogFooter>
         </DialogContent>

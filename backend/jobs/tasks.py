@@ -1119,6 +1119,56 @@ def send_interview_slot_invite(job_application_id):
         logger.exception("Failed to send interview slot selection invite for job_application %s", job_application_id)
 
 
+@shared_task(name="send_vendor_interview_invite")
+def send_vendor_interview_invite(job_application_id):
+    """Emails the candidate the link to a third-party AI interview when a
+    recruiter moves them into VENDOR_AI_INTERVIEW on the applications board.
+
+    This stage has no vendor API behind it -- the recruiter runs the interview
+    in the vendor's own product and pastes the candidate's link onto the
+    application (JobApplication.vendor_name / vendor_interview_url, both
+    required by JobApplicationRetrieveUpdateView.put before the move is
+    allowed). All this task does is relay that link, so the candidate hears
+    about it from us rather than being left on a stage with no signal --
+    matching send_interview_slot_invite's role for the in-house flow."""
+    job_application = JobApplication.objects.select_related("job", "job__company").filter(
+        id=job_application_id
+    ).first()
+    if not job_application:
+        return
+
+    vendor_name = (job_application.vendor_name or "").strip()
+    vendor_url = (job_application.vendor_interview_url or "").strip()
+    if not vendor_name or not vendor_url:
+        logger.warning(
+            "send_vendor_interview_invite: job_application %s has no vendor name/url", job_application_id
+        )
+        return
+
+    candidate_email = job_application.candidate_email
+    if not candidate_email:
+        logger.warning("send_vendor_interview_invite: no candidate email for job_application %s", job_application_id)
+        return
+
+    job = job_application.job
+    context = {
+        "first_name": (job_application.candidate_full_name or "").split(" ")[0],
+        "company": job.company.company_name,
+        "role": job.title,
+        "vendor_name": vendor_name,
+        "vendor_url": vendor_url,
+    }
+    try:
+        EmailHandler(recipients=[candidate_email]).send_mail(
+            subject=f"Your interview for {job.title} at {job.company.company_name}",
+            context=context,
+            template="emails/vendor_interview_invite.html",
+            email_type=EmailTypes.INTERVIEW_SLOT_SELECTION_MAIL,
+        )
+    except Exception:
+        logger.exception("Failed to send vendor interview invite for job_application %s", job_application_id)
+
+
 @shared_task(name="send_manual_rejection_mail")
 def send_manual_rejection_mail(job_application_id, reason):
     """Fired when a recruiter manually moves a candidate to REJECTED on the

@@ -18,13 +18,20 @@ export const getColumnKey = (item: AiFeedbackItem): string => {
 // from any active stage, not a step in the funnel -- and CLOSED (the
 // talent-only outcomes) is absent because a recruiter can never move a
 // candidate into or out of it.
+// PENDING_DECISION (in-house interview) and VENDOR_AI_INTERVIEW share rank 2:
+// they are two branches of the same "interview" step, not sequential stages,
+// so a candidate can be moved sideways between them without that counting as
+// going backward.
 const STAGE_ORDER: Record<string, number> = {
   APPLIED: 0,
   RESUME_SCREENING: 0,
   REVIEWED: 1,
   PENDING_DECISION: 2,
+  VENDOR_AI_INTERVIEW: 2,
   INTERVIEW_SCHEDULED: 3,
-  OFFER_EXTENDED: 4,
+  INTERVIEW_COMPLETED: 4,
+  SECOND_INTERVIEW: 5,
+  OFFER_EXTENDED: 6,
 };
 
 // Stages a candidate can never be moved out of by a recruiter -- REJECTED

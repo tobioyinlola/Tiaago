@@ -476,6 +476,24 @@ class JobApplication(models.Model):
         PENDING_DECISION = "PENDING_DECISION", _(
             "Pending decision"
         )  # The hiring team is deliberating on the candidate's application or interview performance
+        # The three below were added 2026-08-26 to make the recruiter board
+        # match the pipeline the hiring team actually runs. PENDING_DECISION
+        # remains the "invited to interview" stage (its historical meaning on
+        # the board) and is now branched by the job's own configuration into
+        # an in-house AI interview or a third-party one.
+        VENDOR_AI_INTERVIEW = "VENDOR_AI_INTERVIEW", _(
+            "Vendor AI interview"
+        )  # Interviewing through a third-party AI interview tool. Manual stage:
+        # the recruiter records which vendor and pastes the candidate's link
+        # (see vendor_name / vendor_interview_url below). No API integration.
+        INTERVIEW_COMPLETED = "INTERVIEW_COMPLETED", _(
+            "Interview completed"
+        )  # The interview has taken place and is awaiting a decision.
+        SECOND_INTERVIEW = "SECOND_INTERVIEW", _(
+            "Second interview"
+        )  # Invited to a second round. Reuses the same slot-pick flow as the
+        # first (see scheduler.review_views.AdvanceInterviewRoundView and
+        # jobs.tasks.send_interview_slot_invite, which detects the round).
         OFFER_EXTENDED = "OFFER_EXTENDED", _(
             "Offer extended"
         )  # The candidate has been offered the job
@@ -521,9 +539,26 @@ class JobApplication(models.Model):
         help_text="Free-text answer to \"Anything else you'd like us to know?\" on the application form.",
     )
     status = models.CharField(
-        max_length=20,
+        # 20 was exactly the length of the longest existing value
+        # ("INTERVIEW_SCHEDULED" is 19); VENDOR_AI_INTERVIEW/INTERVIEW_COMPLETED
+        # are 19 and 19, but the headroom is widened here so the next stage
+        # added doesn't silently truncate.
+        max_length=32,
         choices=JobApplicationStatus.choices,
         default=JobApplicationStatus.APPLIED,
+    )
+
+    # Third-party AI interview tool details, set by the recruiter when they
+    # move a candidate into VENDOR_AI_INTERVIEW. Deliberately free text plus a
+    # link rather than a provider integration -- there is no vendor API wired
+    # up, and the recruiter runs the interview in the vendor's own product.
+    vendor_name = models.CharField(
+        max_length=120, blank=True, default="",
+        help_text="Name of the third-party AI interview tool, e.g. HireVue.",
+    )
+    vendor_interview_url = models.URLField(
+        blank=True, default="",
+        help_text="Link the candidate uses to take the vendor's AI interview.",
     )
 
     was_verified_at_application = models.BooleanField(
