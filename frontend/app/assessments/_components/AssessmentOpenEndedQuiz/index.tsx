@@ -266,7 +266,7 @@ const AssessmentOpenEndedQuiz = ({
         {!hasStarted ? (
           <div className='md:max-w-[713px] w-full text-center'>
             <p className='text-base font-medium text-secondary-black'>OPEN-ENDED QUESTIONS</p>
-            <h2 className='text-2xl md:text-3xl font-semibold mt-7 mb-3 md:mb-4 text-primary-black'>
+            <h2 className='text-xl sm:text-2xl md:text-3xl font-semibold mt-7 mb-3 md:mb-4 text-primary-black'>
               {assessment.title}
             </h2>
 
@@ -291,7 +291,7 @@ const AssessmentOpenEndedQuiz = ({
         ) : (
           <div className='w-full max-w-[713px] mx-auto'>
             <h2
-              className='text-2xl text-primary-black font-semibold text-center select-none'
+              className='text-lg sm:text-xl md:text-2xl text-primary-black font-semibold text-center select-none'
               onCopy={handleCopy}
               onContextMenu={handleContextMenu}
             >

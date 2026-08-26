@@ -301,7 +301,7 @@ const AssessmentCodingTask = ({
             <p className='text-base font-medium text-secondary-black'>
               CODING TASK
             </p>
-            <h2 className='text-2xl md:text-3xl font-semibold mt-3 mb-3 md:mb-4 text-primary-black'>
+            <h2 className='text-xl sm:text-2xl md:text-3xl font-semibold mt-3 mb-3 md:mb-4 text-primary-black'>
               {assessment.title}
             </h2>
             {/* <h5 className='text-secondary-black font-medium text-sm md:text-xl'>
@@ -340,7 +340,7 @@ const AssessmentCodingTask = ({
              * in full by default. */}
             <div className='mb-3 w-full'>
               <h2
-                className='text-2xl md:text-3xl font-semibold mb-1 text-primary-black text-center select-none'
+                className='text-lg sm:text-xl md:text-3xl font-semibold mb-1 text-primary-black text-center select-none'
                 onCopy={e => {
                   e.preventDefault();
                   toast.error("Copying assessment content is not allowed");

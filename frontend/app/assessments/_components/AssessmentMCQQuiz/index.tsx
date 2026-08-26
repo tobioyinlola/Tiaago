@@ -352,7 +352,7 @@ const AssessmentMCQQuiz = ({
             <p className='text-base font-medium text-secondary-black'>
               MULTIPLE-CHOICE QUESTIONS
             </p>
-            <h2 className='text-2xl md:text-3xl font-semibold mt-7 mb-3 md:mb-4 text-primary-black'>
+            <h2 className='text-xl sm:text-2xl md:text-3xl font-semibold mt-7 mb-3 md:mb-4 text-primary-black'>
               {assessment.title}
             </h2>
             {/* <h5 className='text-secondary-black font-medium text-sm md:text-xl'>
@@ -390,14 +390,17 @@ const AssessmentMCQQuiz = ({
           </div>
         ) : (
           <div className='w-full'>
+            {/* Steps down on small screens -- a flat text-2xl question stacked
+                above full-width options pushed the answers off-screen on a
+                phone, which is what testers were pinch-zooming out to escape. */}
             <h2
-              className='text-2xl text-primary-black font-semibold text-center select-none'
+              className='text-lg sm:text-xl md:text-2xl text-primary-black font-semibold text-center select-none'
               onCopy={handleCopy}
               onContextMenu={handleContextMenu}
             >
               {activeQuestion.question}
             </h2>
-            <div className='mt-6 md:mt-11 flex flex-col gap-6'>
+            <div className='mt-6 md:mt-11 flex flex-col gap-3 sm:gap-6'>
               {activeQuestion.options.map(({ index, label, ...rest }) => (
                 <button
                   key={`question-${activeQuestion.id}-option-${index}`}
@@ -407,7 +410,7 @@ const AssessmentMCQQuiz = ({
                   }}
                   disabled={disabled}
                   className={cn(
-                    "cursor-pointer flex items-center justify-between gap-2 px-6 py-3 rounded-lg border-[#EAECF0] border-2 hover:border-primary select-none",
+                    "cursor-pointer flex items-center justify-between gap-2 px-4 sm:px-6 py-3 text-left rounded-lg border-[#EAECF0] border-2 hover:border-primary select-none",
                     answers.at(activeStepIndex)?.selected_option_index ===
                       +index && "border-primary"
                   )}
