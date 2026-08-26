@@ -106,6 +106,19 @@ Then silently call the end_interview tool -- this is a background action,
 not something you say out loud. Call it exactly once, only after that
 line, never before.
 
+TIME AWARENESS:
+You are running to a fixed {duration}-minute schedule. Pace yourself so the
+question list fits inside it -- if a candidate is expansive, use the
+'let me move us along' line rather than letting a single answer eat the clock.
+
+You may receive a system instruction telling you the scheduled end is
+approaching. When that happens, stop starting new questions. Finish the
+current exchange in one short turn, then go straight into your CLOSING
+script, even if questions remain unasked. Never tell the candidate you were
+told to wrap up, never mention the schedule, the time remaining, or that
+questions are being skipped -- just close naturally as though you had always
+planned to finish there.
+
 NEVER:
 Tell the candidate how they performed.
 Reveal scoring criteria.
@@ -184,6 +197,67 @@ class InterviewAgent(Agent):
         # room disconnects, otherwise the candidate gets cut off mid-word.
         await context.wait_for_playout()
         self._call_ended.set()
+
+
+# How long before the scheduled end to start steering Alex toward the close,
+# as a fraction of total duration, capped so a long interview doesn't start
+# wrapping up absurdly early. For a 30-minute interview: first nudge at 27:00,
+# final at 29:15. Fractions rather than fixed offsets so a 10-minute interview
+# doesn't get told to wrap up at the 7-minute mark.
+WRAP_UP_LEAD_SECONDS = 180
+FINAL_CALL_LEAD_SECONDS = 45
+MAX_LEAD_FRACTION = 0.20
+
+
+async def _wrap_up_watchdog(session, call_ended: asyncio.Event, duration_minutes: int):
+    """Nudges Alex into the CLOSING script as the scheduled end approaches.
+
+    Without this the agent has no clock at all: it works through its question
+    list at whatever pace the conversation takes, and entrypoint's
+    asyncio.wait_for backstop hard-disconnects the room 60s past the scheduled
+    end -- mid-sentence, with no goodbye. That backstop is still here, but it
+    should now only ever fire if these nudges failed.
+
+    Only ever calls session.generate_reply(instructions=...), the same API the
+    opening greeting uses, so this adds no new SDK surface. Both nudges are
+    skipped if the call has already ended.
+    """
+    total_seconds = max(int(duration_minutes) * 60, 0)
+    if total_seconds <= 0:
+        return
+
+    max_lead = total_seconds * MAX_LEAD_FRACTION
+    wrap_lead = min(WRAP_UP_LEAD_SECONDS, max_lead)
+    final_lead = min(FINAL_CALL_LEAD_SECONDS, max_lead / 2)
+
+    async def _nudge_at(seconds_from_start: float, instructions: str, label: str):
+        delay = seconds_from_start - (time.time() - start)
+        if delay > 0:
+            await asyncio.sleep(delay)
+        if call_ended.is_set():
+            return
+        logger.info("Wrap-up watchdog: issuing %s nudge for a %s-minute interview", label, duration_minutes)
+        try:
+            session.generate_reply(instructions=instructions)
+        except Exception:
+            logger.exception("Wrap-up watchdog failed to issue the %s nudge", label)
+
+    start = time.time()
+    await _nudge_at(
+        total_seconds - wrap_lead,
+        "The scheduled end of this interview is approaching. Do not start any new "
+        "questions. Finish the current exchange in one short turn, then move into "
+        "your CLOSING script. Do not mention the time or that you are wrapping up.",
+        "first",
+    )
+    if call_ended.is_set():
+        return
+    await _nudge_at(
+        total_seconds - final_lead,
+        "You are out of time. Deliver your final goodbye line now, then call the "
+        "end_interview tool. Do not ask anything further and do not mention the time.",
+        "final",
+    )
 
 
 async def _fetch_agent_data(interview_id: str) -> dict:
@@ -282,11 +356,32 @@ async def entrypoint(ctx: JobContext):
         instructions="Greet the candidate now, exactly per the OPENING section of your instructions."
     )
 
+    # Steers Alex into its closing script before the clock runs out, so the
+    # backstop below stops being the normal way a call ends. Cancelled as soon
+    # as the call ends by any other route (agent's own end_interview, or the
+    # candidate hanging up).
+    watchdog = asyncio.create_task(
+        _wrap_up_watchdog(session, call_ended, interview_data["duration_minutes"])
+    )
+
+    # Backstop only. The graceful path is the watchdog's final nudge ->
+    # Alex's goodbye -> end_interview, which lands well inside this. Kept at
+    # +60s so that if the nudges fail we still tear the room down rather than
+    # leaving an agent (and its OpenAI spend) running indefinitely.
     max_seconds = (interview_data["duration_minutes"] * 60) + 60
 
     try:
         await asyncio.wait_for(call_ended.wait(), timeout=max_seconds)
     except asyncio.TimeoutError:
+        logger.warning(
+            "Interview %s hit the hard timeout at %ss -- the wrap-up nudges did not "
+            "close the call gracefully.", interview_id, max_seconds,
+        )
+
+    watchdog.cancel()
+    try:
+        await watchdog
+    except (asyncio.CancelledError, Exception):
         pass
 
     await ctx.room.disconnect()
