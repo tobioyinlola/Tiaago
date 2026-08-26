@@ -191,6 +191,135 @@ class CandidateJoinView(APIView):
         }, status=HTTP_200_OK)
 
 
+class RecruiterJoinLookupView(APIView):
+    """GET /api/interviews/recruiter/<token>/ -- no-login lookup for the
+    recruiter join page's initial load. Mirrors CandidateJoinLookupView; the
+    recruiter_join_token is the credential (see Scheduler.recruiter_join_token,
+    minted alongside candidate_join_token in jobs.views._claim_interview_slot).
+    """
+
+    permission_classes = [AllowAny]
+
+    def get(self, request, token):
+        interview = Scheduler.objects.filter(recruiter_join_token=token).select_related(
+            "company", "company__company_rep", "talent"
+        ).first()
+        if not interview:
+            return Response({"found": False}, status=HTTP_404_NOT_FOUND)
+
+        return Response({
+            "found": True,
+            "status": interview.status,
+            "candidate_name": interview.candidate_full_name or "the candidate",
+            "recording_enabled": interview.recording_enabled,
+            **_interview_details(interview),
+        }, status=HTTP_200_OK)
+
+
+class RecruiterTokenJoinView(APIView):
+    """POST /api/interviews/join-recruiter/ -- { token, enableRecording } ->
+    the same payload StartInterviewView returns, but authenticated by
+    recruiter_join_token instead of a session, so a recruiter can join
+    straight from their email the way a candidate already can.
+
+    Deliberately duplicates StartInterviewView's *billing* step rather than
+    skipping it: that view is the sole trigger for
+    BillingService.charge_interview_package and for flipping the interview to
+    IN_PROGRESS. A no-login path that skipped it would be a free-interview
+    bypass around wallet billing, so the charge happens here too and the
+    shared idempotency inside charge_interview_package keeps a recruiter who
+    joins by link *and* by dashboard from being billed twice.
+    """
+
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        token = request.data.get("token")
+        if not token:
+            return Response({"error": "token is required"}, status=HTTP_400_BAD_REQUEST)
+
+        interview = Scheduler.objects.filter(recruiter_join_token=token).select_related(
+            "company", "company__company_rep", "talent"
+        ).first()
+        if not interview:
+            return Response(
+                {"error": "This interview link is invalid or has expired."}, status=HTTP_404_NOT_FOUND
+            )
+        if interview.status == Scheduler.Status.COMPLETED:
+            return Response({"error": "This interview has already taken place."}, status=HTTP_400_BAD_REQUEST)
+        if interview.status == Scheduler.Status.CANCELLED:
+            return Response({"error": "This interview has been cancelled."}, status=HTTP_400_BAD_REQUEST)
+        if not interview.room_name:
+            return Response(
+                {"error": "The video room isn't ready yet. Please try again shortly."},
+                status=HTTP_400_BAD_REQUEST,
+            )
+
+        room_opens_at = timezone.make_aware(
+            timezone.datetime.combine(interview.meeting_date, interview.start_time)
+        ) - timedelta(minutes=JOIN_WINDOW_MINUTES)
+        if timezone.now() < room_opens_at:
+            return Response(
+                {"error": f"The room opens {JOIN_WINDOW_MINUTES} minutes before the interview starts."},
+                status=HTTP_400_BAD_REQUEST,
+            )
+
+        company = interview.company
+        enable_recording = bool(request.data.get("enableRecording", interview.recording_enabled))
+
+        billing_result = BillingService.charge_interview_package(company, interview, enable_recording)
+        if not billing_result["success"]:
+            if company.company_rep_id:
+                try:
+                    notify_user(
+                        company.company_rep,
+                        title="Insufficient wallet balance",
+                        message="Your wallet balance is too low to start this interview. Please top up to continue.",
+                        notification_type=Notification.Type.BILLING_ALERT,
+                        link_path="recruiter/dashboard/billing",
+                        link_label="Fund wallet",
+                    )
+                except Exception:
+                    logger.exception(f"Failed to send insufficient-funds notification for interview {interview.id}")
+            return Response(
+                {"error": "Insufficient wallet balance to start this interview."},
+                status=HTTP_402_PAYMENT_REQUIRED,
+            )
+
+        interview.refresh_from_db()
+
+        recruiter = company.company_rep
+        try:
+            start_dt = timezone.make_aware(timezone.datetime.combine(interview.meeting_date, interview.start_time))
+            end_dt = timezone.make_aware(timezone.datetime.combine(interview.meeting_date, interview.end_time))
+            recruiter_token = create_meeting_token(
+                interview.room_name,
+                is_owner=True,
+                participant_name=(recruiter.get_full_name() or recruiter.email) if recruiter else "Interviewer",
+                nbf=int((start_dt - timedelta(minutes=JOIN_WINDOW_MINUTES)).timestamp()),
+                exp=int(end_dt.timestamp()) + 3600,
+                enable_recording=enable_recording,
+            )
+        except DailyRoomProvisioningError as e:
+            logger.error(f"Failed to mint recruiter token for interview {interview.id}: {e.detail}")
+            return Response({"error": "Could not join the interview room. Please try again."}, status=e.status_code)
+
+        if interview.status != Scheduler.Status.IN_PROGRESS:
+            interview.status = Scheduler.Status.IN_PROGRESS
+            interview.started_at = timezone.now()
+        interview.recording_enabled = enable_recording
+        interview.save(update_fields=["status", "started_at", "recording_enabled"])
+
+        ws_scheme = "wss" if request.is_secure() else "ws"
+        return Response({
+            "roomUrl": interview.room_url,
+            "participantToken": recruiter_token,
+            "billing": billing_result,
+            "interviewId": str(interview.id),
+            "transcriptionWebsocketUrl": f"{ws_scheme}://{request.get_host()}/ws/interview/{interview.id}/",
+        }, status=HTTP_200_OK)
+
+
 class StartInterviewView(APIView):
     """POST /api/schedulers/<pk>/start/ -- recruiter clicks "Join Interview".
     Charges the interview package (+ recording add-on if requested), then
@@ -272,6 +401,69 @@ class StartInterviewView(APIView):
         }, status=HTTP_200_OK)
 
 
+def _finalize_ended_interview(interview):
+    """Marks an interview COMPLETED and kicks off everything that hangs off
+    that: duration capture, recording flag, room deletion 60 minutes out, and
+    the post-interview pipeline.
+
+    Extracted from EndInterviewView so the no-login recruiter link
+    (RecruiterTokenEndView) ends an interview through exactly the same path a
+    dashboard "End interview" click does -- an interview ended by link and one
+    ended from the dashboard must be indistinguishable afterwards, or the
+    review page and scoring pipeline see inconsistent state.
+
+    Idempotent: returns immediately if the interview is already COMPLETED."""
+    from .tasks import delete_room_after_interview, process_interview_pipeline
+
+    if interview.status == Scheduler.Status.COMPLETED:
+        return interview
+
+    interview.status = Scheduler.Status.COMPLETED
+    interview.ended_at = timezone.now()
+    if interview.started_at:
+        interview.actual_duration_seconds = int((interview.ended_at - interview.started_at).total_seconds())
+    update_fields = ["status", "ended_at", "actual_duration_seconds"]
+
+    if interview.recording_enabled:
+        interview.recording_status = Scheduler.RecordingStatus.UPLOADING
+        update_fields.append("recording_status")
+
+    deletion_task = delete_room_after_interview.apply_async((str(interview.id),), countdown=60 * 60)
+    interview.room_deletion_task_id = deletion_task.id
+    update_fields.append("room_deletion_task_id")
+
+    interview.save(update_fields=update_fields)
+    process_interview_pipeline.delay(str(interview.id))
+    return interview
+
+
+class RecruiterTokenEndView(APIView):
+    """POST /api/interviews/end-recruiter/ -- { token }. Ends an interview the
+    recruiter joined via their emailed link, where there is no session to
+    authenticate against. The recruiter_join_token is the credential, exactly
+    as it is for RecruiterTokenJoinView.
+
+    Without this, a recruiter who joined by link could talk to the candidate
+    but never mark the interview complete, leaving it IN_PROGRESS forever and
+    never triggering the summary/scoring pipeline."""
+
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        token = request.data.get("token")
+        if not token:
+            return Response({"error": "token is required"}, status=HTTP_400_BAD_REQUEST)
+
+        interview = Scheduler.objects.filter(recruiter_join_token=token).select_related("company").first()
+        if not interview:
+            return Response(
+                {"error": "This interview link is invalid or has expired."}, status=HTTP_404_NOT_FOUND
+            )
+
+        _finalize_ended_interview(interview)
+        return Response({"status": interview.status, "ended_at": interview.ended_at}, status=HTTP_200_OK)
+
+
 class EndInterviewView(APIView):
     """POST /api/schedulers/<pk>/end/ -- only the recruiter can end an
     interview (the candidate's in-call view has no end control -- see the
@@ -281,8 +473,6 @@ class EndInterviewView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, pk):
-        from .tasks import delete_room_after_interview, process_interview_pipeline
-
         interview = Scheduler.objects.filter(pk=pk).select_related("company").first()
         if not interview:
             return Response({"error": "Interview not found."}, status=HTTP_404_NOT_FOUND)
@@ -294,30 +484,9 @@ class EndInterviewView(APIView):
         if interview.status == Scheduler.Status.COMPLETED:
             return Response({"status": interview.status}, status=HTTP_200_OK)
 
-        interview.status = Scheduler.Status.COMPLETED
-        interview.ended_at = timezone.now()
-        if interview.started_at:
-            interview.actual_duration_seconds = int((interview.ended_at - interview.started_at).total_seconds())
-        update_fields = ["status", "ended_at", "actual_duration_seconds"]
-
-        if interview.recording_enabled:
-            # Actual processing (fetching the finished Daily.co recording,
-            # uploading it, generating the transcript) is a later phase --
-            # this just flags that a recording is expected so the
-            # processing page's "transcript being compiled" step has
-            # something real to reflect.
-            interview.recording_status = Scheduler.RecordingStatus.UPLOADING
-            update_fields.append("recording_status")
-
-        deletion_task = delete_room_after_interview.apply_async((str(interview.id),), countdown=60 * 60)
-        interview.room_deletion_task_id = deletion_task.id
-        update_fields.append("room_deletion_task_id")
-
-        interview.save(update_fields=update_fields)
-
-        process_interview_pipeline.delay(str(interview.id))
-
+        _finalize_ended_interview(interview)
         return Response({"status": interview.status, "ended_at": interview.ended_at}, status=HTTP_200_OK)
+
 
 
 def _serialize_preparation(prep):

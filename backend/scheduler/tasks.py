@@ -39,10 +39,24 @@ def _candidate_join_url(meeting_instance):
 
 
 def _recruiter_join_url(meeting_instance):
-    """The recruiter is always an authenticated dashboard user, so their
-    join link is the workspace page itself, not a public token route."""
+    """The recruiter's join link, token-based and no-login -- same treatment
+    the candidate already got in _candidate_join_url above.
+
+    This used to point at /recruiter/dashboard/interviews/<id>/session, which
+    forced a recruiter clicking an interview email on their phone to log in
+    before they could join a call that was already starting. The
+    recruiter_join_token has existed on Scheduler since the copilot schema
+    (minted alongside candidate_join_token in jobs.views._claim_interview_slot
+    and ensure_join_tokens below) but nothing read it until now; the token
+    route is served by scheduler.copilot_views.RecruiterTokenJoinView, which
+    still charges the interview package so this is not a billing bypass.
+
+    Falls back to the dashboard page for meetings from the older manual
+    scheduler flow that never minted a token, so those emails keep working."""
     base = str(settings.FRONTEND_URL).rstrip("/")
-    return f"{base}/recruiter/dashboard/interviews/{meeting_instance.id}/session"
+    if not meeting_instance.recruiter_join_token:
+        return f"{base}/recruiter/dashboard/interviews/{meeting_instance.id}/session"
+    return f"{base}/interview/join/recruiter/{meeting_instance.recruiter_join_token}"
 
 
 # Reminder tiers fired by jobs.views._claim_interview_slot -- "in 30 minutes"
