@@ -1,6 +1,6 @@
 {% extends "emails/base.html" %}
-{% block title %}You have an offer{% endblock %}
-{% block preheader %}{{ company|default:"The hiring team" }} would like to extend you an offer for {{ role|default:"the role" }}.{% endblock %}
+{% block title %}Next steps on your application{% endblock %}
+{% block preheader %}{{ company|default:"The hiring team" }} would like to extend you an offer for the {{ role|default:"role" }} position and will be in touch with the details.{% endblock %}
 {% block content %}
   <h1 class="h1" style="margin:0 0 14px; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:33px; line-height:1.15; letter-spacing:-0.6px; font-weight:800; color:#0F172A;">{{ company|default:"The hiring team" }} wants to hire you</h1>
 

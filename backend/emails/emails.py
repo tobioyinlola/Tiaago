@@ -705,8 +705,21 @@ def offer_extended_notice_mail(user, company_name, role):
     )
     if not template:
         return None
+    # Subject deliberately reads as 1:1 correspondence about a specific
+    # application, not an announcement. The previous "You have an offer" had
+    # no role and no company in it and used the same phrasing a promotional
+    # blast would, which is what landed this in Gmail's Promotions tab.
+    # Naming the role and the company is what makes it look transactional.
+    if role and company_name:
+        subject = f"Next steps on your {role} application at {company_name}"
+    elif role:
+        subject = f"Next steps on your {role} application"
+    elif company_name:
+        subject = f"Next steps on your application at {company_name}"
+    else:
+        subject = "Next steps on your application"
     return _send_with_latest_flow(
-        user.email, "You have an offer", template, ctx,
+        user.email, subject, template, ctx,
         email_type="offer_extended_notice_mail",
     )
 
