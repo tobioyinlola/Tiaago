@@ -1856,7 +1856,31 @@ def bachs_wallet_fund_webhook(request):
     signature = request.headers.get('x-bachs-signature', '')
 
     if not verify_bachs_webhook_signature(payload, signature):
-        logger.error("Invalid Bachs webhook signature")
+        # Persist the rejection before returning. Previously this returned 401
+        # with no DB row and only a logger.error, which on our ~1h log
+        # retention meant a wrong BACHS_WEBHOOK_SECRET was completely
+        # invisible: every delivery was silently dropped, no wallet was ever
+        # credited, and there was nothing left to look at afterwards. The
+        # payload is stored unparsed (it failed auth -- we must not trust it)
+        # so an operator can compare it against the Bachs dashboard.
+        logger.error(
+            "Invalid Bachs webhook signature -- header present: %s, secret configured: %s",
+            bool(signature), bool(settings.BACHS_WEBHOOK_SECRET),
+        )
+        try:
+            BachsWebhookLog.objects.create(
+                event="signature.invalid",
+                payload={"raw": payload.decode("utf-8", errors="replace")[:10000]},
+                processed=False,
+                notes=(
+                    "Rejected with 401: signature did not match BACHS_WEBHOOK_SECRET. "
+                    f"X-Bachs-Signature header {'present' if signature else 'MISSING'}; "
+                    f"BACHS_WEBHOOK_SECRET {'set' if settings.BACHS_WEBHOOK_SECRET else 'NOT SET'}. "
+                    "No wallet was credited."
+                ),
+            )
+        except Exception:
+            logger.exception("Failed to record rejected Bachs webhook signature")
         return JsonResponse({'error': 'Invalid signature'}, status=401)
 
     try:

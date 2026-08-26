@@ -1,8 +1,9 @@
 from django.contrib import admin
 
 from .models import (
-    Subscription, 
-    SubPlan, 
+    Subscription,
+    SubPlan,
+    BachsWebhookLog,
     PaystackWebhookLog,
     PaystackPlan,
     PaystackSubscription,
@@ -42,6 +43,23 @@ class PaystackWebhookLogAdmin(admin.ModelAdmin):
     list_filter = ('processed', 'event')
     search_fields = ('event', 'notes')
     readonly_fields = ('payload',)
+
+
+@admin.register(BachsWebhookLog)
+class BachsWebhookLogAdmin(admin.ModelAdmin):
+    """Bachs is the default wallet top-up gateway, so this is the first place
+    to look when a payment succeeds on Bachs' side but the wallet is never
+    credited -- crediting happens only in bachs_wallet_fund_webhook, so an
+    absent row here means the delivery never reached us at all (wrong webhook
+    URL in the Bachs dashboard, or blocked before Django), and a row with
+    event='signature.invalid' means BACHS_WEBHOOK_SECRET doesn't match the
+    dashboard's."""
+
+    list_display = ('event', 'received_at', 'processed', 'notes')
+    list_filter = ('processed', 'event')
+    search_fields = ('event', 'notes')
+    readonly_fields = ('payload', 'received_at')
+    ordering = ('-received_at',)
 
 @admin.register(StripePlanPrice)
 class StripePlanPriceAdmin(admin.ModelAdmin):
