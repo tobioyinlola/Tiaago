@@ -171,6 +171,11 @@ CHANNEL_LAYERS = {
 
 # ---------- Celery wiring (harmless if ALWAYS_EAGER=True) ----------
 CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL", REDIS_URL)
+# Keep in step with talentsync_backend/settings.py -- without this, long
+# apply_async(eta=...) tasks are redelivered hourly. See the comment there.
+CELERY_BROKER_TRANSPORT_OPTIONS = {
+    "visibility_timeout": int(os.getenv("CELERY_VISIBILITY_TIMEOUT", 7 * 24 * 60 * 60)),
+}
 CELERY_RESULT_BACKEND = os.getenv("CELERY_RESULT_BACKEND", "django-db")
 CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"

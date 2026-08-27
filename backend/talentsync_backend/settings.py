@@ -455,6 +455,31 @@ CELERY_TASK_TRACK_STARTED = True
 CELERY_BEAT_SCHEDULER = "django_celery_beat.schedulers:DatabaseScheduler"
 CELERY_TASK_TIME_LIMIT = 30 * 60
 CELERY_BROKER_URL = env("REDIS_URL", default="redis://localhost:6379")  # Use Redis as broker
+
+# Redis assumes any message left unacked for longer than visibility_timeout was
+# lost and redelivers it. A worker holding an apply_async(eta=...) task does not
+# ack until the ETA fires, so with the Celery default of 3600s EVERY task
+# scheduled more than an hour out is redelivered once an hour until it runs --
+# and each redelivery is a separate copy, so the task can fire multiple times.
+# Observed in prod 2026-08-27: send_ai_interview_reminder_task (ETA +24h) and
+# send_ai_interview_no_show_followup_task (ETA +48h) were each delivered 39
+# times from a single apply_async, matching the recurring
+# "Restoring 2 unacknowledged message(s)" warning.
+#
+# This must stay LONGER than the furthest-out ETA any task uses. Current
+# long-ETA call sites:
+#   ai_interviews/tasks.py -- reminder at +24h, no-show at window_end +15min
+#                             (window is Job.ai_interview_window_hours, default 72h)
+#   scheduler/views.py     -- meeting reminders at (meeting time - 1h), which is
+#                             as far out as a recruiter books the interview
+# Raising this is safe for ordinary tasks: with acks_late off (the default) they
+# are acked on receipt, so they never sit unacked. The only cost is that ETA
+# tasks held by a worker that dies wait this long before another worker picks
+# them up. Anything scheduled beyond this window still redelivers -- prefer a
+# beat sweeper over an ETA for genuinely long horizons.
+CELERY_BROKER_TRANSPORT_OPTIONS = {
+    "visibility_timeout": env.int("CELERY_VISIBILITY_TIMEOUT", default=7 * 24 * 60 * 60),
+}
 CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
 if ENV == "development":
