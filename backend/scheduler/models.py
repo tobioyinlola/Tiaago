@@ -9,8 +9,24 @@ from create_user.models import (
 
 class Scheduler(models.Model):
     class InterviewType(models.TextChoices):
-        IN_HOUSE = "IN_HOUSE", "In-house"
+        """Where the interview actually happens.
+
+        IN_HOUSE is the built-in Daily.co room Tiaago provisions and hosts
+        (see scheduler.services.provision_daily_room). Every other value is a
+        call the recruiter runs on their own platform, in which case
+        external_meeting_url carries the link and no Daily room is created.
+        Also used by Job.interview_type as the per-job default -- these are
+        the canonical choices for both.
+        """
+
+        IN_HOUSE = "IN_HOUSE", "In-app (Daily.co)"
         GOOGLE_MEET = "GOOGLE_MEET", "Google Meet"
+        ZOOM = "ZOOM", "Zoom"
+        OTHER = "OTHER", "Other"
+
+    #: Types where the meeting lives on someone else's platform, so the
+    #: recruiter supplies the link instead of Tiaago provisioning a room.
+    EXTERNAL_INTERVIEW_TYPES = ("GOOGLE_MEET", "ZOOM", "OTHER")
 
     class Status(models.TextChoices):
         SCHEDULED = "SCHEDULED", "Scheduled"
@@ -122,6 +138,10 @@ class Scheduler(models.Model):
     recruiter_join_token = models.CharField(max_length=64, unique=True, null=True, blank=True, db_index=True)
     candidate_join_token = models.CharField(max_length=64, unique=True, null=True, blank=True, db_index=True)
     interview_type = models.CharField(max_length=15, choices=InterviewType.choices, default=InterviewType.IN_HOUSE)
+    # Set only for the external types -- the Google Meet / Zoom / other link
+    # the recruiter configured on the job. room_url above stays reserved for
+    # the Daily.co room, so the two can never be confused.
+    external_meeting_url = models.URLField(blank=True, default="")
     status = models.CharField(max_length=15, choices=Status.choices, default=Status.SCHEDULED, db_index=True)
     recording_enabled = models.BooleanField(default=False)
     recording_id = models.CharField(max_length=255, blank=True, null=True, help_text="Daily.co recording id, used to poll for completion")

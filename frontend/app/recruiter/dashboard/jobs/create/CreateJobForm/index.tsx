@@ -223,6 +223,7 @@ const CreateJobForm = ({
             snapshot_interval_seconds,
             max_tab_switches_before_warning,
             max_tab_switches_before_termination,
+            ai_interview_pass_mark,
             ...values
           },
           { setSubmitting, resetForm, setFieldError }
@@ -248,6 +249,12 @@ const CreateJobForm = ({
             max_tab_switches_before_termination: Number(max_tab_switches_before_termination),
             interview_slots: expandAvailabilityToSlots(interview_availability),
             assessment_questions,
+            // Only meaningful with the AI interview on. Sent as null rather
+            // than "" when it is off -- the backend field is nullable, and an
+            // empty string is not a valid integer.
+            ai_interview_pass_mark: values.ai_interview_enabled
+              ? Number(ai_interview_pass_mark)
+              : null,
           })
             .then(res => {
               if (res.success) {

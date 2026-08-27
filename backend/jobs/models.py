@@ -262,6 +262,31 @@ class Job(models.Model):
     # they are invited to pick a human interview slot. Same
     # explicit-or-fall-back shape as passing_grade / screening_threshold
     # above -- see get_ai_interview_pass_mark().
+    # Human interview configuration, applied to every interview booked off
+    # this job's availability slots (see jobs.views._claim_interview_slot).
+    # Choices come from Scheduler so the job-level default and the booked
+    # interview can never drift apart.
+    interview_type = models.CharField(
+        max_length=15,
+        default="IN_HOUSE",
+        help_text=(
+            "Where this job's interviews happen. IN_HOUSE uses the built-in "
+            "Daily.co room; the rest need interview_meeting_url."
+        ),
+    )
+    interview_duration_minutes = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        help_text=(
+            "Length of a human interview for this job. Falls back to the "
+            "published slot's own length when unset."
+        ),
+    )
+    interview_meeting_url = models.URLField(
+        blank=True,
+        default="",
+        help_text="Recruiter's own meeting link, required for non-IN_HOUSE interview types.",
+    )
     ai_interview_pass_mark = models.PositiveSmallIntegerField(
         null=True,
         blank=True,
@@ -332,6 +357,13 @@ class Job(models.Model):
             if self.passing_grade is not None
             else self.DEFAULT_PASSING_GRADE
         )
+
+    def is_external_interview(self):
+        """True when interviews for this job happen on the recruiter's own
+        platform, so no Daily.co room should be provisioned."""
+        from scheduler.models import Scheduler
+
+        return self.interview_type in Scheduler.EXTERNAL_INTERVIEW_TYPES
 
     def get_ai_interview_pass_mark(self):
         """AI interview pass mark -- candidates scoring at or above this are

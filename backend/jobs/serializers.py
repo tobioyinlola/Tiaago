@@ -41,6 +41,36 @@ def _derive_job_location(work_mode, country):
     return "Remote"
 
 
+def _validate_interview_type(attrs, instance=None):
+    """An interview held on the recruiter's own platform is useless without
+    the link, and a link on an in-app interview is misleading -- Tiaago
+    provisions its own Daily.co room in that case and would ignore it.
+    Shared by JobSerializer and JobUpdateSerializer so create and edit cannot
+    disagree.
+    """
+    from scheduler.models import Scheduler
+
+    interview_type = attrs.get(
+        "interview_type", getattr(instance, "interview_type", "") or "IN_HOUSE"
+    )
+    url = (
+        attrs.get("interview_meeting_url", getattr(instance, "interview_meeting_url", "") or "")
+        or ""
+    ).strip()
+
+    if interview_type in Scheduler.EXTERNAL_INTERVIEW_TYPES and not url:
+        raise serializers.ValidationError({
+            "interview_meeting_url":
+                "A meeting link is required when interviews are held on an external platform."
+        })
+    if interview_type == Scheduler.InterviewType.IN_HOUSE and url:
+        raise serializers.ValidationError({
+            "interview_meeting_url":
+                "In-app interviews use a Tiaago room, so no external meeting link should be set."
+        })
+    return attrs
+
+
 class JobSerializer(serializers.ModelSerializer):
     company = CompanyDetailSerializer(read_only=True)
     # role is a plain CharField on the Job model (free text, not a Role FK) --
@@ -63,6 +93,14 @@ class JobSerializer(serializers.ModelSerializer):
     )
     passing_grade = serializers.IntegerField(
         required=False, allow_null=True, min_value=0, max_value=100
+    )
+    # Same 0-100 bound as the assessment pass mark -- an AI interview score
+    # outside that range could never be met (or could never be missed).
+    ai_interview_pass_mark = serializers.IntegerField(
+        required=False, allow_null=True, min_value=0, max_value=100
+    )
+    interview_duration_minutes = serializers.IntegerField(
+        required=False, allow_null=True, min_value=5, max_value=480
     )
     # Write-only nested input assembled by the job-creation wizard's final submit.
     # Not model fields -- consumed in create() to build the related template/slot rows.
@@ -154,6 +192,10 @@ class JobSerializer(serializers.ModelSerializer):
             "ai_interview_duration_minutes",
             "ai_interview_questions_count",
             "ai_interview_window_hours",
+            "ai_interview_pass_mark",
+            "interview_type",
+            "interview_duration_minutes",
+            "interview_meeting_url",
             "proctoring_enabled",
             "require_fullscreen",
             "require_webcam",
@@ -206,6 +248,8 @@ class JobSerializer(serializers.ModelSerializer):
         role = attrs.get("role") or getattr(self.instance, "role", None)
         if not role:
             raise serializers.ValidationError({"role": "Role field is required"})
+
+        _validate_interview_type(attrs, self.instance)
 
         # Experience check
         experience = attrs.get("experience", getattr(self.instance, "experience", None))
@@ -323,6 +367,14 @@ class JobUpdateSerializer(serializers.ModelSerializer):
     passing_grade = serializers.IntegerField(
         required=False, allow_null=True, min_value=0, max_value=100
     )
+    # Same 0-100 bound as the assessment pass mark -- an AI interview score
+    # outside that range could never be met (or could never be missed).
+    ai_interview_pass_mark = serializers.IntegerField(
+        required=False, allow_null=True, min_value=0, max_value=100
+    )
+    interview_duration_minutes = serializers.IntegerField(
+        required=False, allow_null=True, min_value=5, max_value=480
+    )
     # Write-only, same shape as JobSerializer's -- edit-wizard equivalent of
     # the create-wizard's final submit. Omitted entirely (not present in the
     # request body) means "leave as-is"; see update() below.
@@ -363,6 +415,10 @@ class JobUpdateSerializer(serializers.ModelSerializer):
             "ai_interview_duration_minutes",
             "ai_interview_questions_count",
             "ai_interview_window_hours",
+            "ai_interview_pass_mark",
+            "interview_type",
+            "interview_duration_minutes",
+            "interview_meeting_url",
             "proctoring_enabled",
             "require_fullscreen",
             "require_webcam",
@@ -398,6 +454,9 @@ class JobUpdateSerializer(serializers.ModelSerializer):
             work_mode = attrs.get("work_mode", getattr(self.instance, "work_mode", "") or "")
             country = attrs.get("country", getattr(self.instance, "country", "") or "")
             attrs["location"] = _derive_job_location(work_mode, country)
+
+        if "interview_type" in attrs or "interview_meeting_url" in attrs:
+            _validate_interview_type(attrs, self.instance)
         return attrs
 
     def get_role_title(self, obj):

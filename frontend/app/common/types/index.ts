@@ -481,6 +481,14 @@ export type Job = {
   ai_interview_duration_minutes?: number;
   ai_interview_questions_count?: number;
   ai_interview_window_hours?: number;
+  /** Score a candidate must reach in the AI interview before they can pick a
+   * human interview slot. Null/undefined falls back to the server default. */
+  ai_interview_pass_mark?: number | null;
+  /** Where this job's human interviews happen. IN_HOUSE is the built-in
+   * Daily.co room; the rest use interview_meeting_url. */
+  interview_type?: "IN_HOUSE" | "GOOGLE_MEET" | "ZOOM" | "OTHER";
+  interview_duration_minutes?: number | null;
+  interview_meeting_url?: string;
   /** Current JobAssessmentTemplate contents, in the same shape the edit
    * wizard submits back as assessment_questions -- read-only, only present
    * on JobRetrieveUpdateView's GET response (see jobs.serializers.JobSerializer

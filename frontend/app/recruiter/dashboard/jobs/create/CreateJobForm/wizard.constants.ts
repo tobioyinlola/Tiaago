@@ -26,12 +26,12 @@ export const criteriaAvailabilityValidationSchema = Yup.object().shape({
     .min(0, "Must be at least 0%")
     .max(100, "Must be at most 100%")
     .label("Assessment passing grade"),
-  // Only required when AI interview is off -- an AI-interview-enabled job
-  // never surfaces these slots to candidates (see ai_interview_enabled below).
+  // Always required now: the AI interview gates the human interview rather
+  // than replacing it, so every job still needs slots for candidates who
+  // clear the AI stage to pick from.
   interview_availability: Yup.object().when("ai_interview_enabled", {
-    is: true,
-    then: schema => schema,
-    otherwise: schema =>
+    is: () => true,
+    then: schema =>
       schema.shape({
         days_of_week: Yup.array()
           .of(Yup.number())
@@ -54,6 +54,36 @@ export const criteriaAvailabilityValidationSchema = Yup.object().shape({
   ai_interview_duration_minutes: Yup.number().oneOf([5, 8, 10]).label("AI interview duration"),
   ai_interview_questions_count: Yup.number().oneOf([4, 5, 6]).label("AI interview question count"),
   ai_interview_window_hours: Yup.number().oneOf([48, 72]).label("AI interview window"),
+  // Only meaningful with the AI interview on -- it is the score a candidate
+  // must reach there before they can pick a human interview slot.
+  ai_interview_pass_mark: Yup.number()
+    .when("ai_interview_enabled", {
+      is: true,
+      then: schema =>
+        schema
+          .typeError("Please enter an AI interview pass mark")
+          .required("Please set an AI interview pass mark")
+          .min(0, "Must be at least 0%")
+          .max(100, "Must be at most 100%"),
+      otherwise: schema => schema.nullable(),
+    })
+    .label("AI interview pass mark"),
+  interview_type: Yup.string()
+    .oneOf(["IN_HOUSE", "GOOGLE_MEET", "ZOOM", "OTHER"])
+    .label("Interview type"),
+  interview_duration_minutes: Yup.number()
+    .oneOf([15, 30, 45, 60, 90])
+    .label("Interview duration"),
+  // Mirrors jobs.serializers._validate_interview_type -- an interview held
+  // somewhere else is useless without the link.
+  interview_meeting_url: Yup.string()
+    .when("interview_type", {
+      is: (value: string) => value !== "IN_HOUSE",
+      then: schema =>
+        schema.url("Enter a valid meeting link").required("Add the meeting link for this platform"),
+      otherwise: schema => schema.strip(),
+    })
+    .label("Meeting link"),
 });
 
 // Edit-mode equivalent of criteriaAvailabilityValidationSchema -- the only
@@ -82,6 +112,36 @@ export const editCriteriaAvailabilityValidationSchema = Yup.object().shape({
   ai_interview_duration_minutes: Yup.number().oneOf([5, 8, 10]).label("AI interview duration"),
   ai_interview_questions_count: Yup.number().oneOf([4, 5, 6]).label("AI interview question count"),
   ai_interview_window_hours: Yup.number().oneOf([48, 72]).label("AI interview window"),
+  // Only meaningful with the AI interview on -- it is the score a candidate
+  // must reach there before they can pick a human interview slot.
+  ai_interview_pass_mark: Yup.number()
+    .when("ai_interview_enabled", {
+      is: true,
+      then: schema =>
+        schema
+          .typeError("Please enter an AI interview pass mark")
+          .required("Please set an AI interview pass mark")
+          .min(0, "Must be at least 0%")
+          .max(100, "Must be at most 100%"),
+      otherwise: schema => schema.nullable(),
+    })
+    .label("AI interview pass mark"),
+  interview_type: Yup.string()
+    .oneOf(["IN_HOUSE", "GOOGLE_MEET", "ZOOM", "OTHER"])
+    .label("Interview type"),
+  interview_duration_minutes: Yup.number()
+    .oneOf([15, 30, 45, 60, 90])
+    .label("Interview duration"),
+  // Mirrors jobs.serializers._validate_interview_type -- an interview held
+  // somewhere else is useless without the link.
+  interview_meeting_url: Yup.string()
+    .when("interview_type", {
+      is: (value: string) => value !== "IN_HOUSE",
+      then: schema =>
+        schema.url("Enter a valid meeting link").required("Add the meeting link for this platform"),
+      otherwise: schema => schema.strip(),
+    })
+    .label("Meeting link"),
 });
 
 export const assessmentGenerationValidationSchema = Yup.object().shape({
@@ -123,6 +183,10 @@ export type CriteriaAvailabilityFormValues = {
   ai_interview_duration_minutes: number;
   ai_interview_questions_count: number;
   ai_interview_window_hours: number;
+  ai_interview_pass_mark: number | "";
+  interview_type: "IN_HOUSE" | "GOOGLE_MEET" | "ZOOM" | "OTHER";
+  interview_duration_minutes: number;
+  interview_meeting_url: string;
 };
 
 export type AssessmentGenerationFormValues = {
@@ -153,6 +217,12 @@ export const criteriaAvailabilityInitialValues: CriteriaAvailabilityFormValues =
   ai_interview_duration_minutes: 10,
   ai_interview_questions_count: 6,
   ai_interview_window_hours: 72,
+  // Blank on purpose, like the other two pass marks -- recruiters set it.
+  ai_interview_pass_mark: "",
+  // In-app by default: it needs no setup from the recruiter.
+  interview_type: "IN_HOUSE",
+  interview_duration_minutes: 45,
+  interview_meeting_url: "",
 };
 
 export const assessmentGenerationInitialValues: AssessmentGenerationFormValues = {

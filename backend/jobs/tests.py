@@ -157,3 +157,59 @@ class HasBookedInterviewTests(TestCase):
         """They need a fresh invitation, not a confirmation for a dead room."""
         self._meeting(Scheduler.Status.CANCELLED)
         self.assertFalse(_has_booked_interview(self.application))
+
+
+class InterviewTypeConfigTests(TestCase):
+    """Item 3: recruiters pick where the interview happens, and an external
+    platform is meaningless without the link."""
+
+    def setUp(self):
+        rep = CustomUser.objects.create_company_user(
+            username="cfg-rep", email="cfg-rep@example.com", password="x"
+        )
+        self.company = Company.objects.create(company_name="Cfg Co", company_rep=rep)
+
+    def test_in_house_is_not_external(self):
+        job = _make_job(self.company)
+        self.assertEqual(job.interview_type, "IN_HOUSE")
+        self.assertFalse(job.is_external_interview())
+
+    def test_google_meet_and_zoom_are_external(self):
+        for value in ("GOOGLE_MEET", "ZOOM", "OTHER"):
+            with self.subTest(value=value):
+                job = _make_job(self.company, interview_type=value)
+                self.assertTrue(job.is_external_interview())
+
+    def test_external_type_requires_a_meeting_link(self):
+        from jobs.serializers import _validate_interview_type
+        from rest_framework.serializers import ValidationError
+
+        with self.assertRaises(ValidationError) as ctx:
+            _validate_interview_type({"interview_type": "ZOOM", "interview_meeting_url": ""})
+        self.assertIn("interview_meeting_url", ctx.exception.detail)
+
+    def test_in_house_rejects_a_stray_meeting_link(self):
+        """It would be silently ignored -- Tiaago provisions its own room."""
+        from jobs.serializers import _validate_interview_type
+        from rest_framework.serializers import ValidationError
+
+        with self.assertRaises(ValidationError):
+            _validate_interview_type({
+                "interview_type": "IN_HOUSE",
+                "interview_meeting_url": "https://zoom.us/j/1",
+            })
+
+    def test_valid_external_config_passes(self):
+        from jobs.serializers import _validate_interview_type
+
+        attrs = {"interview_type": "GOOGLE_MEET", "interview_meeting_url": "https://meet.google.com/abc"}
+        self.assertEqual(_validate_interview_type(attrs), attrs)
+
+    def test_configured_duration_overrides_slot_length(self):
+        job = _make_job(self.company, interview_duration_minutes=30)
+        self.assertEqual(job.interview_duration_minutes or 60, 30)
+
+    def test_duration_falls_back_to_slot_length_when_unset(self):
+        job = _make_job(self.company)
+        self.assertIsNone(job.interview_duration_minutes)
+        self.assertEqual(job.interview_duration_minutes or 60, 60)

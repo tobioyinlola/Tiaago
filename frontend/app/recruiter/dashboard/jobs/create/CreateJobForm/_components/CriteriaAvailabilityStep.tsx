@@ -9,6 +9,13 @@ import { CriteriaAvailabilityFormValues } from "../wizard.constants";
 import { DAY_LABELS, TIME_OPTIONS } from "./availability";
 
 const AI_INTERVIEW_DURATION_OPTIONS = [5, 8, 10] as const;
+const INTERVIEW_DURATION_OPTIONS = [15, 30, 45, 60, 90] as const;
+const INTERVIEW_TYPE_OPTIONS = [
+  { value: "IN_HOUSE", label: "In-app", hint: "Tiaago hosts the call. Nothing to set up." },
+  { value: "GOOGLE_MEET", label: "Google Meet", hint: "You provide the meeting link." },
+  { value: "ZOOM", label: "Zoom", hint: "You provide the meeting link." },
+  { value: "OTHER", label: "Other", hint: "Any other platform. You provide the link." },
+] as const;
 const AI_INTERVIEW_QUESTIONS_OPTIONS = [4, 5, 6] as const;
 const AI_INTERVIEW_WINDOW_OPTIONS = [48, 72] as const;
 
@@ -163,19 +170,84 @@ const CriteriaAvailabilityStep = ({
                 formatLabel={option => `${option} hours`}
               />
             </div>
+            <div className='md:w-[48%]'>
+              <FormikField
+                name='ai_interview_pass_mark'
+                label='Minimum AI interview score (%)'
+                type='number'
+                placeholder='e.g. 70'
+                value={values.ai_interview_pass_mark}
+                error={errors.ai_interview_pass_mark}
+                touched={touched.ai_interview_pass_mark}
+              />
+              <p className='text-xs text-secondary-black mt-1'>
+                Candidates who reach this score are invited to pick a human interview slot.
+                Anyone below it waits for your review.
+              </p>
+            </div>
           </div>
         )}
       </div>
 
-      <div className={cn(values.ai_interview_enabled && "opacity-50 pointer-events-none")}>
+      <div>
         <h3 className='text-base font-bold text-primary-black pb-3 border-b border-[#EAECF0] mb-1'>
-          Your availability for post-assessment interviews
+          Human interview
         </h3>
         <p className='text-sm text-secondary-black mb-4'>
           {values.ai_interview_enabled
-            ? "Not used while AI interview is enabled above -- candidates go straight to Alex instead."
+            ? "Candidates who pass the AI interview above pick one of these slots for a real interview with you."
             : "Pick the days and hours you're generally available to interview candidates. These only become visible to candidates once they pass the assessment stage."}
         </p>
+
+        <div className='rounded-lg border border-[#EAECF0] p-4 mb-4'>
+          <p className='text-sm font-medium text-primary-black mb-2'>Where the interview happens</p>
+          <div className='flex flex-wrap gap-2'>
+            {INTERVIEW_TYPE_OPTIONS.map(option => (
+              <button
+                key={option.value}
+                type='button'
+                aria-pressed={values.interview_type === option.value}
+                onClick={() => {
+                  setFieldValue("interview_type", option.value);
+                  if (option.value === "IN_HOUSE") setFieldValue("interview_meeting_url", "");
+                }}
+                className={cn(
+                  "h-11 rounded-lg border px-4 text-sm font-medium transition-colors",
+                  "focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
+                  values.interview_type === option.value
+                    ? "bg-primary border-primary text-white"
+                    : "border-[#EAECF0] text-secondary-black hover:border-primary hover:text-primary"
+                )}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+          <p className='text-xs text-secondary-black mt-2'>
+            {INTERVIEW_TYPE_OPTIONS.find(o => o.value === values.interview_type)?.hint}
+          </p>
+
+          {values.interview_type !== "IN_HOUSE" && (
+            <div className='mt-4 md:w-[70%]'>
+              <FormikField
+                name='interview_meeting_url'
+                label='Meeting link'
+                placeholder='https://meet.google.com/... or https://zoom.us/j/...'
+                value={values.interview_meeting_url}
+                error={errors.interview_meeting_url}
+                touched={touched.interview_meeting_url}
+              />
+            </div>
+          )}
+
+          <p className='text-sm font-medium text-primary-black mt-5 mb-2'>Interview length</p>
+          <OptionButtonGroup
+            options={INTERVIEW_DURATION_OPTIONS}
+            value={values.interview_duration_minutes}
+            onSelect={option => setFieldValue("interview_duration_minutes", option)}
+            formatLabel={option => `${option} min`}
+          />
+        </div>
 
         <div className='rounded-lg border border-[#EAECF0] p-4'>
           <p className='text-sm font-medium text-primary-black mb-2'>Available days</p>

@@ -74,6 +74,12 @@ const buildInitialValues = (job: Job): EditFormValues => {
     ai_interview_duration_minutes: (job.ai_interview_duration_minutes ?? 10) as 5 | 8 | 10,
     ai_interview_questions_count: (job.ai_interview_questions_count ?? 6) as 4 | 5 | 6,
     ai_interview_window_hours: (job.ai_interview_window_hours ?? 72) as 48 | 72,
+    // "" (not 0) when unset, so the field renders empty rather than showing a
+    // pass mark the recruiter never chose.
+    ai_interview_pass_mark: job.ai_interview_pass_mark ?? "",
+    interview_type: job.interview_type ?? "IN_HOUSE",
+    interview_duration_minutes: job.interview_duration_minutes ?? 45,
+    interview_meeting_url: job.interview_meeting_url ?? "",
     assessment_questions: job.existing_assessment_questions ?? [],
     proctoring_enabled: job.proctoring_enabled ?? true,
     require_fullscreen: job.require_fullscreen ?? true,
@@ -135,6 +141,7 @@ const EditJobForm = ({
             snapshot_interval_seconds,
             max_tab_switches_before_warning,
             max_tab_switches_before_termination,
+            ai_interview_pass_mark,
             ...values
           },
           { setSubmitting, setFieldError }
@@ -166,6 +173,11 @@ const EditJobForm = ({
             max_tab_switches_before_termination: Number(max_tab_switches_before_termination),
             ...(newSlots.length ? { interview_slots: newSlots } : {}),
             assessment_questions,
+            // Mirrors CreateJobForm -- nullable server-side, and "" is not a
+            // valid integer, so an AI-interview-off job clears it explicitly.
+            ai_interview_pass_mark: values.ai_interview_enabled
+              ? Number(ai_interview_pass_mark)
+              : null,
           })
             .then(res => {
               if (res.success) {

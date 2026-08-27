@@ -30,6 +30,11 @@ export type JobCreatePayload = Omit<JobFormPayload, "hiring_type" | "payment_ran
   ai_interview_duration_minutes?: number;
   ai_interview_questions_count?: number;
   ai_interview_window_hours?: number;
+  /** Null when the AI interview is off -- the field is nullable server-side. */
+  ai_interview_pass_mark?: number | null;
+  interview_type?: "IN_HOUSE" | "GOOGLE_MEET" | "ZOOM" | "OTHER";
+  interview_duration_minutes?: number;
+  interview_meeting_url?: string;
   proctoring_enabled?: boolean;
   require_fullscreen?: boolean;
   require_webcam?: boolean;
