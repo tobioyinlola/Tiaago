@@ -17,7 +17,6 @@ import {
 import { addToPipeline, getCategories } from "@/app/common/services/sourcing";
 import {
   updateJobApplicationStatus,
-  type VendorInterviewDetails,
 } from "@/app/common/services/jobs";
 import { advanceInterviewRound } from "@/app/common/services/interview-review";
 import AIFeedbackModal from "./AIFeedbackModal";
@@ -29,7 +28,6 @@ import ProfileModal from "@/app/common/components/ProfileModal";
 import { cn, handlePlural } from "@/app/common/utils";
 import { Button } from "@/app/common/components/ui/button";
 import { Textarea } from "@/app/common/components/ui/textarea";
-import { Input } from "@/app/common/components/ui/input";
 import {
   Dialog,
   DialogContent,
@@ -53,7 +51,8 @@ const STATUS_LABELS: Record<string, string> = {
   REVIEWED: "Skill Assessment",
   INTERVIEW_SCHEDULED: "Interview scheduled",
   PENDING_DECISION: "Interview",
-  VENDOR_AI_INTERVIEW: "Vendor AI interview",
+  AI_INTERVIEW: "AI interview",
+  HUMAN_INTERVIEW: "Human interview",
   INTERVIEW_COMPLETED: "Interview completed",
   SECOND_INTERVIEW: "Second interview",
   OFFER_EXTENDED: "Offer extended",
@@ -69,7 +68,8 @@ const STATUS_BADGE_STYLES: Record<string, string> = {
   REVIEWED: "bg-[#EEF4FF] text-[#3580B5]",
   INTERVIEW_SCHEDULED: "bg-[#F4F3FF] text-[#5925DC]",
   PENDING_DECISION: "bg-[#F4F3FF] text-[#5925DC]",
-  VENDOR_AI_INTERVIEW: "bg-[#F4F3FF] text-[#5925DC]",
+  AI_INTERVIEW: "bg-[#F4F3FF] text-[#5925DC]",
+  HUMAN_INTERVIEW: "bg-[#F4F3FF] text-[#5925DC]",
   INTERVIEW_COMPLETED: "bg-[#EEF4FF] text-[#3580B5]",
   SECOND_INTERVIEW: "bg-[#F4F3FF] text-[#5925DC]",
   OFFER_EXTENDED: "bg-[#ECFDF3] text-[#027A48]",
@@ -87,21 +87,29 @@ type BoardColumnDef = { key: string; label: string; droppable: boolean };
 // columns: RESUME_SCREENING (status still APPLIED, but a
 // ReportPAYGFlowStatus row exists -- see getColumnKey below) and CLOSED
 // (the 3 talent-only outcomes grouped, since a recruiter can never set any
-// of them -- see MOVABLE_STATUSES in ApplicationCard.tsx). The AI/Human
-// Interview column label is job-specific: a single job is only ever one or
-// the other, never both.
-const getBoardColumns = (aiInterviewEnabled: boolean): BoardColumnDef[] => [
+// of them -- see MOVABLE_STATUSES in ApplicationCard.tsx).
+//
+// AI Interview and Human Interview are separate, sequential stages, not a
+// branch: the AI interview gates the human one via the job's
+// ai_interview_pass_mark. The AI column is only shown for jobs that actually
+// run one. PENDING_DECISION is the legacy pre-split "invited to interview"
+// stage, shown only while it still holds candidates so they don't vanish
+// from the board.
+const getBoardColumns = (
+  aiInterviewEnabled: boolean,
+  hasLegacyPendingDecision: boolean
+): BoardColumnDef[] => [
   { key: "APPLIED", label: "Applied", droppable: false },
   { key: "RESUME_SCREENING", label: "Resume Screening", droppable: false },
   { key: "REVIEWED", label: "Skill Assessment", droppable: true },
-  // The interview stage branches: PENDING_DECISION is the in-house interview
-  // (AI or human, per the job's own setting -- a job is only ever one, never
-  // both), VENDOR_AI_INTERVIEW is a third-party tool the recruiter runs
-  // elsewhere and links the candidate to. Both feed Interview Scheduled ->
-  // Interview Completed.
-  { key: "PENDING_DECISION", label: aiInterviewEnabled ? "AI Interview" : "Human Interview", droppable: true },
-  { key: "VENDOR_AI_INTERVIEW", label: "Vendor AI Interview", droppable: true },
+  ...(aiInterviewEnabled
+    ? [{ key: "AI_INTERVIEW", label: "AI Interview", droppable: true }]
+    : []),
+  ...(hasLegacyPendingDecision
+    ? [{ key: "PENDING_DECISION", label: "Interview (legacy)", droppable: false }]
+    : []),
   { key: "INTERVIEW_SCHEDULED", label: "Interview Scheduled", droppable: true },
+  { key: "HUMAN_INTERVIEW", label: "Human Interview", droppable: true },
   { key: "INTERVIEW_COMPLETED", label: "Interview Completed", droppable: true },
   { key: "SECOND_INTERVIEW", label: "Second Interview", droppable: true },
   { key: "OFFER_EXTENDED", label: "Offer Extended", droppable: true },
@@ -255,25 +263,24 @@ export const JobApplicationsTable = ({
   const [rejectionReasonText, setRejectionReasonText] = useState("");
   const [rejecting, setRejecting] = useState(false);
 
-  // VENDOR_AI_INTERVIEW needs the tool's name and the candidate's link before
-  // the backend will accept the move -- the stage is manual, with no vendor
-  // API behind it, and those two values are what the candidate's invite email
-  // is built from. Same dialog-before-commit shape as the rejection reason.
-  const [vendorTarget, setVendorTarget] = useState<AiFeedbackItem | null>(null);
-  const [vendorNameText, setVendorNameText] = useState("");
-  const [vendorUrlText, setVendorUrlText] = useState("");
-  const [savingVendor, setSavingVendor] = useState(false);
-
   const [visibleCounts, setVisibleCounts] = useState<Record<string, number>>({});
   // Every column is collapsible at every breakpoint. Starts with only
   // non-empty columns expanded so a candidate-heavy stage isn't buried
   // behind a click, while empty stages don't waste vertical space.
+  // Only surface the retired PENDING_DECISION column while candidates are
+  // still parked in it, so it disappears on its own once the board drains.
+  const hasLegacyPendingDecision = data.some(a => getColumnKey(a) === "PENDING_DECISION");
   const [expandedColumns, setExpandedColumns] = useState<Set<string>>(
-    () => new Set(getBoardColumns(aiInterviewEnabled).filter(c => data.some(a => getColumnKey(a) === c.key)).map(c => c.key))
+    () =>
+      new Set(
+        getBoardColumns(aiInterviewEnabled, hasLegacyPendingDecision)
+          .filter(c => data.some(a => getColumnKey(a) === c.key))
+          .map(c => c.key)
+      )
   );
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
-  const columns = getBoardColumns(aiInterviewEnabled);
+  const columns = getBoardColumns(aiInterviewEnabled, hasLegacyPendingDecision);
 
   const toggleColumn = (key: string) => {
     setExpandedColumns(prev => {
@@ -329,8 +336,7 @@ export const JobApplicationsTable = ({
   const handleMoveStage = async (
     item: AiFeedbackItem,
     newStatus: JobApplication["status"],
-    reason?: string,
-    vendor?: VendorInterviewDetails
+    reason?: string
   ) => {
     if (newStatus === item.status || movingId != null) return;
     const previous = item;
@@ -342,7 +348,7 @@ export const JobApplicationsTable = ({
           : a
       )
     );
-    const res = await updateJobApplicationStatus(item.application_id, newStatus, reason, vendor);
+    const res = await updateJobApplicationStatus(item.application_id, newStatus, reason);
     setMovingId(null);
     if (!res.success) {
       toast.error(res.error);
@@ -353,10 +359,10 @@ export const JobApplicationsTable = ({
     }
     if (newStatus === "REVIEWED") {
       toast.success("Moved to Skill Assessment", { description: "Assessment invite sent to the candidate." });
-    } else if (newStatus === "PENDING_DECISION") {
-      toast.success("Moved to Interview", { description: "Interview invite sent to the candidate." });
-    } else if (newStatus === "VENDOR_AI_INTERVIEW") {
-      toast.success("Moved to Vendor AI Interview", { description: "Interview link sent to the candidate." });
+    } else if (newStatus === "AI_INTERVIEW") {
+      toast.success("Moved to AI Interview", { description: "AI interview invite sent to the candidate." });
+    } else if (newStatus === "INTERVIEW_SCHEDULED") {
+      toast.success("Moved to Interview Scheduled", { description: "Slot invite sent to the candidate." });
     } else if (newStatus === "SECOND_INTERVIEW") {
       toast.success("Moved to Second Interview", { description: "A new slot invite was sent to the candidate." });
     } else if (newStatus === "REJECTED") {
@@ -385,26 +391,7 @@ export const JobApplicationsTable = ({
       setRejectionReasonText("");
       return;
     }
-    if (newStatus === "VENDOR_AI_INTERVIEW") {
-      setVendorTarget(item);
-      setVendorNameText("");
-      setVendorUrlText("");
-      return;
-    }
     handleMoveStage(item, newStatus);
-  };
-
-  const handleConfirmVendor = async () => {
-    if (!vendorTarget || !vendorNameText.trim() || !vendorUrlText.trim()) return;
-    setSavingVendor(true);
-    await handleMoveStage(vendorTarget, "VENDOR_AI_INTERVIEW", undefined, {
-      name: vendorNameText.trim(),
-      url: vendorUrlText.trim(),
-    });
-    setSavingVendor(false);
-    setVendorTarget(null);
-    setVendorNameText("");
-    setVendorUrlText("");
   };
 
   const handleConfirmReject = async () => {
@@ -622,76 +609,6 @@ export const JobApplicationsTable = ({
               onClick={handleConfirmReject}
             >
               Reject candidate
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-      <Dialog
-        open={!!vendorTarget}
-        onOpenChange={open => {
-          if (!open) {
-            setVendorTarget(null);
-            setVendorNameText("");
-            setVendorUrlText("");
-          }
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Send to a vendor AI interview</DialogTitle>
-          </DialogHeader>
-          <p className='text-sm text-secondary-black'>
-            This interview runs on a third-party tool, so we email{" "}
-            <span className='font-medium'>{vendorTarget?.talent_name}</span> the
-            link you paste below. Tiaago does not run or score this interview.
-          </p>
-          <div className='flex flex-col gap-1.5'>
-            <label
-              htmlFor='vendor-name'
-              className='text-sm font-medium text-primary-black'
-            >
-              Interview tool
-            </label>
-            <Input
-              id='vendor-name'
-              value={vendorNameText}
-              onChange={e => setVendorNameText(e.target.value)}
-              placeholder='e.g. HireVue'
-            />
-          </div>
-          <div className='flex flex-col gap-1.5'>
-            <label
-              htmlFor='vendor-url'
-              className='text-sm font-medium text-primary-black'
-            >
-              Candidate&apos;s interview link
-            </label>
-            <Input
-              id='vendor-url'
-              type='url'
-              value={vendorUrlText}
-              onChange={e => setVendorUrlText(e.target.value)}
-              placeholder='https://...'
-            />
-          </div>
-          <DialogFooter>
-            <Button
-              variant='outline'
-              onClick={() => {
-                setVendorTarget(null);
-                setVendorNameText("");
-                setVendorUrlText("");
-              }}
-            >
-              Cancel
-            </Button>
-            <Button
-              disabled={
-                !vendorNameText.trim() || !vendorUrlText.trim() || savingVendor
-              }
-              onClick={handleConfirmVendor}
-            >
-              Send interview link
             </Button>
           </DialogFooter>
         </DialogContent>

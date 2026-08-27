@@ -264,16 +264,27 @@ def _finalize_submission_score(submission, assessment, total_score, is_passed, p
             # Auto-advance the applicant's pipeline stage on the assessment
             # result -- mirrors the resume-screening stage transition in
             # jobs.tasks.carry_out_resume_analysis (REVIEWED on pass /
-            # REJECTED on fail). A pass moves them to PENDING_DECISION
-            # (awaiting interview scheduling/hiring decision); interview
-            # confirmation later flips this to INTERVIEW_SCHEDULED
-            # (jobs/views.py JobApplicationRetrieveUpdateView).
-            JobApplication.objects.filter(id=assessment.job_application_id).update(
-                status=(
-                    JobApplication.JobApplicationStatus.PENDING_DECISION
-                    if is_passed
-                    else JobApplication.JobApplicationStatus.REJECTED
+            # REJECTED on fail).
+            #
+            # A pass lands on whichever interview stage this job actually
+            # runs next, so the board never shows a stage the candidate is
+            # not really in: AI_INTERVIEW when the job has the automated
+            # voice interview enabled (they must clear its pass mark before a
+            # human interview -- see ai_interviews.tasks), otherwise straight
+            # to INTERVIEW_SCHEDULED to pick a slot. Claiming a slot later
+            # flips it to HUMAN_INTERVIEW (jobs/views.py _claim_interview_slot).
+            if is_passed:
+                job = getattr(assessment.job_application, "job", None)
+                next_status = (
+                    JobApplication.JobApplicationStatus.AI_INTERVIEW
+                    if job is not None and job.ai_interview_enabled
+                    else JobApplication.JobApplicationStatus.INTERVIEW_SCHEDULED
                 )
+            else:
+                next_status = JobApplication.JobApplicationStatus.REJECTED
+
+            JobApplication.objects.filter(id=assessment.job_application_id).update(
+                status=next_status
             )
 
     # Completion notification -- candidate confirmation + scored result +

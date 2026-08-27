@@ -16,9 +16,9 @@ import {
 
 export type MovableStatus =
   | "REVIEWED"
-  | "PENDING_DECISION"
-  | "VENDOR_AI_INTERVIEW"
+  | "AI_INTERVIEW"
   | "INTERVIEW_SCHEDULED"
+  | "HUMAN_INTERVIEW"
   | "INTERVIEW_COMPLETED"
   | "SECOND_INTERVIEW"
   | "OFFER_EXTENDED"
@@ -31,9 +31,9 @@ export type MovableStatus =
 // targets on the board (see index.tsx).
 export const MOVABLE_STATUSES: { value: MovableStatus; label: string }[] = [
   { value: "REVIEWED", label: "Skill Assessment -- sends assessment invite" },
-  { value: "PENDING_DECISION", label: "Interview -- sends interview invite" },
-  { value: "VENDOR_AI_INTERVIEW", label: "Vendor AI Interview -- vendor name + link required" },
-  { value: "INTERVIEW_SCHEDULED", label: "Interview Scheduled" },
+  { value: "AI_INTERVIEW", label: "AI Interview -- sends AI interview invite" },
+  { value: "INTERVIEW_SCHEDULED", label: "Interview Scheduled -- sends a slot invite" },
+  { value: "HUMAN_INTERVIEW", label: "Human Interview" },
   { value: "INTERVIEW_COMPLETED", label: "Interview Completed" },
   { value: "SECOND_INTERVIEW", label: "Second Interview -- sends a new slot invite" },
   { value: "OFFER_EXTENDED", label: "Offer Extended" },

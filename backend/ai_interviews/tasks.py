@@ -364,8 +364,47 @@ def process_completed_ai_interview_task(self, interview_id):
     # Preview interviews have no real candidate to email and the recruiter
     # already knows the result (they're the one who ran it) -- skip both.
     if not interview.is_preview:
+        _advance_on_ai_interview_result(interview, job)
         _notify_recruiter_ready(interview, job)
         _send_candidate_feedback(interview, job)
+
+
+def _advance_on_ai_interview_result(interview, job):
+    """Gate the human interview on the job's AI interview pass mark.
+
+    The AI interview is a stage in front of the human one, not a substitute
+    for it: clearing Job.get_ai_interview_pass_mark() is what makes a
+    candidate eligible to pick a slot, so a pass moves them to
+    INTERVIEW_SCHEDULED and sends the slot invite. A score below the mark is
+    deliberately NOT an auto-rejection -- the recruiter still decides, and
+    the candidate simply stays on AI_INTERVIEW for them to review.
+    """
+    from jobs.models import JobApplication
+    from jobs.tasks import send_interview_slot_invite
+
+    application = getattr(interview, "job_application", None)
+    if application is None or interview.overall_score is None:
+        return
+
+    if float(interview.overall_score) < float(job.get_ai_interview_pass_mark()):
+        logger.info(
+            "AIInterview %s scored %s, below pass mark %s -- leaving application %s "
+            "on AI_INTERVIEW for recruiter review",
+            interview.id, interview.overall_score,
+            job.get_ai_interview_pass_mark(), application.id,
+        )
+        return
+
+    # Only advance forward. A recruiter who has already moved this candidate
+    # past the interview stage by hand must not be dragged back by a late
+    # scoring task.
+    updated = JobApplication.objects.filter(
+        id=application.id,
+        status=JobApplication.JobApplicationStatus.AI_INTERVIEW,
+    ).update(status=JobApplication.JobApplicationStatus.INTERVIEW_SCHEDULED)
+
+    if updated:
+        send_interview_slot_invite.delay(application.id)
 
 
 def _notify_recruiter_ready(interview, job):

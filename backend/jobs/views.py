@@ -95,7 +95,6 @@ from .tasks import (
     send_interview_slot_invite,
     send_manual_rejection_mail,
     send_offer_extended_notice_mail,
-    send_vendor_interview_invite,
 )
 from emails import emails
 from rest_framework.permissions import AllowAny
@@ -561,6 +560,24 @@ class JobInterviewSlotListView(ListAPIView):
         return super().list(request, *args, **kwargs)
 
 
+def _has_booked_interview(job_application):
+    """True if this application already has a real interview booked.
+
+    Used to tell a genuine "your interview is confirmed" from a recruiter
+    dragging a card onto Interview Scheduled before anything was arranged --
+    the two need opposite emails. Cancelled rows do not count: a candidate
+    whose only interview was cancelled needs a fresh invitation, not a
+    confirmation pointing at a dead booking.
+    """
+    from scheduler.models import Scheduler
+
+    return (
+        Scheduler.objects.filter(job_application_id=job_application.id)
+        .exclude(status=Scheduler.Status.CANCELLED)
+        .exists()
+    )
+
+
 def _claim_interview_slot(job, job_application, slot_id):
     """Shared by JobInterviewSlotClaimView (authenticated talent) and
     GuestInterviewSlotClaimView (token-based, for a guest/account-less
@@ -581,6 +598,24 @@ def _claim_interview_slot(job, job_application, slot_id):
         )
         if not slot:
             return {"detail": "This slot is no longer available."}, HTTP_400_BAD_REQUEST
+
+        # Guard against a double booking for the same round -- a candidate
+        # opening the invite twice, or re-using an old invite email after
+        # already picking a time. select_for_update above only stops two
+        # candidates racing for one slot; this stops one candidate taking
+        # two. A cancelled booking is not a conflict: it is exactly the case
+        # where they should be able to pick again.
+        already_booked = (
+            Scheduler.objects.filter(job_application=job_application)
+            .exclude(status__in=[Scheduler.Status.CANCELLED, Scheduler.Status.COMPLETED])
+            .first()
+        )
+        if already_booked:
+            return {
+                "detail": "You already have an interview booked for this application.",
+                "meeting_date": already_booked.meeting_date,
+                "start_time": already_booked.start_time,
+            }, HTTP_400_BAD_REQUEST
 
         job = slot.job
         duration_minutes = int(
@@ -636,7 +671,10 @@ def _claim_interview_slot(job, job_application, slot_id):
                 defaults={"meeting": meeting, "fee_note": f"Interview for {job.title}"},
             )
 
-        job_application.status = JobApplication.JobApplicationStatus.INTERVIEW_SCHEDULED
+        # A claimed slot means a real interview now exists, which is the
+        # HUMAN_INTERVIEW stage. INTERVIEW_SCHEDULED is the step before this
+        # one: invited, still to pick a time.
+        job_application.status = JobApplication.JobApplicationStatus.HUMAN_INTERVIEW
         job_application.save(update_fields=["status"])
 
     try:
@@ -992,25 +1030,6 @@ class JobApplicationRetrieveUpdateView(RetrieveUpdateAPIView):
                 status=HTTP_400_BAD_REQUEST,
             )
 
-        # The vendor stage is manual by design -- no third-party API is wired
-        # up -- so the recruiter must supply the tool's name and the
-        # candidate's link, otherwise the invite email has nothing to send.
-        if (
-            status_value == JobApplication.JobApplicationStatus.VENDOR_AI_INTERVIEW
-            and status_value != previous_status
-        ):
-            vendor_name = (
-                serializer.validated_data.get("vendor_name") or instance.vendor_name or ""
-            ).strip()
-            vendor_url = (
-                serializer.validated_data.get("vendor_interview_url") or instance.vendor_interview_url or ""
-            ).strip()
-            if not vendor_name or not vendor_url:
-                return Response(
-                    {"detail": "A vendor name and interview link are required to move a candidate to a vendor AI interview."},
-                    status=HTTP_400_BAD_REQUEST,
-                )
-
         self.perform_update(serializer)
 
         # A recruiter manually advancing a candidate should trigger the same
@@ -1042,8 +1061,6 @@ class JobApplicationRetrieveUpdateView(RetrieveUpdateAPIView):
                 # detects the existing Scheduler row and switches the subject to
                 # "Pick your second interview time" on its own.
                 send_interview_slot_invite.delay(instance.id)
-            elif status_value == JobApplication.JobApplicationStatus.VENDOR_AI_INTERVIEW:
-                send_vendor_interview_invite.delay(instance.id)
             elif status_value == JobApplication.JobApplicationStatus.INTERVIEW_COMPLETED:
                 # Deliberately silent. This stage is bookkeeping for the
                 # recruiter's board -- the candidate already received the
@@ -1053,8 +1070,27 @@ class JobApplicationRetrieveUpdateView(RetrieveUpdateAPIView):
                 # "your interview is complete" would tell them nothing they
                 # were not just party to, and would race the feedback mail.
                 pass
-            elif status_value == JobApplication.JobApplicationStatus.INTERVIEW_SCHEDULED:
-                send_interview_scheduled_notice_mail.delay(instance.id)
+            elif status_value == JobApplication.JobApplicationStatus.AI_INTERVIEW:
+                # Same provisioning the automatic pipeline uses when an
+                # assessment is passed on an AI-interview job -- idempotent,
+                # so re-entering the stage will not double-invite.
+                from ai_interviews.services import provision_ai_interview
+
+                provision_ai_interview(job, instance)
+            elif status_value in (
+                JobApplication.JobApplicationStatus.INTERVIEW_SCHEDULED,
+                JobApplication.JobApplicationStatus.HUMAN_INTERVIEW,
+            ):
+                # "Interview scheduled" is only true once something is
+                # actually booked. Dropping a candidate here by hand before
+                # any interview exists used to email them a confirmation for
+                # an interview that had never been arranged -- so send the
+                # slot invitation instead, and keep the confirmation for the
+                # case where a booking really does exist.
+                if _has_booked_interview(instance):
+                    send_interview_scheduled_notice_mail.delay(instance.id)
+                else:
+                    send_interview_slot_invite.delay(instance.id)
             elif status_value == JobApplication.JobApplicationStatus.OFFER_EXTENDED:
                 send_offer_extended_notice_mail.delay(instance.id)
             elif status_value == JobApplication.JobApplicationStatus.REJECTED:

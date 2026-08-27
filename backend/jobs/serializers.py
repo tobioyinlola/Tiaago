@@ -685,11 +685,6 @@ class JobApplicationUpdateStatusSerializer(serializers.ModelSerializer):
             "company",
             "applied_date",
             "status",
-            # Only meaningful alongside status=VENDOR_AI_INTERVIEW; the view
-            # requires both when moving into that stage so the candidate's
-            # invite email has a real link to point at.
-            "vendor_name",
-            "vendor_interview_url",
             "created",
             "last_updated",
         )
@@ -700,10 +695,6 @@ class JobApplicationUpdateStatusSerializer(serializers.ModelSerializer):
             "applied_date",
             "cover_letter",
         )
-        extra_kwargs = {
-            "vendor_name": {"required": False},
-            "vendor_interview_url": {"required": False},
-        }
 
 
 class JobTokenValidationSerializer(serializers.Serializer):
