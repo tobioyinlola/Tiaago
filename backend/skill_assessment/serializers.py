@@ -926,6 +926,11 @@ class SubmissionSerializer(serializers.ModelSerializer):
             "mark_status",
             "is_passed",
             "is_completed",
+            # Tells the recruiter this score came from an attempt proctoring
+            # cut short, and why -- without it a forced end is indistinguishable
+            # from a candidate who simply scored badly.
+            "auto_submitted",
+            "auto_submit_reason",
             "approved_at",
         ]
 

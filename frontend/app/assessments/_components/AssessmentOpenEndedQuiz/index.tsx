@@ -37,6 +37,7 @@ const AssessmentOpenEndedQuiz = ({
   sharedEndDateTime,
   onTimeExpired,
   forceSubmitSignal,
+  onForceSubmitComplete,
 }: {
   openEndedSection: OpenEndedSection;
   assessment: CompanySkillAssessment;
@@ -61,6 +62,7 @@ const AssessmentOpenEndedQuiz = ({
   /** Bumped by the parent when proctoring forces an early end -- submits
    * whatever's currently answered so far instead of discarding it. */
   forceSubmitSignal?: number;
+  onForceSubmitComplete?: () => void;
 }) => {
   const setAlert = useAlert(state => state.setAlert);
   const [hasStarted, setHasStarted] = useState(skipIntro);
@@ -128,7 +130,9 @@ const AssessmentOpenEndedQuiz = ({
   useEffect(() => {
     if (forceSubmitSignal !== undefined && forceSubmitSignal !== forceSubmitSignalRef.current) {
       forceSubmitSignalRef.current = forceSubmitSignal;
-      submit(answers, true);
+      // Resolve regardless of outcome -- useProctoring only waits so the
+      // answers land before grading; a failed submit must not stall it.
+      void Promise.resolve(submit(answers, true)).finally(() => onForceSubmitComplete?.());
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [forceSubmitSignal]);

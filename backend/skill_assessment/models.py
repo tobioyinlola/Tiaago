@@ -633,6 +633,14 @@ class CandidateAssessmentSubmission(TimeStampedModel):
     completed_at = models.DateTimeField(null=True, blank=True)
     is_completed = models.BooleanField(default=False)
     is_passed = models.BooleanField(default=False)
+    # Set when proctoring ended this attempt early (critical violation or the
+    # tab-switch ceiling) rather than the candidate pressing submit. The
+    # attempt is still graded normally -- see
+    # skill_assessment.views.force_complete_submission -- so recruiters get a
+    # real score; these two fields are what tells them the score came from a
+    # cut-short attempt and why.
+    auto_submitted = models.BooleanField(default=False)
+    auto_submit_reason = models.CharField(max_length=255, blank=True, default="")
     mark_status = models.CharField(
         max_length=40,
         choices=MarkStatusChoices.choices,

@@ -39,6 +39,7 @@ const AssessmentCodingTask = ({
   sharedEndDateTime,
   onTimeExpired,
   forceSubmitSignal,
+  onForceSubmitComplete,
 }: {
   codeSection: CodingTaskSection;
   assessment: CompanySkillAssessment;
@@ -66,6 +67,7 @@ const AssessmentCodingTask = ({
    * violation / max tab switches) -- submits whatever code is on screen via
    * the same partial-submission path as a time-expiry, instead of losing it. */
   forceSubmitSignal?: number;
+  onForceSubmitComplete?: () => void;
 }) => {
   const router = useRouter();
   const setAlert = useAlert(state => state.setAlert);
@@ -146,7 +148,9 @@ const AssessmentCodingTask = ({
   useEffect(() => {
     if (forceSubmitSignal !== undefined && forceSubmitSignal !== forceSubmitSignalRef.current) {
       forceSubmitSignalRef.current = forceSubmitSignal;
-      submit(true);
+      // Resolve regardless of outcome -- useProctoring only waits so the
+      // answers land before grading; a failed submit must not stall it.
+      void Promise.resolve(submit(true)).finally(() => onForceSubmitComplete?.());
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [forceSubmitSignal]);

@@ -16,13 +16,21 @@ const DEVTOOLS_POLL_MS = 200;
 const DEVTOOLS_THRESHOLD_PX = 160;
 const IDLE_CHECK_MS = 10 * 1000;
 const IDLE_THRESHOLD_MS = 60 * 1000;
+// Ceiling on how long we wait for the host's answer submission before
+// completing the proctoring session anyway. A hung or failed submit must
+// never leave the session ACTIVE -- that would let a candidate keep working
+// after a violation. Generous enough to cover a slow upload.
+const FORCE_SUBMIT_WAIT_MS = 15 * 1000;
 
 type UseProctoringArgs = {
   token: string;
   sessionId: string | null;
   settings: ProctoringSettings | null;
   getCurrentQuestionNumber?: () => number | null;
-  onForceSubmit: (reason: string) => void;
+  // May return a promise -- forceSubmit awaits it so the candidate's
+  // in-progress answers are persisted BEFORE the session is completed
+  // server-side (completing it grades the attempt). See forceSubmit.
+  onForceSubmit: (reason: string) => void | Promise<void>;
   // "ai-interview" wires this same hook into the live AI interview call
   // instead of a written assessment -- see AIInterviewLiveSession.tsx.
   basePath?: "invite" | "ai-interview";
@@ -74,8 +82,24 @@ export const useProctoring = ({
         metadata: { reason },
       });
       flush();
+
+      // Order matters. completeProctoringSession force-completes and GRADES
+      // the attempt server-side, so it has to run after the host has
+      // persisted whatever the candidate had answered -- otherwise grading
+      // races the submit and scores a set of blank backfilled answers.
+      // Bounded by FORCE_SUBMIT_WAIT_MS, and a throwing handler must not stop
+      // the session being completed either.
+      try {
+        await Promise.race([
+          Promise.resolve(onForceSubmit(reason)),
+          new Promise(resolve => setTimeout(resolve, FORCE_SUBMIT_WAIT_MS)),
+        ]);
+      } catch {
+        // Swallowed on purpose: the host surfaces its own submit errors, and
+        // the session must still be closed out below.
+      }
+
       await completeProctoringSession(token, sessionId, reason, basePath);
-      onForceSubmit(reason);
     },
     [flush, onForceSubmit, sessionId, token, basePath]
   );

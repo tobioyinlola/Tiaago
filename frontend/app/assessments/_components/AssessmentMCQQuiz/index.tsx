@@ -43,6 +43,7 @@ const AssessmentMCQQuiz = ({
   sharedEndDateTime,
   onTimeExpired,
   forceSubmitSignal,
+  onForceSubmitComplete,
 }: {
   mcqSection: MCQSection;
   assessment: CompanySkillAssessment;
@@ -72,6 +73,7 @@ const AssessmentMCQQuiz = ({
    * violation / max tab switches) -- submits whatever's answered so far via
    * the same partial-submission path as a time-expiry, instead of losing it. */
   forceSubmitSignal?: number;
+  onForceSubmitComplete?: () => void;
 }) => {
   const setAlert = useAlert(state => state.setAlert);
   const [hasStarted, setHasStarted] = useState(skipIntro);
@@ -147,7 +149,9 @@ const AssessmentMCQQuiz = ({
   useEffect(() => {
     if (forceSubmitSignal !== undefined && forceSubmitSignal !== forceSubmitSignalRef.current) {
       forceSubmitSignalRef.current = forceSubmitSignal;
-      submit(answers, true);
+      // Resolve regardless of outcome -- useProctoring only waits so the
+      // answers land before grading; a failed submit must not stall it.
+      void Promise.resolve(submit(answers, true)).finally(() => onForceSubmitComplete?.());
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [forceSubmitSignal]);

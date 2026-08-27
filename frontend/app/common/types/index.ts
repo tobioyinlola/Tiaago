@@ -1255,6 +1255,12 @@ export type SkillAssessmentResult = {
     "Pending" | "Failed to Mark" | "Awaiting Manual Review" | "Marked";
   is_passed?: boolean;
   is_completed?: boolean;
+  /** True when proctoring ended this attempt early (critical violation or
+   * the tab-switch ceiling) rather than the candidate submitting. The score
+   * is still real -- the attempt is graded normally -- but it was cut short,
+   * which is what auto_submit_reason explains. */
+  auto_submitted?: boolean;
+  auto_submit_reason?: string;
   /** Set once a recruiter has reviewed/released this submission. Only
    * gates what the candidate sees when the parent assessment has
    * display_review_and_approve_responses enabled. */

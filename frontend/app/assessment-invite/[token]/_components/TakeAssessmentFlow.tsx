@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { addMinutes } from "date-fns";
 import { ArrowRight, CheckCircle2 } from "lucide-react";
@@ -48,17 +48,30 @@ const TakeAssessmentFlow = ({ assessment }: { assessment: CompanySkillAssessment
     sessionId: proctoringSessionId,
     settings: proctoring,
     // Submit whatever's currently answered (same partial-submission path as
-    // a time-expiry) instead of discarding it and dead-ending on a page
-    // that never recorded any data -- the proctoring session itself was
-    // already marked terminated by useProctoring's forceSubmit before this
-    // fires.
-    onForceSubmit: () => setForceSubmitSignal(s => s + 1),
+    // a time-expiry) instead of discarding it and dead-ending on a page that
+    // never recorded any data. The returned promise is what makes this safe:
+    // useProctoring awaits it before completing the session server-side, and
+    // completing the session is what triggers grading. Resolved by the active
+    // section component via onForceSubmitComplete once its submit settles.
+    onForceSubmit: () =>
+      new Promise<void>(resolve => {
+        forceSubmitDoneRef.current = resolve;
+        setForceSubmitSignal(s => s + 1);
+      }),
   });
 
   const sections = assessment.sections;
   const [sectionIndex, setSectionIndex] = useState(0);
   const [showSectionComplete, setShowSectionComplete] = useState(false);
   const [forceSubmitSignal, setForceSubmitSignal] = useState(0);
+  // Resolver for the promise handed to useProctoring above; the active
+  // section component fires it via onForceSubmitComplete once its submit
+  // settles, which is what releases useProctoring to complete the session.
+  const forceSubmitDoneRef = useRef<(() => void) | null>(null);
+  const handleForceSubmitComplete = () => {
+    forceSubmitDoneRef.current?.();
+    forceSubmitDoneRef.current = null;
+  };
 
   const currentSection = sections[sectionIndex];
   const isLastSection = sectionIndex === sections.length - 1;
@@ -174,6 +187,7 @@ const TakeAssessmentFlow = ({ assessment }: { assessment: CompanySkillAssessment
           sharedEndDateTime={endDateTime}
           onTimeExpired={handleTimeExpired}
           forceSubmitSignal={forceSubmitSignal}
+          onForceSubmitComplete={handleForceSubmitComplete}
         />
       </>
     );
@@ -194,6 +208,7 @@ const TakeAssessmentFlow = ({ assessment }: { assessment: CompanySkillAssessment
           sharedEndDateTime={endDateTime}
           onTimeExpired={handleTimeExpired}
           forceSubmitSignal={forceSubmitSignal}
+          onForceSubmitComplete={handleForceSubmitComplete}
         />
       </>
     );
@@ -213,6 +228,7 @@ const TakeAssessmentFlow = ({ assessment }: { assessment: CompanySkillAssessment
         sharedEndDateTime={endDateTime}
         onTimeExpired={handleTimeExpired}
         forceSubmitSignal={forceSubmitSignal}
+        onForceSubmitComplete={handleForceSubmitComplete}
       />
     </>
   );

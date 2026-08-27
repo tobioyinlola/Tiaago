@@ -1773,7 +1773,7 @@ def submit_general_skill_assessment_answers(talent, skill_assessment, request_da
         return Response(status=500, data={"error": "An unexpected error occurred while processing your request."})
 
 
-def force_complete_submission(submission: CandidateAssessmentSubmission):
+def force_complete_submission(submission: CandidateAssessmentSubmission, reason: str = ""):
     """Force a submission to completion after a proctoring-triggered forced
     end (critical violation / max tab switches) -- called from
     proctoring.views.CompleteProctoringSessionView, never from a normal
@@ -1833,7 +1833,15 @@ def force_complete_submission(submission: CandidateAssessmentSubmission):
                 ])
 
         submission.is_completed = True
-        submission.save(update_fields=["is_completed"])
+        # Flag the attempt as cut short before grading runs, so anything that
+        # reads the graded result (recruiter submission views, the proctoring
+        # report) can say the score came from a forced end and why.
+        submission.auto_submitted = True
+        if reason:
+            submission.auto_submit_reason = reason[:255]
+        submission.save(
+            update_fields=["is_completed", "auto_submitted", "auto_submit_reason"]
+        )
 
     mark_skill_assessment_submission.delay(skill_assessment_submission_id=submission.id)
 

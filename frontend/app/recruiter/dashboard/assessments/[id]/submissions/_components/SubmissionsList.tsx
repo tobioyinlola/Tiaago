@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { Check, ChevronRight } from "lucide-react";
+import { AlertTriangle, Check, ChevronRight } from "lucide-react";
 
 import { cn } from "@/app/common/utils";
 import { ID, SkillAssessmentResult } from "@/app/common/types";
@@ -83,6 +83,17 @@ const SubmissionsList = ({
                   {submission.candidate_name || "Unknown candidate"}
                 </p>
                 <p className='text-xs text-secondary-black truncate'>{submission.candidate_email}</p>
+                {/* A forced end still produces a real, graded score -- this is
+                    what distinguishes it from a candidate who simply did badly. */}
+                {submission.auto_submitted && (
+                  <span
+                    title={submission.auto_submit_reason || undefined}
+                    className='mt-1 inline-flex items-center gap-1 rounded-full bg-destructive/10 px-2 py-0.5 text-[11px] font-medium text-destructive'
+                  >
+                    <AlertTriangle className='h-3 w-3 shrink-0' aria-hidden='true' />
+                    Auto submitted
+                  </span>
+                )}
               </div>
             </div>
             <div className='flex items-center gap-4 shrink-0'>

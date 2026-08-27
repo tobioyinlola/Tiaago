@@ -175,7 +175,7 @@ class CompleteProctoringSessionView(APIView):
             # produce a real, scored, emailed result -- not a submission that
             # silently never completes because the candidate never reached
             # every section. See force_complete_submission's docstring.
-            force_complete_submission(submission)
+            force_complete_submission(submission, terminated_reason)
 
         return Response(status=200, data={"status": session.status, "integrity_score": score, "risk_level": risk_level})
 
