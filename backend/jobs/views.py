@@ -580,15 +580,20 @@ def _has_booked_interview(job_application):
 
     Used to tell a genuine "your interview is confirmed" from a recruiter
     dragging a card onto Interview Scheduled before anything was arranged --
-    the two need opposite emails. Cancelled rows do not count: a candidate
-    whose only interview was cancelled needs a fresh invitation, not a
-    confirmation pointing at a dead booking.
+    the two need opposite emails.
+
+    Only a live booking counts. Cancelled and already-completed rounds both
+    mean there is nothing upcoming to confirm, so the candidate needs a fresh
+    invitation instead -- which is also exactly the second-round case, where
+    round 1 is completed and they are being asked to pick a new time. Kept in
+    step with the duplicate-booking guard in _claim_interview_slot, which
+    excludes the same two.
     """
     from scheduler.models import Scheduler
 
     return (
         Scheduler.objects.filter(job_application_id=job_application.id)
-        .exclude(status=Scheduler.Status.CANCELLED)
+        .exclude(status__in=[Scheduler.Status.CANCELLED, Scheduler.Status.COMPLETED])
         .exists()
     )
 
@@ -709,8 +714,14 @@ def _claim_interview_slot(job, job_application, slot_id):
         # A claimed slot means a real interview now exists, which is the
         # HUMAN_INTERVIEW stage. INTERVIEW_SCHEDULED is the step before this
         # one: invited, still to pick a time.
-        job_application.status = JobApplication.JobApplicationStatus.HUMAN_INTERVIEW
-        job_application.save(update_fields=["status"])
+        #
+        # A second-round booking is the exception: the candidate is already
+        # further along than HUMAN_INTERVIEW, so setting it here would walk
+        # them backward on the board (see boardStages.STAGE_ORDER). The round
+        # is recorded on the Scheduler row either way.
+        if job_application.status != JobApplication.JobApplicationStatus.SECOND_INTERVIEW:
+            job_application.status = JobApplication.JobApplicationStatus.HUMAN_INTERVIEW
+            job_application.save(update_fields=["status"])
 
     try:
         if job.company.company_rep_id:

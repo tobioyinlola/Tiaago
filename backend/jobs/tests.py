@@ -213,3 +213,68 @@ class InterviewTypeConfigTests(TestCase):
         job = _make_job(self.company)
         self.assertIsNone(job.interview_duration_minutes)
         self.assertEqual(job.interview_duration_minutes or 60, 60)
+
+
+class SecondInterviewRoundTests(TestCase):
+    """Item 5: a second round reuses the same published availability and is
+    stored as its own round, without walking the candidate backward."""
+
+    def setUp(self):
+        rep = CustomUser.objects.create_company_user(
+            username="r2-rep", email="r2-rep@example.com", password="x"
+        )
+        self.company = Company.objects.create(company_name="R2 Co", company_rep=rep)
+        talent_user = CustomUser.objects.create_talent_user(
+            username="r2-talent", email="r2-talent@example.com", password="x"
+        )
+        self.talent = TalentProfile.objects.create(user=talent_user, full_name="R2 Talent")
+        self.job = _make_job(self.company)
+        self.application = JobApplication.objects.create(
+            applicant=self.talent, job=self.job
+        )
+
+    def _meeting(self, round_no, status=None):
+        return Scheduler.objects.create(
+            title="Interview",
+            meeting_date=timezone.now().date(),
+            start_time="10:00",
+            end_time="11:00",
+            talent=self.talent,
+            job_application=self.application,
+            company=self.company,
+            description="Interview",
+            round=round_no,
+            status=status or Scheduler.Status.SCHEDULED,
+        )
+
+    def test_rounds_are_stored_separately(self):
+        self._meeting(1, Scheduler.Status.COMPLETED)
+        self._meeting(2)
+        rounds = sorted(
+            Scheduler.objects.filter(job_application=self.application).values_list("round", flat=True)
+        )
+        self.assertEqual(rounds, [1, 2])
+
+    def test_completing_the_board_stage_closes_out_the_first_round(self):
+        """Otherwise the stale active booking blocks a second-round claim."""
+        from jobs.views import _close_out_active_interviews
+
+        first = self._meeting(1)
+        _close_out_active_interviews(self.application)
+        first.refresh_from_db()
+        self.assertEqual(first.status, Scheduler.Status.COMPLETED)
+
+    def test_close_out_leaves_cancelled_rounds_alone(self):
+        from jobs.views import _close_out_active_interviews
+
+        cancelled = self._meeting(1, Scheduler.Status.CANCELLED)
+        _close_out_active_interviews(self.application)
+        cancelled.refresh_from_db()
+        self.assertEqual(cancelled.status, Scheduler.Status.CANCELLED)
+
+    def test_completed_first_round_no_longer_counts_as_booked(self):
+        """So the candidate can be invited to pick a second-round slot."""
+        from jobs.views import _has_booked_interview
+
+        self._meeting(1, Scheduler.Status.COMPLETED)
+        self.assertFalse(_has_booked_interview(self.application))
