@@ -1,6 +1,8 @@
+import json
 import logging
 
 from django.conf import settings
+from django.core.serializers.json import DjangoJSONEncoder
 from django.contrib.auth.tokens import default_token_generator
 from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_encode
@@ -20,10 +22,28 @@ def log_staff_activity(actor, action, target_type="", target_id="", metadata=Non
             action=action,
             target_type=target_type,
             target_id=str(target_id) if target_id != "" else "",
-            metadata=metadata or {},
+            metadata=_jsonable(metadata),
         )
     except Exception:
         logger.exception("Failed to write staff activity log for action=%s", action)
+
+
+def _jsonable(metadata):
+    """Coerce metadata into something psycopg2 can store in a JSONField.
+
+    Callers pass model attributes straight through, and several of those are
+    UUIDs (SupportTicketReply.id, for one), which plain json.dumps rejects with
+    "Object of type UUID is not JSON serializable". Because the caller wraps
+    this in a bare except, that failure was silent: the audit row was simply
+    never written. DjangoJSONEncoder handles UUID/Decimal/datetime; anything
+    still unserializable falls back to repr rather than losing the row.
+    """
+    if not metadata:
+        return {}
+    try:
+        return json.loads(json.dumps(metadata, cls=DjangoJSONEncoder))
+    except TypeError:
+        return json.loads(json.dumps(metadata, cls=DjangoJSONEncoder, default=repr))
 
 
 def send_staff_invite_email(user, inviter_name):
