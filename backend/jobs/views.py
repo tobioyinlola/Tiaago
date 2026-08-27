@@ -560,6 +560,21 @@ class JobInterviewSlotListView(ListAPIView):
         return super().list(request, *args, **kwargs)
 
 
+def _close_out_active_interviews(job_application):
+    """Mark this application's still-open interviews as completed.
+
+    Only ever moves a booking forward: CANCELLED rows are left alone, and so
+    is anything already COMPLETED.
+    """
+    from scheduler.models import Scheduler
+
+    return (
+        Scheduler.objects.filter(job_application_id=job_application.id)
+        .exclude(status__in=[Scheduler.Status.CANCELLED, Scheduler.Status.COMPLETED])
+        .update(status=Scheduler.Status.COMPLETED, ended_at=timezone.now())
+    )
+
+
 def _has_booked_interview(job_application):
     """True if this application already has a real interview booked.
 
@@ -1082,14 +1097,20 @@ class JobApplicationRetrieveUpdateView(RetrieveUpdateAPIView):
                 # "Pick your second interview time" on its own.
                 send_interview_slot_invite.delay(instance.id)
             elif status_value == JobApplication.JobApplicationStatus.INTERVIEW_COMPLETED:
-                # Deliberately silent. This stage is bookkeeping for the
+                # No email on purpose. This stage is bookkeeping for the
                 # recruiter's board -- the candidate already received the
                 # post-interview feedback email from
                 # scheduler.copilot_views.SendInterviewFeedbackView (recruiter-
                 # reviewed, so it says something real). A second automatic
                 # "your interview is complete" would tell them nothing they
                 # were not just party to, and would race the feedback mail.
-                pass
+                #
+                # It does close out the booking, though: Scheduler.COMPLETED is
+                # otherwise only set by the in-app end-interview flow, so an
+                # interview held elsewhere (or simply not ended in-app) would
+                # stay "active" forever and block the candidate from ever
+                # claiming a second-round slot (see _claim_interview_slot).
+                _close_out_active_interviews(instance)
             elif status_value == JobApplication.JobApplicationStatus.AI_INTERVIEW:
                 # Same provisioning the automatic pipeline uses when an
                 # assessment is passed on an AI-interview job -- idempotent,

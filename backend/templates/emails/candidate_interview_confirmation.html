@@ -13,6 +13,18 @@
           <td style="padding:6px 0; font-family:'Inter',Arial,sans-serif; font-size:14px; color:#64748B;">When</td>
           <td align="right" style="padding:6px 0; font-family:'Inter',Arial,sans-serif; font-size:14px; font-weight:600; color:#0F172A;">{{ when|default:"" }}</td>
         </tr>
+        {% if duration_minutes %}
+        <tr>
+          <td style="padding:6px 0; font-family:'Inter',Arial,sans-serif; font-size:14px; color:#64748B;">Duration</td>
+          <td align="right" style="padding:6px 0; font-family:'Inter',Arial,sans-serif; font-size:14px; font-weight:600; color:#0F172A;">{{ duration_minutes }} minutes</td>
+        </tr>
+        {% endif %}
+        {% if platform %}
+        <tr>
+          <td style="padding:6px 0; font-family:'Inter',Arial,sans-serif; font-size:14px; color:#64748B;">Where</td>
+          <td align="right" style="padding:6px 0; font-family:'Inter',Arial,sans-serif; font-size:14px; font-weight:600; color:#0F172A;">{{ platform }}</td>
+        </tr>
+        {% endif %}
       </table>
     </td></tr>
   </table>
@@ -22,7 +34,11 @@
     <td align="center" bgcolor="#1C3477" style="background-color:#1C3477; border-radius:0;"><a href="{{ join_url }}" target="_blank" class="cta-a" style="display:inline-block; padding:15px 30px; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:15px; font-weight:700; line-height:20px; color:#FFFFFF; text-decoration:none; border-radius:0;">Join meeting&nbsp;&rarr;</a></td>
   </tr></table>
 
+  {% if is_external %}
+  <p style="margin:20px 0 0; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:14px; line-height:1.6; color:#64748B;">This interview is held on {{ platform|default:"the hiring team's platform" }}, so the link above takes you there rather than back to Tiaago. Save this email so you can find it easily.</p>
+  {% else %}
   <p style="margin:20px 0 0; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:14px; line-height:1.6; color:#64748B;">The room will open 30 minutes before your interview starts -- this same link will let you in when it's time. Save this email so you can find it easily.</p>
+  {% endif %}
   {% else %}
   <p style="margin:0; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:14px; line-height:1.6; color:#64748B;">We're finalizing your meeting room -- you'll receive the join link shortly, before your interview.</p>
   {% endif %}

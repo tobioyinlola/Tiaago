@@ -32,6 +32,10 @@ def _candidate_join_url(meeting_instance):
     room_url _flatten_meeting falls back to can't actually be entered.
     None for meetings from the older manual-scheduler flow, which never
     mints a candidate_join_token -- callers fall back to room_url there."""
+    # An interview held on Google Meet / Zoom / elsewhere has no Tiaago room
+    # to join -- the recruiter's own link is the only one that works.
+    if meeting_instance.interview_type in Scheduler.EXTERNAL_INTERVIEW_TYPES:
+        return meeting_instance.external_meeting_url or None
     if not meeting_instance.candidate_join_token:
         return None
     base = str(settings.FRONTEND_URL).rstrip("/")
@@ -78,13 +82,22 @@ def get_meeting_details(meeting_instance):
             "date": meeting_instance.meeting_date.strftime("%A, %d %B %Y"),
             "start_time": meeting_instance.start_time.strftime("%I:%M %p"),  # Fixed format
             "end_time": meeting_instance.end_time.strftime("%I:%M %p"),  # Fixed format
-            "duration": (
+            # duration_minutes is the recruiter's configured interview length
+            # (Job.interview_duration_minutes, copied on at booking time); the
+            # slot's own span is the fallback for older rows that predate it.
+            "duration": meeting_instance.duration_minutes or (
                 (datetime.combine(meeting_instance.meeting_date, meeting_instance.end_time) -
                 datetime.combine(meeting_instance.meeting_date, meeting_instance.start_time)
                 ).seconds // 60
             ) if meeting_instance.end_time else None,
+            # Where the interview happens, so the confirmation can name the
+            # platform instead of implying every interview is in-app.
+            "interview_type": meeting_instance.interview_type,
+            "platform": meeting_instance.get_interview_type_display(),
+            "is_external": meeting_instance.interview_type in Scheduler.EXTERNAL_INTERVIEW_TYPES,
             "room_name": meeting_instance.room_name,
             "room_url": meeting_instance.room_url,
+            "external_meeting_url": meeting_instance.external_meeting_url,
             "participants": meeting_instance.no_of_participants,
             "description": meeting_instance.description or "No description provided.",
             "company_name": meeting_instance.company.company_name,

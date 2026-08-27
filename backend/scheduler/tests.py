@@ -161,3 +161,81 @@ class SchedulerDeleteViewTest(TestCase):
         
         # Verify Daily.co API was not called
         mock_delete.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Interview confirmation content
+#
+# A confirmation has to say when the interview is, how long it runs, which
+# platform it is on, and give a link that actually works -- which differs
+# between a Tiaago-hosted Daily.co room and an interview the recruiter runs on
+# their own platform.
+# ---------------------------------------------------------------------------
+
+from django.test import SimpleTestCase  # noqa: E402
+
+from emails.emails import _flatten_meeting  # noqa: E402
+
+_MEETING = {
+    "title": "Interview for Backend Engineer",
+    "date": "Monday, 01 September 2026",
+    "start_time": "10:00 AM",
+    "end_time": "10:45 AM",
+    "duration": 45,
+    "company_name": "Acme",
+}
+
+
+class FlattenMeetingTests(SimpleTestCase):
+    def test_in_house_uses_the_tiaago_room(self):
+        ctx = _flatten_meeting({
+            **_MEETING,
+            "interview_type": "IN_HOUSE",
+            "platform": "In-app (Daily.co)",
+            "is_external": False,
+            "room_url": "https://tiaago.daily.co/abc",
+            "external_meeting_url": "",
+        })
+        self.assertEqual(ctx["join_url"], "https://tiaago.daily.co/abc")
+        self.assertFalse(ctx["is_external"])
+
+    def test_external_uses_the_recruiters_own_link(self):
+        ctx = _flatten_meeting({
+            **_MEETING,
+            "interview_type": "ZOOM",
+            "platform": "Zoom",
+            "is_external": True,
+            # A stale Daily room must never win over the real link.
+            "room_url": "https://tiaago.daily.co/stale",
+            "external_meeting_url": "https://zoom.us/j/123",
+        })
+        self.assertEqual(ctx["join_url"], "https://zoom.us/j/123")
+        self.assertEqual(ctx["interview_url"], "https://zoom.us/j/123")
+        self.assertTrue(ctx["is_external"])
+        self.assertEqual(ctx["platform"], "Zoom")
+
+    def test_confirmation_carries_every_detail_the_candidate_needs(self):
+        ctx = _flatten_meeting({
+            **_MEETING,
+            "interview_type": "GOOGLE_MEET",
+            "platform": "Google Meet",
+            "is_external": True,
+            "external_meeting_url": "https://meet.google.com/xyz",
+        }, company_name="Acme")
+
+        self.assertIn("Monday, 01 September 2026", ctx["when"])
+        self.assertIn("10:00 AM", ctx["when"])
+        self.assertEqual(ctx["duration_minutes"], 45)
+        self.assertEqual(ctx["platform"], "Google Meet")
+        self.assertEqual(ctx["join_url"], "https://meet.google.com/xyz")
+        self.assertEqual(ctx["company"], "Acme")
+
+    def test_platform_is_used_as_the_location_label(self):
+        ctx = _flatten_meeting({
+            **_MEETING, "platform": "Zoom", "is_external": True,
+            "external_meeting_url": "https://zoom.us/j/1",
+        })
+        self.assertEqual(ctx["location"], "Zoom")
+
+    def test_empty_details_stay_empty(self):
+        self.assertEqual(_flatten_meeting(None), {})

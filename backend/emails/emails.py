@@ -126,15 +126,24 @@ def _flatten_meeting(meeting_details, company_name=None):
     # interview and reads as a real bug now that a genuine AI-conducted
     # interview also exists in the product.
     fmt = f"Live interview · {duration_mins} min" if duration_mins else "Live interview"
+    # An interview on the recruiter's own platform has no Tiaago room -- its
+    # link is the only one that works, and the candidate needs to be told
+    # which platform they are being sent to.
+    platform = md.get("platform", "")
+    is_external = bool(md.get("is_external"))
+    meeting_url = (md.get("external_meeting_url") or "") if is_external else (md.get("room_url") or "")
     return {
         "meeting_title": md.get("title", ""),
         "when": when,
         "format": fmt,
-        "join_url": md.get("room_url", ""),
-        "interview_url": md.get("room_url", ""),
+        "duration_minutes": duration_mins,
+        "platform": platform,
+        "is_external": is_external,
+        "join_url": meeting_url,
+        "interview_url": meeting_url,
         "company": company_name or md.get("company_name", ""),
         "company_name": company_name or md.get("company_name", ""),
-        "location": "Virtual" if md.get("room_url") else "",
+        "location": platform or ("Virtual" if meeting_url else ""),
     }
 
 
