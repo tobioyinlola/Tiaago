@@ -5,6 +5,18 @@ from typing import Dict, Any, Optional
 
 logger = logging.getLogger(__name__)
 
+
+class ConvertKitNotConfigured(Exception):
+    """Raised instead of issuing a request we already know will 404.
+
+    Missing credentials are a deployment problem, not a transient one, so
+    callers should log and give up rather than burn their retry budget. Before
+    this existed the client warned about the missing key and then made the call
+    anyway, producing ~300 guaranteed-404 errors per 72h in prod against URLs
+    like `tags//subscribe?api_key=` (empty tag id AND empty key).
+    """
+
+
 class ConvertKitAPI:
     """
     ConvertKit API integration for handling marketing automation tasks.
@@ -19,9 +31,14 @@ class ConvertKitAPI:
         self.api_secret = settings.CONVERTKIT_API_SECRET
         self.base_url = "https://api.convertkit.com/v3"
         
-        # Validate that API key is configured
-        if not self.api_key:
-            logger.warning("CONVERTKIT_API_KEY is not configured. ConvertKit API calls will fail.")
+        # Callers can check this to skip work entirely; every request method
+        # also refuses on its own so an unconfigured client can never reach
+        # the network.
+        self.configured = bool(self.api_key)
+        if not self.configured:
+            logger.warning(
+                "CONVERTKIT_API_KEY is not configured; ConvertKit calls will be skipped."
+            )
 
     def _make_request(self, method: str, endpoint: str, data: Optional[Dict[str, Any]] = None) -> Dict:
         """
@@ -36,8 +53,14 @@ class ConvertKitAPI:
             Dict: JSON response from ConvertKit API
             
         Raises:
+            ConvertKitNotConfigured: If no API key is configured (no request is made)
             requests.exceptions.RequestException: If the API request fails
         """
+        if not self.api_key:
+            raise ConvertKitNotConfigured(
+                f"CONVERTKIT_API_KEY is not set; skipping {method} {endpoint}"
+            )
+
         url = f"{self.base_url}/{endpoint}"
         params = {"api_key": self.api_key}
         
@@ -70,6 +93,11 @@ class ConvertKitAPI:
         Returns:
             Dict: Response from ConvertKit API
         """
+        if not form_id:
+            raise ConvertKitNotConfigured(
+                f"No ConvertKit form id configured; skipping sync for {email}"
+            )
+
         endpoint = f"forms/{form_id}/subscribe"
         
         # Prepare the data payload
@@ -99,6 +127,11 @@ class ConvertKitAPI:
         Returns:
             Dict: Response from ConvertKit API
         """
+        if not tag_id:
+            raise ConvertKitNotConfigured(
+                f"No ConvertKit tag id configured; skipping tag for {email}"
+            )
+
         endpoint = f"tags/{tag_id}/subscribe"
         data = {
             "email": email,

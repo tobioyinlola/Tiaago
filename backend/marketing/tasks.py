@@ -5,7 +5,7 @@ from django.utils import timezone
 from datetime import timedelta
 from create_user.models import CustomUser
 from skill_assessment.models import CandidateAssessmentSubmission
-from .convertkit import ConvertKitAPI
+from .convertkit import ConvertKitAPI, ConvertKitNotConfigured
 from typing import Dict, Any, Optional
 
 logger = logging.getLogger(__name__)
@@ -29,6 +29,11 @@ def sync_user_to_convertkit(self, email: str, form_id: str, metadata: Dict[str, 
         response = api.subscribe_to_form(email, form_id, metadata)
         logger.info(f"Successfully synced user {email} to ConvertKit form {form_id}")
         return response
+    except ConvertKitNotConfigured as exc:
+        # Config problem, not a transient one -- retrying 3 times cannot
+        # set an env var, it just multiplies the log noise.
+        logger.warning("Skipping ConvertKit call: %s", exc)
+        return {}
     except Exception as exc:
         logger.error(f"Failed to sync user {email} to ConvertKit: {str(exc)}")
         # Retry after 5 minutes
@@ -53,6 +58,11 @@ def tag_user_in_convertkit(self, email: str, tag_id: str, metadata: Optional[Dic
         response = api.add_tag_to_subscriber(email, tag_id, metadata)
         logger.info(f"Successfully added tag {tag_id} to user {email} in ConvertKit")
         return response
+    except ConvertKitNotConfigured as exc:
+        # Config problem, not a transient one -- retrying 3 times cannot
+        # set an env var, it just multiplies the log noise.
+        logger.warning("Skipping ConvertKit call: %s", exc)
+        return {}
     except Exception as exc:
         logger.error(f"Failed to add tag {tag_id} to user {email} in ConvertKit: {str(exc)}")
         # Retry after 5 minutes
@@ -77,6 +87,11 @@ def handle_incomplete_assessment(self, email: str, days_inactive: int) -> Dict:
         response = api.add_tag_to_subscriber(email, tag_id)
         logger.info(f"Tagged user {email} for incomplete assessment after {days_inactive} days")
         return response
+    except ConvertKitNotConfigured as exc:
+        # Config problem, not a transient one -- retrying 3 times cannot
+        # set an env var, it just multiplies the log noise.
+        logger.warning("Skipping ConvertKit call: %s", exc)
+        return {}
     except Exception as exc:
         logger.error(f"Failed to tag user {email} for incomplete assessment: {str(exc)}")
         # Retry after 5 minutes
@@ -100,6 +115,11 @@ def handle_incomplete_profile(self, email: str) -> Dict:
         response = api.add_tag_to_subscriber(email, tag_id)
         logger.info(f"Tagged user {email} for incomplete profile")
         return response
+    except ConvertKitNotConfigured as exc:
+        # Config problem, not a transient one -- retrying 3 times cannot
+        # set an env var, it just multiplies the log noise.
+        logger.warning("Skipping ConvertKit call: %s", exc)
+        return {}
     except Exception as exc:
         logger.error(f"Failed to tag user {email} for incomplete profile: {str(exc)}")
         # Retry after 5 minutes
@@ -123,6 +143,11 @@ def handle_resume_screening_passed(self, email: str) -> Dict:
         response = api.add_tag_to_subscriber(email, tag_id)
         logger.info(f"Tagged user {email} for passing resume screening")
         return response
+    except ConvertKitNotConfigured as exc:
+        # Config problem, not a transient one -- retrying 3 times cannot
+        # set an env var, it just multiplies the log noise.
+        logger.warning("Skipping ConvertKit call: %s", exc)
+        return {}
     except Exception as exc:
         logger.error(f"Failed to tag user {email} for passing resume screening: {str(exc)}")
         # Retry after 5 minutes
