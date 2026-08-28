@@ -40,6 +40,9 @@ class TalentNetworkMember(TimeStampedModel):
     interested_roles = ArrayField(
         models.CharField(max_length=30, choices=TalentNetworkRoleCategory.choices), default=list, blank=True
     )
+    # Free text for the OTHER role category -- without it, picking "Other"
+    # recorded a member whose actual role we had no way to learn.
+    other_role = models.CharField(max_length=255, blank=True, default="")
     preferred_work_type = models.CharField(max_length=10, choices=TalentNetworkWorkMode.choices)
     preferred_locations = ArrayField(models.CharField(max_length=100), default=list, blank=True)
     communities = ArrayField(

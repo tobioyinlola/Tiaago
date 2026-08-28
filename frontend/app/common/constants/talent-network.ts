@@ -111,6 +111,8 @@ export type TalentNetworkJoinPayload = {
   years_experience: TalentNetworkYearsExperience;
   industry: TalentNetworkIndustry[];
   interested_roles: TalentNetworkRoleCategory[];
+  /** Free text, required when interested_roles includes OTHER. */
+  other_role?: string;
   preferred_work_type: TalentNetworkWorkMode;
   preferred_locations: string[];
   communities: TalentNetworkCommunity[];

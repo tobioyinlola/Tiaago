@@ -37,6 +37,7 @@ const initialValues: TalentNetworkJoinPayload = {
   years_experience: "0-2",
   industry: [],
   interested_roles: [],
+  other_role: "",
   preferred_work_type: "REMOTE",
   preferred_locations: [],
   communities: [],
@@ -56,6 +57,11 @@ const validationSchema = Yup.object({
   years_experience: Yup.string().required("Select your years of experience"),
   industry: Yup.array().min(1, "Select at least one industry"),
   interested_roles: Yup.array().min(1, "Select at least one role"),
+  other_role: Yup.string().when("interested_roles", {
+    is: (roles: string[]) => (roles || []).includes("OTHER"),
+    then: schema => schema.trim().required("Tell us which role you're interested in"),
+    otherwise: schema => schema,
+  }),
   preferred_work_type: Yup.string().required("Select a preferred work type"),
   preferred_locations: Yup.array(),
   communities: Yup.array(),
@@ -72,6 +78,7 @@ const STEPS = [
       "years_experience",
       "industry",
       "interested_roles",
+      "other_role",
       "preferred_work_type",
       "preferred_locations",
       "communities",
@@ -259,6 +266,19 @@ const TalentNetworkJoinForm = ({ groupedCountries }: Props) => {
                       <p className="text-xs text-error mt-1">{errors.interested_roles as string}</p>
                     )}
                   </div>
+
+                  {values.interested_roles.includes("OTHER") && (
+                    <div className="mb-4">
+                      <FormikField
+                        name="other_role"
+                        label="Which role?"
+                        placeholder="e.g. Technical Writer"
+                        value={values.other_role}
+                        error={errors.other_role}
+                        touched={touched.other_role}
+                      />
+                    </div>
+                  )}
 
                   <div className="mb-4">
                     <FormikField

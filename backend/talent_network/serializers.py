@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .choices import TalentNetworkMemberStatus
+from .choices import TalentNetworkMemberStatus, TalentNetworkRoleCategory
 from .models import JobMatchNotification, TalentNetworkMember, TalentNetworkSmtpConfig
 
 
@@ -17,7 +17,7 @@ class TalentNetworkJoinSerializer(serializers.ModelSerializer):
         fields = [
             "first_name", "last_name", "email", "phone",
             "country", "state", "city",
-            "job_title", "years_experience", "industry", "interested_roles",
+            "job_title", "years_experience", "industry", "interested_roles", "other_role",
             "preferred_work_type", "preferred_locations",
             "communities", "other_community",
             "email_frequency", "consent",
@@ -33,6 +33,19 @@ class TalentNetworkJoinSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Select at least one role you're interested in.")
         return value
 
+    def validate(self, attrs):
+        """Picking OTHER on its own tells us nothing about what the member
+        actually does, so it has to come with the role typed in. Cleared
+        again if OTHER is deselected, so no stale text is kept."""
+        roles = attrs.get("interested_roles") or []
+        other_role = (attrs.get("other_role") or "").strip()
+        if TalentNetworkRoleCategory.OTHER in roles and not other_role:
+            raise serializers.ValidationError(
+                {"other_role": "Tell us which role you're interested in."}
+            )
+        attrs["other_role"] = other_role if TalentNetworkRoleCategory.OTHER in roles else ""
+        return attrs
+
 
 class TalentNetworkMemberSerializer(serializers.ModelSerializer):
     """Admin-facing member detail/list serializer."""
@@ -44,7 +57,7 @@ class TalentNetworkMemberSerializer(serializers.ModelSerializer):
         fields = [
             "id", "full_name", "first_name", "last_name", "email", "phone",
             "country", "state", "city",
-            "job_title", "years_experience", "industry", "interested_roles",
+            "job_title", "years_experience", "industry", "interested_roles", "other_role",
             "preferred_work_type", "preferred_locations",
             "communities", "other_community",
             "email_frequency", "consent", "status",

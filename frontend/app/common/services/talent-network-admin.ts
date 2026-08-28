@@ -28,6 +28,7 @@ export type TalentNetworkMember = {
   years_experience: TalentNetworkYearsExperience;
   industry: TalentNetworkIndustry[];
   interested_roles: TalentNetworkRoleCategory[];
+  other_role: string;
   preferred_work_type: TalentNetworkWorkMode;
   preferred_locations: string[];
   communities: TalentNetworkCommunity[];

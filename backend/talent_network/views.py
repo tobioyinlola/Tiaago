@@ -276,15 +276,18 @@ class TalentNetworkExportCsvView(APIView):
         writer = csv.writer(response)
         writer.writerow([
             "First Name", "Last Name", "Email", "Phone", "Country", "State", "City",
-            "Job Title", "Years Experience", "Industry", "Interested Roles",
-            "Preferred Work Type", "Communities", "Email Frequency", "Status", "Joined",
+            "Job Title", "Years Experience", "Industry", "Interested Roles", "Other Role",
+            "Preferred Work Type", "Communities", "Other Community",
+            "Email Frequency", "Status", "Joined",
         ])
         for m in TalentNetworkMember.objects.all().iterator():
             writer.writerow([
                 _csv_safe(m.first_name), _csv_safe(m.last_name), m.email, m.phone,
                 m.country, m.state, m.city, _csv_safe(m.job_title), m.years_experience,
-                ", ".join(m.industry), ", ".join(m.interested_roles), m.preferred_work_type,
-                ", ".join(m.communities), m.email_frequency, m.status, m.created_at.isoformat(),
+                ", ".join(m.industry), ", ".join(m.interested_roles), _csv_safe(m.other_role),
+                m.preferred_work_type,
+                ", ".join(m.communities), _csv_safe(m.other_community),
+                m.email_frequency, m.status, m.created_at.isoformat(),
             ])
         log_audit(TalentNetworkAuditLog.Action.EXPORT_CSV, actor=request.user, request=request)
         return response

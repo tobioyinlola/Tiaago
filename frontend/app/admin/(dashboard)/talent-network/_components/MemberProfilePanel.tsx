@@ -37,6 +37,11 @@ const MemberProfilePanel = ({ member, onClose }: { member: TalentNetworkMember; 
                 {r.replaceAll("_", " ")}
               </span>
             ))}
+            {member.other_role && (
+              <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-[#F5F6F7] text-secondary-black">
+                {member.other_role}
+              </span>
+            )}
           </div>
         </div>
 
