@@ -278,3 +278,82 @@ class SecondInterviewRoundTests(TestCase):
 
         self._meeting(1, Scheduler.Status.COMPLETED)
         self.assertFalse(_has_booked_interview(self.application))
+
+
+class JobStatusChangeBillingGateTests(TestCase):
+    """Changing a job's status is gated on the company being able to PAY to
+    process applications, which means free credits OR wallet balance.
+
+    Every charge path in subscriptions.billing_service spends
+    free_credits_remaining first and only falls through to wallet.balance
+    once credits run out, so credits alone are enough to keep working.
+    """
+
+    def setUp(self):
+        from rest_framework.test import APIClient
+
+        self.rep = CustomUser.objects.create_company_user(
+            username="bill-rep", email="bill-rep@example.com", password="x"
+        )
+        self.rep.verified = True
+        self.rep.save(update_fields=["verified"])
+        self.company = Company.objects.create(company_name="Bill Co", company_rep=self.rep)
+        self.job = _make_job(self.company, job_status=Job.JobStatus.ACTIVE)
+
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.rep)
+
+    def _wallet(self, balance, credits):
+        from subscriptions.billing_service import get_or_create_wallet
+
+        wallet = get_or_create_wallet(self.company)
+        wallet.balance = balance
+        wallet.free_credits_remaining = credits
+        wallet.save(update_fields=["balance", "free_credits_remaining"])
+        return wallet
+
+    def _patch_status(self, status):
+        return self.client.patch(
+            f"/api/jobs/{self.job.public_id}/", {"job_status": status}, format="json"
+        )
+
+    def test_free_credits_with_zero_balance_can_change_status(self):
+        """The reported bug: a free-tier company was locked out of its own
+        job statuses despite having credits it could still spend."""
+        self._wallet(balance=0, credits=20)
+
+        res = self._patch_status(Job.JobStatus.ON_HOLD)
+
+        self.assertEqual(res.status_code, 200)
+        self.job.refresh_from_db()
+        self.assertEqual(self.job.job_status, Job.JobStatus.ON_HOLD)
+
+    def test_balance_with_no_credits_can_change_status(self):
+        self._wallet(balance=5000, credits=0)
+
+        res = self._patch_status(Job.JobStatus.ON_HOLD)
+
+        self.assertEqual(res.status_code, 200)
+        self.job.refresh_from_db()
+        self.assertEqual(self.job.job_status, Job.JobStatus.ON_HOLD)
+
+    def test_both_exhausted_blocks_status_change(self):
+        self._wallet(balance=0, credits=0)
+
+        res = self._patch_status(Job.JobStatus.ON_HOLD)
+
+        self.assertEqual(res.status_code, 400)
+        self.job.refresh_from_db()
+        self.assertEqual(self.job.job_status, Job.JobStatus.ACTIVE)
+
+    def test_both_exhausted_still_allows_non_status_edits(self):
+        """The gate is on job_status only -- it must not freeze the whole job."""
+        self._wallet(balance=0, credits=0)
+
+        res = self.client.patch(
+            f"/api/jobs/{self.job.public_id}/", {"role": "Staff Engineer"}, format="json"
+        )
+
+        self.assertEqual(res.status_code, 200)
+        self.job.refresh_from_db()
+        self.assertEqual(self.job.role, "Staff Engineer")

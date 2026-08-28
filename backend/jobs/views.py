@@ -911,12 +911,20 @@ class JobRetrieveUpdateView(RetrieveUpdateAPIView):
         serializer = self.get_serializer(instance, data=request.data, partial=partial)
         serializer.is_valid(raise_exception=True)
 
-        # A recruiter with an exhausted wallet can't flip a job's status at
-        # all (not just re-activating one that got auto-paused for billing --
-        # see BillingService._pause_company_jobs_for_wallet_exhaustion) until
-        # they top up. Without this, manually toggling status was a way to
-        # route around the auto-pause and keep accepting applications the
-        # wallet can no longer pay to process. Staff can still override.
+        # A recruiter who can no longer pay to process applications can't flip
+        # a job's status at all (not just re-activating one that got
+        # auto-paused for billing -- see
+        # BillingService._pause_company_jobs_for_wallet_exhaustion) until they
+        # top up. Without this, manually toggling status was a way to route
+        # around the auto-pause and keep accepting applications that can't be
+        # paid for. Staff can still override.
+        #
+        # "Can pay" means free credits OR wallet balance, not balance alone:
+        # every charge path in billing_service spends free_credits_remaining
+        # first and only falls through to wallet.balance once credits hit
+        # zero. A free-tier company with credits left and a zero balance is
+        # fully able to screen candidates, so blocking it here locked new
+        # signups out of their own job statuses.
         requested_status = serializer.validated_data.get("job_status")
         if (
             company
@@ -925,9 +933,12 @@ class JobRetrieveUpdateView(RetrieveUpdateAPIView):
             and requested_status != old_status
         ):
             wallet = get_or_create_wallet(company)
-            if wallet.balance <= 0:
+            if wallet.balance <= 0 and wallet.free_credits_remaining <= 0:
                 return Response(
-                    {"detail": "Your wallet balance is exhausted. Fund your wallet before changing this job's status."},
+                    {
+                        "detail": "Your free credits and wallet balance are both exhausted. "
+                                  "Fund your wallet before changing this job's status."
+                    },
                     status=HTTP_400_BAD_REQUEST,
                 )
 
