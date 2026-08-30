@@ -720,13 +720,13 @@ def offer_extended_notice_mail(user, company_name, role):
     # blast would, which is what landed this in Gmail's Promotions tab.
     # Naming the role and the company is what makes it look transactional.
     if role and company_name:
-        subject = f"Next steps on your {role} application at {company_name}"
+        subject = f"Application Update: {role} at {company_name}"
     elif role:
-        subject = f"Next steps on your {role} application"
+        subject = f"Application Update: {role}"
     elif company_name:
-        subject = f"Next steps on your application at {company_name}"
+        subject = f"Application Update: your application at {company_name}"
     else:
-        subject = "Next steps on your application"
+        subject = "Application Update"
     return _send_with_latest_flow(
         user.email, subject, template, ctx,
         email_type="offer_extended_notice_mail",

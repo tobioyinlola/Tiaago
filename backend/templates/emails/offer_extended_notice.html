@@ -1,8 +1,19 @@
 {% extends "emails/base.html" %}
-{% block title %}Next steps on your application{% endblock %}
-{% block preheader %}{{ company|default:"The hiring team" }} would like to extend you an offer for the {{ role|default:"role" }} position and will be in touch with the details.{% endblock %}
+{% block title %}Application update{% endblock %}
+{% block preheader %}{{ company|default:"The hiring team" }} would like to progress your {% if role %}{{ role }} {% endif %}application to the offer stage.{% endblock %}
 {% block content %}
-  <h1 class="h1" style="margin:0 0 14px; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:33px; line-height:1.15; letter-spacing:-0.6px; font-weight:800; color:#0F172A;">{{ company|default:"The hiring team" }} wants to hire you</h1>
+  <h1 class="h1" style="margin:0 0 14px; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:33px; line-height:1.15; letter-spacing:-0.6px; font-weight:800; color:#0F172A;">Your application is moving to the offer stage</h1>
 
-  <p style="margin:0 0 24px; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:16px; line-height:1.65; color:#475569;">Congratulations, {{ first_name|default:"there" }}. After reviewing your interviews, {{ company|default:"the team" }} would like to extend you an offer for the {{ role|default:"role" }} position. Someone from their team will reach out directly with the details.</p>
+  <p style="margin:0 0 16px; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:16px; line-height:1.65; color:#475569;">Hi {{ first_name|default:"there" }},</p>
+
+  <p style="margin:0 0 16px; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:16px; line-height:1.65; color:#475569;">Thank you for your time and effort throughout the hiring process for the {% if role %}{{ role }} role{% else %}role{% endif %} at {{ company|default:"the company" }}.</p>
+
+  <p style="margin:0 0 16px; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:16px; line-height:1.65; color:#475569;">We are pleased to inform you that following careful consideration, the hiring team would like to progress your application to the offer stage.</p>
+
+  <p style="margin:0 0 16px; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:16px; line-height:1.65; color:#475569;">A member of the {{ company|default:"hiring" }} team will be in contact with you directly to discuss the details of the offer and outline the next steps in the process.</p>
+
+  <p style="margin:0 0 24px; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:16px; line-height:1.65; color:#475569;">We look forward to speaking with you.</p>
+
+  <p style="margin:0; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:16px; line-height:1.65; color:#475569;">Best regards,<br />
+  <span style="font-weight:600; color:#0F172A;">{% if company %}The {{ company }} Hiring Team{% else %}The Hiring Team{% endif %}</span></p>
 {% endblock %}

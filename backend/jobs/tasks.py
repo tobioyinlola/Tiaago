@@ -1107,10 +1107,19 @@ def send_interview_slot_invite(job_application_id):
         "company": job.company.company_name,
         "role": job.title,
         "slots_url": slots_url,
+        # Drives the second-round copy in the template (the first-round body
+        # thanks them for passing the assessment, which reads as nonsense to
+        # someone who just finished a live first interview). The other sender
+        # of this template, skill_assessment.tasks.send_interview_slot_selection_invite,
+        # is always a first round and never passes this.
+        "is_second_round": is_second_round,
     }
     try:
         EmailHandler(recipients=[candidate_email]).send_mail(
-            subject="Pick your second interview time" if is_second_round else "Pick your interview time",
+            subject=(
+                f"Second Interview Invitation: {job.title}" if is_second_round
+                else "Pick your interview time"
+            ),
             context=context,
             template="emails/interview_slot_selection.html",
             email_type=EmailTypes.INTERVIEW_SLOT_SELECTION_MAIL,
