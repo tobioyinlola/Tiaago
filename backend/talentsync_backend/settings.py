@@ -66,7 +66,6 @@ INSTALLED_APPS = [
     "work_experience.apps.WorkExperienceConfig",
     "chats.apps.ChatsConfig",
     "management",
-    "marketing.apps.MarketingConfig",
     "emails_app.apps.EmailsAppConfig",
     "sourcing.apps.SourcingConfig",
     "blog.apps.BlogConfig",
@@ -735,11 +734,6 @@ if ENV in ['staging', 'production']:
                 "level": "INFO",
                 "propagate": False,
             },
-            "marketing": {
-                "handlers": ["console"],
-                "level": "INFO",
-                "propagate": False,
-            },
             "management": {
                 "handlers": ["console"],
                 "level": "INFO",
@@ -924,17 +918,3 @@ ACCEPTANCE_MAIL_DELAY_SECONDS = env.int(
 
 BASE_URL=env("BASE_URL", default="http://localhost:8000")
 
-
-
-#ConvertKit Settings
-CONVERTKIT_API_KEY = env("CONVERTKIT_API_KEY", default="")
-CONVERTKIT_API_SECRET = env("CONVERTKIT_API_SECRET", default="")
-
-# ConvertKit Form IDs
-CONVERTKIT_RECRUITER_FORM = env("CONVERTKIT_RECRUITER_FORM", default="")
-CONVERTKIT_CANDIDATE_FORM = env("CONVERTKIT_CANDIDATE_FORM", default="")
-
-# ConvertKit Tag IDs
-CONVERTKIT_INCOMPLETE_ASSESSMENT_TAG = env("CONVERTKIT_INCOMPLETE_ASSESSMENT_TAG", default="")
-CONVERTKIT_INCOMPLETE_PROFILE_TAG = env("CONVERTKIT_INCOMPLETE_PROFILE_TAG", default="")
-CONVERTKIT_RESUME_SCREENING_PASSED_TAG = env("CONVERTKIT_RESUME_SCREENING_PASSED_TAG", default="")

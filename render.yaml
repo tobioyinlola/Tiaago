@@ -112,7 +112,6 @@ services:
 #   CLOUDINARY_*           (Cloudinary creds)
 #   BUNNY_*                (Bunny.net creds if USE_BUNNY=1)
 #   USE_BUNNY              (1 to use Bunny.net for media, 0 for Cloudinary)
-#   CONVERTKIT_*           (ConvertKit marketing keys + form/tag ids)
 #   CURRENCY_PRIVATE_KEY   (CurrencyAPI key)
 #   DAILY_API_TOKEN        (Daily.co video call API)
 #   ELEVENLABS_API_KEY     (ElevenLabs TTS)

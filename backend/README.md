@@ -43,7 +43,6 @@ Runs on EC2 via Docker Compose. One Docker image, three services dispatched by `
 - `contract` - contracts
 - `roles` - role definitions
 - `work_experience` - work history
-- `marketing` - ConvertKit integration
 - `management` - admin tools
 - `sourcing` - talent pipeline
 - `emails_app` - email templates..

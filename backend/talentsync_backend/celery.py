@@ -29,15 +29,6 @@ app.conf.beat_schedule = {
         "schedule": crontab(day_of_month=20, hour=0, minute=0),
         # "schedule": crontab(minute="*/1"),
     },
-    # Marketing automation tasks
-    "batch_check_incomplete_assessments": {
-        "task": "marketing.tasks.batch_check_incomplete_assessments",
-        "schedule": crontab(hour=9, minute=0),  # Run daily at 9 AM
-    },
-    "batch_check_incomplete_profiles": {
-        "task": "marketing.tasks.batch_check_incomplete_profiles",
-        "schedule": crontab(hour=9, minute=30),  # Run daily at 9:30 AM
-    },
     # Tagging / segmentation
     "run_tag_rule_engine": {
         "task": "tags.tasks.run_tag_rule_engine",
