@@ -1,7 +1,7 @@
 # ─────────────────────────────────────────────
 # STAGE 1: builder (compile wheels, cache deps)
 # ─────────────────────────────────────────────
-FROM python:3.11.4-slim-bullseye AS builder
+FROM python:3.11-slim-bookworm AS builder
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
@@ -18,7 +18,7 @@ RUN pip install --upgrade pip \
 # ─────────────────────────────────────────────
 # STAGE 2: runtime (small, only what we need)
 # ─────────────────────────────────────────────
-FROM python:3.11.4-slim-bullseye AS runtime
+FROM python:3.11-slim-bookworm AS runtime
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     HOME=/home/app \
