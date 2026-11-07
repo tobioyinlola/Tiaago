@@ -1,6 +1,9 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nextjs",
+  "env": {
+    "NEXT_PUBLIC_API_URL": "https://tiaago-production.up.railway.app/api"
+  },
   "buildCommand": "pnpm build",
   "installCommand": "pnpm install --frozen-lockfile",
   "outputDirectory": ".next",

@@ -1,7 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   experimental: {
-    instrumentationHook: true,
     // Support-ticket attachments are Server Action arguments (see
     // submitTicket in app/common/services/support.ts), so they're subject to
     // Next's own body-size guard -- default 1MB -- independent of the
