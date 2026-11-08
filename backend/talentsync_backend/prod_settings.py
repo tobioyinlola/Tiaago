@@ -68,6 +68,17 @@ CSRF_TRUSTED_ORIGINS = [o.strip() for o in env.list("CSRF_TRUSTED_ORIGINS", defa
     "https://tiaago-git-main-jays-projects-938c1689.vercel.app",
 ]) if o.strip()]
 
+# These are this project's production/branch URLs and the explicitly approved
+# deployment used for signup. Keep them when Railway supplies an older origin
+# list; do not trust arbitrary vercel.app projects or previews.
+for _frontend_origin in (
+    "https://tiaago.vercel.app",
+    "https://tiaago-git-main-jays-projects-938c1689.vercel.app",
+    "https://tiaago-5uq2qlswy-jays-projects-938c1689.vercel.app",
+):
+    if _frontend_origin not in CSRF_TRUSTED_ORIGINS:
+        CSRF_TRUSTED_ORIGINS.append(_frontend_origin)
+
 # Strict CORS: explicit list + regex only. No wildcard.
 CORS_ALLOWED_ORIGINS = CSRF_TRUSTED_ORIGINS
 CORS_ALLOWED_ORIGIN_REGEXES = [

@@ -38,6 +38,12 @@ replace the defaults: append `tiaago-backend-web-production-3604.up.railway.app`
 `ALLOWED_HOSTS` and `https://tiaago-git-main-jays-projects-938c1689.vercel.app`
 to `CSRF_TRUSTED_ORIGINS` (comma-separated, preserving existing entries).
 The backend uses `CSRF_TRUSTED_ORIGINS` as its CORS origin allowlist too.
+The project's production URL (`https://tiaago.vercel.app`), main branch URL,
+and the approved deployment origin
+`https://tiaago-5uq2qlswy-jays-projects-938c1689.vercel.app` are always included,
+even if Railway provides an older `CSRF_TRUSTED_ORIGINS` value. Other deployment
+origins must be explicitly approved; arbitrary Vercel origins are not allowed.
+Use the production or main branch URL for ongoing testing as deployments change.
 Redeploy the backend after changing its code or variables.
 
 Deploy the new commit after changing the URL: Next.js embeds `NEXT_PUBLIC_*`
