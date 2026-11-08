@@ -2,7 +2,7 @@
 import os
 import django
 import logging
-from django.core.asgi import get_asgi_application
+from .http_asgi import BodyLengthASGIHandler
 
 
 logger = logging.getLogger(__name__)
@@ -38,7 +38,7 @@ websocket_router = debug_router(
 )
 
 application = ProtocolTypeRouter({
-    "http": get_asgi_application(),
+    "http": BodyLengthASGIHandler(),
     "websocket": JWTAuthMiddleware(
         AuthMiddlewareStack(
             websocket_router
