@@ -30,14 +30,14 @@ deployments). Set it to the live backend URL including `/api`, for example
 Use the actual URL from your backend hosting dashboard.
 
 The committed `vercel.json` sets `NEXT_PUBLIC_API_URL` to
-`https://tiaago-production.up.railway.app/api` for the Railway backend.
+`https://tiaago-backend-web-production-3604.up.railway.app/api` for the Railway backend.
 Keep any project-level override consistent with this address.
 
 For this Railway deployment, run the backend with `ENV=production`. Production
 defaults allow the Railway hostname and the frontend origin
 `https://tiaago-git-main-jays-projects-938c1689.vercel.app`.
 If Railway defines `ALLOWED_HOSTS` or `CSRF_TRUSTED_ORIGINS`, those variables
-replace the defaults: append `tiaago-production.up.railway.app` to
+replace the defaults: append `tiaago-backend-web-production-3604.up.railway.app` to
 `ALLOWED_HOSTS` and `https://tiaago-git-main-jays-projects-938c1689.vercel.app`
 to `CSRF_TRUSTED_ORIGINS` (comma-separated, preserving existing entries).
 The backend uses `CSRF_TRUSTED_ORIGINS` as its CORS origin allowlist too.

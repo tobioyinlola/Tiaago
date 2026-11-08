@@ -2,11 +2,11 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nextjs",
   "env": {
-    "NEXT_PUBLIC_API_URL": "https://tiaago-production.up.railway.app/api"
+    "NEXT_PUBLIC_API_URL": "https://tiaago-backend-web-production-3604.up.railway.app/api"
   },
   "build": {
     "env": {
-      "NEXT_PUBLIC_API_URL": "https://tiaago-production.up.railway.app/api"
+      "NEXT_PUBLIC_API_URL": "https://tiaago-backend-web-production-3604.up.railway.app/api"
     }
   },
   "buildCommand": "pnpm build",
