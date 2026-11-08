@@ -1,19 +1,23 @@
+"use client";
+
 import ProfileTab from "./ProfileTab";
 import { useAdminStore } from "../../../store";
 import { settingsTabs } from "../../constants/tabs";
 import SecurityTab from "@/app/common/components/SecurityTab";
 import { ProfileInfoFormProps } from "./ProfileTab/PersonalInfoForm";
 import EmailIntegrationTab from "./EmailIntegrationTab";
+import { Staff } from "@/app/common/types";
 
 export type TabKey = (typeof settingsTabs)[number]["name"];
 
 type TabProps = {
   tab: TabKey;
   groupedCountries: ProfileInfoFormProps["groupedCountries"];
+  serverProfile: Staff;
 };
 
-const Tab = ({ tab, groupedCountries }: TabProps) => {
-  const user = useAdminStore.getState().profile!;
+const Tab = ({ tab, groupedCountries, serverProfile }: TabProps) => {
+  const user = useAdminStore(state => state.profile) ?? serverProfile;
   const tabMap: Record<TabKey, JSX.Element> = {
     profile: (
       <ProfileTab serverProfile={user} groupedCountries={groupedCountries} />

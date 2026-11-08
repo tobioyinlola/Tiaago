@@ -1,5 +1,4 @@
 import Image from "next/image";
-import dynamic from "next/dynamic";
 import { Metadata } from "next";
 
 import DisplayErrorMessages, {
@@ -12,12 +11,7 @@ import {
 } from "@/app/common/services/subscription";
 import { handleServerApiCallError } from "@/app/common/utils";
 
-const AddStripeCard = dynamic(
-  () => import("./_components/AddStripeCard")
-);
-const AddPaystackCard = dynamic(
-  () => import("./_components/AddPaystackCard")
-);
+import { AddPaystackCard, AddStripeCard } from "./_components/CardForms";
 import InfoCircleIcon from "@/app/common/icons/InfoCircleIcon";
 import { getCurrentUser } from "@/app/common/services/profile";
 import DeletePaymentCardBtn from "./_components/DeletePaymentCardBtn";
@@ -74,8 +68,9 @@ const PaymentPage = async () => {
   const paymentCards = paymentCardsRes.results;
 
   const paystackPublicKey = process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY;
+  const stripePublishableKey = process.env.STRIPE_PUBLISHABLE_KEY ?? "";
   const paystackEmail = currentUser.email;
-  const usePaystack = currentUser.country.toLowerCase() === "nigeria";
+  const usePaystack = ["ng", "nigeria"].includes(currentUser.country.toLowerCase());
   return (
     <>
       <DisplayErrorMessages errors={errors} />
@@ -158,16 +153,20 @@ const PaymentPage = async () => {
         ))}
         {paymentCards.length < 3 && (
           <>
-            {usePaystack ? (
+            {usePaystack && paystackPublicKey ? (
               <AddPaystackCard
                 publickey={paystackPublicKey ?? ""}
                 email={paystackEmail ?? ""}
               />
-            ) : (
+            ) : !usePaystack && stripePublishableKey && stripeClientSecret ? (
               <AddStripeCard
                 clientSecret={stripeClientSecret}
-                publishableKey={process.env.STRIPE_PUBLISHABLE_KEY ?? ""}
+                publishableKey={stripePublishableKey}
               />
+            ) : (
+              <p role='status' className='text-sm text-muted-foreground py-6'>
+                Card setup is currently unavailable. Please contact support.
+              </p>
             )}
           </>
         )}

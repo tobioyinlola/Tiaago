@@ -29,6 +29,18 @@ Default credentials after seeding: password `Tiaago1234#`, admin `admin@tiaago.c
 
 Runs on EC2 via Docker Compose. One Docker image, three services dispatched by `ROLE` env var (`web`, `worker`, `beat`) in `entrypoint.sh`. Nginx handles SSL and static files. GitHub Actions deploys on push to `main`.
 
+## Bachs wallet top-ups
+
+Set `BACHS_ENVIRONMENT` to `sandbox` or `live`, configure the matching
+`BACHS_API_KEY_SANDBOX` or `BACHS_API_KEY_LIVE`, and set `BACHS_WEBHOOK_SECRET`.
+Wallet checkout sends the user's selected amount and currency as raw `pricing`;
+catalog product IDs are not required. See the
+[Bachs checkout API](https://docs.bachs.io/api-reference/payments/create-checkout-session).
+
+Configure the signed webhook at `/api/subscriptions/bachs-wallet-fund-webhook/`.
+`/webhook` and `/webhook/` also accept deliveries directly. Wallet credits are
+applied only after payment verification; a browser redirect never credits a wallet.
+
 ## Apps
 
 - `create_user` - auth, custom user model

@@ -1,4 +1,5 @@
 import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from unittest.mock import patch, MagicMock
 from app.api.routes import router
@@ -6,7 +7,9 @@ from app.models.assessment import AssessmentResult, Question, CodingAnswer, Grad
 from typing import List
 import json
 
-client = TestClient(router)
+test_app = FastAPI()
+test_app.include_router(router)
+client = TestClient(test_app)
 
 @pytest.fixture
 def sample_job_description():
@@ -162,7 +165,7 @@ def test_generate_language_specific_coding_assessment():
 
 
 
-def test_generate_coding_assessment_endpoint():
+def test_generate_coding_assessment_endpoint(monkeypatch):
     """Test the new generate-coding-assessment endpoint structure."""
     # Test with invalid language to trigger validation error
     response = client.post("/generate-coding-assessment",
@@ -175,7 +178,20 @@ def test_generate_coding_assessment_endpoint():
     assert response.status_code == 400
     assert "Unsupported programming language" in response.json()["detail"]
     
-    # Test with valid parameters but no OpenAI key (will fail with different error)
+    # A successful endpoint test must not call a paid provider or accept a 500.
+    def generate(**kwargs):
+        assert kwargs["programming_languages"] == ["Python"]
+        return AssessmentResult(
+            assessment_type="coding",
+            ai_determined_difficulty="intermediate",
+            role_type="technical",
+            skills_assessed=["Python"],
+            questions=[Question(question="Return the sum of two numbers.")],
+        )
+
+    monkeypatch.setattr(
+        "app.services.assessment_service.generate_language_specific_coding_assessment", generate
+    )
     response = client.post("/generate-coding-assessment",
                            params={
                                "programming_languages": ["Python"],
@@ -183,5 +199,6 @@ def test_generate_coding_assessment_endpoint():
                                "difficulty": "intermediate"
                            })
     
-    # Should return either 200 (if OpenAI key exists) or 500 (if no OpenAI key)
-    assert response.status_code in [200, 500]
+    assert response.status_code == 200
+    assert response.json()["assessment_type"] == "coding"
+    assert len(response.json()["questions"]) == 1

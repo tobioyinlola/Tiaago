@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { API_URL } from "../constants";
 import { CompanyOnboarding } from "../types";
 import { _handleServerApiCallError } from "../utils";
 import serverKyInstance from "../utils/server-ky.instance";
@@ -34,28 +33,7 @@ export const updateCompanyOnboarding = async (
   try {
     const data = await serverKyInstance.patch("auth/company-onboarding/", {
       json: input,
-      // Next's production fetch wrapper can drop the body carried inside Ky's
-      // Request object. Pass it explicitly in fetch init; keep Ky's auth hook,
-      // timeout, and HTTP error handling for this mutation.
-      fetch: (request, options) => {
-        const outgoing = new Request(request, options);
-        return fetch(outgoing.url, {
-          method: "PATCH",
-          headers: outgoing.headers,
-          body: JSON.stringify(input),
-          cache: "no-store",
-          signal: outgoing.signal,
-        });
-      },
     }).json<CompanyOnboarding>();
-    console.info("Company onboarding API save", {
-      apiUrl: API_URL,
-      fields: Object.keys(input),
-      complete: input.complete === true,
-      skip: input.skip === true,
-      completed: data.has_completed_onboarding,
-      skipped: data.has_skipped_onboarding,
-    });
     if (input.complete && !data.has_completed_onboarding) {
       return {
         success: false as const,

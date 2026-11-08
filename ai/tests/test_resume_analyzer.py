@@ -1,4 +1,5 @@
 import pytest
+import os
 from app.services.resume_analyzer import analyze_resume
 from app.models.resume import ResumeAnalysis
 
@@ -28,6 +29,10 @@ def sample_job_description():
     - Bachelor's degree in Computer Science or related field
     """
 
+@pytest.mark.skipif(
+    os.environ.get("RUN_LIVE_AI_TESTS") != "1",
+    reason="Live OpenAI integration: set RUN_LIVE_AI_TESTS=1 with dedicated provider credentials",
+)
 def test_analyze_resume(sample_resume, sample_job_description):
     result = analyze_resume(sample_resume, sample_job_description)
     assert isinstance(result, ResumeAnalysis)

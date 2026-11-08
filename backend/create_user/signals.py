@@ -1,8 +1,30 @@
 from django.contrib.auth.signals import user_logged_in
+from django.core.cache import cache
+from django.db import transaction
 from django.db.models.signals import post_save
 from django.dispatch import receiver
-from .models import Company, CompanyTeamMember, TalentProfile
+from .models import Company, CompanyTeamMember, CustomUser, TalentProfile
 from .utils import generate_referral_code
+
+
+@receiver(post_save, sender=CustomUser)
+@receiver(post_save, sender=Company)
+@receiver(post_save, sender=TalentProfile)
+def invalidate_cached_authenticated_user(sender, instance, **kwargs):
+    """Profile writes must be visible on the next authenticated request."""
+    user_id = (
+        instance.pk if sender is CustomUser else
+        instance.company_rep_id if sender is Company else instance.user_id
+    )
+
+    def invalidate():
+        try:
+            cache.delete(f"jwt_user:{user_id}")
+        except Exception:
+            # Authentication already tolerates an unavailable cache.
+            pass
+
+    transaction.on_commit(invalidate)
 
 @receiver(post_save, sender=TalentProfile)
 def assign_referral_code(sender, instance, created, **kwargs):

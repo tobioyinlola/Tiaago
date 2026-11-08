@@ -1,7 +1,7 @@
 from django.contrib.auth import get_user_model
-from django.test import TestCase
 from django.urls import resolve
 from rest_framework import status
+from rest_framework.test import APITestCase
 
 from create_user.models import TalentProfile
 from ..models import (
@@ -12,7 +12,7 @@ from ..views import CaseStudyProjectListCreateView
 
 User = get_user_model()
 
-class CaseStudyProjectTestCase(TestCase):
+class CaseStudyProjectTestCase(APITestCase):
 
     def setUp(self):
         self.password = "testpassword01"
@@ -54,10 +54,7 @@ class CaseStudyProjectListViewTests(CaseStudyProjectTestCase):
 
     def setUp(self):
         super().setUp()
-        self.client.login( # login as a staff
-            username='testuser01@staff',
-            password=self.password
-        )
+        self.client.force_authenticate(self.staff)
         self.response = self.client.get("/api/case-study-projects/")
 
     def test_status_code(self):
@@ -76,10 +73,7 @@ class CaseStudyProjectListViewTestsForTalent(CaseStudyProjectTestCase):
 
     def setUp(self):
         super().setUp()
-        self.client.login( # login as a talent
-            username='testuser01@talent',
-            password=self.password
-        )
+        self.client.force_authenticate(self.talent)
         self.response = self.client.get("/api/case-study-projects/")
 
     def test_status_code(self):
@@ -89,10 +83,7 @@ class CaseStudyProjectListViewTestsForCompany(CaseStudyProjectTestCase):
 
     def setUp(self):
         super().setUp()
-        self.client.login( # login as a company_rep
-            username='testuser01@compamy',
-            password=self.password
-        )
+        self.client.force_authenticate(self.company_rep)
         self.response = self.client.get("/api/case-study-projects/")
 
     def test_status_code(self):
@@ -102,4 +93,4 @@ class CaseStudyProjectListViewTestsForUnauthenticatedUser(CaseStudyProjectTestCa
 
     def test_status_code(self):
         response = self.client.get("/api/case-study-projects/")
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)

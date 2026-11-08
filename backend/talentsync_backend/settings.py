@@ -587,8 +587,6 @@ BACHS_ENVIRONMENT = env("BACHS_ENVIRONMENT", default="sandbox")  # "sandbox" or 
 BACHS_API_KEY_SANDBOX = env("BACHS_API_KEY_SANDBOX", default="")
 BACHS_API_KEY_LIVE = env("BACHS_API_KEY_LIVE", default="")
 BACHS_WEBHOOK_SECRET = env("BACHS_WEBHOOK_SECRET", default="")
-BACHS_TOPUP_PRODUCT_ID_NGN = env("BACHS_TOPUP_PRODUCT_ID_NGN", default="")
-BACHS_TOPUP_PRODUCT_ID_USD = env("BACHS_TOPUP_PRODUCT_ID_USD", default="")
 BACHS_BASE_URL_SANDBOX = "https://sandbox-api.bachs.io"
 BACHS_BASE_URL_LIVE = "https://api.bachs.io"
 

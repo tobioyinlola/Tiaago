@@ -6,7 +6,6 @@ import {
   getCurrentUser,
 } from "@/app/common/services/profile";
 import { getAdminTicketsUnreadCount } from "@/app/common/services/support";
-import { useAdminStore } from "./store";
 import Nav from "@/app/common/components/dashboard/Nav";
 import ScrollArea from "@/app/common/components/ScrollArea";
 import SideNavV3 from "@/app/common/components/dashboard/Nav/SideNavV3";
@@ -16,14 +15,13 @@ import DisplayErrorMessages, {
 import { handleServerApiCallError } from "@/app/common/utils";
 import BackendWarmupPing from "@/app/common/components/Layout/BackendWarmupPing";
 import MaintenancePage from "@/app/common/components/MaintenancePage";
-import SetAdminProfile from "./components/SetAdminProfile";
+import AdminStoreProvider from "./components/AdminStoreProvider";
 
 const AdminDashboardLayout = async ({ children }: PropsWithChildren) => {
   const errors: DisplayErrorMessagesProps["errors"] = [];
   const result = await getCurrentUser("staff");
   if (result.backendDown) return <MaintenancePage />;
   const { currentUser: user } = result;
-  useAdminStore.setState({ profile: user });
   const as = "staff";
   const [talentsRes, recruitersRes, unreadTicketsCount] = await Promise.all([
     getAllTalents(1, false).catch(async e => {
@@ -47,9 +45,8 @@ const AdminDashboardLayout = async ({ children }: PropsWithChildren) => {
   const noOfUnverifiedTalents = talentsRes.count;
   const noOfUnverifiedRecruiters = recruitersRes.count;
   return (
-    <>
+    <AdminStoreProvider profile={user}>
       <BackendWarmupPing />
-      <SetAdminProfile profile={user} />
       <DisplayErrorMessages errors={errors} />
       <div className='bg-white min-h-[100svh]'>
         <Nav
@@ -91,7 +88,7 @@ const AdminDashboardLayout = async ({ children }: PropsWithChildren) => {
           </ScrollArea>
         </div>
       </div>
-    </>
+    </AdminStoreProvider>
   );
 };
 

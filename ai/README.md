@@ -12,6 +12,16 @@ uvicorn app.main:app --reload --port 9000
 
 Docs at `http://localhost:9000/docs`.
 
+## Tests
+
+```bash
+OPENAI_API_KEY=test-placeholder pytest tests
+```
+
+Automated tests mock provider responses. The live resume-analysis integration
+test is opt-in: run with `RUN_LIVE_AI_TESTS=1` and dedicated provider credentials
+to exercise OpenAI. It can consume provider credits.
+
 ## Endpoints
 
 - `POST /api/v1/analyze-resume/` - score resume against job description

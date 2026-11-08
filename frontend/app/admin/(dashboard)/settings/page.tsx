@@ -1,7 +1,6 @@
 import { Metadata } from "next";
 
 import SettingsContent from "./components/SettingsContent";
-import { useAdminStore } from "../store";
 import { getCountries } from "@/app/common/services";
 import { getCurrentUser } from "@/app/common/services/profile";
 
@@ -10,12 +9,10 @@ export const metadata: Metadata = {
 };
 
 const AdminSettings = async () => {
-  let currentUser = useAdminStore.getState().profile;
-  const groupedCountries = await getCountries();
-  if (!currentUser) {
-    currentUser = (await getCurrentUser("staff")).currentUser;
-    useAdminStore.setState({ profile: currentUser });
-  }
+  const [{ currentUser }, groupedCountries] = await Promise.all([
+    getCurrentUser("staff"),
+    getCountries(),
+  ]);
 
   return (
     <>

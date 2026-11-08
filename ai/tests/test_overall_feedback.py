@@ -1,11 +1,14 @@
 import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from unittest.mock import patch, MagicMock
 from app.api.routes import router
 from app.models.assessment import StageResult, GradingResult
 import json
 
-client = TestClient(router)
+test_app = FastAPI()
+test_app.include_router(router)
+client = TestClient(test_app)
 
 @pytest.fixture
 def sample_resume_analysis():

@@ -91,17 +91,14 @@ class BachsHandler(APIHandler):
         failure -- mirrors PayStackSubscriptionHandler.fund_wallet's
         return-a-dict-or-None convention so FundWalletView's `if result:`
         check works identically across providers."""
-        product_id = (
-            settings.BACHS_TOPUP_PRODUCT_ID_NGN if currency == "NGN" else settings.BACHS_TOPUP_PRODUCT_ID_USD
-        )
         url = f"{base_url()}/v1/checkout-sessions"
         headers = {**base_headers(), "Idempotency-Key": _idempotency_key(topup_id)}
         data = {
-            "product_cart": [
-                {"product_id": product_id, "quantity": 1, "unit_price": format_amount_for_bachs(amount)},
-            ],
+            # Pure checkout preserves the amount chosen in the wallet form
+            # without requiring catalog products or changing their prices.
+            "pricing": {"currency": currency, "amount": format_amount_for_bachs(amount)},
             "customer": {"email": customer_email, "name": customer_name},
-            "return_url": return_url,
+            "success_url": return_url,
             "cancel_url": cancel_url,
             "metadata": {
                 "topup_id": str(topup_id),

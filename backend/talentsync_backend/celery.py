@@ -50,8 +50,9 @@ app.conf.beat_schedule = {
 
   # Confirm IDs are being fetched
 
-logger.info(f"[Celery] Broker: {app.conf.broker_url}")
-logger.info(f"[Celery] Result backend: {app.conf.result_backend}")
+# Connection URLs can contain passwords. Never put them in deployment logs.
+logger.info("[Celery] Broker configured: {}", bool(app.conf.broker_url))
+logger.info("[Celery] Result backend configured: {}", bool(app.conf.result_backend))
 
 @app.task(bind=True, ignore_result=True)
 def debug_task(self):

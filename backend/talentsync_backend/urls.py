@@ -9,6 +9,7 @@ import os
 
 from roles.urls import router
 from .views import media_debug, health_check, health_status, test_ping, ws_test
+from subscriptions.views import bachs_wallet_fund_webhook
 
 swagger_base_url = None
 if settings.DEBUG:
@@ -30,6 +31,10 @@ schema_view = get_schema_view(
 )
 
 urlpatterns = [
+    # Bachs dashboard callback aliases. Both forms handle POST directly so a
+    # missing trailing slash never redirects or loses a signed request body.
+    path("webhook", bachs_wallet_fund_webhook, name="bachs-webhook-short"),
+    path("webhook/", bachs_wallet_fund_webhook, name="bachs-webhook-short-slash"),
     path("admin-xfghlabdfgv/", admin.site.urls),
     path("ckeditor/", include("ckeditor_uploader.urls")),
     path("api/auth/", include("create_user.urls")),
