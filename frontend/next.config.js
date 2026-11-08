@@ -1,5 +1,11 @@
+// Keep deployed browser bundles and server routes on the same backend. Next's
+// config env values take precedence over stale dashboard/.env values at build
+// time. Local development continues to use .env.local.
+const deploymentEnv = require("./vercel.json").env;
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  env: process.env.NODE_ENV === "production" ? deploymentEnv : {},
   experimental: {
     // Support-ticket attachments are Server Action arguments (see
     // submitTicket in app/common/services/support.ts), so they're subject to

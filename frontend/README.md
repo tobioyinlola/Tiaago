@@ -23,15 +23,12 @@ pnpm typecheck    # tsc --noEmit
 
 Deployed on Vercel. Auto-deploys on push to `main` via Git integration. Root directory set to `frontend/` in Vercel project settings.
 
-Before deploying, open **Vercel → Project → Settings → Environment Variables**
-and add `NEXT_PUBLIC_API_URL` for Production (and Preview if you use preview
-deployments). Set it to the live backend URL including `/api`, for example
-`https://YOUR-RENDER-SERVICE.onrender.com/api` for a Render backend.
-Use the actual URL from your backend hosting dashboard.
-
-The committed `vercel.json` sets `NEXT_PUBLIC_API_URL` to
+The committed `vercel.json` sets the public `NEXT_PUBLIC_API_URL` to
 `https://tiaago-backend-web-production-3604.up.railway.app/api` for the Railway backend.
-Keep any project-level override consistent with this address.
+`next.config.js` uses this committed value for every production build, including
+Vercel previews, overriding stale dashboard or `.env` values in compiled browser
+and server code. To change the deployed backend, update both URL entries in
+`vercel.json` and deploy the new commit. Local development uses `.env.local`.
 
 For this Railway deployment, run the backend with `ENV=production`. Production
 defaults allow the Railway hostname and the frontend origin
@@ -43,11 +40,10 @@ to `CSRF_TRUSTED_ORIGINS` (comma-separated, preserving existing entries).
 The backend uses `CSRF_TRUSTED_ORIGINS` as its CORS origin allowlist too.
 Redeploy the backend after changing its code or variables.
 
-Redeploy after saving the variable: Next.js embeds `NEXT_PUBLIC_*` values at
-build time, so changing a variable does not update an existing deployment.
+Deploy the new commit after changing the URL: Next.js embeds `NEXT_PUBLIC_*`
+values at build time, so existing deployments retain their compiled URL.
 The local `.env.local` file is not deployed to Vercel.
 
-If a build reports `NEXT_PUBLIC_API_URL is not set` while collecting page data
-for `/api/reports/[id]/export-pdf`, the variable is missing from that deployment's
-environment. The shared API configuration is loaded during the build, so this
-error occurs before the route handles any requests.
+If a browser still requests a previous backend URL, check the deployment's Git
+commit and open its unique deployment URL. A previous deployment retains its
+compiled API URL even when project settings change.
