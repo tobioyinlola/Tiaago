@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { API_URL } from "../constants";
 import { CompanyOnboarding } from "../types";
 import { _handleServerApiCallError } from "../utils";
 import serverKyInstance from "../utils/server-ky.instance";
@@ -34,6 +35,14 @@ export const updateCompanyOnboarding = async (
     const data = await serverKyInstance.patch("auth/company-onboarding/", {
       json: input,
     }).json<CompanyOnboarding>();
+    console.info("Company onboarding API save", {
+      apiUrl: API_URL,
+      fields: Object.keys(input),
+      complete: input.complete === true,
+      skip: input.skip === true,
+      completed: data.has_completed_onboarding,
+      skipped: data.has_skipped_onboarding,
+    });
     if (input.complete && !data.has_completed_onboarding) {
       return {
         success: false as const,

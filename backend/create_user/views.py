@@ -1088,6 +1088,11 @@ class CompanyOnboardingAPIView(APIView):
 
     def patch(self, request):
         company = self._get_company(request)
+        logger.info(
+            "Company onboarding PATCH: content_type=%s fields=%s complete=%s skip=%s",
+            request.content_type, sorted(request.data.keys()),
+            bool(request.data.get("complete")), bool(request.data.get("skip")),
+        )
         serializer = CompanyOnboardingSerializer(
             company, data=request.data, partial=True
         )
@@ -1107,6 +1112,12 @@ class CompanyOnboardingAPIView(APIView):
         if update_fields:
             company.save(update_fields=update_fields)
 
+        company.refresh_from_db()
+        logger.info(
+            "Company onboarding persisted: completed=%s skipped=%s",
+            company.onboarding_completed_at is not None,
+            company.onboarding_skipped_at is not None,
+        )
         return Response(CompanyOnboardingSerializer(company).data)
 
 
