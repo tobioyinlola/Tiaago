@@ -34,6 +34,18 @@ export const updateCompanyOnboarding = async (
     const data = await serverKyInstance.patch("auth/company-onboarding/", {
       json: input,
     }).json<CompanyOnboarding>();
+    if (input.complete && !data.has_completed_onboarding) {
+      return {
+        success: false as const,
+        error: "Your setup was saved, but completion was not confirmed. Please try Finish again.",
+      };
+    }
+    if (input.skip && !data.has_skipped_onboarding && !data.has_completed_onboarding) {
+      return {
+        success: false as const,
+        error: "We couldn't save your setup preference. Please try again.",
+      };
+    }
     if (input.complete || input.skip) {
       revalidatePath("/recruiter", "layout");
     }

@@ -1067,7 +1067,12 @@ class CompanyOnboardingAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def _get_company(self, request):
-        company = getattr(request.user, "company", None)
+        # Authenticated users can come from the JWT cache. Do not reuse their
+        # cached reverse OneToOne relation: a stale Company instance can return
+        # old progress and overwrite earlier cards during a partial save.
+        company = Company.objects.select_related("company_rep").filter(
+            company_rep_id=request.user.pk
+        ).first()
         if company is None:
             membership = CompanyTeamMember.objects.filter(user=request.user).select_related("company").first()
             if membership:

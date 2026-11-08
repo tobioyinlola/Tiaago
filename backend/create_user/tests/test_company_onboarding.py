@@ -160,6 +160,28 @@ class CompanyOnboardingAPITests(APITestCase):
         self.assertFalse(response.data["has_completed_onboarding"])
         self.assertIsNone(response.data["onboarding_completed_at"])
 
+    def test_get_ignores_stale_company_relation_on_authenticated_user(self):
+        # A cached authenticated user can carry a relation loaded before a save.
+        self.assertIsNone(self.user.company.onboarding_completed_at)
+        Company.objects.filter(pk=self.company.pk).update(
+            account_type="agency", onboarding_completed_at=timezone.now()
+        )
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(response.data["account_type"], "agency")
+        self.assertTrue(response.data["has_completed_onboarding"])
+
+    def test_partial_save_preserves_fields_newer_than_cached_company(self):
+        self.assertEqual(self.user.company.account_type, "")
+        Company.objects.filter(pk=self.company.pk).update(account_type="agency")
+        response = self.client.patch(self.url, {"heard_from": "LinkedIn", "complete": True})
+        self.assertEqual(response.status_code, 200, response.content)
+        self.company.refresh_from_db()
+        self.assertEqual(self.company.account_type, "agency")
+        self.assertIsNotNone(self.company.onboarding_completed_at)
+        response = self.client.get(self.url)
+        self.assertTrue(response.data["has_completed_onboarding"])
+
     def test_patch_saves_each_card_partially(self):
         # card 1: account type
         response = self.client.patch(self.url, {"account_type": "agency"})
