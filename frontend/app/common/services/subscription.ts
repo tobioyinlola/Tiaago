@@ -301,7 +301,7 @@ export const getWalletBalance = async () => {
         minimum_topup: number;
         free_tier_limit: number;
       };
-    }>("subscriptions/get-wallet-balance/")
+    }>("subscriptions/get-wallet-balance/", { cache: "no-store" })
     .json();
   return data;
 };
@@ -388,7 +388,7 @@ export type WalletTopupStatus = {
 // that (Bachs docs: webhooks are the only source of truth for crediting).
 export const getWalletTopupStatus = async (topupId: string): Promise<WalletTopupStatus | null> => {
   try {
-    const data = await serverKyInstance.get(`subscriptions/topup/${topupId}/status/`).json<WalletTopupStatus>();
+    const data = await serverKyInstance.get(`subscriptions/topup/${topupId}/status/`, { cache: "no-store" }).json<WalletTopupStatus>();
     return data;
   } catch {
     return null;

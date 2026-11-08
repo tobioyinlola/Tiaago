@@ -47,7 +47,7 @@ const BachsCallbackPage = async ({
             </Link>
           </div>
         ) : (
-          <BachsCallbackStatus topupId={topupId} initialStatus={await getWalletTopupStatus(topupId)} />
+          <BachsCallbackStatus key={topupId} topupId={topupId} initialStatus={await getWalletTopupStatus(topupId)} />
         )}
       </div>
     </div>

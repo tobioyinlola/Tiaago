@@ -27,6 +27,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.exceptions import ValidationError
 from decimal import Decimal
+from django.db import transaction as db_transaction
 from django.db.models import Sum
 from base.mixins.pagination import TiaagoPagination
 
@@ -70,7 +71,7 @@ from .helper import (
 from .billing_service import get_or_create_wallet, _resume_company_jobs_after_wallet_topup
 from emails import emails
 from utils.stripe_sub_handler import create_stripe_product_price, create_checkout_session, stripe_api_key, fund_wallet_stripe
-from utils.bachs_handler import BachsHandler, bachs_amount_to_minor_units, verify_webhook_signature as verify_bachs_webhook_signature
+from utils.bachs_handler import BachsHandler, verify_webhook_signature as verify_bachs_webhook_signature
 import stripe
 from create_user.models import Company
 from create_user.permissions import get_user_company
@@ -1761,83 +1762,89 @@ def stripe_wallet_fund_webhook(request):
     return JsonResponse({'status': 'success'}, status=200)
 
 
-def _credit_wallet_from_bachs_payment(data, log_entry, event_type):
-    """Mirrors _credit_wallet_from_paystack_charge above -- same idempotency/
-    crediting/email pattern, adapted to Bachs' payload shape and its
-    decimal-string amounts (converted back to minor units here, per Bachs'
-    "money is always a decimal string" rule -- see utils.bachs_handler)."""
+def _after_bachs_wallet_credit(topup, amount, balance_after, currency):
+    # Notifications and background work must never undo a confirmed payment
+    # or make the provider retry an already committed wallet credit.
     try:
-        payment_id = data.get('id')
-        checkout_id = data.get('checkout_id')
-        metadata = data.get('metadata') or {}
-        amount_string = data.get('amount')
-        currency = (data.get('currency') or '').upper()
-        topup_id = metadata.get('topup_id')
-
-        topup = WalletTopup.objects.filter(provider_payment_id=checkout_id).first() if checkout_id else None
-        if not topup and topup_id:
-            topup = WalletTopup.objects.filter(id=topup_id).first()
-
-        if not topup:
-            logger.error(f"Bachs webhook: no WalletTopup found for checkout_id={checkout_id} topup_id={topup_id}")
-            log_entry.notes = f"No matching WalletTopup for checkout_id={checkout_id} topup_id={topup_id}"
-            log_entry.save()
-            return JsonResponse({'status': 'topup not found'}, status=200)
-
-        wallet = topup.wallet
-
-        # Idempotency -- critical: Bachs (like Paystack/Stripe) may retry a
-        # webhook delivery, and this must never credit the same payment
-        # twice. Checked two ways, same as the Paystack/Stripe handlers.
-        already_credited = (topup.status == WalletTopup.Status.COMPLETED) or (
-            WalletTransaction.objects.filter(wallet=wallet, transaction_type="credit", reference=payment_id).exists()
+        _resume_company_jobs_after_wallet_topup(topup.organisation)
+    except Exception:
+        logger.exception("Failed to resume jobs after Bachs top-up %s", topup.id)
+    try:
+        emails.wallet_topup_confirmed_mail(
+            topup.organisation.company_rep, amount, balance_after, currency, _wallet_url()
         )
-        if already_credited:
-            logger.info(f"Duplicate Bachs webhook ignored for payment: {payment_id}")
-            log_entry.processed = True
-            log_entry.notes = f"Duplicate webhook ignored for payment: {payment_id}"
-            log_entry.save()
-            return JsonResponse({'status': 'already processed'}, status=200)
-
-        # bachs_amount_to_minor_units is used for the log/metadata trail
-        # (kobo/cents), but wallet.credit() itself takes the major-unit
-        # Decimal, same as every other provider's webhook here.
-        bachs_amount_to_minor_units(amount_string)
-        amount_major = Decimal(str(amount_string))
-        credit_currency = currency or topup.currency
-
-        txn = wallet.credit(
-            amount=amount_major, reference=payment_id, description="Wallet funding via Bachs",
-            currency=credit_currency, service_type=WalletTransaction.ServiceType.WALLET_TOPUP,
-        )
-
-        try:
-            _resume_company_jobs_after_wallet_topup(topup.organisation)
-        except Exception:
-            logger.exception("Failed to auto-resume billing-paused jobs for company %s", topup.organisation_id)
-
-        topup.status = WalletTopup.Status.COMPLETED
-        topup.provider_status = event_type
-        topup.completed_at = timezone.now()
-        topup.metadata = {**(topup.metadata or {}), "bachs_payment_id": payment_id}
-        topup.save(update_fields=["status", "provider_status", "completed_at", "metadata"])
-
-        try:
-            emails.wallet_topup_confirmed_mail(
-                topup.organisation.company_rep, amount_major, txn.balance_after, credit_currency, _wallet_url()
-            )
-        except Exception:
-            logger.exception("Failed to send wallet-topup-confirmed email for company %s", topup.organisation_id)
-
+    except Exception:
+        logger.exception("Failed to send confirmation for Bachs top-up %s", topup.id)
+    try:
         from tags.tasks import evaluate_company_tags
         evaluate_company_tags.delay(topup.organisation_id)
+    except Exception:
+        logger.exception("Failed to enqueue tag evaluation for Bachs top-up %s", topup.id)
 
-        log_entry.processed = True
-        log_entry.notes = "Wallet funded successfully via Bachs."
-        log_entry.save()
+
+def _credit_wallet_from_bachs_payment(data, log_entry, event_type, event_id=None):
+    """Credit a signed, matching collection exactly once, including retries."""
+    try:
+        checkout_id = data.get('checkout_id')
+        metadata = data.get('metadata') or {}
+        topup_id = metadata.get('topup_id')
+        with db_transaction.atomic():
+            topups = WalletTopup.objects.select_for_update()
+            topup = topups.filter(provider_payment_id=checkout_id).first() if checkout_id else None
+            if not topup and topup_id:
+                topup = topups.filter(id=topup_id).first()
+            if not topup:
+                log_entry.notes = "No matching top-up; delivery may be retried."
+                log_entry.save(update_fields=["notes"])
+                return JsonResponse({'error': 'Top-up not found; please retry'}, status=503)
+            if checkout_id and topup.provider_payment_id.startswith("pending-"):
+                return JsonResponse({'error': 'Checkout is still being recorded; please retry'}, status=503)
+            if (topup.payment_provider != WalletTopup.Provider.BACHS or
+                    (checkout_id and topup.provider_payment_id != checkout_id)):
+                log_entry.notes = "Payment provider or checkout does not match top-up."
+                log_entry.save(update_fields=["notes"])
+                return JsonResponse({'error': 'Payment does not match top-up'}, status=400)
+
+            # Bachs collection events use charge_id, not data.id. Some legacy
+            # events omit it; keep a stable reference instead of saving None.
+            payment_id = data.get('charge_id') or data.get('id') or event_id or topup.provider_payment_id
+            wallet = topup.wallet.locked()
+            if topup.status == WalletTopup.Status.COMPLETED or WalletTransaction.objects.filter(
+                wallet=wallet, transaction_type="credit", reference=payment_id,
+            ).exists():
+                log_entry.processed = True
+                log_entry.notes = "Duplicate Bachs collection ignored."
+                log_entry.save(update_fields=["processed", "notes"])
+                return JsonResponse({'status': 'already processed'}, status=200)
+
+            amount = Decimal(str(data.get('amount')))
+            currency = (data.get('currency') or '').upper()
+            if (not amount.is_finite() or amount <= 0 or amount != topup.amount or
+                    currency != topup.currency.upper()):
+                log_entry.notes = "Collection amount or currency does not match top-up; no credit applied."
+                log_entry.save(update_fields=["notes"])
+                return JsonResponse({'error': 'Payment amount or currency does not match top-up'}, status=400)
+            if wallet.currency and wallet.currency.upper() != currency:
+                return JsonResponse({'error': 'Wallet currency does not match payment'}, status=400)
+
+            txn = wallet.credit(
+                amount=amount, reference=payment_id, description="Wallet funding via Bachs",
+                currency=currency, service_type=WalletTransaction.ServiceType.WALLET_TOPUP,
+            )
+            topup.status = WalletTopup.Status.COMPLETED
+            topup.provider_status = event_type
+            topup.completed_at = timezone.now()
+            topup.metadata = {**(topup.metadata or {}), "bachs_payment_id": payment_id}
+            topup.save(update_fields=["status", "provider_status", "completed_at", "metadata"])
+            log_entry.processed = True
+            log_entry.notes = "Wallet funded successfully via Bachs."
+            log_entry.save(update_fields=["processed", "notes"])
+            db_transaction.on_commit(
+                lambda: _after_bachs_wallet_credit(topup, amount, txn.balance_after, currency), robust=True,
+            )
         return JsonResponse({'status': 'wallet funded successfully'}, status=200)
-    except Exception as e:
-        logger.error(f"Error processing Bachs wallet funding webhook: {e}")
+    except Exception:
+        logger.exception("Error processing Bachs wallet funding webhook")
         return JsonResponse({'error': 'Error processing event'}, status=500)
 
 
@@ -1847,19 +1854,17 @@ def _credit_wallet_from_bachs_payment(data, log_entry, event_type):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def bachs_wallet_fund_webhook(request):
-    """Per Bachs docs: webhooks are the ONLY source of truth for crediting a
-    wallet (never the return_url redirect -- the /billing/bachs/callback
-    page only ever reads status, never writes it), and every handler here
-    must return 200 even on a processing error so Bachs doesn't retry
-    forever. The one deliberate exception is an invalid signature, which
-    returns 401 so a genuinely spoofed request is rejected outright."""
+    """Credit only signed collection events. Processing failures remain
+    retryable; a browser return URL never authorizes a wallet credit."""
     if request.method != "POST":
         return JsonResponse({'error': 'Invalid request method'}, status=405)
 
     payload = request.body
     signature = request.headers.get('x-bachs-signature', '')
 
-    if not verify_bachs_webhook_signature(payload, signature):
+    signature_v2 = request.headers.get('x-bachs-signature-v2', '')
+    timestamp = request.headers.get('x-bachs-timestamp', '')
+    if not verify_bachs_webhook_signature(payload, signature, timestamp, signature_v2):
         # Persist the rejection before returning. Previously this returned 401
         # with no DB row and only a logger.error, which on our ~1h log
         # retention meant a wrong BACHS_WEBHOOK_SECRET was completely
@@ -1869,7 +1874,7 @@ def bachs_wallet_fund_webhook(request):
         # so an operator can compare it against the Bachs dashboard.
         logger.error(
             "Invalid Bachs webhook signature -- header present: %s, secret configured: %s",
-            bool(signature), bool(settings.BACHS_WEBHOOK_SECRET),
+            bool(signature or signature_v2), bool(settings.BACHS_WEBHOOK_SECRET),
         )
         try:
             BachsWebhookLog.objects.create(
@@ -1878,7 +1883,7 @@ def bachs_wallet_fund_webhook(request):
                 processed=False,
                 notes=(
                     "Rejected with 401: signature did not match BACHS_WEBHOOK_SECRET. "
-                    f"X-Bachs-Signature header {'present' if signature else 'MISSING'}; "
+                    f"Signature header {'present' if signature or signature_v2 else 'MISSING'}; "
                     f"BACHS_WEBHOOK_SECRET {'set' if settings.BACHS_WEBHOOK_SECRET else 'NOT SET'}. "
                     "No wallet was credited."
                 ),
@@ -1902,48 +1907,50 @@ def bachs_wallet_fund_webhook(request):
     logger.info(f"Bachs webhook received: {event_type}")
 
     if event_type == 'collection.succeeded':
-        return _credit_wallet_from_bachs_payment(data, log_entry, event_type)
+        return _credit_wallet_from_bachs_payment(data, log_entry, event_type, event.get('id'))
 
     elif event_type == 'collection.failed':
         try:
-            checkout_id = data.get('checkout_id')
-            metadata = data.get('metadata') or {}
-            topup_id = metadata.get('topup_id')
+            with db_transaction.atomic():
+                checkout_id = data.get('checkout_id')
+                metadata = data.get('metadata') or {}
+                topup_id = metadata.get('topup_id')
 
-            topup = WalletTopup.objects.filter(provider_payment_id=checkout_id).first() if checkout_id else None
-            if not topup and topup_id:
-                topup = WalletTopup.objects.filter(id=topup_id).first()
+                topup = WalletTopup.objects.select_for_update().filter(provider_payment_id=checkout_id).first() if checkout_id else None
+                if not topup and topup_id:
+                    topup = WalletTopup.objects.select_for_update().filter(id=topup_id).first()
 
-            if not topup:
+                if not topup:
+                    log_entry.processed = True
+                    log_entry.notes = f"No matching WalletTopup for checkout_id={checkout_id} topup_id={topup_id}"
+                    log_entry.save()
+                    return JsonResponse({'status': 'topup not found'}, status=200)
+
+                if topup.status in (WalletTopup.Status.FAILED, WalletTopup.Status.COMPLETED):
+                    log_entry.processed = True
+                    log_entry.notes = f"Ignored collection.failed -- topup already {topup.status}"
+                    log_entry.save()
+                    return JsonResponse({'status': 'already resolved'}, status=200)
+
+                failure_reason = data.get('failure_reason') or data.get('message') or "Payment failed"
+                # A failed attempt does not close the Bachs checkout. A later
+                # successful retry still needs to confirm through the callback.
+                topup.provider_status = event_type
+                topup.failed_at = timezone.now()
+                topup.failure_reason = str(failure_reason)[:500]
+                topup.save(update_fields=["provider_status", "failed_at", "failure_reason"])
+
+                try:
+                    emails.wallet_topup_failed_mail(
+                        topup.organisation.company_rep, topup.amount, topup.currency, failure_reason, _wallet_url()
+                    )
+                except Exception:
+                    logger.exception("Failed to send wallet-topup-failed email for topup %s", topup.id)
+
                 log_entry.processed = True
-                log_entry.notes = f"No matching WalletTopup for checkout_id={checkout_id} topup_id={topup_id}"
+                log_entry.notes = "Payment attempt failed; checkout remains pending for a retry."
                 log_entry.save()
-                return JsonResponse({'status': 'topup not found'}, status=200)
-
-            if topup.status in (WalletTopup.Status.FAILED, WalletTopup.Status.COMPLETED):
-                log_entry.processed = True
-                log_entry.notes = f"Ignored collection.failed -- topup already {topup.status}"
-                log_entry.save()
-                return JsonResponse({'status': 'already resolved'}, status=200)
-
-            failure_reason = data.get('failure_reason') or data.get('message') or "Payment failed"
-            topup.status = WalletTopup.Status.FAILED
-            topup.provider_status = event_type
-            topup.failed_at = timezone.now()
-            topup.failure_reason = str(failure_reason)[:500]
-            topup.save(update_fields=["status", "provider_status", "failed_at", "failure_reason"])
-
-            try:
-                emails.wallet_topup_failed_mail(
-                    topup.organisation.company_rep, topup.amount, topup.currency, failure_reason, _wallet_url()
-                )
-            except Exception:
-                logger.exception("Failed to send wallet-topup-failed email for topup %s", topup.id)
-
-            log_entry.processed = True
-            log_entry.notes = "Wallet funding failed."
-            log_entry.save()
-            return JsonResponse({'status': 'wallet funding failed'}, status=200)
+                return JsonResponse({'status': 'payment attempt failed'}, status=200)
         except Exception as e:
             logger.error(f"Error processing Bachs wallet funding failure webhook: {e}")
             return JsonResponse({'error': 'Error processing event'}, status=500)
@@ -1957,18 +1964,19 @@ def bachs_wallet_fund_webhook(request):
 
     elif event_type == 'checkout.expired':
         try:
-            checkout_id = data.get('id') or data.get('checkout_id')
-            topup = WalletTopup.objects.filter(provider_payment_id=checkout_id).first() if checkout_id else None
-            if topup and topup.status == WalletTopup.Status.PENDING:
-                topup.status = WalletTopup.Status.FAILED
-                topup.provider_status = event_type
-                topup.failed_at = timezone.now()
-                topup.failure_reason = "Checkout session expired"
-                topup.save(update_fields=["status", "provider_status", "failed_at", "failure_reason"])
-            log_entry.processed = True
-            log_entry.notes = f"Checkout expired: {checkout_id}"
-            log_entry.save()
-            return JsonResponse({'status': 'checkout expired'}, status=200)
+            with db_transaction.atomic():
+                checkout_id = data.get('id') or data.get('checkout_id')
+                topup = WalletTopup.objects.select_for_update().filter(provider_payment_id=checkout_id).first() if checkout_id else None
+                if topup and topup.status == WalletTopup.Status.PENDING:
+                    topup.status = WalletTopup.Status.FAILED
+                    topup.provider_status = event_type
+                    topup.failed_at = timezone.now()
+                    topup.failure_reason = "Checkout session expired"
+                    topup.save(update_fields=["status", "provider_status", "failed_at", "failure_reason"])
+                log_entry.processed = True
+                log_entry.notes = f"Checkout expired: {checkout_id}"
+                log_entry.save()
+                return JsonResponse({'status': 'checkout expired'}, status=200)
         except Exception as e:
             logger.error(f"Error processing Bachs checkout.expired webhook: {e}")
             return JsonResponse({'error': 'Error processing event'}, status=500)

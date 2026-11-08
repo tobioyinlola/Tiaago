@@ -10,8 +10,8 @@ Key Bachs API rules this module encodes:
 - Money sent TO Bachs is always a decimal string at currency precision,
   never minor units -- NGN 5000 -> "5000.00", USD 25 -> "25.00". See
   format_amount_for_bachs().
-- Money received FROM Bachs (webhook payloads) must be converted back to
-  minor units for our DB -- see bachs_amount_to_minor_units().
+- Wallet balances and wallet credits use major-unit Decimals, matching
+  Bachs amounts. Never multiply a wallet credit by 100.
 - Webhooks are the only source of truth for crediting a wallet -- this
   module never credits anything itself; it only creates/reads checkout
   sessions and verifies webhook signatures. See
@@ -19,9 +19,9 @@ Key Bachs API rules this module encodes:
 - Every POST to the Bachs API needs an Idempotency-Key header, format
   "<topup_id>-<timestamp>".
 
-WEBHOOK SIGNATURE ALGORITHM: confirmed against the Bachs dashboard --
-HMAC-SHA256 over the raw body, hex-digest, sent in the `X-Bachs-Signature`
-header (read case-insensitively via request.headers in the webhook view).
+Webhook signatures are timestamped HMAC-SHA256 over timestamp + "." + raw
+body. Prefer X-Bachs-Signature-V2, which supports overlapping signing keys.
+See https://docs.bachs.io/guides/webhooks/overview.
 """
 
 import hashlib
@@ -70,10 +70,8 @@ def format_amount_for_bachs(amount) -> str:
 
 
 def bachs_amount_to_minor_units(amount_string) -> int:
-    """Converts a Bachs decimal-string amount back to minor units for our
-    DB -- "10000.00" -> 1000000 (kobo), "25.00" -> 2500 (cents). Only ever
-    called on amounts read back FROM a Bachs webhook/API response, never on
-    values we're about to send TO Bachs."""
+    """Convert provider amounts to minor units for consumers that need them.
+    Wallet.credit() uses major units and must not use this conversion."""
     return int(round(Decimal(str(amount_string)) * 100))
 
 
@@ -167,16 +165,30 @@ class BachsHandler(APIHandler):
             return None
 
 
-def verify_webhook_signature(raw_body: bytes, signature_header: str) -> bool:
-    """Verifies a Bachs webhook's signature using BACHS_WEBHOOK_SECRET, with
-    a constant-time comparison (same reasoning as the Paystack webhook's
-    hmac.compare_digest usage -- see subscriptions.views). See this
-    module's docstring for the confirmed algorithm/header."""
-    if not signature_header:
-        return False
+def verify_webhook_signature(
+    raw_body: bytes, signature_header: str, timestamp_header: str = "",
+    signature_v2_header: str = "", tolerance_seconds: int = 300,
+) -> bool:
+    """Verify Bachs' timestamped signature, including V2 key rotation."""
     secret = settings.BACHS_WEBHOOK_SECRET
     if not secret:
-        logger.error("BACHS_WEBHOOK_SECRET is not configured -- refusing to verify webhook.")
+        logger.error("BACHS_WEBHOOK_SECRET is not configured -- refusing webhook.")
         return False
-    expected = hmac.new(secret.encode("utf-8"), raw_body, hashlib.sha256).hexdigest()
-    return hmac.compare_digest(expected, signature_header)
+    try:
+        if signature_v2_header:
+            parts = [part.strip().split("=", 1) for part in signature_v2_header.split(",") if "=" in part]
+            timestamps = [value for key, value in parts if key == "t"]
+            if len(timestamps) != 1:
+                return False
+            timestamp = int(timestamps[0])
+            signatures = [value for key, value in parts if key == "v1"]
+        else:
+            timestamp = int(timestamp_header)
+            signatures = [signature_header] if signature_header else []
+        if abs(time.time() - timestamp) > tolerance_seconds:
+            return False
+        signed = str(timestamp).encode("ascii") + b"." + raw_body
+        expected = hmac.new(secret.encode("utf-8"), signed, hashlib.sha256).hexdigest()
+        return any(hmac.compare_digest(expected, candidate) for candidate in signatures)
+    except (TypeError, ValueError, OverflowError):
+        return False

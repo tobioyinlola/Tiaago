@@ -14,7 +14,7 @@ const SLOW_AFTER_MS = 2 * 60 * 1000;
 // redirect back to the billing page" because this page previously only ever
 // offered a manual link, so a successful payment just sat here.
 const REDIRECT_AFTER_MS = 3000;
-const BILLING_URL = "/recruiter/dashboard/billing";
+const DASHBOARD_URL = "/recruiter/dashboard";
 
 const currencySymbol = (currency: string) => (currency === "NGN" ? "₦" : "$");
 
@@ -29,42 +29,52 @@ const BachsCallbackStatus = ({
   const [slow, setSlow] = useState(false);
   const startedAtRef = useRef<number | null>(null);
   const router = useRouter();
+  const status = topup?.status;
 
   // Once the webhook has credited the wallet, send the recruiter back to
-  // billing on their behalf. replace() rather than push() so the browser back
+  // their dashboard. replace() rather than push() so the browser back
   // button doesn't return them to a stale callback page.
   useEffect(() => {
     if (topup?.status !== "completed") return;
     const timer = setTimeout(() => {
-      router.replace(BILLING_URL);
+      router.replace(DASHBOARD_URL);
       router.refresh();
     }, REDIRECT_AFTER_MS);
     return () => clearTimeout(timer);
   }, [topup?.status, router]);
 
   useEffect(() => {
-    if (!topup || topup.status !== "pending") return;
+    if (status && status !== "pending") return;
     if (startedAtRef.current === null) startedAtRef.current = Date.now();
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout>;
 
-    const interval = setInterval(async () => {
+    const poll = async () => {
       try {
-        const data = await clientKyInstance.get(`subscriptions/topup/${topupId}/status/`).json<WalletTopupStatus>();
-        setTopup(data);
+        const data = await clientKyInstance
+          .get(`subscriptions/topup/${topupId}/status/`, { cache: "no-store" })
+          .json<WalletTopupStatus>();
+        if (!cancelled) setTopup(data);
       } catch {
-        // Transient errors are fine -- just try again next tick.
+        // A transient failure must not strand the user after paying.
       }
+      if (cancelled) return;
       if (startedAtRef.current !== null && Date.now() - startedAtRef.current > SLOW_AFTER_MS) setSlow(true);
-    }, POLL_INTERVAL_MS);
-
-    return () => clearInterval(interval);
-  }, [topup, topupId]);
+      timer = setTimeout(poll, POLL_INTERVAL_MS);
+    };
+    timer = setTimeout(poll, POLL_INTERVAL_MS);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [status, topupId]);
 
   if (!topup) {
     return (
       <div className="text-center">
-        <h1 className="text-xl font-bold mb-2">We couldn&apos;t find that payment</h1>
+        <h1 className="text-xl font-bold mb-2">Checking your payment</h1>
         <p className="text-sm text-muted-foreground mb-6">
-          If you completed a payment, check your wallet balance -- it may already be credited.
+          We are reconnecting to confirm your payment. Your wallet will update once payment is verified.
         </p>
         <Link href="/recruiter/dashboard/billing" className="btn btn-primary w-full">
           Go to billing
@@ -79,10 +89,10 @@ const BachsCallbackStatus = ({
         <h1 className="text-xl font-bold mb-2">Payment successful</h1>
         <p className="text-sm text-muted-foreground mb-6">
           {currencySymbol(topup.currency)}
-          {topup.amount} has been added to your wallet. Taking you back to billing...
+          {topup.amount} has been added to your wallet. Taking you to your dashboard...
         </p>
-        <Link href={BILLING_URL} className="btn btn-primary w-full">
-          Go to billing dashboard
+        <Link href={DASHBOARD_URL} className="btn btn-primary w-full">
+          Go to dashboard
         </Link>
       </div>
     );
