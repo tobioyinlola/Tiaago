@@ -55,12 +55,14 @@ ALLOWED_HOSTS = [h.strip() for h in env.list("ALLOWED_HOSTS", default=[
     "tiaago.com",
     # Render's own domain — uptime pings and direct API access use it.
     "tiaago-backend-web.onrender.com",
+    "tiaago-production.up.railway.app",
 ]) if h.strip()]
 
 CSRF_TRUSTED_ORIGINS = [o.strip() for o in env.list("CSRF_TRUSTED_ORIGINS", default=[
     "https://tiaago.com",
     "https://www.tiaago.com",
     "https://api.tiaago.com",
+    "https://tiaago-git-main-jays-projects-938c1689.vercel.app",
 ]) if o.strip()]
 
 # Strict CORS: explicit list + regex only. No wildcard.
