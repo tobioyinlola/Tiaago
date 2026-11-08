@@ -10,6 +10,14 @@ PORT="${PORT:-8000}"                      # Railway injects PORT for web
 MIGRATE_ON_START="${MIGRATE_ON_START:-0}"
 COLLECTSTATIC_ON_START="${COLLECTSTATIC_ON_START:-0}"
 
+# Railway's web service must initialize/update its database before it serves
+# requests. Other platforms can use a release command; workers must not race
+# the web service to apply migrations. This also handles an inherited
+# MIGRATE_ON_START=0 from the Render configuration.
+if [[ "${ROLE}" == "web" && "${ENVIRONMENT}" == "production" && -n "${RAILWAY_ENVIRONMENT_ID:-}" ]]; then
+  MIGRATE_ON_START="1"
+fi
+
 CELERY_APP="${CELERY_APP:-talentsync_backend}"
 CELERY_CONCURRENCY="${CELERY_CONCURRENCY:-2}"
 CELERY_MAX_TASKS_PER_CHILD="${CELERY_MAX_TASKS_PER_CHILD:-100}"

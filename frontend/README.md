@@ -46,6 +46,11 @@ origins must be explicitly approved; arbitrary Vercel origins are not allowed.
 Use the production or main branch URL for ongoing testing as deployments change.
 Redeploy the backend after changing its code or variables.
 
+The production Railway web entrypoint runs `python manage.py migrate --noinput`
+before starting Uvicorn (detected using `RAILWAY_ENVIRONMENT_ID`). A migration
+failure stops startup instead of serving requests against a missing schema.
+Workers and other platforms retain the `MIGRATE_ON_START` setting.
+
 Deploy the new commit after changing the URL: Next.js embeds `NEXT_PUBLIC_*`
 values at build time, so existing deployments retain their compiled URL.
 The local `.env.local` file is not deployed to Vercel.
