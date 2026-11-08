@@ -661,6 +661,10 @@ class FundWalletView(APIView):
         success_url = request.data.get('success_url')
 
         if not amount:
+            logger.warning(
+                "Wallet funding rejected: amount missing; content_type=%s content_length=%s fields=%s",
+                request.content_type, request.META.get('CONTENT_LENGTH'), sorted(request.data.keys()),
+            )
             return Response({'error': 'amount is required.'}, status=status.HTTP_400_BAD_REQUEST)
 
         active_gateway = get_active_gateway()
@@ -676,7 +680,7 @@ class FundWalletView(APIView):
         # origin, this is an open redirect (attacker gets a legitimate
         # Stripe checkout page for the victim, then redirects them to a
         # phishing page after a real payment succeeds).
-        if success_url and not _is_allowed_redirect_url(success_url):
+        if active_gateway == 'stripe' and success_url and not _is_allowed_redirect_url(success_url):
             logger.warning(
                 "Rejected success_url %r for wallet funding -- does not match FRONTEND_URL %r",
                 success_url, settings.FRONTEND_URL,

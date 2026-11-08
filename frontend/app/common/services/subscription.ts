@@ -328,12 +328,32 @@ export const updateWalletSettings = async (payload: {
 // to be the active gateway; Bachs/Paystack build their own redirect
 // targets server-side.
 export const fundWallet = async (amount: number) => {
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return { success: false, error: "Please select a valid top-up amount." };
+  }
+  // Keep checkout's JSON explicit all the way into Next's fetch wrapper.
+  // Some deployed runtimes discard POST bodies carried by Request objects
+  // (including buffered Request bodies), yielding an empty request in DRF.
+  const body = JSON.stringify({
+    amount,
+    success_url: `${BASE_URL}/recruiter/dashboard/billing`,
+  });
   try {
     const result = await serverKyInstance
       .post("subscriptions/fund-wallet/", {
-        json: {
-          amount,
-          success_url: `${BASE_URL}/recruiter/dashboard/billing`,
+        body,
+        headers: { "Content-Type": "application/json" },
+        retry: 0,
+        fetch: (request, init) => {
+          const checkoutRequest = request as Request;
+          return fetch(checkoutRequest.url, {
+            ...init,
+            method: "POST",
+            headers: checkoutRequest.headers,
+            signal: checkoutRequest.signal,
+            body,
+            cache: "no-store",
+          });
         },
       })
       .json<{
