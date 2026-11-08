@@ -1,12 +1,13 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { CompanyOnboarding } from "../types";
 import { _handleServerApiCallError } from "../utils";
 import serverKyInstance from "../utils/server-ky.instance";
 
 export const getCompanyOnboarding = async (): Promise<CompanyOnboarding> => {
   const data = await serverKyInstance
-    .get<CompanyOnboarding>("auth/company-onboarding/")
+    .get<CompanyOnboarding>("auth/company-onboarding/", { cache: "no-store" })
     .json();
   return data;
 };
@@ -33,6 +34,9 @@ export const updateCompanyOnboarding = async (
     const data = await serverKyInstance.patch("auth/company-onboarding/", {
       json: input,
     }).json<CompanyOnboarding>();
+    if (input.complete || input.skip) {
+      revalidatePath("/recruiter", "layout");
+    }
     return {
       success: true as const,
       data,

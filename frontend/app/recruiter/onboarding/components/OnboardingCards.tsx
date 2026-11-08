@@ -83,19 +83,6 @@ const OnboardingCards = ({
   const progress = Math.round(((step + 1) / totalSteps) * 100);
   const StepIcon = stepIcons[step];
 
-  const showFinishSuccessAlert = () => {
-    setAlert({
-      icon: "success",
-      title: "Success",
-      message:
-        "Welcome aboard! Your workspace is ready and tailored to your hiring.",
-      buttonText: "Go to dashboard",
-      buttonAction: () => {
-        window.location.href = "/recruiter/dashboard";
-      },
-    });
-  };
-
   const skipForNow = async () => {
     if (isSkipping) return;
     setIsSkipping(true);
@@ -132,8 +119,11 @@ const OnboardingCards = ({
       handleFormSubmissionError(result.error, setFieldError, setAlert);
       return;
     }
-    if (isLastStep) showFinishSuccessAlert();
-    else setStep(current => Math.min(current + 1, totalSteps - 1));
+    if (isLastStep) {
+      // Load the dashboard with the newly saved completion state instead of
+      // leaving navigation behind a second click in a success modal.
+      window.location.replace("/recruiter/dashboard");
+    } else setStep(current => Math.min(current + 1, totalSteps - 1));
   };
 
   return (
