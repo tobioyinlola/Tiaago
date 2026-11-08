@@ -56,6 +56,9 @@ ALLOWED_HOSTS = [h.strip() for h in env.list("ALLOWED_HOSTS", default=[
     # Render's own domain — uptime pings and direct API access use it.
     "tiaago-backend-web.onrender.com",
     "tiaago-production.up.railway.app",
+    "tiaago-backend-web-production-3604.up.railway.app",
+    # Railway healthcheck requests use this Host header.
+    "healthcheck.railway.app",
 ]) if h.strip()]
 
 CSRF_TRUSTED_ORIGINS = [o.strip() for o in env.list("CSRF_TRUSTED_ORIGINS", default=[
@@ -89,6 +92,7 @@ SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 # which isn't TLS-terminated, and the request fails with an SSL error.
 # Auth for these paths is the X-Internal-Key shared secret, not TLS.
 SECURE_REDIRECT_EXEMPT = [
+    r"^$",  # Railway healthcheck GET / arrives over plain HTTP and must return 200, not a 301
     r"^api/ai-interviews/[^/]+/agent-data/$",
     r"^api/ai-interviews/[^/]+/segment/$",
     r"^api/ai-interviews/[^/]+/status/$",
