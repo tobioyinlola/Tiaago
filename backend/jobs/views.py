@@ -1175,9 +1175,16 @@ class JobApplicationRetrieveUpdateView(RetrieveUpdateAPIView):
         if status_value != previous_status:
             job = instance.job
             if status_value == JobApplication.JobApplicationStatus.REVIEWED:
-                send_assessment_link.apply_async(
-                    args=[instance.id], countdown=ACCEPTANCE_MAIL_DELAY_SECONDS
-                )
+                # REVIEWED represents a plain initial screen for a workflow
+                # without an assessment.  Only dispatch an assessment invite
+                # where the immutable workflow actually includes that stage.
+                if (
+                    job.hiring_engine != Job.HiringEngine.CONFIGURABLE
+                    or "assessment" in job.get_workflow_configuration()["stages"]
+                ):
+                    send_assessment_link.apply_async(
+                        args=[instance.id], countdown=ACCEPTANCE_MAIL_DELAY_SECONDS
+                    )
             elif status_value == JobApplication.JobApplicationStatus.PENDING_DECISION:
                 if job.ai_interview_enabled:
                     from ai_interviews.services import provision_ai_interview

@@ -1489,6 +1489,8 @@ export type AiFeedbackItem = {
   current_company: string | null;
   status: JobApplication["status"];
   status_label: string;
+  workflow_stage: WorkflowStage;
+  workflow_stages: WorkflowStage[];
 };
 
 export type SubmissionAnswerMCQQuestion = {

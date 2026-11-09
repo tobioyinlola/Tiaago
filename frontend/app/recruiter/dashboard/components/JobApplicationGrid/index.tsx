@@ -21,7 +21,7 @@ import {
 import { advanceInterviewRound } from "@/app/common/services/interview-review";
 import AIFeedbackModal from "./AIFeedbackModal";
 import BoardColumn from "./BoardColumn";
-import { getColumnKey, isBackwardMove, isStageLocked } from "./boardStages";
+import { getColumnKey, isBackwardMove, isStageLocked, isStatusAvailableInWorkflow, workflowStageForStatus } from "./boardStages";
 import SearchBar from "@/app/common/components/SearchBar";
 import TalentApplicationCard from "./TalentApplicationCard";
 import ProfileModal from "@/app/common/components/ProfileModal";
@@ -101,7 +101,7 @@ const getBoardColumns = (
 ): BoardColumnDef[] => [
   { key: "APPLIED", label: "Applied", droppable: false },
   { key: "RESUME_SCREENING", label: "Resume Screening", droppable: false },
-  { key: "REVIEWED", label: "Skill Assessment", droppable: true },
+  { key: "REVIEWED", label: "Review / Assessment", droppable: true },
   ...(aiInterviewEnabled
     ? [{ key: "AI_INTERVIEW", label: "AI Interview", droppable: true }]
     : []),
@@ -344,7 +344,12 @@ export const JobApplicationsTable = ({
     setApplications(prev =>
       prev.map(a =>
         a.application_id === item.application_id
-          ? { ...a, status: newStatus, status_label: STATUS_LABELS[newStatus] || newStatus }
+          ? {
+              ...a,
+              status: newStatus,
+              status_label: STATUS_LABELS[newStatus] || newStatus,
+              workflow_stage: workflowStageForStatus(a, newStatus) || a.workflow_stage,
+            }
           : a
       )
     );
@@ -358,7 +363,11 @@ export const JobApplicationsTable = ({
       return;
     }
     if (newStatus === "REVIEWED") {
-      toast.success("Moved to Skill Assessment", { description: "Assessment invite sent to the candidate." });
+      if (workflowStageForStatus(item, newStatus) === "assessment") {
+        toast.success("Moved to assessment", { description: "Assessment invite sent to the candidate." });
+      } else {
+        toast.success("Moved to initial review");
+      }
     } else if (newStatus === "AI_INTERVIEW") {
       toast.success("Moved to AI Interview", { description: "AI interview invite sent to the candidate." });
     } else if (newStatus === "INTERVIEW_SCHEDULED") {
@@ -378,6 +387,12 @@ export const JobApplicationsTable = ({
   // reason dialog, and commits everything else immediately.
   const requestMoveStage = (item: AiFeedbackItem, newStatus: JobApplication["status"]) => {
     if (newStatus === item.status) return;
+    if (!isStatusAvailableInWorkflow(item, newStatus)) {
+      toast.error("That stage is not enabled for this job", {
+        description: "Publish a workflow that includes the stage before moving a candidate there.",
+      });
+      return;
+    }
     if (isBackwardMove(item, newStatus)) {
       toast.error("Can't move a candidate backward", {
         description: isStageLocked(item)

@@ -1703,6 +1703,8 @@ class AIFeedbackSerializer(serializers.Serializer):
     current_company = serializers.CharField(allow_null=True, allow_blank=True)
     status = serializers.CharField()
     status_label = serializers.CharField()
+    workflow_stage = serializers.CharField()
+    workflow_stages = serializers.ListField(child=serializers.CharField(), allow_empty=False)
     latest_interview_id = serializers.CharField(allow_null=True)
     latest_interview_round = serializers.IntegerField(allow_null=True)
 

@@ -10,52 +10,22 @@ from django.utils import timezone
 logger = logging.getLogger(__name__)
 
 
-def workflow_transition_block_detail(application, target_status):
-    """Return a hold message when a configurable job omits a target stage.
+def workflow_stage_for_status(application, status):
+    """Return the published workflow stage represented by a legacy status.
 
-    This deliberately guards only recruiter/API transitions already owned by
-    the existing status engine. Legacy jobs bypass it unchanged; subsequent
-    slices add dedicated practical/readiness actions rather than pretending a
-    legacy status can represent them.
-    """
-    from .models import Job
-
-    if application.job.hiring_engine != Job.HiringEngine.CONFIGURABLE:
-        return ""
-    from .models import JobApplication
-
-    stage_for_status = {
-        JobApplication.JobApplicationStatus.REVIEWED: "screen",
-        JobApplication.JobApplicationStatus.PENDING_DECISION: "interview",
-        JobApplication.JobApplicationStatus.AI_INTERVIEW: "interview",
-        JobApplication.JobApplicationStatus.HUMAN_INTERVIEW: "interview",
-        JobApplication.JobApplicationStatus.INTERVIEW_SCHEDULED: "interview",
-        JobApplication.JobApplicationStatus.SECOND_INTERVIEW: "interview",
-        JobApplication.JobApplicationStatus.INTERVIEW_COMPLETED: "interview",
-        JobApplication.JobApplicationStatus.OFFER_EXTENDED: "decision",
-        JobApplication.JobApplicationStatus.OFFER_ACCEPTED: "decision",
-        JobApplication.JobApplicationStatus.OFFER_DECLINED: "decision",
-    }
-    stage = stage_for_status.get(target_status)
-    if stage and stage not in application.job.get_workflow_configuration()["stages"]:
-        return f"This job's published workflow does not include the {stage.replace('_', ' ')} stage."
-    return ""
-
-
-def current_workflow_stage(application):
-    """Map the existing application status into the published workflow.
-
-    The legacy status remains the system of record while configurable jobs
-    progressively adopt stage-aware UI. Returning a safe nearest stage keeps
-    historic applications readable without data migration.
+    ``REVIEWED`` predates configurable workflows.  It means an initial
+    screen for roles that do not use a Tiaago assessment, and an assessment
+    invitation for roles that do.  Resolving that from the immutable job
+    snapshot prevents a recruiter board from offering a move the workflow
+    cannot actually carry out.
     """
     from .models import JobApplication
 
-    status = application.status
+    workflow_stages = application.job.get_workflow_configuration()["stages"]
     if status == JobApplication.JobApplicationStatus.APPLIED:
         return "application"
     if status == JobApplication.JobApplicationStatus.REVIEWED:
-        return "screen"
+        return "assessment" if "assessment" in workflow_stages else "screen"
     if status in {
         JobApplication.JobApplicationStatus.PENDING_DECISION,
         JobApplication.JobApplicationStatus.AI_INTERVIEW,
@@ -72,6 +42,30 @@ def current_workflow_stage(application):
     }:
         return "decision"
     return "application"
+
+
+def workflow_transition_block_detail(application, target_status):
+    """Return a hold message when a configurable job omits a target stage.
+
+    The status field remains the compatibility record during the staged
+    rollout.  This adapter maps it to the job's immutable workflow before an
+    API or worker progresses a candidate; legacy jobs retain their original
+    behaviour.
+    """
+    from .models import Job
+
+    if application.job.hiring_engine != Job.HiringEngine.CONFIGURABLE:
+        return ""
+
+    stage = workflow_stage_for_status(application, target_status)
+    if stage != "application" and stage not in application.job.get_workflow_configuration()["stages"]:
+        return f"This job's published workflow does not include the {stage.replace('_', ' ')} stage."
+    return ""
+
+
+def current_workflow_stage(application):
+    """Map the legacy application status into the published workflow."""
+    return workflow_stage_for_status(application, application.status)
 
 
 # This deliberately small, reviewed catalogue is the first eligibility

@@ -816,23 +816,33 @@ def carry_out_resume_analysis(job_application_id):
                     # Auto-advance to the next stage -- surfaced on the View
                     # Applicants table so recruiters see candidates move
                     # forward without manual status changes.
-                    from .services import eligibility_progression_block_detail
+                    from .services import (
+                        eligibility_progression_block_detail,
+                        workflow_transition_block_detail,
+                    )
 
+                    workflow_hold = workflow_transition_block_detail(
+                        job_application, JobApplication.JobApplicationStatus.REVIEWED
+                    )
                     eligibility_hold = eligibility_progression_block_detail(job_application)
-                    if eligibility_hold:
+                    if workflow_hold or eligibility_hold:
                         logger.info(
                             "Resume-screening progression held for job application %s: %s",
                             job_application_id,
-                            eligibility_hold,
+                            workflow_hold or eligibility_hold,
                         )
                     else:
                         JobApplication.objects.filter(id=job_application_id).update(
                             status=JobApplication.JobApplicationStatus.REVIEWED
                         )
-                        send_assessment_link.apply_async(
-                            args=[job_application_id],
-                            countdown=ACCEPTANCE_MAIL_DELAY_SECONDS,
-                        )
+                        if (
+                            job.hiring_engine != Job.HiringEngine.CONFIGURABLE
+                            or "assessment" in job.get_workflow_configuration()["stages"]
+                        ):
+                            send_assessment_link.apply_async(
+                                args=[job_application_id],
+                                countdown=ACCEPTANCE_MAIL_DELAY_SECONDS,
+                            )
                 else:
                     JobApplication.objects.filter(id=job_application_id).update(
                         status=JobApplication.JobApplicationStatus.REJECTED

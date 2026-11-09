@@ -5,7 +5,7 @@ import { PiEye, PiUserPlus, PiArrowClockwise } from "react-icons/pi";
 import { AiFeedbackItem, JobApplication } from "@/app/common/types";
 import { cn } from "@/app/common/utils";
 import { AvatarWithVerifiedBadge } from "@/app/common/components/UserAvatar";
-import { isBackwardMove, isStageLocked } from "./boardStages";
+import { isBackwardMove, isStageLocked, isStatusAvailableInWorkflow } from "./boardStages";
 import {
   Select,
   SelectContent,
@@ -30,7 +30,7 @@ export type MovableStatus =
 // recruiter-facing "move to" list. Also doubles as the set of valid drag-drop
 // targets on the board (see index.tsx).
 export const MOVABLE_STATUSES: { value: MovableStatus; label: string }[] = [
-  { value: "REVIEWED", label: "Skill Assessment -- sends assessment invite" },
+  { value: "REVIEWED", label: "Initial review / assessment" },
   { value: "AI_INTERVIEW", label: "AI Interview -- sends AI interview invite" },
   { value: "INTERVIEW_SCHEDULED", label: "Interview Scheduled -- sends a slot invite" },
   { value: "HUMAN_INTERVIEW", label: "Human Interview" },
@@ -39,6 +39,19 @@ export const MOVABLE_STATUSES: { value: MovableStatus; label: string }[] = [
   { value: "OFFER_EXTENDED", label: "Offer Extended" },
   { value: "REJECTED", label: "Rejected -- reason required" },
 ];
+
+const WORKFLOW_STAGE_LABELS: Record<string, string> = {
+  application: "Application",
+  eligibility: "Eligibility review",
+  screen: "Initial review",
+  work_sample: "Work sample",
+  scenario: "Written scenario",
+  assessment: "Assessment",
+  practical: "Practical assessment",
+  interview: "Interview",
+  decision: "Decision",
+  readiness: "Readiness",
+};
 
 const scoreTone = (score: number) => {
   if (score >= 70) return "bg-[#ECFDF3] text-[#027A48]";
@@ -80,7 +93,9 @@ const ApplicationCard = ({
     data: { item },
     disabled: locked,
   });
-  const movableOptions = MOVABLE_STATUSES.filter(s => !isBackwardMove(item, s.value));
+  const movableOptions = MOVABLE_STATUSES.filter(
+    option => !isBackwardMove(item, option.value) && isStatusAvailableInWorkflow(item, option.value)
+  );
 
   return (
     <div
@@ -125,6 +140,9 @@ const ApplicationCard = ({
       )}
 
       <div className='flex flex-wrap gap-1.5'>
+        <span className='rounded-full bg-[#EEF4FF] px-2 py-0.5 text-[11px] font-medium text-[#3538CD]'>
+          Workflow: {WORKFLOW_STAGE_LABELS[item.workflow_stage] || item.workflow_stage}
+        </span>
         <ScoreChip label='Resume' score={item.resume_analysis_score} />
         <ScoreChip label='Assessment' score={item.assessment_score} />
         {item.ai_interview_score != null && <ScoreChip label='AI Interview' score={item.ai_interview_score} />}

@@ -18,7 +18,8 @@ from ai_interviews.models import AIInterview
 from ai_interviews.tasks import _advance_on_ai_interview_result
 from create_user.models import Company, CustomUser, TalentProfile
 from jobs.models import ApplicationEligibilityCheck, HiringProfile, Job, JobApplication
-from jobs.serializers import GuestJobApplicationSerializer, JobSerializer
+from jobs.serializers import GuestJobApplicationSerializer, JobApplicationSerializer, JobSerializer
+from jobs.services import current_workflow_stage, workflow_transition_block_detail
 from jobs.views import _has_booked_interview
 from scheduler.models import Scheduler
 
@@ -723,6 +724,103 @@ class EligibilityReviewFoundationTests(TestCase):
         self.assertEqual(len(checks), 2)
         self.assertTrue(all(check.declaration for check in checks))
         self.assertTrue(all(check.status == ApplicationEligibilityCheck.Status.PENDING for check in checks))
+
+    def test_reviewed_status_uses_assessment_only_when_that_stage_is_published(self):
+        assessment_job = self._publish_job(
+            workflow_configuration={
+                "version": 1,
+                "stages": ["application", "assessment", "interview", "decision"],
+            }
+        )
+        assessment_application = self._apply_as_guest(
+            assessment_job,
+            email="driver-assessment-workflow@example.com",
+            declarations={"right-to-work": True, "driving-licence": True},
+        )
+        self.assertEqual(
+            workflow_transition_block_detail(
+                assessment_application, JobApplication.JobApplicationStatus.REVIEWED
+            ),
+            "",
+        )
+        assessment_application.status = JobApplication.JobApplicationStatus.REVIEWED
+        self.assertEqual(current_workflow_stage(assessment_application), "assessment")
+        self.assertEqual(
+            JobApplicationSerializer(assessment_application).data["workflow_stage"], "assessment"
+        )
+
+        screen_job = self._publish_job(
+            workflow_configuration={
+                "version": 1,
+                "stages": ["application", "screen", "scenario", "interview", "decision"],
+            }
+        )
+        screen_application = self._apply_as_guest(
+            screen_job,
+            email="driver-screen-workflow@example.com",
+            declarations={"right-to-work": True, "driving-licence": True},
+        )
+        self.assertEqual(
+            workflow_transition_block_detail(
+                screen_application, JobApplication.JobApplicationStatus.REVIEWED
+            ),
+            "",
+        )
+        screen_application.status = JobApplication.JobApplicationStatus.REVIEWED
+        self.assertEqual(current_workflow_stage(screen_application), "screen")
+
+    def test_screen_only_workflow_does_not_dispatch_a_hidden_assessment(self):
+        job = self._publish_job(
+            workflow_configuration={
+                "version": 1,
+                "stages": ["application", "screen", "scenario", "interview", "decision"],
+            }
+        )
+        application = self._apply_as_guest(
+            job,
+            email="driver-screen-only@example.com",
+            declarations={"right-to-work": True, "driving-licence": True},
+        )
+        for check in application.eligibility_checks.all():
+            response = self.client.patch(
+                f"/api/jobs/job-applications/{application.id}/eligibility/{check.id}/",
+                {"status": ApplicationEligibilityCheck.Status.PASS},
+                format="json",
+            )
+            self.assertEqual(response.status_code, 200, response.data)
+
+        with patch("jobs.views.send_assessment_link.apply_async") as send_assessment:
+            response = self.client.patch(
+                f"/api/jobs/job-applications/{application.id}/",
+                {"status": JobApplication.JobApplicationStatus.REVIEWED},
+                format="json",
+            )
+        self.assertEqual(response.status_code, 200, response.data)
+        send_assessment.assert_not_called()
+        application.refresh_from_db()
+        self.assertEqual(application.status, JobApplication.JobApplicationStatus.REVIEWED)
+        self.assertEqual(current_workflow_stage(application), "screen")
+
+    def test_workflow_blocks_an_interview_transition_omitted_from_the_job(self):
+        job = self._publish_job(
+            workflow_configuration={
+                "version": 1,
+                "stages": ["application", "screen", "assessment", "decision"],
+            }
+        )
+        application = self._apply_as_guest(
+            job,
+            email="driver-no-interview@example.com",
+            declarations={"right-to-work": True, "driving-licence": True},
+        )
+
+        response = self.client.patch(
+            f"/api/jobs/job-applications/{application.id}/",
+            {"status": JobApplication.JobApplicationStatus.PENDING_DECISION},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400, response.data)
+        self.assertIn("does not include the interview stage", response.data["detail"])
 
     def test_negative_required_declaration_fails_and_recruiter_can_record_final_review(self):
         job = self._publish_job()

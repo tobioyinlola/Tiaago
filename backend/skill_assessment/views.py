@@ -121,6 +121,7 @@ from utils.ai_service import AIService
 from utils.elevenlabs_handler import elevenlabs_handler
 from .services import queue_or_start_session, complete_session, activate_next_queued_session
 from jobs.models import JobApplication, Portfolio, Job, Experience
+from jobs.services import current_workflow_stage
 from emails import emails
 from payments.utils import initiate_stripe_payment,initiate_paystack_payment
 from loguru import logger
@@ -3110,6 +3111,8 @@ class AIOperationsFeedback(APIView, PaginationHandlerMixin):
                 "current_company": current_company_map.get(job_apps.applicant_id, "") if has_account else "",
                 "status": job_apps.status,
                 "status_label": job_apps.get_status_display(),
+                "workflow_stage": current_workflow_stage(job_apps),
+                "workflow_stages": job_apps.job.get_workflow_configuration()["stages"],
                 "latest_interview_id": str(scheduler_map[job_apps.id].id) if job_apps.id in scheduler_map else None,
                 "latest_interview_round": scheduler_map[job_apps.id].round if job_apps.id in scheduler_map else None,
             })
