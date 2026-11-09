@@ -395,6 +395,17 @@ def _advance_on_ai_interview_result(interview, job):
         )
         return
 
+    from jobs.services import eligibility_progression_block_detail
+
+    eligibility_hold = eligibility_progression_block_detail(application)
+    if eligibility_hold:
+        logger.info(
+            "AI interview progression held for job application %s: %s",
+            application.id,
+            eligibility_hold,
+        )
+        return
+
     # Only advance forward. A recruiter who has already moved this candidate
     # past the interview stage by hand must not be dragged back by a late
     # scoring task.

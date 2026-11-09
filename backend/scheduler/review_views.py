@@ -219,6 +219,19 @@ class InterviewDecisionView(APIView):
         if is_rejecting and not already_rejected and not rejection_reason:
             return Response({"error": "A reason is required to reject this candidate."}, status=HTTP_400_BAD_REQUEST)
 
+        if (
+            job_application
+            and recommendation in (
+                InterviewSummary.Recommendation.STRONG_YES,
+                InterviewSummary.Recommendation.YES,
+            )
+        ):
+            from jobs.services import eligibility_progression_block_detail
+
+            eligibility_hold = eligibility_progression_block_detail(job_application)
+            if eligibility_hold:
+                return Response({"error": eligibility_hold}, status=HTTP_400_BAD_REQUEST)
+
         summary, _created = InterviewSummary.objects.get_or_create(interview=interview)
         summary.recommendation = recommendation
         summary.confidence = confidence
@@ -312,6 +325,12 @@ class InterviewAdvanceRoundView(APIView):
                 },
                 status=HTTP_400_BAD_REQUEST,
             )
+
+        from jobs.services import eligibility_progression_block_detail
+
+        eligibility_hold = eligibility_progression_block_detail(job_application)
+        if eligibility_hold:
+            return Response({"error": eligibility_hold}, status=HTTP_400_BAD_REQUEST)
 
         # SECOND_INTERVIEW rather than PENDING_DECISION: the candidate is at the
         # same point in the funnel either way (waiting to pick a slot), but the

@@ -101,6 +101,7 @@ from .tasks import (
     send_manual_rejection_mail,
     send_offer_extended_notice_mail,
 )
+from .services import eligibility_progression_block_detail
 from emails import emails
 from rest_framework.permissions import AllowAny
 from payments.models import PaymentMethod
@@ -646,6 +647,10 @@ def _claim_interview_slot(job, job_application, slot_id):
     profile = job_application.applicant
 
     with transaction.atomic():
+        eligibility_hold = eligibility_progression_block_detail(job_application)
+        if eligibility_hold:
+            return {"detail": eligibility_hold}, HTTP_400_BAD_REQUEST
+
         slot = (
             JobInterviewAvailabilitySlot.objects.select_for_update()
             .filter(id=slot_id, job_id=job.id, is_claimed=False)
@@ -1045,6 +1050,12 @@ class JobApplicationRetrieveUpdateView(RetrieveUpdateAPIView):
 
 
     def put(self, request, *args, **kwargs):
+        return self._update_status(request, *args, **kwargs)
+
+    def patch(self, request, *args, **kwargs):
+        return self._update_status(request, *args, **kwargs)
+
+    def _update_status(self, request, *args, **kwargs):
         user = request.user
         instance = self.get_object()
         job_company = instance.job.company
@@ -1090,6 +1101,22 @@ class JobApplicationRetrieveUpdateView(RetrieveUpdateAPIView):
         # on an actual transition into REJECTED, not a no-op re-PUT.
         if status_value == JobApplication.JobApplicationStatus.REJECTED and status_value != previous_status and not rejection_reason:
             return Response({"detail": "A reason is required to reject a candidate."}, status=HTTP_400_BAD_REQUEST)
+
+        # Required eligibility is a deliberate human-review gate.  It is
+        # checked here for both PUT and PATCH, rather than only in the board
+        # UI, so direct API callers and future clients cannot bypass it.
+        # Rejection, withdrawal and declining an offer remain available while
+        # an application is on hold.
+        non_progressing_statuses = {
+            JobApplication.JobApplicationStatus.APPLIED,
+            JobApplication.JobApplicationStatus.REJECTED,
+            JobApplication.JobApplicationStatus.WITHDRAWN,
+            JobApplication.JobApplicationStatus.OFFER_DECLINED,
+        }
+        if status_value != previous_status and status_value not in non_progressing_statuses:
+            eligibility_hold = eligibility_progression_block_detail(instance)
+            if eligibility_hold:
+                return Response({"detail": eligibility_hold}, status=HTTP_400_BAD_REQUEST)
 
         # Moving a candidate to interview on a non-AI-interview job silently
         # no-ops (send_interview_slot_invite just logs a warning and returns)

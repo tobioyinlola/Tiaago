@@ -443,6 +443,31 @@ class RecruiterAIInterviewDecisionView(APIView):
         ) and not override_reason:
             return Response({"error": "A reason is required to override the AI recommendation."}, status=HTTP_400_BAD_REQUEST)
 
+        # Validate a progression before recording the decision itself.  A
+        # rejected/declined decision remains valid while a candidate is on
+        # hold, but a proceed decision must not leave an accepted decision
+        # attached to an application that was not allowed to advance.
+        if (
+            interview.job_application_id
+            and decision in (
+                AIInterview.RecruiterDecision.ACCEPTED,
+                AIInterview.RecruiterDecision.OVERRIDDEN_PROCEED,
+            )
+        ):
+            from jobs.models import JobApplication
+            from jobs.services import eligibility_progression_block_detail
+
+            application = JobApplication.objects.select_related("job").filter(
+                id=interview.job_application_id
+            ).first()
+            eligibility_hold = (
+                eligibility_progression_block_detail(application)
+                if application
+                else ""
+            )
+            if eligibility_hold:
+                return Response({"error": eligibility_hold}, status=HTTP_400_BAD_REQUEST)
+
         interview.recruiter_decision = decision
         interview.recruiter_decision_at = timezone.now()
         interview.recruiter_decision_by = request.user

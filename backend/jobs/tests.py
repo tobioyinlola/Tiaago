@@ -85,6 +85,30 @@ class AIInterviewPassMarkGateTests(TestCase):
             JobApplication.JobApplicationStatus.INTERVIEW_SCHEDULED,
         )
 
+    def test_passing_ai_score_cannot_bypass_a_required_eligibility_review(self):
+        self.job.eligibility_requirements = [
+            {
+                "code": "right-to-work",
+                "label": "Right to work",
+                "description": "I am authorised to work in the role's stated location.",
+                "required": True,
+            }
+        ]
+        self.job.save(update_fields=["eligibility_requirements"])
+
+        invite = self._run(85)
+
+        self.assertEqual(
+            self.application.status,
+            JobApplication.JobApplicationStatus.AI_INTERVIEW,
+        )
+        self.assertEqual(self.application.eligibility_checks.count(), 1)
+        self.assertEqual(
+            self.application.eligibility_checks.get().status,
+            ApplicationEligibilityCheck.Status.NEEDS_REVIEW,
+        )
+        invite.assert_not_called()
+
     def test_below_the_mark_holds_for_recruiter_review(self):
         """Deliberately not an auto-rejection -- the recruiter still decides."""
         invite = self._run(69)
@@ -741,4 +765,61 @@ class EligibilityReviewFoundationTests(TestCase):
                 and check.declaration is None
                 for check in application.eligibility_checks.all()
             )
+        )
+
+    def test_required_reviews_block_put_and_patch_until_a_reviewer_clears_them(self):
+        job = self._publish_job()
+        application = self._apply_as_guest(
+            job,
+            email="driver-gated@example.com",
+            declarations={"right-to-work": True, "driving-licence": True},
+        )
+
+        for method in (self.client.put, self.client.patch):
+            response = method(
+                f"/api/jobs/job-applications/{application.id}/",
+                {"status": JobApplication.JobApplicationStatus.REVIEWED},
+                format="json",
+            )
+            self.assertEqual(response.status_code, 400, response.data)
+            self.assertIn("eligibility reviews", response.data["detail"])
+
+        for check in application.eligibility_checks.all():
+            response = self.client.patch(
+                f"/api/jobs/job-applications/{application.id}/eligibility/{check.id}/",
+                {"status": ApplicationEligibilityCheck.Status.PASS},
+                format="json",
+            )
+            self.assertEqual(response.status_code, 200, response.data)
+
+        with patch("jobs.views.send_assessment_link.apply_async") as send_assessment:
+            response = self.client.patch(
+                f"/api/jobs/job-applications/{application.id}/",
+                {"status": JobApplication.JobApplicationStatus.REVIEWED},
+                format="json",
+            )
+        self.assertEqual(response.status_code, 200, response.data)
+        application.refresh_from_db()
+        self.assertEqual(application.status, JobApplication.JobApplicationStatus.REVIEWED)
+        send_assessment.assert_called_once()
+
+    def test_workflow_gate_materialises_missing_legacy_checks_as_needing_review(self):
+        job = self._publish_job()
+        application = self._apply_as_guest(
+            job,
+            email="driver-legacy@example.com",
+            declarations={"right-to-work": True, "driving-licence": True},
+        )
+        ApplicationEligibilityCheck.all_objects.filter(application=application).delete()
+
+        response = self.client.put(
+            f"/api/jobs/job-applications/{application.id}/",
+            {"status": JobApplication.JobApplicationStatus.REVIEWED},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400, response.data)
+        checks = list(application.eligibility_checks.order_by("requirement_code"))
+        self.assertEqual(len(checks), 2)
+        self.assertTrue(
+            all(check.status == ApplicationEligibilityCheck.Status.NEEDS_REVIEW for check in checks)
         )

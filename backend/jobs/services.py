@@ -169,6 +169,95 @@ def review_application_eligibility_check(check, *, status, reviewer, reason=""):
     return check
 
 
+def materialise_missing_application_eligibility_checks(application):
+    """Create review records for requirements missing from a legacy application.
+
+    Jobs can gain the first eligibility release after candidates have already
+    applied.  Those candidates did not submit a declaration, so their missing
+    required checks must be treated as needing review instead of becoming an
+    invisible route around the workflow gate.  Existing records are left
+    exactly as they are: in particular, this never overwrites a candidate's
+    declaration or a human review.
+    """
+    from .models import ApplicationEligibilityCheck
+
+    requirements = application.job.get_eligibility_requirements()
+    if not requirements:
+        return []
+
+    existing_codes = set(
+        ApplicationEligibilityCheck.all_objects.filter(application=application).values_list(
+            "requirement_code", flat=True
+        )
+    )
+    missing_checks = []
+    for requirement in requirements:
+        if requirement["code"] in existing_codes:
+            continue
+        is_required = requirement["required"]
+        missing_checks.append(
+            ApplicationEligibilityCheck(
+                application=application,
+                requirement_code=requirement["code"],
+                requirement_label=requirement["label"],
+                requirement_description=requirement["description"],
+                is_required=is_required,
+                declaration=None,
+                status=(
+                    ApplicationEligibilityCheck.Status.NEEDS_REVIEW
+                    if is_required
+                    else ApplicationEligibilityCheck.Status.NOT_APPLICABLE
+                ),
+            )
+        )
+    if missing_checks:
+        ApplicationEligibilityCheck.all_objects.bulk_create(missing_checks)
+    return missing_checks
+
+
+def required_eligibility_blockers(application):
+    """Return required checks that still prevent a candidate moving forward.
+
+    A declaration is deliberately insufficient.  Only a recorded PASS or a
+    reviewer-recorded NOT_APPLICABLE decision clears a mandatory requirement.
+    This helper is the single guard used by recruiter actions and automated
+    pipeline tasks, so an alternate route cannot accidentally skip review.
+    """
+    from .models import ApplicationEligibilityCheck
+
+    materialise_missing_application_eligibility_checks(application)
+    required_checks = ApplicationEligibilityCheck.all_objects.filter(
+        application=application,
+        is_required=True,
+    ).order_by("created_at")
+    cleared_statuses = {
+        ApplicationEligibilityCheck.Status.PASS,
+        ApplicationEligibilityCheck.Status.NOT_APPLICABLE,
+    }
+    # Both outcomes must have audit context.  This also protects against a
+    # direct database update representing a self-declaration as a clearance.
+    return [
+        check
+        for check in required_checks
+        if check.status not in cleared_statuses or check.reviewed_at is None
+    ]
+
+
+def eligibility_progression_block_detail(application):
+    """Give every entry point the same actionable explanation of a hold."""
+    blockers = required_eligibility_blockers(application)
+    if not blockers:
+        return ""
+    labels = ", ".join(check.requirement_label for check in blockers[:3])
+    remainder = len(blockers) - 3
+    if remainder > 0:
+        labels = f"{labels}, and {remainder} more"
+    return (
+        "Complete the required eligibility reviews before moving this candidate "
+        f"forward: {labels}."
+    )
+
+
 def cancel_pending_tasks_for_rejected_application(job_application_id):
     """Called from every place a JobApplication transitions to REJECTED
     (manual recruiter action, an AI-interview decision override, or a human

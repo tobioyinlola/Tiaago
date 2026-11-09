@@ -380,6 +380,21 @@ def send_assessment_link(job_application_id, trials=0):
         logger.error("Job application %s not found", job_application_id)
         return "Job application not found"
 
+    # This task can be invoked independently of the visible recruiter board.
+    # Keep the mandatory eligibility gate here too, so a delayed/retried task
+    # cannot send an assessment after a reviewer has placed the candidate on
+    # hold.
+    from .services import eligibility_progression_block_detail
+
+    eligibility_hold = eligibility_progression_block_detail(job_application)
+    if eligibility_hold:
+        logger.info(
+            "Assessment invite held for job application %s: %s",
+            job_application_id,
+            eligibility_hold,
+        )
+        return eligibility_hold
+
     # Idempotency guard: GeneralSkillAssessment.job_application is a plain FK
     # (not unique), and this task can be re-delivered by Celery (worker crash/
     # visibility-timeout redelivery) or invoked twice from an upstream trigger.
@@ -801,13 +816,23 @@ def carry_out_resume_analysis(job_application_id):
                     # Auto-advance to the next stage -- surfaced on the View
                     # Applicants table so recruiters see candidates move
                     # forward without manual status changes.
-                    JobApplication.objects.filter(id=job_application_id).update(
-                        status=JobApplication.JobApplicationStatus.REVIEWED
-                    )
-                    send_assessment_link.apply_async(
-                        args=[job_application_id],
-                        countdown=ACCEPTANCE_MAIL_DELAY_SECONDS,
-                    )
+                    from .services import eligibility_progression_block_detail
+
+                    eligibility_hold = eligibility_progression_block_detail(job_application)
+                    if eligibility_hold:
+                        logger.info(
+                            "Resume-screening progression held for job application %s: %s",
+                            job_application_id,
+                            eligibility_hold,
+                        )
+                    else:
+                        JobApplication.objects.filter(id=job_application_id).update(
+                            status=JobApplication.JobApplicationStatus.REVIEWED
+                        )
+                        send_assessment_link.apply_async(
+                            args=[job_application_id],
+                            countdown=ACCEPTANCE_MAIL_DELAY_SECONDS,
+                        )
                 else:
                     JobApplication.objects.filter(id=job_application_id).update(
                         status=JobApplication.JobApplicationStatus.REJECTED
