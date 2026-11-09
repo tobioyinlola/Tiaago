@@ -798,6 +798,7 @@ export type JobApplication = {
   eligibility_checks?: ApplicationEligibilityCheck[];
   work_samples?: ApplicationWorkSample[];
   scenario_response?: ApplicationScenarioResponse | null;
+  workflow_stage?: WorkflowStage;
   status:
     | "APPLIED"
     | "REVIEWED"

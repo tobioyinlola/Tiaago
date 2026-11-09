@@ -42,6 +42,38 @@ def workflow_transition_block_detail(application, target_status):
     return ""
 
 
+def current_workflow_stage(application):
+    """Map the existing application status into the published workflow.
+
+    The legacy status remains the system of record while configurable jobs
+    progressively adopt stage-aware UI. Returning a safe nearest stage keeps
+    historic applications readable without data migration.
+    """
+    from .models import JobApplication
+
+    status = application.status
+    if status == JobApplication.JobApplicationStatus.APPLIED:
+        return "application"
+    if status == JobApplication.JobApplicationStatus.REVIEWED:
+        return "screen"
+    if status in {
+        JobApplication.JobApplicationStatus.PENDING_DECISION,
+        JobApplication.JobApplicationStatus.AI_INTERVIEW,
+        JobApplication.JobApplicationStatus.HUMAN_INTERVIEW,
+        JobApplication.JobApplicationStatus.INTERVIEW_SCHEDULED,
+        JobApplication.JobApplicationStatus.INTERVIEW_COMPLETED,
+        JobApplication.JobApplicationStatus.SECOND_INTERVIEW,
+    }:
+        return "interview"
+    if status in {
+        JobApplication.JobApplicationStatus.OFFER_EXTENDED,
+        JobApplication.JobApplicationStatus.OFFER_ACCEPTED,
+        JobApplication.JobApplicationStatus.OFFER_DECLINED,
+    }:
+        return "decision"
+    return "application"
+
+
 # This deliberately small, reviewed catalogue is the first eligibility
 # release. It covers the requirements repeatedly needed by professional,
 # frontline and field roles without pretending an applicant declaration is a

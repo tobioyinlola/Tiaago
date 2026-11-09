@@ -35,6 +35,7 @@ from .models import (
     JobInterviewAvailabilitySlot,
 )
 from .services import (
+    current_workflow_stage,
     normalise_eligibility_declarations,
     normalise_eligibility_requirements,
     profile_eligibility_requirements,
@@ -1345,6 +1346,10 @@ class JobApplicationSerializer(serializers.ModelSerializer):
     eligibility_checks = ApplicationEligibilityCheckSerializer(many=True, read_only=True)
     work_samples = ApplicationWorkSampleSerializer(many=True, read_only=True)
     scenario_response = ApplicationScenarioResponseSerializer(read_only=True)
+    workflow_stage = serializers.SerializerMethodField()
+
+    def get_workflow_stage(self, obj):
+        return current_workflow_stage(obj)
 
     class Meta:
         model = JobApplication
@@ -1364,6 +1369,7 @@ class JobApplicationSerializer(serializers.ModelSerializer):
             "eligibility_checks",
             "work_samples",
             "scenario_response",
+            "workflow_stage",
         )
 
     def get_applicant(self, obj):
