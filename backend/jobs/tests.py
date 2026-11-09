@@ -641,7 +641,8 @@ class EligibilityReviewFoundationTests(TestCase):
             ]
         }
         self.driver.evaluation_defaults = {"methods": ["work_sample", "scenario", "structured_interview"]}
-        self.driver.save(update_fields=["application_defaults", "eligibility_defaults", "evaluation_defaults"])
+        self.driver.workflow_defaults = {"stages": ["application", "eligibility", "screen", "scenario", "assessment", "interview", "decision"]}
+        self.driver.save(update_fields=["application_defaults", "eligibility_defaults", "evaluation_defaults", "workflow_defaults"])
 
     def _job_data(self, **overrides):
         data = {
@@ -706,6 +707,10 @@ class EligibilityReviewFoundationTests(TestCase):
                     "required": True,
                 },
             ],
+        )
+        self.assertEqual(
+            job.get_workflow_configuration(),
+            {"version": 1, "stages": ["application", "eligibility", "screen", "scenario", "assessment", "interview", "decision"]},
         )
 
         application = self._apply_as_guest(

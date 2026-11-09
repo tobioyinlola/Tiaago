@@ -196,6 +196,9 @@ class Job(models.Model):
     # A short, mobile-friendly written scenario captured with an application.
     # Like work samples, its prompt and scorecard are published with the job.
     scenario_configuration = models.JSONField(default=dict, blank=True)
+    # Ordered, immutable workflow contract captured when a configurable job
+    # is published. Legacy jobs deliberately leave this empty.
+    workflow_configuration = models.JSONField(default=dict, blank=True)
     #tags = models.JSONField(blank=True, default=list, help_text="Optional tags for categorizing the job")
 
     LEGACY_APPLICATION_CONFIGURATION = {
@@ -496,6 +499,13 @@ class Job(models.Model):
         if isinstance(stored_rubric, dict):
             configuration["rubric"].update(stored_rubric)
         return configuration
+
+    def get_workflow_configuration(self):
+        """Return the workflow snapshot that governs this requisition."""
+        return deepcopy(self.workflow_configuration or {
+            "version": 1,
+            "stages": ["application", "screen", "assessment", "interview", "decision"],
+        })
 
     @property
     def hires_with_ai(self):

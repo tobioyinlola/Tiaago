@@ -130,6 +130,11 @@ SCENARIO_PROMPT_MAX_LENGTH = 1200
 SCENARIO_INSTRUCTIONS_MAX_LENGTH = 1200
 SCENARIO_RESPONSE_LABEL_MAX_LENGTH = 120
 SCENARIO_RESPONSE_MAX_LENGTH = 5000
+WORKFLOW_CONFIGURATION_VERSION = 1
+WORKFLOW_STAGE_CODES = {
+    "application", "eligibility", "screen", "work_sample", "scenario",
+    "assessment", "practical", "interview", "decision", "readiness",
+}
 
 
 def _normalise_application_configuration(value):
@@ -200,6 +205,32 @@ def _profile_application_configuration(profile):
 def _profile_eligibility_requirements(profile):
     """Return the profile's reviewed eligibility defaults as snapshots."""
     return profile_eligibility_requirements(profile)
+
+
+def _normalise_workflow_configuration(value):
+    """Validate a small, ordered workflow contract for a published job."""
+    if not isinstance(value, dict) or set(value) - {"version", "stages"}:
+        raise serializers.ValidationError("Workflow configuration must contain only version and stages.")
+    if value.get("version", WORKFLOW_CONFIGURATION_VERSION) != WORKFLOW_CONFIGURATION_VERSION:
+        raise serializers.ValidationError("Only workflow configuration version 1 is supported.")
+    stages = value.get("stages")
+    if not isinstance(stages, list) or not stages:
+        raise serializers.ValidationError("A workflow must contain at least one stage.")
+    if any(stage not in WORKFLOW_STAGE_CODES for stage in stages):
+        raise serializers.ValidationError("The workflow contains an unsupported stage.")
+    if len(stages) != len(set(stages)):
+        raise serializers.ValidationError("Workflow stages must not be duplicated.")
+    if stages[0] != "application" or stages[-1] not in {"decision", "readiness"}:
+        raise serializers.ValidationError("Workflows must start with application and end with decision or readiness.")
+    return {"version": WORKFLOW_CONFIGURATION_VERSION, "stages": stages}
+
+
+def _profile_workflow_configuration(profile):
+    defaults = profile.workflow_defaults or {}
+    return _normalise_workflow_configuration(defaults or {
+        "version": 1,
+        "stages": ["application", "screen", "assessment", "interview", "decision"],
+    })
 
 
 def _profile_supports_work_sample(profile):
@@ -462,6 +493,7 @@ class JobSerializer(serializers.ModelSerializer):
     eligibility_requirements = serializers.JSONField(required=False)
     work_sample_configuration = serializers.JSONField(required=False)
     scenario_configuration = serializers.JSONField(required=False)
+    workflow_configuration = serializers.JSONField(required=False)
 
     def validate_application_configuration(self, value):
         return _normalise_application_configuration(value)
@@ -477,6 +509,9 @@ class JobSerializer(serializers.ModelSerializer):
 
     def validate_scenario_configuration(self, value):
         return _normalise_scenario_configuration(value)
+
+    def validate_workflow_configuration(self, value):
+        return _normalise_workflow_configuration(value)
 
     def get_existing_assessment_questions(self, obj):
         template = getattr(obj, "assessment_template", None)
@@ -526,6 +561,7 @@ class JobSerializer(serializers.ModelSerializer):
             "eligibility_requirements",
             "work_sample_configuration",
             "scenario_configuration",
+            "workflow_configuration",
             "job_type",
             "job_level",
             "location",
@@ -668,7 +704,8 @@ class JobSerializer(serializers.ModelSerializer):
         eligibility_supplied = "eligibility_requirements" in attrs
         work_sample_supplied = "work_sample_configuration" in attrs
         scenario_supplied = "scenario_configuration" in attrs
-        if (configuration_supplied or eligibility_supplied or work_sample_supplied or scenario_supplied) and (not profile or not company or not company.hiring_profiles_enabled):
+        workflow_supplied = "workflow_configuration" in attrs
+        if (configuration_supplied or eligibility_supplied or work_sample_supplied or scenario_supplied or workflow_supplied) and (not profile or not company or not company.hiring_profiles_enabled):
             raise serializers.ValidationError({
                 "application_configuration": "Choose an enabled hiring profile before configuring the candidate journey."
             })
@@ -694,6 +731,7 @@ class JobSerializer(serializers.ModelSerializer):
                 attrs["eligibility_requirements"] = []
                 attrs["work_sample_configuration"] = {}
                 attrs["scenario_configuration"] = {}
+                attrs["workflow_configuration"] = {}
             else:
                 attrs["hiring_engine"] = Job.HiringEngine.CONFIGURABLE
                 attrs["hiring_profile_version"] = profile.version
@@ -703,6 +741,9 @@ class JobSerializer(serializers.ModelSerializer):
                 )
                 attrs["eligibility_requirements"] = attrs.get(
                     "eligibility_requirements", _profile_eligibility_requirements(profile)
+                )
+                attrs["workflow_configuration"] = attrs.get(
+                    "workflow_configuration", _profile_workflow_configuration(profile)
                 )
 
         work_sample_configuration = attrs.get(
@@ -838,6 +879,7 @@ class JobUpdateSerializer(serializers.ModelSerializer):
     eligibility_requirements = serializers.JSONField(read_only=True)
     work_sample_configuration = serializers.JSONField(read_only=True)
     scenario_configuration = serializers.JSONField(read_only=True)
+    workflow_configuration = serializers.JSONField(read_only=True)
 
     class Meta:
         model = Job
@@ -854,6 +896,7 @@ class JobUpdateSerializer(serializers.ModelSerializer):
             "eligibility_requirements",
             "work_sample_configuration",
             "scenario_configuration",
+            "workflow_configuration",
             "job_status",
             "job_type",
             "job_level",
