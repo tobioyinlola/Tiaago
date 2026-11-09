@@ -6,6 +6,7 @@ ai_interview_pass_mark, and "Interview scheduled" only means something is
 actually booked.
 """
 
+import json
 from datetime import timedelta
 from unittest.mock import patch
 
@@ -15,7 +16,7 @@ from django.utils import timezone
 from ai_interviews.models import AIInterview
 from ai_interviews.tasks import _advance_on_ai_interview_result
 from create_user.models import Company, CustomUser, TalentProfile
-from jobs.models import HiringProfile, Job, JobApplication
+from jobs.models import ApplicationEligibilityCheck, HiringProfile, Job, JobApplication
 from jobs.serializers import GuestJobApplicationSerializer, JobSerializer
 from jobs.views import _has_booked_interview
 from scheduler.models import Scheduler
@@ -565,3 +566,179 @@ class HiringProfileFoundationTests(TestCase):
         self.assertFalse(serializer.is_valid())
         self.assertIn("resume", serializer.errors)
         self.assertIn("linkedin_url", serializer.errors)
+
+
+class EligibilityReviewFoundationTests(TestCase):
+    """Operational-role declarations always remain human-reviewable."""
+
+    def setUp(self):
+        from rest_framework.test import APIClient
+
+        self.rep = CustomUser.objects.create_company_user(
+            username="eligibility-rep", email="eligibility-rep@example.com", password="x"
+        )
+        self.rep.verified = True
+        self.rep.save(update_fields=["verified"])
+        self.company = Company.objects.create(
+            company_name="Eligibility Co",
+            company_rep=self.rep,
+            hiring_profiles_enabled=True,
+        )
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.rep)
+        self.driver, _ = HiringProfile.objects.get_or_create(
+            code="driver-frontline",
+            defaults={
+                "name": "Driver & frontline",
+                "summary": "High-volume driving, delivery, customer service, and frontline roles.",
+                "role_family": HiringProfile.RoleFamily.FRONTLINE,
+                "industry_context": "Transport, delivery, retail, hospitality, and field service",
+                "work_setting": "On the road, customer site, depot, or shift location",
+            },
+        )
+        self.driver.application_defaults = {
+            "application_configuration": {
+                "version": 1,
+                "resume": {"enabled": True, "required": False},
+                "linkedin": {"enabled": False, "required": False},
+                "cover_letter": {"enabled": False, "required": False},
+                "additional_info": {
+                    "enabled": True,
+                    "required": True,
+                    "label": "Briefly describe your relevant driving or frontline experience.",
+                },
+            }
+        }
+        self.driver.eligibility_defaults = {
+            "requirements": [
+                {"code": "right-to-work", "required": True},
+                {"code": "driving-licence", "required": True},
+            ]
+        }
+        self.driver.save(update_fields=["application_defaults", "eligibility_defaults"])
+
+    def _job_data(self, **overrides):
+        data = {
+            "role": "Delivery Driver",
+            "job_type": Job.JobType.FULL_TIME,
+            "job_level": Job.JobLevel.JUNIOR,
+            "experience": 1,
+            "salary_duration": Job.SalaryDuration.PER_MONTH,
+            "payment_currency": Job.PaymentCurrency.USD,
+            "payment_range_usd": Job.DollarPaymentRange.RANGE_600_1000,
+            "hiring_profile_code": self.driver.code,
+        }
+        data.update(overrides)
+        return data
+
+    def _publish_job(self):
+        with patch("talent_network.tasks.run_talent_network_matching.delay"):
+            response = self.client.post("/api/jobs/", self._job_data(), format="json")
+        self.assertEqual(response.status_code, 201, response.data)
+        return Job.objects.get(public_id=response.data["public_id"])
+
+    def _apply_as_guest(self, job, *, email, declarations):
+        with patch("jobs.views.emails.application_received_mail"), patch(
+            "jobs.views.carry_out_resume_analysis.delay"
+        ):
+            response = self.client.post(
+                f"/api/jobs/apply/{job.apply_token}/guest/",
+                {
+                    "full_name": "Eligible Driver",
+                    "email": email,
+                    "phone_number": "+2348000000000",
+                    "additional_info": "Three years of last-mile delivery experience.",
+                    "eligibility_declarations": json.dumps(declarations),
+                    "terms_accepted": True,
+                },
+                format="multipart",
+            )
+        self.assertEqual(response.status_code, 201, response.data)
+        return JobApplication.objects.get(id=response.data["id"])
+
+    def test_profile_defaults_are_snapshotted_and_a_positive_declaration_is_pending(self):
+        job = self._publish_job()
+
+        self.assertEqual(
+            job.eligibility_requirements,
+            [
+                {
+                    "code": "right-to-work",
+                    "label": "Right to work",
+                    "description": "I am authorised to work in the role's stated location.",
+                    "required": True,
+                },
+                {
+                    "code": "driving-licence",
+                    "label": "Valid driving licence",
+                    "description": "I hold the valid licence required for this driving role.",
+                    "required": True,
+                },
+            ],
+        )
+
+        application = self._apply_as_guest(
+            job,
+            email="driver-pending@example.com",
+            declarations={"right-to-work": True, "driving-licence": True},
+        )
+
+        checks = list(application.eligibility_checks.order_by("requirement_code"))
+        self.assertEqual(len(checks), 2)
+        self.assertTrue(all(check.declaration for check in checks))
+        self.assertTrue(all(check.status == ApplicationEligibilityCheck.Status.PENDING for check in checks))
+
+    def test_negative_required_declaration_fails_and_recruiter_can_record_final_review(self):
+        job = self._publish_job()
+        application = self._apply_as_guest(
+            job,
+            email="driver-review@example.com",
+            declarations={"right-to-work": True, "driving-licence": False},
+        )
+        licence_check = application.eligibility_checks.get(requirement_code="driving-licence")
+        right_to_work_check = application.eligibility_checks.get(requirement_code="right-to-work")
+
+        self.assertEqual(licence_check.status, ApplicationEligibilityCheck.Status.FAIL)
+        self.assertEqual(right_to_work_check.status, ApplicationEligibilityCheck.Status.PENDING)
+
+        queue = self.client.get("/api/jobs/job-applications/eligibility-review/")
+        self.assertEqual(queue.status_code, 200, queue.data)
+        self.assertEqual(queue.data["count"], 1)
+        self.assertEqual(queue.data["results"][0]["id"], application.id)
+
+        response = self.client.patch(
+            f"/api/jobs/job-applications/{application.id}/eligibility/{right_to_work_check.id}/",
+            {"status": ApplicationEligibilityCheck.Status.PASS},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data["status"], ApplicationEligibilityCheck.Status.PASS)
+        self.assertEqual(response.data["reviewer_name"], self.rep.email)
+
+        right_to_work_check.refresh_from_db()
+        self.assertEqual(right_to_work_check.reviewer, self.rep)
+        self.assertIsNotNone(right_to_work_check.reviewed_at)
+
+        queue = self.client.get("/api/jobs/job-applications/eligibility-review/")
+        self.assertEqual(queue.status_code, 200, queue.data)
+        self.assertEqual(queue.data["count"], 0)
+
+    def test_unanswered_requirements_from_a_non_form_intake_are_never_auto_passed(self):
+        job = self._publish_job()
+
+        application = JobApplication.objects.create(
+            applicant=None,
+            job=job,
+            guest_full_name="Imported Driver",
+            guest_email="driver-imported@example.com",
+            guest_phone_number="+2348000000000",
+        )
+
+        self.assertEqual(application.eligibility_checks.count(), 2)
+        self.assertTrue(
+            all(
+                check.status == ApplicationEligibilityCheck.Status.NEEDS_REVIEW
+                and check.declaration is None
+                for check in application.eligibility_checks.all()
+            )
+        )

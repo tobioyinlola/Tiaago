@@ -18,7 +18,7 @@ import Modal from "@/app/common/components/Modal";
 import { createJob, getJobDraft, saveJobDraft, deleteJobDraft } from "@/app/common/services/jobs";
 import { useAlert } from "@/app/common/store/useAlert";
 import InfoTooltip from "@/app/common/components/InfoTooltip";
-import { ApplicationConfiguration, CountryField, HiringProfile, TalentRole } from "@/app/common/types";
+import { ApplicationConfiguration, CountryField, EligibilityRequirement, HiringProfile, TalentRole } from "@/app/common/types";
 import { useScrollToTop } from "@/app/common/hooks/useScrollToTop";
 import { cn, handleFormSubmissionError } from "@/app/common/utils";
 import FormikField from "@/app/common/components/Forms/FormikField";
@@ -32,6 +32,7 @@ import AssessmentGenerationStep from "./_components/AssessmentGenerationStep";
 import { expandAvailabilityToSlots } from "./_components/availability";
 import HiringProfilePicker from "./_components/HiringProfilePicker";
 import ApplicationRequirements from "./_components/ApplicationRequirements";
+import EligibilityRequirements from "./_components/EligibilityRequirements";
 
 const totalSteps = wizardSteps.length;
 
@@ -220,6 +221,7 @@ const CreateJobForm = ({
             payment_currency,
             hiring_profile_code,
             application_configuration,
+            eligibility_requirements,
             screening_threshold,
             passing_grade,
             assessment_time_limit,
@@ -245,6 +247,14 @@ const CreateJobForm = ({
             ...values,
             ...(hiring_profile_code ? { hiring_profile_code } : {}),
             ...(hiring_profile_code && application_configuration ? { application_configuration } : {}),
+            ...(hiring_profile_code
+              ? {
+                  eligibility_requirements: (eligibility_requirements || []).map(({ code, required }) => ({
+                    code,
+                    required,
+                  })),
+                }
+              : {}),
             payment_currency,
             ...(payment_currency === "USD"
               ? { payment_range_usd: payment_range }
@@ -317,12 +327,19 @@ const CreateJobForm = ({
                     setFieldValue("hiring_profile_code", value);
                     const profile = hiringProfiles.find(item => item.code === value);
                     setFieldValue("application_configuration", profile?.application_configuration);
+                    setFieldValue("eligibility_requirements", profile?.eligibility_requirements || []);
                   }}
                 />
                 {values.hiring_profile_code && values.application_configuration && (
                   <ApplicationRequirements
                     configuration={values.application_configuration as ApplicationConfiguration}
                     onChange={configuration => setFieldValue("application_configuration", configuration)}
+                  />
+                )}
+                {values.hiring_profile_code && (values.eligibility_requirements?.length || 0) > 0 && (
+                  <EligibilityRequirements
+                    requirements={values.eligibility_requirements as EligibilityRequirement[]}
+                    onChange={requirements => setFieldValue("eligibility_requirements", requirements)}
                   />
                 )}
                 {formSections.map(({ title, description, fields }, i) => (

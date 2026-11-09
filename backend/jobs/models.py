@@ -178,6 +178,11 @@ class Job(models.Model):
     # Legacy jobs leave this empty and resolve to LEGACY_APPLICATION_CONFIGURATION
     # below, preserving the existing CV + LinkedIn flow.
     application_configuration = models.JSONField(default=dict, blank=True)
+    # Reviewed eligibility rules captured with a configurable job. Each entry
+    # is a small immutable snapshot (code, label, description, required),
+    # rather than a live pointer to a profile, so later library revisions do
+    # not change a candidate's requirements after they have applied.
+    eligibility_requirements = models.JSONField(default=list, blank=True)
     #tags = models.JSONField(blank=True, default=list, help_text="Optional tags for categorizing the job")
 
     LEGACY_APPLICATION_CONFIGURATION = {
@@ -429,6 +434,15 @@ class Job(models.Model):
     def requires_resume(self):
         return bool(self.get_application_configuration().get("resume", {}).get("required"))
 
+    def get_eligibility_requirements(self):
+        """Return the published requirement snapshots for this job.
+
+        Legacy jobs predate this facility and intentionally return no
+        requirements. A configured job's checks are materialised per
+        application by jobs.services.sync_application_eligibility_checks.
+        """
+        return deepcopy(self.eligibility_requirements or [])
+
     @property
     def hires_with_ai(self):
         return self.hiring_type == WITH_AI
@@ -618,6 +632,57 @@ class JobInterviewAvailabilitySlot(TimeStampedModel):
 
     def __str__(self):
         return f"{self.job} - {self.date} {self.start_time}-{self.end_time}"
+
+
+class ApplicationEligibilityCheck(TimeStampedModel):
+    """A human-reviewable eligibility decision for one job application.
+
+    A candidate declaration is useful evidence but not proof of a licence,
+    right-to-work or safety credential. The declaration is recorded first;
+    an authorised recruiter records the final outcome and reason separately.
+    """
+
+    class Status(models.TextChoices):
+        PENDING = "PENDING", _("Pending review")
+        PASS = "PASS", _("Pass")
+        FAIL = "FAIL", _("Fail")
+        NEEDS_REVIEW = "NEEDS_REVIEW", _("Needs review")
+        NOT_APPLICABLE = "NOT_APPLICABLE", _("Not applicable")
+
+    application = models.ForeignKey(
+        "jobs.JobApplication", on_delete=models.CASCADE, related_name="eligibility_checks"
+    )
+    requirement_code = models.SlugField(max_length=80)
+    requirement_label = models.CharField(max_length=160)
+    requirement_description = models.CharField(max_length=360, blank=True, default="")
+    is_required = models.BooleanField(default=True)
+    declaration = models.BooleanField(null=True, blank=True)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.NEEDS_REVIEW)
+    reviewer = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="reviewed_application_eligibility_checks",
+    )
+    reviewer_reason = models.TextField(max_length=1000, blank=True, default="")
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=("application", "requirement_code"),
+                name="unique_eligibility_requirement_per_application",
+            )
+        ]
+        indexes = [
+            models.Index(fields=("status", "updated_at")),
+            models.Index(fields=("application", "status")),
+        ]
+        ordering = ("created_at",)
+
+    def __str__(self):
+        return f"{self.application_id}: {self.requirement_label} ({self.status})"
 
 
 class JobApplication(models.Model):

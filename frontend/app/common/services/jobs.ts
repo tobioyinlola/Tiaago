@@ -287,6 +287,9 @@ export type GuestJobApplicationPayload = {
   resume?: File;
   cover_letter?: string;
   additional_info?: string;
+  /** Candidate statements for the published job's reviewed eligibility rules.
+   * They are declarations only; the hiring team records the final decision. */
+  eligibility_declarations?: Record<string, boolean>;
   terms_accepted: boolean;
 };
 
@@ -303,6 +306,9 @@ export const submitGuestJobApplication = async (
     if (payload.resume) formData.set("resume", payload.resume);
     formData.set("cover_letter", payload.cover_letter || "");
     formData.set("additional_info", payload.additional_info || "");
+    if (payload.eligibility_declarations) {
+      formData.set("eligibility_declarations", JSON.stringify(payload.eligibility_declarations));
+    }
     formData.set("terms_accepted", String(payload.terms_accepted));
 
     const data = await serverKyInstance

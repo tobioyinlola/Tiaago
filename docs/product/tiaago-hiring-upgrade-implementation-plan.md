@@ -6,8 +6,9 @@ Prepared 9 November 2026. This plan supersedes the agency-first ordering in the 
 
 - UPG-01 is complete: the current job, application, assessment, interview, billing and reporting dependencies were mapped and regression coverage captured.
 - UPG-02 is complete: global reviewed hiring profiles, immutable job snapshots, a server-enforced company rollout flag and legacy/configurable engine selection are deployed.
-- UPG-03 is in progress: the existing job wizard now supports profile selection and saves a versioned candidate-application configuration. Its role-appropriate public application form is live in the codebase.
-- UPG-04 is in progress: guest application submission respects the published CV, LinkedIn, cover-letter and additional-question requirements, including no-CV applications. The signed-in candidate form, downstream screen handling and all later eligibility/evidence workflows remain scheduled work and must not be enabled as a complete journey until their release gates pass.
+- UPG-03 is complete for the initial profile-controlled application journey: the existing job wizard supports profile selection and saves versioned candidate-form and eligibility-requirement snapshots.
+- UPG-04 is in progress: guest application submission respects the published CV, LinkedIn, cover-letter and additional-question requirements, including no-CV applications. The signed-in candidate form, downstream screen handling and assisted/phone intake remain scheduled work and must not be enabled as a complete journey until their release gates pass.
+- UPG-05 has its first foundation: a small reviewed requirement catalogue, immutable job-level requirement snapshots, candidate declarations, per-application pending/pass/fail/needs-review/not-applicable states, and company-scoped review APIs are implemented. A declaration is deliberately not treated as verification. Evidence upload, expiry/source data, queue UI, ownership and workflow gates remain scheduled work.
 
 ## Product objective
 

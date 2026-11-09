@@ -4,6 +4,7 @@ from .models import (
     Job,
     HiringProfile,
     JobApplication,
+    ApplicationEligibilityCheck,
     Portfolio,
     Education,
     Experience,
@@ -40,6 +41,19 @@ class JobApplicationAdmin(admin.ModelAdmin):
     def candidate_name(self, obj):
         name = obj.candidate_full_name
         return f"{name} (guest)" if not obj.applicant_id else name
+
+
+@admin.register(ApplicationEligibilityCheck)
+class ApplicationEligibilityCheckAdmin(admin.ModelAdmin):
+    list_display = ("requirement_label", "application", "status", "is_required", "declaration", "reviewer", "reviewed_at")
+    list_filter = ("status", "is_required", "declaration")
+    search_fields = (
+        "requirement_label",
+        "application__guest_full_name",
+        "application__guest_email",
+        "application__applicant__user__email",
+    )
+    list_select_related = ("application__job", "reviewer")
 
 
 class ExperienceInline(admin.TabularInline):

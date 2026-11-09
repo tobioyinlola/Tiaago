@@ -42,6 +42,8 @@ from .views import (
     JobDraftSaveView,
     DashboardStatsView,
     HiringProfileListView,
+    JobApplicationEligibilityReviewQueueView,
+    JobApplicationEligibilityCheckReviewView,
 )
 
 urlpatterns = [
@@ -61,6 +63,16 @@ urlpatterns = [
         "job-applications/",
         JobApplicationListView.as_view(),
         name="job-applications-list",
+    ),
+    path(
+        "job-applications/eligibility-review/",
+        JobApplicationEligibilityReviewQueueView.as_view(),
+        name="job-application-eligibility-review-queue",
+    ),
+    path(
+        "job-applications/<int:pk>/eligibility/<int:check_pk>/",
+        JobApplicationEligibilityCheckReviewView.as_view(),
+        name="job-application-eligibility-check-review",
     ),
     path(
         "job-applications/<int:pk>/",

@@ -51,6 +51,7 @@ from .models import (
     HiringProfile,
     Job,
     JobApplication,
+    ApplicationEligibilityCheck,
     Portfolio,
     Tool,
     Project,
@@ -86,6 +87,8 @@ from .serializers import (
     JobInterviewAvailabilitySlotSerializer,
     JobDraftSerializer,
     HiringProfileSerializer,
+    ApplicationEligibilityCheckSerializer,
+    ApplicationEligibilityCheckReviewSerializer,
 )
 from .tasks import (
     ACCEPTANCE_MAIL_DELAY_SECONDS,
@@ -1016,7 +1019,7 @@ class JobApplicationListView(ListAPIView):
         qs = JobApplication.objects.select_related(
             "job", "job__company",
             "applicant", "applicant__user",
-        )
+        ).prefetch_related("eligibility_checks__reviewer")
 
         if user.is_staff:
             return qs
@@ -1032,7 +1035,7 @@ class JobApplicationListView(ListAPIView):
 
 
 class JobApplicationRetrieveUpdateView(RetrieveUpdateAPIView):
-    queryset = JobApplication.objects.all()
+    queryset = JobApplication.objects.prefetch_related("eligibility_checks__reviewer")
     serializer_class = JobApplicationUpdateStatusSerializer
     permission_classes = [
         permissions.IsAuthenticated,
@@ -1204,6 +1207,70 @@ class JobApplicationRetrieveUpdateView(RetrieveUpdateAPIView):
         return Response(serializer.data)
 
 
+class JobApplicationEligibilityReviewQueueView(ListAPIView):
+    """Company-scoped queue for requirements that still need a human decision."""
+
+    serializer_class = JobApplicationSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    pagination_class = JobPagination
+
+    def get_queryset(self):
+        if self.request.user.is_staff:
+            return JobApplication.objects.filter(
+                eligibility_checks__status__in=(
+                    ApplicationEligibilityCheck.Status.PENDING,
+                    ApplicationEligibilityCheck.Status.NEEDS_REVIEW,
+                )
+            ).distinct().order_by("-applied_date").select_related("job", "job__company", "applicant", "applicant__user").prefetch_related(
+                "eligibility_checks__reviewer"
+            )
+
+        company = get_user_company(self.request.user)
+        if not company or not user_is_company_role(
+            self.request.user,
+            company,
+            (CompanyTeamMember.ROLE.ADMIN, CompanyTeamMember.ROLE.RECRUITER),
+        ):
+            return JobApplication.objects.none()
+        return JobApplication.objects.filter(
+            job__company=company,
+            eligibility_checks__status__in=(
+                ApplicationEligibilityCheck.Status.PENDING,
+                ApplicationEligibilityCheck.Status.NEEDS_REVIEW,
+            ),
+        ).distinct().order_by("-applied_date").select_related("job", "job__company", "applicant", "applicant__user").prefetch_related(
+            "eligibility_checks__reviewer"
+        )
+
+
+class JobApplicationEligibilityCheckReviewView(APIView):
+    """Records a recruiter/admin eligibility decision with its reason."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def patch(self, request, pk, check_pk):
+        check = get_object_or_404(
+            ApplicationEligibilityCheck.objects.select_related("application__job__company"),
+            id=check_pk,
+            application_id=pk,
+        )
+        company = check.application.job.company
+        if not request.user.is_staff and not user_is_company_role(
+            request.user,
+            company,
+            (CompanyTeamMember.ROLE.ADMIN, CompanyTeamMember.ROLE.RECRUITER),
+        ):
+            return Response({"detail": "You are not authorized for this eligibility review."}, status=HTTP_403_FORBIDDEN)
+
+        serializer = ApplicationEligibilityCheckReviewSerializer(
+            check,
+            data=request.data,
+            context={"request": request},
+        )
+        serializer.is_valid(raise_exception=True)
+        check = serializer.save()
+        return Response(ApplicationEligibilityCheckSerializer(check, context={"request": request}).data)
+
 class JobApplyView(CreateAPIView):
     """Endpoint to apply for a job"""
     serializer_class = JobApplicationSerializer
@@ -1242,7 +1309,10 @@ class JobApplyView(CreateAPIView):
                 status=HTTP_400_BAD_REQUEST,
             )
 
-        serializer = self.get_serializer(data=request.data)
+        serializer = self.get_serializer(
+            data=request.data,
+            context={**self.get_serializer_context(), "job": job},
+        )
         serializer.is_valid(raise_exception=True)
         application = serializer.save(applicant=self.request.user.profile, job=job)
         

@@ -68,9 +68,13 @@ const initialValues: FormValues = {
 
 const GuestApplyForm = ({ job }: { job: Job }) => {
   const configuration = job.application_configuration || legacyApplicationConfiguration;
+  const eligibilityRequirements = job.eligibility_requirements || [];
   const validationSchema = useMemo(() => makeValidationSchema(configuration), [configuration]);
   const [resumeFile, setResumeFile] = useState<File>();
   const [resumeFileName, setResumeFileName] = useState<string>();
+  const [eligibilityDeclarations, setEligibilityDeclarations] = useState<Record<string, boolean>>(() =>
+    Object.fromEntries(eligibilityRequirements.map(requirement => [requirement.code, false]))
+  );
   const [submitted, setSubmitted] = useState(false);
 
   if (submitted) {
@@ -131,11 +135,17 @@ const GuestApplyForm = ({ job }: { job: Job }) => {
                 setSubmitting(false);
                 return;
               }
+              if (eligibilityRequirements.some(requirement => requirement.required && !eligibilityDeclarations[requirement.code])) {
+                toast.error("Please confirm every required eligibility requirement");
+                setSubmitting(false);
+                return;
+              }
               const result = await submitGuestJobApplication(job.apply_token || "", {
                 ...values,
                 full_name: values.full_name.trim(),
                 email: values.email.trim(),
                 ...(resumeFile ? { resume: resumeFile } : {}),
+                eligibility_declarations: eligibilityDeclarations,
               });
               setSubmitting(false);
               if (!result.success) {
@@ -147,7 +157,10 @@ const GuestApplyForm = ({ job }: { job: Job }) => {
             }}
           >
             {({ handleSubmit, errors, touched, values, isSubmitting, setFieldValue, isValid, dirty }) => {
-              const canSubmit = isValid && dirty && (!configuration.resume.required || !!resumeFile) && !isSubmitting;
+              const hasConfirmedRequiredEligibility = eligibilityRequirements.every(
+                requirement => !requirement.required || eligibilityDeclarations[requirement.code]
+              );
+              const canSubmit = isValid && dirty && (!configuration.resume.required || !!resumeFile) && hasConfirmedRequiredEligibility && !isSubmitting;
               return (
                 <form onSubmit={handleSubmit} className='flex flex-col gap-6'>
                   <div className='flex flex-col gap-5'>
@@ -249,6 +262,38 @@ const GuestApplyForm = ({ job }: { job: Job }) => {
                       touched={touched.additional_info}
                     />}
                   </div>
+                  )}
+
+                  {eligibilityRequirements.length > 0 && (
+                    <div className='flex flex-col gap-4 pt-6 border-t border-gray-100'>
+                      <div>
+                        <p className='text-xs font-semibold uppercase tracking-wide text-secondary-black'>
+                          Eligibility declarations
+                        </p>
+                        <p className='mt-1 text-sm text-secondary-black'>
+                          Your answers are declarations. The hiring team may ask to review supporting evidence.
+                        </p>
+                      </div>
+                      <div className='flex flex-col gap-3'>
+                        {eligibilityRequirements.map(requirement => (
+                          <label key={requirement.code} className='flex cursor-pointer items-start gap-3 rounded-lg border border-gray-200 p-3'>
+                            <input
+                              type='checkbox'
+                              checked={!!eligibilityDeclarations[requirement.code]}
+                              onChange={event => setEligibilityDeclarations(current => ({
+                                ...current,
+                                [requirement.code]: event.target.checked,
+                              }))}
+                              className='mt-0.5 h-4 w-4 rounded border-gray-300 accent-primary'
+                            />
+                            <span className='text-sm text-primary-black'>
+                              <span className='font-medium'>{requirement.label}{requirement.required ? " *" : " (optional)"}</span>
+                              <span className='mt-0.5 block text-secondary-black'>{requirement.description}</span>
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
                   )}
 
                   <div className='pt-6 border-t border-gray-100 flex flex-col gap-5'>

@@ -446,6 +446,9 @@ export type Job = {
   /** Immutable candidate-form contract captured when a configurable job is
    * published. Legacy jobs omit it and retain the original application form. */
   application_configuration?: ApplicationConfiguration;
+  /** Reviewed, immutable eligibility rules for this job. A declaration is
+   * collected from the candidate; a recruiter records the final decision. */
+  eligibility_requirements?: EligibilityRequirement[];
   country: string;
   work_mode: string;
   salary_duration: "PH" | "PM" | "CT";
@@ -531,6 +534,27 @@ export type ApplicationConfiguration = {
   additional_info: ApplicationFieldConfiguration & { label: string };
 };
 
+export type EligibilityRequirement = {
+  code:
+    | "right-to-work"
+    | "driving-licence"
+    | "safety-training"
+    | "site-medical-clearance"
+    | "professional-designation";
+  label: string;
+  description: string;
+  required: boolean;
+};
+
+export type ApplicationEligibilityCheck = EligibilityRequirement & {
+  id: ID;
+  declaration: boolean | null;
+  status: "PENDING" | "PASS" | "FAIL" | "NEEDS_REVIEW" | "NOT_APPLICABLE";
+  reviewer_name: string | null;
+  reviewer_reason: string;
+  reviewed_at: string | null;
+};
+
 export type HiringProfile = {
   code: string;
   name: string;
@@ -540,6 +564,7 @@ export type HiringProfile = {
   industry_context: string;
   work_setting: string;
   application_configuration: ApplicationConfiguration;
+  eligibility_requirements: EligibilityRequirement[];
 };
 
 export type HiringProfilesResponse = {
@@ -691,6 +716,7 @@ export type JobApplication = {
   company_logo: string;
   applied_date: string;
   cover_letter: string;
+  eligibility_checks?: ApplicationEligibilityCheck[];
   status:
     | "APPLIED"
     | "REVIEWED"

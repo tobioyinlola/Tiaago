@@ -18,6 +18,7 @@ from .models import (
     Job,
     HiringProfile,
     JobApplication,
+    ApplicationEligibilityCheck,
     Portfolio,
     Education,
     Experience,
@@ -28,6 +29,13 @@ from .models import (
     JobAssessmentTemplateSection,
     JobAssessmentTemplateQuestion,
     JobInterviewAvailabilitySlot,
+)
+from .services import (
+    normalise_eligibility_declarations,
+    normalise_eligibility_requirements,
+    profile_eligibility_requirements,
+    review_application_eligibility_check,
+    sync_application_eligibility_checks,
 )
 
 
@@ -173,6 +181,11 @@ def _profile_application_configuration(profile):
     return _normalise_application_configuration(value)
 
 
+def _profile_eligibility_requirements(profile):
+    """Return the profile's reviewed eligibility defaults as snapshots."""
+    return profile_eligibility_requirements(profile)
+
+
 class HiringProfileSerializer(serializers.ModelSerializer):
     """The safe, recruiter-facing profile library response.
 
@@ -182,9 +195,13 @@ class HiringProfileSerializer(serializers.ModelSerializer):
     """
 
     application_configuration = serializers.SerializerMethodField()
+    eligibility_requirements = serializers.SerializerMethodField()
 
     def get_application_configuration(self, obj):
         return _profile_application_configuration(obj)
+
+    def get_eligibility_requirements(self, obj):
+        return _profile_eligibility_requirements(obj)
 
     class Meta:
         model = HiringProfile
@@ -197,6 +214,7 @@ class HiringProfileSerializer(serializers.ModelSerializer):
             "industry_context",
             "work_setting",
             "application_configuration",
+            "eligibility_requirements",
         )
 
 
@@ -253,9 +271,16 @@ class JobSerializer(serializers.ModelSerializer):
         allow_null=True,
     )
     application_configuration = serializers.JSONField(required=False)
+    eligibility_requirements = serializers.JSONField(required=False)
 
     def validate_application_configuration(self, value):
         return _normalise_application_configuration(value)
+
+    def validate_eligibility_requirements(self, value):
+        try:
+            return normalise_eligibility_requirements(value)
+        except ValueError as error:
+            raise serializers.ValidationError(str(error))
 
     def get_existing_assessment_questions(self, obj):
         template = getattr(obj, "assessment_template", None)
@@ -302,6 +327,7 @@ class JobSerializer(serializers.ModelSerializer):
             "hiring_profile_code",
             "hiring_profile_version",
             "application_configuration",
+            "eligibility_requirements",
             "job_type",
             "job_level",
             "location",
@@ -441,9 +467,10 @@ class JobSerializer(serializers.ModelSerializer):
         profile = attrs.get("hiring_profile", getattr(self.instance, "hiring_profile", None))
         company = getattr(self.instance, "company", None) or self.context.get("company")
         configuration_supplied = "application_configuration" in attrs
-        if configuration_supplied and (not profile or not company or not company.hiring_profiles_enabled):
+        eligibility_supplied = "eligibility_requirements" in attrs
+        if (configuration_supplied or eligibility_supplied) and (not profile or not company or not company.hiring_profiles_enabled):
             raise serializers.ValidationError({
-                "application_configuration": "Choose an enabled hiring profile before configuring the candidate application."
+                "application_configuration": "Choose an enabled hiring profile before configuring the candidate journey."
             })
 
         if profile_supplied:
@@ -464,12 +491,16 @@ class JobSerializer(serializers.ModelSerializer):
                 attrs["hiring_profile_version"] = 0
                 attrs["hiring_profile_snapshot"] = {}
                 attrs["application_configuration"] = {}
+                attrs["eligibility_requirements"] = []
             else:
                 attrs["hiring_engine"] = Job.HiringEngine.CONFIGURABLE
                 attrs["hiring_profile_version"] = profile.version
                 attrs["hiring_profile_snapshot"] = profile.snapshot()
                 attrs["application_configuration"] = attrs.get(
                     "application_configuration", _profile_application_configuration(profile)
+                )
+                attrs["eligibility_requirements"] = attrs.get(
+                    "eligibility_requirements", _profile_eligibility_requirements(profile)
                 )
 
         work_mode = attrs.get("work_mode", getattr(self.instance, "work_mode", "") or "")
@@ -585,6 +616,7 @@ class JobUpdateSerializer(serializers.ModelSerializer):
     # have started could invalidate an active attempt, so the initial release
     # exposes it for review but only permits configuration at publish time.
     application_configuration = serializers.JSONField(read_only=True)
+    eligibility_requirements = serializers.JSONField(read_only=True)
 
     class Meta:
         model = Job
@@ -598,6 +630,7 @@ class JobUpdateSerializer(serializers.ModelSerializer):
             "hiring_profile",
             "hiring_profile_version",
             "application_configuration",
+            "eligibility_requirements",
             "job_status",
             "job_type",
             "job_level",
@@ -648,6 +681,7 @@ class JobUpdateSerializer(serializers.ModelSerializer):
             "hiring_profile",
             "hiring_profile_version",
             "application_configuration",
+            "eligibility_requirements",
         )
 
     def validate_job_status(self, value):
@@ -745,6 +779,59 @@ class JobUpdateSerializer(serializers.ModelSerializer):
 
 
 
+class ApplicationEligibilityCheckSerializer(serializers.ModelSerializer):
+    reviewer_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ApplicationEligibilityCheck
+        fields = (
+            "id",
+            "requirement_code",
+            "requirement_label",
+            "requirement_description",
+            "is_required",
+            "declaration",
+            "status",
+            "reviewer_name",
+            "reviewer_reason",
+            "reviewed_at",
+        )
+        read_only_fields = fields
+
+    def get_reviewer_name(self, obj):
+        if not obj.reviewer_id:
+            return None
+        return obj.reviewer.get_full_name().strip() or obj.reviewer.email
+
+
+class ApplicationEligibilityCheckReviewSerializer(serializers.Serializer):
+    status = serializers.ChoiceField(
+        choices=(
+            ApplicationEligibilityCheck.Status.PASS,
+            ApplicationEligibilityCheck.Status.FAIL,
+            ApplicationEligibilityCheck.Status.NEEDS_REVIEW,
+            ApplicationEligibilityCheck.Status.NOT_APPLICABLE,
+        )
+    )
+    reason = serializers.CharField(max_length=1000, required=False, allow_blank=True)
+
+    def validate(self, attrs):
+        if attrs["status"] in {
+            ApplicationEligibilityCheck.Status.FAIL,
+            ApplicationEligibilityCheck.Status.NEEDS_REVIEW,
+        } and not attrs.get("reason", "").strip():
+            raise serializers.ValidationError({"reason": "Add a reason for a failed or unresolved requirement."})
+        return attrs
+
+    def update(self, instance, validated_data):
+        return review_application_eligibility_check(
+            instance,
+            status=validated_data["status"],
+            reviewer=self.context["request"].user,
+            reason=validated_data.get("reason", ""),
+        )
+
+
 class JobApplicationSerializer(serializers.ModelSerializer):
     job = JobSerializer(read_only=True)
     applicant = serializers.SerializerMethodField()
@@ -752,6 +839,8 @@ class JobApplicationSerializer(serializers.ModelSerializer):
     company_logo = serializers.ReadOnlyField(source="job.company.get_logo_url")
     resume = serializers.FileField(required=False, write_only=True)
     cover_letter = serializers.CharField(required=False, allow_blank=True, max_length=3000)
+    eligibility_declarations = serializers.JSONField(required=False, write_only=True)
+    eligibility_checks = ApplicationEligibilityCheckSerializer(many=True, read_only=True)
 
     class Meta:
         model = JobApplication
@@ -767,6 +856,8 @@ class JobApplicationSerializer(serializers.ModelSerializer):
             "created",
             "last_updated",
             "resume",
+            "eligibility_declarations",
+            "eligibility_checks",
         )
 
     def get_applicant(self, obj):
@@ -818,6 +909,11 @@ class JobApplicationSerializer(serializers.ModelSerializer):
 
         return value
 
+    def validate_eligibility_declarations(self, value):
+        if not isinstance(value, dict) or any(not isinstance(declaration, bool) for declaration in value.values()):
+            raise serializers.ValidationError("Eligibility declarations must be a map of requirement codes to true or false.")
+        return value
+
     def validate(self, attrs):
         job = self.context.get('job')
         if job and job.job_status != Job.JobStatus.ACTIVE:
@@ -825,11 +921,20 @@ class JobApplicationSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 f"This job is currently {status_display.lower()} and not accepting applications"
             )
+        if job:
+            try:
+                attrs["eligibility_declarations"] = normalise_eligibility_declarations(
+                    job.get_eligibility_requirements(),
+                    attrs.get("eligibility_declarations", {}),
+                )
+            except ValueError as error:
+                raise serializers.ValidationError({"eligibility_declarations": str(error)})
         return attrs
 
     def create(self, validated_data):
         resume = validated_data.pop('resume', None)
         cover_letter = validated_data.get('cover_letter', '')
+        eligibility_declarations = validated_data.pop("eligibility_declarations", {})
         # Set is_external_application to False for normal applications
         validated_data['is_external_application'] = False
         application = super().create(validated_data)
@@ -843,6 +948,7 @@ class JobApplicationSerializer(serializers.ModelSerializer):
         # Update cover letter
         application.cover_letter = cover_letter
         application.save()
+        sync_application_eligibility_checks(application, eligibility_declarations)
 
         return application
 
@@ -868,6 +974,7 @@ class GuestJobApplicationSerializer(serializers.Serializer):
     resume = serializers.FileField(required=False, allow_null=True)
     cover_letter = serializers.CharField(required=False, allow_blank=True, max_length=3000)
     additional_info = serializers.CharField(required=False, allow_blank=True, max_length=3000)
+    eligibility_declarations = serializers.JSONField(required=False, write_only=True)
     terms_accepted = serializers.BooleanField()
 
     def validate_email(self, value):
@@ -876,6 +983,11 @@ class GuestJobApplicationSerializer(serializers.Serializer):
     def validate_terms_accepted(self, value):
         if not value:
             raise serializers.ValidationError("You must agree to the Terms & Conditions and Privacy Policy.")
+        return value
+
+    def validate_eligibility_declarations(self, value):
+        if not isinstance(value, dict) or any(not isinstance(declaration, bool) for declaration in value.values()):
+            raise serializers.ValidationError("Eligibility declarations must be a map of requirement codes to true or false.")
         return value
 
     def validate_resume(self, value):
@@ -930,10 +1042,19 @@ class GuestJobApplicationSerializer(serializers.Serializer):
         if errors:
             raise serializers.ValidationError(errors)
 
+        try:
+            attrs["eligibility_declarations"] = normalise_eligibility_declarations(
+                job.get_eligibility_requirements(),
+                attrs.get("eligibility_declarations", {}),
+            )
+        except ValueError as error:
+            raise serializers.ValidationError({"eligibility_declarations": str(error)})
+
         return attrs
 
     def create(self, validated_data):
         job = self.context["job"]
+        eligibility_declarations = validated_data.pop("eligibility_declarations", {})
         application = JobApplication.objects.create(
             applicant=None,
             job=job,
@@ -946,6 +1067,7 @@ class GuestJobApplicationSerializer(serializers.Serializer):
             additional_info=validated_data.get("additional_info", ""),
             is_external_application=False,
         )
+        sync_application_eligibility_checks(application, eligibility_declarations)
         return application
 
 
@@ -971,6 +1093,7 @@ class JobApplicationUpdateStatusSerializer(serializers.ModelSerializer):
     status = serializers.ChoiceField(
         choices=JobApplication.JobApplicationStatus.choices
     )
+    eligibility_checks = ApplicationEligibilityCheckSerializer(many=True, read_only=True)
 
     class Meta:
         model = JobApplication
@@ -984,6 +1107,7 @@ class JobApplicationUpdateStatusSerializer(serializers.ModelSerializer):
             "status",
             "created",
             "last_updated",
+            "eligibility_checks",
         )
         read_only_fields = (
             "applicant",
@@ -991,6 +1115,7 @@ class JobApplicationUpdateStatusSerializer(serializers.ModelSerializer):
             "company",
             "applied_date",
             "cover_letter",
+            "eligibility_checks",
         )
 
 
@@ -1013,6 +1138,7 @@ class JobTokenValidationSerializer(serializers.Serializer):
 class ExternalJobApplicationSerializer(serializers.ModelSerializer):
     job_token = serializers.UUIDField(write_only=True)
     resume = serializers.FileField(required=False)
+    eligibility_declarations = serializers.JSONField(required=False, write_only=True)
     cover_letter = serializers.CharField(
         required=False, 
         allow_blank=True,
@@ -1022,7 +1148,7 @@ class ExternalJobApplicationSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = JobApplication
-        fields = ['id', 'applicant', 'job','job_token', 'resume', 'cover_letter', 'status', 'applied_date', 'is_external_application', 'verification_prompted', 'verification_completed']
+        fields = ['id', 'applicant', 'job','job_token', 'resume', 'cover_letter', 'eligibility_declarations', 'status', 'applied_date', 'is_external_application', 'verification_prompted', 'verification_completed']
         read_only_fields = ['id', 'applicant', 'job', 'status', 'applied_date', 'is_external_application', 'verification_prompted', 'verification_completed']
 
     def validate(self, data):
@@ -1048,6 +1174,13 @@ class ExternalJobApplicationSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError("This job link has expired")
             
             data['job'] = job
+            try:
+                data["eligibility_declarations"] = normalise_eligibility_declarations(
+                    job.get_eligibility_requirements(),
+                    data.get("eligibility_declarations", {}),
+                )
+            except ValueError as error:
+                raise serializers.ValidationError({"eligibility_declarations": str(error)})
             return data
 
         except Job.DoesNotExist:
@@ -1069,6 +1202,7 @@ class ExternalJobApplicationSerializer(serializers.ModelSerializer):
 
         resume = validated_data.pop('resume', None)
         cover_letter = validated_data.pop('cover_letter', '')
+        eligibility_declarations = validated_data.pop("eligibility_declarations", {})
 
         if resume:
             # Update talent's resume if provided
@@ -1091,6 +1225,8 @@ class ExternalJobApplicationSerializer(serializers.ModelSerializer):
         if cover_letter:
             application.cover_letter = cover_letter
             application.save()
+
+        sync_application_eligibility_checks(application, eligibility_declarations)
             
         return application
 

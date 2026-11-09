@@ -9,6 +9,12 @@ def increment_job_application_count(sender, instance, created, **kwargs):
         job = instance.job
         job.no_of_applications += 1
         job.save(update_fields=['no_of_applications'])
+        # Every intake path (guest, signed-in, referral or API) creates the
+        # same eligibility rows. The submit serializer may immediately add
+        # declarations afterwards; see sync_application_eligibility_checks.
+        from .services import sync_application_eligibility_checks
+
+        sync_application_eligibility_checks(instance)
 
 
 @receiver(post_delete, sender=JobApplication)
