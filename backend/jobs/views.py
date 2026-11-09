@@ -1215,13 +1215,6 @@ class JobApplyView(CreateAPIView):
     def create(self, request, *args, **kwargs):
         user = request.user
         job_pk = kwargs.get("job_pk")
-        
-        # If job uses AI hiring and no resume is provided in request or profile
-        if not (request.FILES.get('resume') or request.user.profile.resume):
-            return Response(
-                {"detail": "Please provide a resume or update your profile with your resume"},
-                status=HTTP_400_BAD_REQUEST,
-            )
         # see if job exists, return appropriate response
         try:
             job: Job = Job.approved.get(pk=job_pk)
@@ -1230,6 +1223,14 @@ class JobApplyView(CreateAPIView):
         # check if the job is still active
         if job.job_status != Job.JobStatus.ACTIVE:
             return Response({"detail": "Job not active"}, status=HTTP_400_BAD_REQUEST)
+
+        # Legacy jobs retain the existing CV requirement. Configurable jobs
+        # may intentionally permit a no-CV operational/frontline application.
+        if job.requires_resume() and not (request.FILES.get('resume') or request.user.profile.resume):
+            return Response(
+                {"detail": "Please provide a resume or update your profile with your resume"},
+                status=HTTP_400_BAD_REQUEST,
+            )
 
         # check if the user has already applied
         exists = JobApplication.objects.filter(
@@ -1252,7 +1253,7 @@ class JobApplyView(CreateAPIView):
         # --- SUBSCRIPTION + WALLET CHECK HAPPENS FIRST ---
         # check_subscription_wallet_fallback(job_owner, usage, job, determiner="resume-analyzes")
         
-        if job.hires_with_ai:
+        if job.hires_with_ai and application.candidate_resume:
             carry_out_resume_analysis.delay(application.id)                
         return Response(serializer.data, status=HTTP_201_CREATED)
 
@@ -1318,7 +1319,7 @@ class ExternalJobApplicationView(CreateAPIView):
         )
         
         # If job uses AI hiring, trigger resume analysis
-        if application.job.hires_with_ai:
+        if application.job.hires_with_ai and application.candidate_resume:
             carry_out_resume_analysis.delay(application.id)
 
         return Response(serializer.data, status=HTTP_201_CREATED)
@@ -1597,7 +1598,7 @@ class JobApplyByIdView(APIView):
         # (e.g. AI service unreachable, or CELERY_TASK_ALWAYS_EAGER running the
         # task inline in dev) must never fail the candidate's own request --
         # the application itself is already saved successfully at this point.
-        if job.hires_with_ai:
+        if job.hires_with_ai and application.candidate_resume:
             try:
                 carry_out_resume_analysis.delay(application.id)
             except Exception:
@@ -1643,25 +1644,32 @@ class JobApplyByTokenView(APIView):
         if JobApplication.objects.filter(applicant=user.profile, job=job).exists():
             return Response({'error': 'Already applied to this job'}, status=HTTP_400_BAD_REQUEST)
         
-        # Check for resume if job uses AI hiring
-        if job.hires_with_ai and not user.profile.resume:
+        # A profile can deliberately permit a no-CV application; legacy jobs
+        # still use the original resume requirement.
+        if job.requires_resume() and not user.profile.resume:
             return Response(
-                {'error': 'Resume is required for AI-powered job applications'},
+                {'error': 'A resume is required for this job application'},
                 status=HTTP_400_BAD_REQUEST
             )
         
         # Get cover letter from request data
         cover_letter = request.data.get('cover_letter', '')
+        if job.get_application_configuration()["cover_letter"]["required"] and not cover_letter.strip():
+            return Response(
+                {'error': 'A cover letter is required for this job application'},
+                status=HTTP_400_BAD_REQUEST,
+            )
         
         application = JobApplication.objects.create(
             applicant=user.profile, 
             job=job, 
             cover_letter=cover_letter,
+            additional_info=request.data.get('additional_info', ''),
             is_external_application=True
         )
         
         # If job uses AI hiring, trigger resume analysis
-        if job.hires_with_ai:
+        if job.hires_with_ai and application.candidate_resume:
             carry_out_resume_analysis.delay(application.id)
         
         serializer = JobApplicationSerializer(application)
@@ -1823,11 +1831,17 @@ class ApplyToPendingJobView(APIView):
         if JobApplication.objects.filter(applicant=user.profile, job=job).exists():
             return Response({'error': 'Already applied to this job'}, status=HTTP_400_BAD_REQUEST)
         
-        # Check for resume if job uses AI hiring
-        if job.hires_with_ai and not user.profile.resume:
+        if job.requires_resume() and not user.profile.resume:
             return Response(
-                {'error': 'Resume is required for AI-powered job applications'},
+                {'error': 'A resume is required for this job application'},
                 status=HTTP_400_BAD_REQUEST
+            )
+
+        configuration = job.get_application_configuration()
+        if configuration["cover_letter"]["required"] or configuration["additional_info"]["required"]:
+            return Response(
+                {'error': 'Please complete this job application from the job page so you can answer all required questions.'},
+                status=HTTP_400_BAD_REQUEST,
             )
         
         # Create application
@@ -1840,7 +1854,7 @@ class ApplyToPendingJobView(APIView):
         )
         
         # If job uses AI hiring, trigger resume analysis
-        if job.hires_with_ai:
+        if job.hires_with_ai and application.candidate_resume:
             carry_out_resume_analysis.delay(application.id)
 
         serializer = JobApplicationSerializer(application)

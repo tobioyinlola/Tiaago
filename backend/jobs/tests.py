@@ -16,7 +16,7 @@ from ai_interviews.models import AIInterview
 from ai_interviews.tasks import _advance_on_ai_interview_result
 from create_user.models import Company, CustomUser, TalentProfile
 from jobs.models import HiringProfile, Job, JobApplication
-from jobs.serializers import JobSerializer
+from jobs.serializers import GuestJobApplicationSerializer, JobSerializer
 from jobs.views import _has_booked_interview
 from scheduler.models import Scheduler
 
@@ -376,7 +376,33 @@ class HiringProfileFoundationTests(TestCase):
         )
         self.client = APIClient()
         self.client.force_authenticate(user=self.rep)
-        self.finance = HiringProfile.objects.get(code="finance-accounting")
+        # A retained Django test database is flushed after a suite, which
+        # removes rows seeded by RunPython migrations. Create the profile if
+        # needed so these tests exercise the same contract on fresh and
+        # `--keepdb` runs.
+        self.finance, _ = HiringProfile.objects.get_or_create(
+            code="finance-accounting",
+            defaults={
+                "name": "Finance & accounting",
+                "summary": "Professional finance, accounting, audit, treasury, tax, and FP&A roles.",
+                "role_family": HiringProfile.RoleFamily.PROFESSIONAL,
+                "industry_context": "Finance, accounting, and professional services",
+                "work_setting": "Office, hybrid, or client site",
+                "application_defaults": {
+                    "application_configuration": {
+                        "version": 1,
+                        "resume": {"enabled": True, "required": True},
+                        "linkedin": {"enabled": True, "required": False},
+                        "cover_letter": {"enabled": True, "required": False},
+                        "additional_info": {
+                            "enabled": False,
+                            "required": False,
+                            "label": "Anything else you'd like us to know?",
+                        },
+                    }
+                },
+            },
+        )
 
     def _job_data(self, **overrides):
         data = {
@@ -415,6 +441,7 @@ class HiringProfileFoundationTests(TestCase):
     def test_enabled_company_can_publish_an_immutable_profile_snapshot(self):
         self.company.hiring_profiles_enabled = True
         self.company.save(update_fields=["hiring_profiles_enabled"])
+        profile_version_at_publish = self.finance.version
 
         response = self.client.get("/api/jobs/hiring-profiles/")
 
@@ -445,13 +472,96 @@ class HiringProfileFoundationTests(TestCase):
 
         # Updating the library is a future profile revision, not a silent
         # alteration to a job that is already accepting candidates.
-        self.finance.version = 2
+        self.finance.version = profile_version_at_publish + 1
         self.finance.name = "Updated finance profile"
         self.finance.save(update_fields=["version", "name"])
         job.refresh_from_db()
-        self.assertEqual(job.hiring_profile_snapshot["version"], 1)
+        self.assertEqual(job.hiring_profile_snapshot["version"], profile_version_at_publish)
         self.assertEqual(job.hiring_profile_snapshot["name"], "Finance & accounting")
         self.assertEqual(
             JobSerializer(job).data["hiring_profile"]["name"],
             "Finance & accounting",
         )
+
+    def test_enabled_company_can_publish_a_profile_with_a_no_cv_form(self):
+        self.company.hiring_profiles_enabled = True
+        self.company.save(update_fields=["hiring_profiles_enabled"])
+        configuration = {
+            "version": 1,
+            "resume": {"enabled": True, "required": False},
+            "linkedin": {"enabled": False, "required": False},
+            "cover_letter": {"enabled": True, "required": False},
+            "additional_info": {
+                "enabled": True,
+                "required": True,
+                "label": "Tell us about relevant site work.",
+            },
+        }
+
+        with patch("talent_network.tasks.run_talent_network_matching.delay"):
+            response = self.client.post(
+                "/api/jobs/",
+                self._job_data(
+                    hiring_profile_code=self.finance.code,
+                    application_configuration=configuration,
+                ),
+                format="json",
+            )
+
+        self.assertEqual(response.status_code, 201, response.data)
+        job = Job.objects.get(public_id=response.data["public_id"])
+        self.assertEqual(job.application_configuration, configuration)
+        self.assertFalse(job.requires_resume())
+        self.assertEqual(response.data["application_configuration"], configuration)
+
+    def test_guest_no_cv_application_obeys_the_published_form(self):
+        job = _make_job(
+            self.company,
+            application_configuration={
+                "version": 1,
+                "resume": {"enabled": True, "required": False},
+                "linkedin": {"enabled": False, "required": False},
+                "cover_letter": {"enabled": False, "required": False},
+                "additional_info": {
+                    "enabled": True,
+                    "required": True,
+                    "label": "Relevant driving experience",
+                },
+            },
+        )
+        with patch("jobs.views.emails.application_received_mail"), patch(
+            "jobs.views.carry_out_resume_analysis.delay"
+        ) as resume_analysis:
+            response = self.client.post(
+                f"/api/jobs/apply/{job.apply_token}/guest/",
+                {
+                    "full_name": "Guest Candidate",
+                    "email": "guest@example.com",
+                    "phone_number": "+2348000000000",
+                    "additional_info": "Three years of local delivery experience.",
+                    "terms_accepted": True,
+                },
+                format="multipart",
+            )
+
+        self.assertEqual(response.status_code, 201, response.data)
+        resume_analysis.assert_not_called()
+        application = JobApplication.objects.get(id=response.data["id"])
+        self.assertFalse(application.guest_resume)
+        self.assertEqual(application.guest_linkedin_url, "")
+
+    def test_legacy_guest_application_still_requires_cv_and_linkedin(self):
+        job = _make_job(self.company)
+        serializer = GuestJobApplicationSerializer(
+            data={
+                "full_name": "Guest Candidate",
+                "email": "legacy-guest@example.com",
+                "phone_number": "+2348000000000",
+                "terms_accepted": True,
+            },
+            context={"job": job},
+        )
+
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("resume", serializer.errors)
+        self.assertIn("linkedin_url", serializer.errors)

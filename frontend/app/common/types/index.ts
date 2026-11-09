@@ -443,6 +443,9 @@ export type Job = {
   hiring_engine?: "LEGACY" | "CONFIGURABLE";
   hiring_profile?: HiringProfile | null;
   hiring_profile_version?: number;
+  /** Immutable candidate-form contract captured when a configurable job is
+   * published. Legacy jobs omit it and retain the original application form. */
+  application_configuration?: ApplicationConfiguration;
   country: string;
   work_mode: string;
   salary_duration: "PH" | "PM" | "CT";
@@ -515,6 +518,19 @@ export type Job = {
   force_submit_on_critical_violation?: boolean;
 };
 
+export type ApplicationFieldConfiguration = {
+  enabled: boolean;
+  required: boolean;
+};
+
+export type ApplicationConfiguration = {
+  version: 1;
+  resume: ApplicationFieldConfiguration;
+  linkedin: ApplicationFieldConfiguration;
+  cover_letter: ApplicationFieldConfiguration;
+  additional_info: ApplicationFieldConfiguration & { label: string };
+};
+
 export type HiringProfile = {
   code: string;
   name: string;
@@ -523,6 +539,7 @@ export type HiringProfile = {
   role_family: "TECHNICAL" | "PROFESSIONAL" | "OPERATIONS" | "FRONTLINE" | "FIELD";
   industry_context: string;
   work_setting: string;
+  application_configuration: ApplicationConfiguration;
 };
 
 export type HiringProfilesResponse = {

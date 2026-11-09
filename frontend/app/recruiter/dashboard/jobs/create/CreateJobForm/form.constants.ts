@@ -1,6 +1,6 @@
 import * as Yup from "yup";
 
-import { FormField, Job, RichTextToolbar } from "@/app/common/types";
+import { ApplicationConfiguration, FormField, Job, RichTextToolbar } from "@/app/common/types";
 import {
   handlePlural,
   jobSalaryTypeToLabel,
@@ -29,6 +29,7 @@ export const jobPostingRichTextToolbar: RichTextToolbar = [
 export const jobBasicDetailsValidationSchema = Yup.object().shape({
   role: Yup.string().required().label("Job title/position"),
   hiring_profile_code: Yup.string().max(80).notRequired().label("Hiring profile"),
+  application_configuration: Yup.mixed<ApplicationConfiguration>().notRequired(),
   job_type: Yup.string()
     .required()
     .label("Job type")
@@ -196,6 +197,7 @@ export const initialValues: InitialValues = {
   title: "",
   role: "",
   hiring_profile_code: "",
+  application_configuration: undefined,
   // @ts-ignore
   job_level: "",
   // @ts-ignore,

@@ -103,14 +103,88 @@ def _hiring_profile_summary(job):
     }
 
 
+APPLICATION_CONFIGURATION_VERSION = 1
+APPLICATION_CONFIGURATION_FIELDS = ("resume", "linkedin", "cover_letter", "additional_info")
+APPLICATION_CONFIGURATION_LABEL_MAX_LENGTH = 120
+
+
+def _normalise_application_configuration(value):
+    """Validate and return the compact, versioned candidate form contract.
+
+    This intentionally accepts only the small first-release surface.  It
+    prevents an API client from storing arbitrary JSON which a later
+    candidate form could accidentally interpret as a required field.
+    """
+    if not isinstance(value, dict):
+        raise serializers.ValidationError("Application configuration must be an object.")
+
+    allowed_top_level = {"version", *APPLICATION_CONFIGURATION_FIELDS}
+    unknown = set(value) - allowed_top_level
+    if unknown:
+        raise serializers.ValidationError(
+            {key: "This application setting is not supported." for key in sorted(unknown)}
+        )
+    if value.get("version") != APPLICATION_CONFIGURATION_VERSION:
+        raise serializers.ValidationError(
+            {"version": f"Only application configuration version {APPLICATION_CONFIGURATION_VERSION} is supported."}
+        )
+
+    normalised = {"version": APPLICATION_CONFIGURATION_VERSION}
+    for field in APPLICATION_CONFIGURATION_FIELDS:
+        raw = value.get(field)
+        if not isinstance(raw, dict):
+            raise serializers.ValidationError({field: "Provide enabled and required settings."})
+        allowed_section_keys = {"enabled", "required"}
+        if field == "additional_info":
+            allowed_section_keys.add("label")
+        unknown_section = set(raw) - allowed_section_keys
+        if unknown_section:
+            raise serializers.ValidationError(
+                {field: f"Unsupported setting: {', '.join(sorted(unknown_section))}."}
+            )
+        enabled = raw.get("enabled")
+        required = raw.get("required")
+        if not isinstance(enabled, bool) or not isinstance(required, bool):
+            raise serializers.ValidationError({field: "Enabled and required must be true or false."})
+        if required and not enabled:
+            raise serializers.ValidationError({field: "A hidden field cannot be required."})
+        normalised[field] = {"enabled": enabled, "required": required}
+        if field == "additional_info":
+            label = raw.get("label", "Anything else you'd like us to know?")
+            if not isinstance(label, str) or not label.strip():
+                raise serializers.ValidationError({field: "Provide a question label."})
+            if len(label.strip()) > APPLICATION_CONFIGURATION_LABEL_MAX_LENGTH:
+                raise serializers.ValidationError(
+                    {field: f"The question label must be {APPLICATION_CONFIGURATION_LABEL_MAX_LENGTH} characters or fewer."}
+                )
+            normalised[field]["label"] = label.strip()
+    return normalised
+
+
+def _profile_application_configuration(profile):
+    """Extract a reviewed profile default without exposing other future
+    workflow defaults to the client.  Older profile rows safely fall back to
+    the legacy form until their content is upgraded by the data migration.
+    """
+    defaults = profile.application_defaults or {}
+    value = defaults.get("application_configuration")
+    if not value:
+        return Job().get_application_configuration()
+    return _normalise_application_configuration(value)
+
+
 class HiringProfileSerializer(serializers.ModelSerializer):
     """The safe, recruiter-facing profile library response.
 
-    The detailed configuration remains on the server and is captured into a
-    job snapshot at publish time.  Exposing only the purpose and context here
-    lets a recruiter make an informed choice without presenting future
-    workflow defaults as controls that already change candidate processing.
+    The profile's reviewed application form is included because the job
+    wizard lets the recruiter adjust it before publishing.  Other future
+    workflow defaults remain server-side until their engines exist.
     """
+
+    application_configuration = serializers.SerializerMethodField()
+
+    def get_application_configuration(self, obj):
+        return _profile_application_configuration(obj)
 
     class Meta:
         model = HiringProfile
@@ -122,6 +196,7 @@ class HiringProfileSerializer(serializers.ModelSerializer):
             "role_family",
             "industry_context",
             "work_setting",
+            "application_configuration",
         )
 
 
@@ -177,6 +252,10 @@ class JobSerializer(serializers.ModelSerializer):
         required=False,
         allow_null=True,
     )
+    application_configuration = serializers.JSONField(required=False)
+
+    def validate_application_configuration(self, value):
+        return _normalise_application_configuration(value)
 
     def get_existing_assessment_questions(self, obj):
         template = getattr(obj, "assessment_template", None)
@@ -222,6 +301,7 @@ class JobSerializer(serializers.ModelSerializer):
             "hiring_profile",
             "hiring_profile_code",
             "hiring_profile_version",
+            "application_configuration",
             "job_type",
             "job_level",
             "location",
@@ -357,9 +437,16 @@ class JobSerializer(serializers.ModelSerializer):
         # Capturing a profile is a publish-time operation.  The profile's
         # complete definition is snapshotted so later library edits cannot
         # rewrite an active job's requirements behind a recruiter's back.
-        if "hiring_profile" in attrs:
-            profile = attrs["hiring_profile"]
-            company = getattr(self.instance, "company", None) or self.context.get("company")
+        profile_supplied = "hiring_profile" in attrs
+        profile = attrs.get("hiring_profile", getattr(self.instance, "hiring_profile", None))
+        company = getattr(self.instance, "company", None) or self.context.get("company")
+        configuration_supplied = "application_configuration" in attrs
+        if configuration_supplied and (not profile or not company or not company.hiring_profiles_enabled):
+            raise serializers.ValidationError({
+                "application_configuration": "Choose an enabled hiring profile before configuring the candidate application."
+            })
+
+        if profile_supplied:
             if not company or not company.hiring_profiles_enabled:
                 raise serializers.ValidationError({
                     "hiring_profile_code": "Configurable hiring profiles are not enabled for this company."
@@ -376,10 +463,14 @@ class JobSerializer(serializers.ModelSerializer):
                 attrs["hiring_engine"] = Job.HiringEngine.LEGACY
                 attrs["hiring_profile_version"] = 0
                 attrs["hiring_profile_snapshot"] = {}
+                attrs["application_configuration"] = {}
             else:
                 attrs["hiring_engine"] = Job.HiringEngine.CONFIGURABLE
                 attrs["hiring_profile_version"] = profile.version
                 attrs["hiring_profile_snapshot"] = profile.snapshot()
+                attrs["application_configuration"] = attrs.get(
+                    "application_configuration", _profile_application_configuration(profile)
+                )
 
         work_mode = attrs.get("work_mode", getattr(self.instance, "work_mode", "") or "")
         country = attrs.get("country", getattr(self.instance, "country", "") or "")
@@ -490,6 +581,10 @@ class JobUpdateSerializer(serializers.ModelSerializer):
     assessment_questions = serializers.JSONField(write_only=True, required=False)
     interview_slots = serializers.JSONField(write_only=True, required=False)
     hiring_profile = serializers.SerializerMethodField(read_only=True)
+    # Publishing captures this form contract. Editing it after candidates
+    # have started could invalidate an active attempt, so the initial release
+    # exposes it for review but only permits configuration at publish time.
+    application_configuration = serializers.JSONField(read_only=True)
 
     class Meta:
         model = Job
@@ -502,6 +597,7 @@ class JobUpdateSerializer(serializers.ModelSerializer):
             "hiring_engine",
             "hiring_profile",
             "hiring_profile_version",
+            "application_configuration",
             "job_status",
             "job_type",
             "job_level",
@@ -551,6 +647,7 @@ class JobUpdateSerializer(serializers.ModelSerializer):
             "hiring_engine",
             "hiring_profile",
             "hiring_profile_version",
+            "application_configuration",
         )
 
     def validate_job_status(self, value):
@@ -767,8 +864,8 @@ class GuestJobApplicationSerializer(serializers.Serializer):
     full_name = serializers.CharField(max_length=255, allow_blank=False, trim_whitespace=True)
     email = serializers.EmailField()
     phone_number = serializers.CharField(max_length=30, allow_blank=False, trim_whitespace=True)
-    linkedin_url = serializers.URLField()
-    resume = serializers.FileField()
+    linkedin_url = serializers.URLField(required=False, allow_blank=True)
+    resume = serializers.FileField(required=False, allow_null=True)
     cover_letter = serializers.CharField(required=False, allow_blank=True, max_length=3000)
     additional_info = serializers.CharField(required=False, allow_blank=True, max_length=3000)
     terms_accepted = serializers.BooleanField()
@@ -782,6 +879,8 @@ class GuestJobApplicationSerializer(serializers.Serializer):
         return value
 
     def validate_resume(self, value):
+        if not value:
+            return value
         if value.size > GUEST_APPLY_MAX_RESUME_SIZE:
             raise serializers.ValidationError("Resume file size too large. Max size is 5MB.")
         file_extension = value.name.split(".")[-1].lower()
@@ -811,6 +910,26 @@ class GuestJobApplicationSerializer(serializers.Serializer):
                 "You've already applied to this job with an account. Please log in to view your application."
             )
 
+        configuration = job.get_application_configuration()
+        required_values = {
+            "resume": attrs.get("resume"),
+            "linkedin": (attrs.get("linkedin_url") or "").strip(),
+            "cover_letter": (attrs.get("cover_letter") or "").strip(),
+            "additional_info": (attrs.get("additional_info") or "").strip(),
+        }
+        errors = {}
+        for field, value in required_values.items():
+            if configuration[field]["required"] and not value:
+                label = {
+                    "resume": "CV / resume",
+                    "linkedin": "LinkedIn profile URL",
+                    "cover_letter": "Cover letter",
+                    "additional_info": configuration["additional_info"]["label"],
+                }[field]
+                errors["linkedin_url" if field == "linkedin" else field] = f"{label} is required for this job."
+        if errors:
+            raise serializers.ValidationError(errors)
+
         return attrs
 
     def create(self, validated_data):
@@ -821,8 +940,8 @@ class GuestJobApplicationSerializer(serializers.Serializer):
             guest_full_name=validated_data["full_name"].strip(),
             guest_email=validated_data["email"],
             guest_phone_number=validated_data["phone_number"],
-            guest_linkedin_url=validated_data["linkedin_url"],
-            guest_resume=validated_data["resume"],
+            guest_linkedin_url=validated_data.get("linkedin_url", ""),
+            guest_resume=validated_data.get("resume"),
             cover_letter=validated_data.get("cover_letter", ""),
             additional_info=validated_data.get("additional_info", ""),
             is_external_application=False,

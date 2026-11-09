@@ -1,6 +1,13 @@
 # Tiaago hiring flexibility upgrade — canonical implementation sequence
 
-Prepared 9 November 2026. This plan supersedes the agency-first ordering in the Byrnel implementation documents. It upgrades the existing Tiaago product for all customers. Byrnel is a validation customer and a source of professional-role requirements; it does not define the product boundary. Planning is complete; the application changes listed here are not yet implemented.
+Prepared 9 November 2026. This plan supersedes the agency-first ordering in the Byrnel implementation documents. It upgrades the existing Tiaago product for all customers. Byrnel is a validation customer and a source of professional-role requirements; it does not define the product boundary.
+
+## Implementation status
+
+- UPG-01 is complete: the current job, application, assessment, interview, billing and reporting dependencies were mapped and regression coverage captured.
+- UPG-02 is complete: global reviewed hiring profiles, immutable job snapshots, a server-enforced company rollout flag and legacy/configurable engine selection are deployed.
+- UPG-03 is in progress: the existing job wizard now supports profile selection and saves a versioned candidate-application configuration. Its role-appropriate public application form is live in the codebase.
+- UPG-04 is in progress: guest application submission respects the published CV, LinkedIn, cover-letter and additional-question requirements, including no-CV applications. The signed-in candidate form, downstream screen handling and all later eligibility/evidence workflows remain scheduled work and must not be enabled as a complete journey until their release gates pass.
 
 ## Product objective
 

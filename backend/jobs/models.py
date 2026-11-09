@@ -1,5 +1,6 @@
 import secrets
 import string
+from copy import deepcopy
 from types import SimpleNamespace
 
 import pycountry
@@ -170,7 +171,26 @@ class Job(models.Model):
     )
     hiring_profile_version = models.PositiveSmallIntegerField(default=0)
     hiring_profile_snapshot = models.JSONField(default=dict, blank=True)
+    # An immutable, job-level copy of the candidate application form.  It is
+    # deliberately separate from HiringProfile.application_defaults: profiles
+    # are a reusable library and may be revised; an applicant must always see
+    # the same requirements the recruiter published for this requisition.
+    # Legacy jobs leave this empty and resolve to LEGACY_APPLICATION_CONFIGURATION
+    # below, preserving the existing CV + LinkedIn flow.
+    application_configuration = models.JSONField(default=dict, blank=True)
     #tags = models.JSONField(blank=True, default=list, help_text="Optional tags for categorizing the job")
+
+    LEGACY_APPLICATION_CONFIGURATION = {
+        "version": 1,
+        "resume": {"enabled": True, "required": True},
+        "linkedin": {"enabled": True, "required": True},
+        "cover_letter": {"enabled": True, "required": False},
+        "additional_info": {
+            "enabled": False,
+            "required": False,
+            "label": "Anything else you'd like us to know?",
+        },
+    }
 
     
     # Job type dropdown
@@ -396,6 +416,18 @@ class Job(models.Model):
     @property
     def title(self):
         return self.role or "Unknown Role"
+
+    def get_application_configuration(self):
+        """The form contract candidates should use for this job.
+
+        Empty is meaningful: it identifies a job published before the
+        configurable journey existed, so it receives the original form
+        requirements without needing a disruptive data migration.
+        """
+        return deepcopy(self.application_configuration or self.LEGACY_APPLICATION_CONFIGURATION)
+
+    def requires_resume(self):
+        return bool(self.get_application_configuration().get("resume", {}).get("required"))
 
     @property
     def hires_with_ai(self):

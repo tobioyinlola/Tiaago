@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import * as Yup from "yup";
 import { Formik } from "formik";
@@ -9,7 +9,7 @@ import { CheckCircle2, Paperclip, FileText } from "lucide-react";
 
 import "react-phone-input-2/lib/style.css";
 
-import { Job } from "@/app/common/types";
+import { ApplicationConfiguration, Job } from "@/app/common/types";
 import DaisyButton from "@/app/common/components/DaisyButton";
 import FormikField from "@/app/common/components/Forms/FormikField";
 import { VanillaFileInput } from "@/app/common/components/Forms/FileInput";
@@ -17,14 +17,34 @@ import { submitGuestJobApplication } from "@/app/common/services/jobs";
 
 const MAX_RESUME_SIZE = 5 * 1024 * 1024; // 5MB
 
-const validationSchema = Yup.object().shape({
-  full_name: Yup.string().trim().required().label("Full name"),
-  email: Yup.string().trim().email("Enter a valid email address").required().label("Email address"),
-  phone_number: Yup.string().trim().required().label("Phone number"),
-  linkedin_url: Yup.string().trim().url("Enter a valid URL").required().label("LinkedIn profile URL"),
-  cover_letter: Yup.string().max(3000).label("Cover letter"),
-  terms_accepted: Yup.boolean().oneOf([true], "You must agree to the Terms & Conditions and Privacy Policy"),
-});
+const legacyApplicationConfiguration: ApplicationConfiguration = {
+  version: 1,
+  resume: { enabled: true, required: true },
+  linkedin: { enabled: true, required: true },
+  cover_letter: { enabled: true, required: false },
+  additional_info: {
+    enabled: false,
+    required: false,
+    label: "Anything else you'd like us to know?",
+  },
+};
+
+const makeValidationSchema = (configuration: ApplicationConfiguration) =>
+  Yup.object().shape({
+    full_name: Yup.string().trim().required().label("Full name"),
+    email: Yup.string().trim().email("Enter a valid email address").required().label("Email address"),
+    phone_number: Yup.string().trim().required().label("Phone number"),
+    linkedin_url: configuration.linkedin.required
+      ? Yup.string().trim().url("Enter a valid URL").required().label("LinkedIn profile URL")
+      : Yup.string().trim().url("Enter a valid URL").notRequired().label("LinkedIn profile URL"),
+    cover_letter: configuration.cover_letter.required
+      ? Yup.string().trim().max(3000).required().label("Cover letter")
+      : Yup.string().max(3000).notRequired().label("Cover letter"),
+    additional_info: configuration.additional_info.required
+      ? Yup.string().trim().max(3000).required().label(configuration.additional_info.label)
+      : Yup.string().max(3000).notRequired().label(configuration.additional_info.label),
+    terms_accepted: Yup.boolean().oneOf([true], "You must agree to the Terms & Conditions and Privacy Policy"),
+  });
 
 type FormValues = {
   full_name: string;
@@ -32,6 +52,7 @@ type FormValues = {
   phone_number: string;
   linkedin_url: string;
   cover_letter: string;
+  additional_info: string;
   terms_accepted: boolean;
 };
 
@@ -41,10 +62,13 @@ const initialValues: FormValues = {
   phone_number: "",
   linkedin_url: "",
   cover_letter: "",
+  additional_info: "",
   terms_accepted: false,
 };
 
 const GuestApplyForm = ({ job }: { job: Job }) => {
+  const configuration = job.application_configuration || legacyApplicationConfiguration;
+  const validationSchema = useMemo(() => makeValidationSchema(configuration), [configuration]);
   const [resumeFile, setResumeFile] = useState<File>();
   const [resumeFileName, setResumeFileName] = useState<string>();
   const [submitted, setSubmitted] = useState(false);
@@ -102,7 +126,7 @@ const GuestApplyForm = ({ job }: { job: Job }) => {
             initialValues={initialValues}
             validationSchema={validationSchema}
             onSubmit={async (values, { setSubmitting }) => {
-              if (!resumeFile) {
+              if (configuration.resume.required && !resumeFile) {
                 toast.error("Please upload your CV / resume");
                 setSubmitting(false);
                 return;
@@ -111,7 +135,7 @@ const GuestApplyForm = ({ job }: { job: Job }) => {
                 ...values,
                 full_name: values.full_name.trim(),
                 email: values.email.trim(),
-                resume: resumeFile,
+                ...(resumeFile ? { resume: resumeFile } : {}),
               });
               setSubmitting(false);
               if (!result.success) {
@@ -123,7 +147,7 @@ const GuestApplyForm = ({ job }: { job: Job }) => {
             }}
           >
             {({ handleSubmit, errors, touched, values, isSubmitting, setFieldValue, isValid, dirty }) => {
-              const canSubmit = isValid && dirty && !!resumeFile && !isSubmitting;
+              const canSubmit = isValid && dirty && (!configuration.resume.required || !!resumeFile) && !isSubmitting;
               return (
                 <form onSubmit={handleSubmit} className='flex flex-col gap-6'>
                   <div className='flex flex-col gap-5'>
@@ -162,25 +186,28 @@ const GuestApplyForm = ({ job }: { job: Job }) => {
                       />
                     </div>
 
-                    <FormikField
-                      name='linkedin_url'
-                      label='LinkedIn Profile URL'
-                      placeholder='https://linkedin.com/in/your-profile'
-                      value={values.linkedin_url}
-                      error={errors.linkedin_url}
-                      touched={touched.linkedin_url}
-                    />
+                    {configuration.linkedin.enabled && (
+                      <FormikField
+                        name='linkedin_url'
+                        label={`LinkedIn Profile URL${configuration.linkedin.required ? "" : " (optional)"}`}
+                        placeholder='https://linkedin.com/in/your-profile'
+                        value={values.linkedin_url}
+                        error={errors.linkedin_url}
+                        touched={touched.linkedin_url}
+                      />
+                    )}
                   </div>
 
+                  {(configuration.resume.enabled || configuration.cover_letter.enabled || configuration.additional_info.enabled) && (
                   <div className='flex flex-col gap-5 pt-6 border-t border-gray-100'>
                     <p className='text-xs font-semibold uppercase tracking-wide text-secondary-black'>
-                      Resume &amp; cover letter
+                      Application details
                     </p>
 
-                    <div>
+                    {configuration.resume.enabled && <div>
                       <label className='label-text text-black font-medium font-onest mb-1 flex items-center gap-1.5'>
                         <FileText className='h-3.5 w-3.5 text-secondary-black' />
-                        CV / Resume <span className='text-error'>*</span>
+                        CV / Resume {configuration.resume.required && <span className='text-error'>*</span>}
                       </label>
                       <VanillaFileInput
                         name='resume'
@@ -200,18 +227,29 @@ const GuestApplyForm = ({ job }: { job: Job }) => {
                           <Paperclip className='h-3.5 w-3.5' /> {resumeFileName}
                         </p>
                       )}
-                    </div>
+                    </div>}
 
-                    <FormikField
+                    {configuration.cover_letter.enabled && <FormikField
                       name='cover_letter'
                       type='textarea'
-                      label='Cover Letter (optional)'
+                      label={`Cover Letter${configuration.cover_letter.required ? "" : " (optional)"}`}
                       placeholder='Tell us why you would be a great fit...'
                       value={values.cover_letter}
                       error={errors.cover_letter}
                       touched={touched.cover_letter}
-                    />
+                    />}
+
+                    {configuration.additional_info.enabled && <FormikField
+                      name='additional_info'
+                      type='textarea'
+                      label={`${configuration.additional_info.label}${configuration.additional_info.required ? "" : " (optional)"}`}
+                      placeholder='Add a short answer...'
+                      value={values.additional_info}
+                      error={errors.additional_info}
+                      touched={touched.additional_info}
+                    />}
                   </div>
+                  )}
 
                   <div className='pt-6 border-t border-gray-100 flex flex-col gap-5'>
                     <label className='flex items-start gap-3 cursor-pointer'>

@@ -283,8 +283,8 @@ export type GuestJobApplicationPayload = {
   full_name: string;
   email: string;
   phone_number: string;
-  linkedin_url: string;
-  resume: File;
+  linkedin_url?: string;
+  resume?: File;
   cover_letter?: string;
   additional_info?: string;
   terms_accepted: boolean;
@@ -299,8 +299,8 @@ export const submitGuestJobApplication = async (
     formData.set("full_name", payload.full_name);
     formData.set("email", payload.email);
     formData.set("phone_number", payload.phone_number);
-    formData.set("linkedin_url", payload.linkedin_url);
-    formData.set("resume", payload.resume);
+    if (payload.linkedin_url) formData.set("linkedin_url", payload.linkedin_url);
+    if (payload.resume) formData.set("resume", payload.resume);
     formData.set("cover_letter", payload.cover_letter || "");
     formData.set("additional_info", payload.additional_info || "");
     formData.set("terms_accepted", String(payload.terms_accepted));

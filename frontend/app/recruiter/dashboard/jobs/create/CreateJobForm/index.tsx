@@ -18,7 +18,7 @@ import Modal from "@/app/common/components/Modal";
 import { createJob, getJobDraft, saveJobDraft, deleteJobDraft } from "@/app/common/services/jobs";
 import { useAlert } from "@/app/common/store/useAlert";
 import InfoTooltip from "@/app/common/components/InfoTooltip";
-import { CountryField, HiringProfile, TalentRole } from "@/app/common/types";
+import { ApplicationConfiguration, CountryField, HiringProfile, TalentRole } from "@/app/common/types";
 import { useScrollToTop } from "@/app/common/hooks/useScrollToTop";
 import { cn, handleFormSubmissionError } from "@/app/common/utils";
 import FormikField from "@/app/common/components/Forms/FormikField";
@@ -31,6 +31,7 @@ import CriteriaAvailabilityStep from "./_components/CriteriaAvailabilityStep";
 import AssessmentGenerationStep from "./_components/AssessmentGenerationStep";
 import { expandAvailabilityToSlots } from "./_components/availability";
 import HiringProfilePicker from "./_components/HiringProfilePicker";
+import ApplicationRequirements from "./_components/ApplicationRequirements";
 
 const totalSteps = wizardSteps.length;
 
@@ -218,6 +219,7 @@ const CreateJobForm = ({
             payment_range,
             payment_currency,
             hiring_profile_code,
+            application_configuration,
             screening_threshold,
             passing_grade,
             assessment_time_limit,
@@ -242,6 +244,7 @@ const CreateJobForm = ({
           createJob({
             ...values,
             ...(hiring_profile_code ? { hiring_profile_code } : {}),
+            ...(hiring_profile_code && application_configuration ? { application_configuration } : {}),
             payment_currency,
             ...(payment_currency === "USD"
               ? { payment_range_usd: payment_range }
@@ -310,8 +313,18 @@ const CreateJobForm = ({
                 <HiringProfilePicker
                   profiles={hiringProfiles}
                   value={values.hiring_profile_code || ""}
-                  onChange={value => setFieldValue("hiring_profile_code", value)}
+                  onChange={value => {
+                    setFieldValue("hiring_profile_code", value);
+                    const profile = hiringProfiles.find(item => item.code === value);
+                    setFieldValue("application_configuration", profile?.application_configuration);
+                  }}
                 />
+                {values.hiring_profile_code && values.application_configuration && (
+                  <ApplicationRequirements
+                    configuration={values.application_configuration as ApplicationConfiguration}
+                    onChange={configuration => setFieldValue("application_configuration", configuration)}
+                  />
+                )}
                 {formSections.map(({ title, description, fields }, i) => (
                   <div key={title} className='flex flex-col md:gap-2'>
                     <div className='flex items-center gap-2'>
