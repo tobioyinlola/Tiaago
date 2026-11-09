@@ -108,7 +108,7 @@ from .tasks import (
     send_manual_rejection_mail,
     send_offer_extended_notice_mail,
 )
-from .services import eligibility_progression_block_detail
+from .services import eligibility_progression_block_detail, workflow_transition_block_detail
 from emails import emails
 from rest_framework.permissions import AllowAny
 from payments.models import PaymentMethod
@@ -1121,6 +1121,9 @@ class JobApplicationRetrieveUpdateView(RetrieveUpdateAPIView):
             JobApplication.JobApplicationStatus.OFFER_DECLINED,
         }
         if status_value != previous_status and status_value not in non_progressing_statuses:
+            workflow_hold = workflow_transition_block_detail(instance, status_value)
+            if workflow_hold:
+                return Response({"detail": workflow_hold}, status=HTTP_400_BAD_REQUEST)
             eligibility_hold = eligibility_progression_block_detail(instance)
             if eligibility_hold:
                 return Response({"detail": eligibility_hold}, status=HTTP_400_BAD_REQUEST)

@@ -10,6 +10,38 @@ from django.utils import timezone
 logger = logging.getLogger(__name__)
 
 
+def workflow_transition_block_detail(application, target_status):
+    """Return a hold message when a configurable job omits a target stage.
+
+    This deliberately guards only recruiter/API transitions already owned by
+    the existing status engine. Legacy jobs bypass it unchanged; subsequent
+    slices add dedicated practical/readiness actions rather than pretending a
+    legacy status can represent them.
+    """
+    from .models import Job
+
+    if application.job.hiring_engine != Job.HiringEngine.CONFIGURABLE:
+        return ""
+    from .models import JobApplication
+
+    stage_for_status = {
+        JobApplication.JobApplicationStatus.REVIEWED: "screen",
+        JobApplication.JobApplicationStatus.PENDING_DECISION: "interview",
+        JobApplication.JobApplicationStatus.AI_INTERVIEW: "interview",
+        JobApplication.JobApplicationStatus.HUMAN_INTERVIEW: "interview",
+        JobApplication.JobApplicationStatus.INTERVIEW_SCHEDULED: "interview",
+        JobApplication.JobApplicationStatus.SECOND_INTERVIEW: "interview",
+        JobApplication.JobApplicationStatus.INTERVIEW_COMPLETED: "interview",
+        JobApplication.JobApplicationStatus.OFFER_EXTENDED: "decision",
+        JobApplication.JobApplicationStatus.OFFER_ACCEPTED: "decision",
+        JobApplication.JobApplicationStatus.OFFER_DECLINED: "decision",
+    }
+    stage = stage_for_status.get(target_status)
+    if stage and stage not in application.job.get_workflow_configuration()["stages"]:
+        return f"This job's published workflow does not include the {stage.replace('_', ' ')} stage."
+    return ""
+
+
 # This deliberately small, reviewed catalogue is the first eligibility
 # release. It covers the requirements repeatedly needed by professional,
 # frontline and field roles without pretending an applicant declaration is a
