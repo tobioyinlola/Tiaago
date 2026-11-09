@@ -438,6 +438,11 @@ export type Job = {
   /** Free-text role/title typed by the recruiter -- not a Role id/FK. */
   role: string;
   role_title: string;
+  /** Legacy jobs have no profile. Configurable jobs capture the profile
+   * version that was chosen when they were published. */
+  hiring_engine?: "LEGACY" | "CONFIGURABLE";
+  hiring_profile?: HiringProfile | null;
+  hiring_profile_version?: number;
   country: string;
   work_mode: string;
   salary_duration: "PH" | "PM" | "CT";
@@ -508,6 +513,21 @@ export type Job = {
   right_click_blocked?: boolean;
   devtools_detection_enabled?: boolean;
   force_submit_on_critical_violation?: boolean;
+};
+
+export type HiringProfile = {
+  code: string;
+  name: string;
+  summary: string;
+  version: number;
+  role_family: "TECHNICAL" | "PROFESSIONAL" | "OPERATIONS" | "FRONTLINE" | "FIELD";
+  industry_context: string;
+  work_setting: string;
+};
+
+export type HiringProfilesResponse = {
+  enabled: boolean;
+  profiles: HiringProfile[];
 };
 
 export type InterviewSlotInput = {

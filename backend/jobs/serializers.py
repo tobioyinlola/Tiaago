@@ -16,6 +16,7 @@ from roles.models import Role
 from talent_network.choices import TalentNetworkWorkMode
 from .models import (
     Job,
+    HiringProfile,
     JobApplication,
     Portfolio,
     Education,
@@ -71,6 +72,59 @@ def _validate_interview_type(attrs, instance=None):
     return attrs
 
 
+def _hiring_profile_summary(job):
+    """Return the profile version actually captured by this job.
+
+    A live job must not appear to change merely because the library profile is
+    revised later.  Old data created before snapshots existed falls back to
+    the linked profile so it remains readable.
+    """
+    snapshot = job.hiring_profile_snapshot or {}
+    if snapshot.get("code"):
+        return {
+            "code": snapshot["code"],
+            "name": snapshot["name"],
+            "summary": snapshot.get("summary", ""),
+            "version": snapshot["version"],
+            "role_family": snapshot["role_family"],
+            "industry_context": snapshot.get("industry_context", ""),
+            "work_setting": snapshot.get("work_setting", ""),
+        }
+    if not job.hiring_profile_id:
+        return None
+    return {
+        "code": job.hiring_profile.code,
+        "name": job.hiring_profile.name,
+        "summary": job.hiring_profile.summary,
+        "version": job.hiring_profile_version,
+        "role_family": job.hiring_profile.role_family,
+        "industry_context": job.hiring_profile.industry_context,
+        "work_setting": job.hiring_profile.work_setting,
+    }
+
+
+class HiringProfileSerializer(serializers.ModelSerializer):
+    """The safe, recruiter-facing profile library response.
+
+    The detailed configuration remains on the server and is captured into a
+    job snapshot at publish time.  Exposing only the purpose and context here
+    lets a recruiter make an informed choice without presenting future
+    workflow defaults as controls that already change candidate processing.
+    """
+
+    class Meta:
+        model = HiringProfile
+        fields = (
+            "code",
+            "name",
+            "summary",
+            "version",
+            "role_family",
+            "industry_context",
+            "work_setting",
+        )
+
+
 class JobSerializer(serializers.ModelSerializer):
     company = CompanyDetailSerializer(read_only=True)
     # role is a plain CharField on the Job model (free text, not a Role FK) --
@@ -114,6 +168,15 @@ class JobSerializer(serializers.ModelSerializer):
     # slot listing, not the wizard's flat submission payload.
     existing_assessment_questions = serializers.SerializerMethodField()
     existing_interview_slots = serializers.SerializerMethodField()
+    hiring_profile = serializers.SerializerMethodField()
+    hiring_profile_code = serializers.SlugRelatedField(
+        source="hiring_profile",
+        slug_field="code",
+        queryset=HiringProfile.objects.filter(is_active=True),
+        write_only=True,
+        required=False,
+        allow_null=True,
+    )
 
     def get_existing_assessment_questions(self, obj):
         template = getattr(obj, "assessment_template", None)
@@ -155,6 +218,10 @@ class JobSerializer(serializers.ModelSerializer):
             "title",
             "role_title",
             "role",
+            "hiring_engine",
+            "hiring_profile",
+            "hiring_profile_code",
+            "hiring_profile_version",
             "job_type",
             "job_level",
             "location",
@@ -208,11 +275,26 @@ class JobSerializer(serializers.ModelSerializer):
             "devtools_detection_enabled",
             "force_submit_on_critical_violation",
         )
-        read_only_fields = ("id", "public_id", "apply_token", "company", "title", "no_of_applications", "view_count", "completed_assessments_count")
+        read_only_fields = (
+            "id",
+            "public_id",
+            "apply_token",
+            "company",
+            "title",
+            "hiring_engine",
+            "hiring_profile",
+            "hiring_profile_version",
+            "no_of_applications",
+            "view_count",
+            "completed_assessments_count",
+        )
       
 
     def get_role_title(self, obj):
         return obj.role or ""
+
+    def get_hiring_profile(self, obj):
+        return _hiring_profile_summary(obj)
 
     def get_title(self, obj):
         """Get title from role for backward compatibility"""
@@ -271,6 +353,33 @@ class JobSerializer(serializers.ModelSerializer):
             
         if not self.instance:
             attrs['job_status'] = Job.JobStatus.ACTIVE
+
+        # Capturing a profile is a publish-time operation.  The profile's
+        # complete definition is snapshotted so later library edits cannot
+        # rewrite an active job's requirements behind a recruiter's back.
+        if "hiring_profile" in attrs:
+            profile = attrs["hiring_profile"]
+            company = getattr(self.instance, "company", None) or self.context.get("company")
+            if not company or not company.hiring_profiles_enabled:
+                raise serializers.ValidationError({
+                    "hiring_profile_code": "Configurable hiring profiles are not enabled for this company."
+                })
+            if (
+                self.instance
+                and self.instance.job_status != Job.JobStatus.DRAFT
+                and profile != self.instance.hiring_profile
+            ):
+                raise serializers.ValidationError({
+                    "hiring_profile_code": "A published job's hiring profile cannot be changed. Create a new job for a different profile."
+                })
+            if profile is None:
+                attrs["hiring_engine"] = Job.HiringEngine.LEGACY
+                attrs["hiring_profile_version"] = 0
+                attrs["hiring_profile_snapshot"] = {}
+            else:
+                attrs["hiring_engine"] = Job.HiringEngine.CONFIGURABLE
+                attrs["hiring_profile_version"] = profile.version
+                attrs["hiring_profile_snapshot"] = profile.snapshot()
 
         work_mode = attrs.get("work_mode", getattr(self.instance, "work_mode", "") or "")
         country = attrs.get("country", getattr(self.instance, "country", "") or "")
@@ -380,6 +489,7 @@ class JobUpdateSerializer(serializers.ModelSerializer):
     # request body) means "leave as-is"; see update() below.
     assessment_questions = serializers.JSONField(write_only=True, required=False)
     interview_slots = serializers.JSONField(write_only=True, required=False)
+    hiring_profile = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = Job
@@ -389,6 +499,9 @@ class JobUpdateSerializer(serializers.ModelSerializer):
             "title",
             "role",
             "role_title",
+            "hiring_engine",
+            "hiring_profile",
+            "hiring_profile_version",
             "job_status",
             "job_type",
             "job_level",
@@ -435,6 +548,9 @@ class JobUpdateSerializer(serializers.ModelSerializer):
             "id",
             "public_id",
             "role_title",
+            "hiring_engine",
+            "hiring_profile",
+            "hiring_profile_version",
         )
 
     def validate_job_status(self, value):
@@ -461,6 +577,9 @@ class JobUpdateSerializer(serializers.ModelSerializer):
 
     def get_role_title(self, obj):
         return obj.role or ""
+
+    def get_hiring_profile(self, obj):
+        return _hiring_profile_summary(obj)
 
     def get_title(self, obj):
         return obj.role or ""

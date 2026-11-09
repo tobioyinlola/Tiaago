@@ -7,6 +7,7 @@ import {
   AssessmentQuestionSection,
   ID,
   InterviewSlotInput,
+  HiringProfilesResponse,
   Job,
   JobApplication,
   PagedResource,
@@ -65,6 +66,18 @@ export const getJobs = async (
     })
     .json();
   return data;
+};
+
+/** The backend returns an empty, disabled response until the company has
+ * been approved for the configurable-hiring rollout. Keeping that switch on
+ * the server means a browser cannot opt itself into an unfinished release. */
+export const getHiringProfiles = async (): Promise<HiringProfilesResponse> => {
+  try {
+    return await serverKyInstance.get("jobs/hiring-profiles/").json<HiringProfilesResponse>();
+  } catch (error) {
+    console.log("getHiringProfiles Error: ", error);
+    return { enabled: false, profiles: [] };
+  }
 };
 
 /** Recruiter/admin/talent-dashboard lookup -- requires auth + ownership,

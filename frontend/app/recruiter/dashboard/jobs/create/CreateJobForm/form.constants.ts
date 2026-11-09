@@ -28,6 +28,7 @@ export const jobPostingRichTextToolbar: RichTextToolbar = [
 
 export const jobBasicDetailsValidationSchema = Yup.object().shape({
   role: Yup.string().required().label("Job title/position"),
+  hiring_profile_code: Yup.string().max(80).notRequired().label("Hiring profile"),
   job_type: Yup.string()
     .required()
     .label("Job type")
@@ -194,6 +195,7 @@ export type InitialValues = Yup.InferType<typeof validationSchema>;
 export const initialValues: InitialValues = {
   title: "",
   role: "",
+  hiring_profile_code: "",
   // @ts-ignore
   job_level: "",
   // @ts-ignore,

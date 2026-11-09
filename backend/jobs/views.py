@@ -48,6 +48,7 @@ from base.permissions import IsTalentUser
 
 from .models import (
     AssessmentQuestionGenerationRequest,
+    HiringProfile,
     Job,
     JobApplication,
     Portfolio,
@@ -84,6 +85,7 @@ from .serializers import (
     CompanySerializer,
     JobInterviewAvailabilitySlotSerializer,
     JobDraftSerializer,
+    HiringProfileSerializer,
 )
 from .tasks import (
     ACCEPTANCE_MAIL_DELAY_SECONDS,
@@ -137,6 +139,32 @@ class JobPagination(PageNumberPagination):
         response = super().get_paginated_response(data)
         response.data["current"] = self.page.number
         return response
+
+
+class HiringProfileListView(APIView):
+    """Return the reviewed hiring-profile library for an enabled company.
+
+    The rollout decision is enforced here and again when a job is published;
+    hiding profiles in the frontend alone would allow a caller to bypass the
+    cohort gate by posting a profile code directly to the jobs endpoint.
+    """
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        company = get_user_company(request.user)
+        if not company:
+            return Response(
+                {"detail": "The user does not have an associated company"},
+                status=HTTP_400_BAD_REQUEST,
+            )
+        if not company.hiring_profiles_enabled:
+            return Response({"enabled": False, "profiles": []})
+        profiles = HiringProfile.objects.filter(is_active=True)
+        return Response({
+            "enabled": True,
+            "profiles": HiringProfileSerializer(profiles, many=True).data,
+        })
 
 
 @method_decorator(cache_page(60), name="dispatch")
@@ -200,7 +228,7 @@ class JobListCreateView(ListCreateAPIView):
         - Staff: see all jobs (approved or not).
         """
         user = self.request.user
-        queryset = Job.objects.select_related('company').all()
+        queryset = Job.objects.select_related('company', 'hiring_profile').all()
         queryset = queryset.annotate(
             completed_assessments_count=Count(
                 "job_applications__job_applications__candidateassessmentsubmission",
@@ -248,7 +276,11 @@ class JobListCreateView(ListCreateAPIView):
         existing_draft = (
             Job.objects.filter(company=company, job_status=Job.JobStatus.DRAFT).first() if company else None
         )
-        serializer = JobSerializer(instance=existing_draft, data=request.data)
+        serializer = JobSerializer(
+            instance=existing_draft,
+            data=request.data,
+            context={**self.get_serializer_context(), "company": company},
+        )
         if not serializer.is_valid():
             print(serializer.errors)
             return Response({"errors": serializer.errors}, status=HTTP_400_BAD_REQUEST)
@@ -888,7 +920,7 @@ class GuestInterviewSlotClaimView(APIView):
 
 
 class JobRetrieveUpdateView(RetrieveUpdateAPIView):
-    queryset = Job.objects.select_related("company").all()
+    queryset = Job.objects.select_related("company", "hiring_profile").all()
     permission_classes = [IsJobCreatorOrReadOnly]
     lookup_field = "public_id"
 

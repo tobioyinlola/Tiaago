@@ -10,6 +10,7 @@ import { handleServerApiCallError } from "@/app/common/utils";
 import { getCurrentUser } from "@/app/common/services/profile";
 import { getTeamRole } from "@/app/common/services/team";
 import { getCountries, getTalentRoles } from "@/app/common/services";
+import { getHiringProfiles } from "@/app/common/services/jobs";
 import AccessDenied from "@/app/common/components/AccessDenied";
 
 export const metadata = {
@@ -21,7 +22,7 @@ const PostAJob = async () => {
   const errors: DisplayErrorMessagesProps["errors"] = [];
   // getCurrentUser still runs for its recruiter auth/redirect side effect --
   // the job form itself no longer needs anything off the profile.
-  const [, teamRoleData, groupedCountries, talentRoles] = await Promise.all([
+  const [, teamRoleData, groupedCountries, talentRoles, hiringProfilesResponse] = await Promise.all([
     getCurrentUser("recruiter"),
     getTeamRole().catch(() => null),
     getCountries().catch(async e => {
@@ -42,6 +43,7 @@ const PostAJob = async () => {
       });
       return [];
     }),
+    getHiringProfiles(),
   ]);
 
   if (teamRoleData && teamRoleData.role === "viewer") {
@@ -63,6 +65,7 @@ const PostAJob = async () => {
       <CreateJobForm
         talentRoles={talentRoles}
         groupedCountries={groupedCountries}
+        hiringProfiles={hiringProfilesResponse.enabled ? hiringProfilesResponse.profiles : []}
       />
       <DisplayErrorMessages errors={errors} />
     </>

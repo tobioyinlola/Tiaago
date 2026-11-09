@@ -69,8 +69,16 @@ class TalentProfileAdmin(admin.ModelAdmin):
 
 @admin.register(Company)
 class CompanyAdmin(admin.ModelAdmin):
-    list_display = ("company_rep", "pk", "company_name", "account_type", "industry", "onboarding_completed_at")
-    list_filter = ("account_type",)
+    list_display = (
+        "company_rep",
+        "pk",
+        "company_name",
+        "account_type",
+        "industry",
+        "hiring_profiles_enabled",
+        "onboarding_completed_at",
+    )
+    list_filter = ("account_type", "hiring_profiles_enabled")
     fieldsets = (
         (
             "Company Details",
@@ -90,6 +98,10 @@ class CompanyAdmin(admin.ModelAdmin):
                     "onboarding_skipped_at",
                 ),
             },
+        ),
+        (
+            "Product rollout",
+            {"fields": ("hiring_profiles_enabled",)},
         ),
     )
     readonly_fields = ("onboarding_completed_at", "onboarding_skipped_at")

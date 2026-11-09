@@ -15,7 +15,8 @@ from django.utils import timezone
 from ai_interviews.models import AIInterview
 from ai_interviews.tasks import _advance_on_ai_interview_result
 from create_user.models import Company, CustomUser, TalentProfile
-from jobs.models import Job, JobApplication
+from jobs.models import HiringProfile, Job, JobApplication
+from jobs.serializers import JobSerializer
 from jobs.views import _has_booked_interview
 from scheduler.models import Scheduler
 
@@ -357,3 +358,100 @@ class JobStatusChangeBillingGateTests(TestCase):
         self.assertEqual(res.status_code, 200)
         self.job.refresh_from_db()
         self.assertEqual(self.job.role, "Staff Engineer")
+
+
+class HiringProfileFoundationTests(TestCase):
+    """The configurable engine is opt-in and never rewrites legacy jobs."""
+
+    def setUp(self):
+        from rest_framework.test import APIClient
+
+        self.rep = CustomUser.objects.create_company_user(
+            username="profile-rep", email="profile-rep@example.com", password="x"
+        )
+        self.rep.verified = True
+        self.rep.save(update_fields=["verified"])
+        self.company = Company.objects.create(
+            company_name="Profile Co", company_rep=self.rep
+        )
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.rep)
+        self.finance = HiringProfile.objects.get(code="finance-accounting")
+
+    def _job_data(self, **overrides):
+        data = {
+            "role": "Financial Controller",
+            "job_type": Job.JobType.FULL_TIME,
+            "job_level": Job.JobLevel.SENIOR,
+            "experience": 5,
+            "salary_duration": Job.SalaryDuration.PER_MONTH,
+            "payment_currency": Job.PaymentCurrency.USD,
+            "payment_range_usd": Job.DollarPaymentRange.RANGE_600_1000,
+        }
+        data.update(overrides)
+        return data
+
+    def test_existing_jobs_stay_on_the_legacy_engine(self):
+        job = _make_job(self.company)
+
+        self.assertEqual(job.hiring_engine, Job.HiringEngine.LEGACY)
+        self.assertIsNone(job.hiring_profile)
+        self.assertEqual(job.hiring_profile_version, 0)
+        self.assertEqual(job.hiring_profile_snapshot, {})
+
+    def test_disabled_company_cannot_list_or_select_profiles(self):
+        response = self.client.get("/api/jobs/hiring-profiles/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data, {"enabled": False, "profiles": []})
+
+        serializer = JobSerializer(
+            data=self._job_data(hiring_profile_code=self.finance.code),
+            context={"company": self.company},
+        )
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("hiring_profile_code", serializer.errors)
+
+    def test_enabled_company_can_publish_an_immutable_profile_snapshot(self):
+        self.company.hiring_profiles_enabled = True
+        self.company.save(update_fields=["hiring_profiles_enabled"])
+
+        response = self.client.get("/api/jobs/hiring-profiles/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data["enabled"])
+        self.assertIn(
+            self.finance.code,
+            [profile["code"] for profile in response.data["profiles"]],
+        )
+
+        # Exercise the actual posting endpoint too: the view must pass the
+        # resolved company into JobSerializer, otherwise a direct HTTP client
+        # could never select a profile even after its cohort is enabled.
+        with patch("talent_network.tasks.run_talent_network_matching.delay"):
+            response = self.client.post(
+                "/api/jobs/",
+                self._job_data(hiring_profile_code=self.finance.code),
+                format="json",
+            )
+        self.assertEqual(response.status_code, 201, response.data)
+        job = Job.objects.get(public_id=response.data["public_id"])
+
+        self.assertEqual(job.hiring_engine, Job.HiringEngine.CONFIGURABLE)
+        self.assertEqual(job.hiring_profile, self.finance)
+        self.assertEqual(job.hiring_profile_version, self.finance.version)
+        self.assertEqual(job.hiring_profile_snapshot["code"], self.finance.code)
+        self.assertEqual(job.hiring_profile_snapshot["version"], self.finance.version)
+
+        # Updating the library is a future profile revision, not a silent
+        # alteration to a job that is already accepting candidates.
+        self.finance.version = 2
+        self.finance.name = "Updated finance profile"
+        self.finance.save(update_fields=["version", "name"])
+        job.refresh_from_db()
+        self.assertEqual(job.hiring_profile_snapshot["version"], 1)
+        self.assertEqual(job.hiring_profile_snapshot["name"], "Finance & accounting")
+        self.assertEqual(
+            JobSerializer(job).data["hiring_profile"]["name"],
+            "Finance & accounting",
+        )

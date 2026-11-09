@@ -2,6 +2,7 @@ from django.contrib import admin
 
 from .models import (
     Job,
+    HiringProfile,
     JobApplication,
     Portfolio,
     Education,
@@ -20,6 +21,14 @@ from .models import (
 class JobAdmin(admin.ModelAdmin):
     model = Job
     list_display = ("title", "id", "company", "job_status", "job_type")
+
+
+@admin.register(HiringProfile)
+class HiringProfileAdmin(admin.ModelAdmin):
+    list_display = ("name", "code", "role_family", "version", "is_active")
+    list_filter = ("role_family", "is_active")
+    search_fields = ("name", "code", "industry_context")
+    readonly_fields = ("created_at", "updated_at", "deleted_at")
 
 
 @admin.register(JobApplication)
@@ -111,5 +120,3 @@ class InterviewScreeningAdmin(admin.ModelAdmin):
 class ProjectAdmin(admin.ModelAdmin):
     list_display = ["name", "portfolio", "link"]
     list_select_related = ["portfolio"]
-
-    

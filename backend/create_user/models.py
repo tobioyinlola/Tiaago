@@ -263,6 +263,12 @@ class Company(models.Model):
     # but shows a finish-setup banner until onboarding_completed_at is set.
     onboarding_skipped_at = models.DateTimeField(null=True, blank=True)
 
+    # Controls the staged rollout of configurable hiring profiles for this
+    # company.  It deliberately defaults to off so existing companies and
+    # their in-flight jobs keep the legacy hiring journey until Tiaago has
+    # enabled the upgrade for an approved cohort.
+    hiring_profiles_enabled = models.BooleanField(default=False)
+
     # Acquisition/growth tracking -- all nullable, populated at signup time only.
     # Historical companies predating this field will simply have null values.
     referral_code = models.CharField(max_length=20, unique=True, blank=True, null=True)

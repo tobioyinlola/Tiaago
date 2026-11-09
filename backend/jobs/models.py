@@ -43,6 +43,60 @@ class JobManager(models.Manager):
         return super().get_queryset().filter(job_status="ACTIVE")
 
 
+class HiringProfile(TimeStampedModel):
+    """A reviewed, versioned starting point for a role's hiring journey.
+
+    Profiles are deliberately global for the first release.  A selected
+    profile is copied onto the Job as a snapshot at publish time, so changing
+    a later profile version cannot silently change a live requisition or its
+    candidate journey.  Company-specific editing belongs to the next
+    configuration release, once the flexible application, eligibility and
+    workflow pieces exist.
+    """
+
+    class RoleFamily(models.TextChoices):
+        TECHNICAL = "TECHNICAL", _("Technical")
+        PROFESSIONAL = "PROFESSIONAL", _("Professional")
+        OPERATIONS = "OPERATIONS", _("Operations")
+        FRONTLINE = "FRONTLINE", _("Frontline")
+        FIELD = "FIELD", _("Field")
+
+    code = models.SlugField(max_length=80, unique=True)
+    name = models.CharField(max_length=120)
+    summary = models.TextField(max_length=600)
+    role_family = models.CharField(max_length=20, choices=RoleFamily.choices)
+    industry_context = models.CharField(max_length=120, blank=True, default="")
+    work_setting = models.CharField(max_length=120, blank=True, default="")
+    version = models.PositiveSmallIntegerField(default=1)
+    application_defaults = models.JSONField(default=dict, blank=True)
+    eligibility_defaults = models.JSONField(default=dict, blank=True)
+    evaluation_defaults = models.JSONField(default=dict, blank=True)
+    workflow_defaults = models.JSONField(default=dict, blank=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ("role_family", "name")
+
+    def __str__(self):
+        return f"{self.name} (v{self.version})"
+
+    def snapshot(self):
+        """Return the immutable configuration recorded on a published job."""
+        return {
+            "code": self.code,
+            "name": self.name,
+            "summary": self.summary,
+            "version": self.version,
+            "role_family": self.role_family,
+            "industry_context": self.industry_context,
+            "work_setting": self.work_setting,
+            "application_defaults": self.application_defaults,
+            "eligibility_defaults": self.eligibility_defaults,
+            "evaluation_defaults": self.evaluation_defaults,
+            "workflow_defaults": self.workflow_defaults,
+        }
+
+
 class Job(models.Model):
     """Job Model"""
 
@@ -94,9 +148,28 @@ class Job(models.Model):
 
     HIRING_TYPES = ((MANUALLY, MANUALLY), (WITH_AI, WITH_AI))
 
+    class HiringEngine(models.TextChoices):
+        LEGACY = "LEGACY", _("Legacy")
+        CONFIGURABLE = "CONFIGURABLE", _("Configurable")
+
     # Free-text role/title typed by the recruiter -- not a Role FK, so any
     # title (including ones not in the predefined roles list) is allowed.
     role = models.CharField(max_length=255)
+    # Existing jobs remain on LEGACY.  A job only switches to CONFIGURABLE
+    # when its company is enabled for the staged rollout and a reviewed
+    # HiringProfile is selected at publish time.
+    hiring_engine = models.CharField(
+        max_length=20, choices=HiringEngine.choices, default=HiringEngine.LEGACY
+    )
+    hiring_profile = models.ForeignKey(
+        HiringProfile,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="jobs",
+    )
+    hiring_profile_version = models.PositiveSmallIntegerField(default=0)
+    hiring_profile_snapshot = models.JSONField(default=dict, blank=True)
     #tags = models.JSONField(blank=True, default=list, help_text="Optional tags for categorizing the job")
 
     

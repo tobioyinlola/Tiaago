@@ -41,11 +41,13 @@ from .views import (
     CompanyProfileView,
     JobDraftSaveView,
     DashboardStatsView,
+    HiringProfileListView,
 )
 
 urlpatterns = [
     path("", JobListCreateView.as_view(), name="job-list-create"),
     path("dashboard-stats/", DashboardStatsView.as_view(), name="dashboard-stats"),
+    path("hiring-profiles/", HiringProfileListView.as_view(), name="hiring-profile-list"),
     path("draft/", JobDraftSaveView.as_view(), name="job-draft-save"),
     path("generate-assessment-questions/", GenerateAssessmentQuestionsView.as_view(), name="generate-assessment-questions"),
     path(
