@@ -21,6 +21,8 @@ from .models import (
     ApplicationEligibilityCheck,
     ApplicationWorkSample,
     ApplicationWorkSampleScore,
+    ApplicationScenarioResponse,
+    ApplicationScenarioScore,
     Portfolio,
     Education,
     Experience,
@@ -124,6 +126,10 @@ WORK_SAMPLE_CRITERION_DESCRIPTION_MAX_LENGTH = 360
 WORK_SAMPLE_PASSING_SCORE_DEFAULT = 60
 WORK_SAMPLE_MAX_SIZE = 10 * 1024 * 1024
 WORK_SAMPLE_ALLOWED_EXTENSIONS = {"pdf", "docx", "xlsx", "csv"}
+SCENARIO_PROMPT_MAX_LENGTH = 1200
+SCENARIO_INSTRUCTIONS_MAX_LENGTH = 1200
+SCENARIO_RESPONSE_LABEL_MAX_LENGTH = 120
+SCENARIO_RESPONSE_MAX_LENGTH = 5000
 
 
 def _normalise_application_configuration(value):
@@ -198,7 +204,11 @@ def _profile_eligibility_requirements(profile):
 
 def _profile_supports_work_sample(profile):
     methods = (profile.evaluation_defaults or {}).get("methods", [])
-    return "work_sample" in methods or "scenario" in methods
+    return "work_sample" in methods
+
+
+def _profile_supports_scenario(profile):
+    return "scenario" in (profile.evaluation_defaults or {}).get("methods", [])
 
 
 def _normalise_work_sample_configuration(value):
@@ -302,6 +312,47 @@ def _normalise_work_sample_rubric(value):
     }
 
 
+def _normalise_scenario_configuration(value):
+    """Validate a short written scenario published as part of a job."""
+    if not isinstance(value, dict):
+        raise serializers.ValidationError("Scenario configuration must be an object.")
+    unknown = set(value) - {"enabled", "required", "prompt", "instructions", "response_label", "rubric"}
+    if unknown:
+        raise serializers.ValidationError(
+            {key: "This scenario setting is not supported." for key in sorted(unknown)}
+        )
+    enabled = value.get("enabled")
+    required = value.get("required")
+    prompt = value.get("prompt", "")
+    instructions = value.get("instructions", "")
+    response_label = value.get("response_label", "Your response")
+    if not isinstance(enabled, bool) or not isinstance(required, bool):
+        raise serializers.ValidationError("Enabled and required must be true or false.")
+    if required and not enabled:
+        raise serializers.ValidationError("A hidden scenario cannot be required.")
+    if not all(isinstance(value, str) for value in (prompt, instructions, response_label)):
+        raise serializers.ValidationError("Scenario prompt, instructions and response label must be text.")
+    prompt, instructions, response_label = prompt.strip(), instructions.strip(), response_label.strip()
+    if enabled and not prompt:
+        raise serializers.ValidationError({"prompt": "Describe the scenario candidates should respond to."})
+    if not response_label:
+        raise serializers.ValidationError({"response_label": "Provide a label for the candidate response."})
+    if len(prompt) > SCENARIO_PROMPT_MAX_LENGTH:
+        raise serializers.ValidationError({"prompt": f"Keep the scenario prompt to {SCENARIO_PROMPT_MAX_LENGTH} characters or fewer."})
+    if len(instructions) > SCENARIO_INSTRUCTIONS_MAX_LENGTH:
+        raise serializers.ValidationError({"instructions": f"Keep the instructions to {SCENARIO_INSTRUCTIONS_MAX_LENGTH} characters or fewer."})
+    if len(response_label) > SCENARIO_RESPONSE_LABEL_MAX_LENGTH:
+        raise serializers.ValidationError({"response_label": f"Keep the response label to {SCENARIO_RESPONSE_LABEL_MAX_LENGTH} characters or fewer."})
+    return {
+        "enabled": enabled,
+        "required": required,
+        "prompt": prompt,
+        "instructions": instructions,
+        "response_label": response_label,
+        "rubric": _normalise_work_sample_rubric(value.get("rubric")),
+    }
+
+
 def _validate_work_sample_file(value):
     if not value:
         return value
@@ -324,6 +375,7 @@ class HiringProfileSerializer(serializers.ModelSerializer):
     application_configuration = serializers.SerializerMethodField()
     eligibility_requirements = serializers.SerializerMethodField()
     work_sample_supported = serializers.SerializerMethodField()
+    scenario_supported = serializers.SerializerMethodField()
 
     def get_application_configuration(self, obj):
         return _profile_application_configuration(obj)
@@ -333,6 +385,9 @@ class HiringProfileSerializer(serializers.ModelSerializer):
 
     def get_work_sample_supported(self, obj):
         return _profile_supports_work_sample(obj)
+
+    def get_scenario_supported(self, obj):
+        return _profile_supports_scenario(obj)
 
     class Meta:
         model = HiringProfile
@@ -347,6 +402,7 @@ class HiringProfileSerializer(serializers.ModelSerializer):
             "application_configuration",
             "eligibility_requirements",
             "work_sample_supported",
+            "scenario_supported",
         )
 
 
@@ -405,6 +461,7 @@ class JobSerializer(serializers.ModelSerializer):
     application_configuration = serializers.JSONField(required=False)
     eligibility_requirements = serializers.JSONField(required=False)
     work_sample_configuration = serializers.JSONField(required=False)
+    scenario_configuration = serializers.JSONField(required=False)
 
     def validate_application_configuration(self, value):
         return _normalise_application_configuration(value)
@@ -417,6 +474,9 @@ class JobSerializer(serializers.ModelSerializer):
 
     def validate_work_sample_configuration(self, value):
         return _normalise_work_sample_configuration(value)
+
+    def validate_scenario_configuration(self, value):
+        return _normalise_scenario_configuration(value)
 
     def get_existing_assessment_questions(self, obj):
         template = getattr(obj, "assessment_template", None)
@@ -465,6 +525,7 @@ class JobSerializer(serializers.ModelSerializer):
             "application_configuration",
             "eligibility_requirements",
             "work_sample_configuration",
+            "scenario_configuration",
             "job_type",
             "job_level",
             "location",
@@ -606,7 +667,8 @@ class JobSerializer(serializers.ModelSerializer):
         configuration_supplied = "application_configuration" in attrs
         eligibility_supplied = "eligibility_requirements" in attrs
         work_sample_supplied = "work_sample_configuration" in attrs
-        if (configuration_supplied or eligibility_supplied or work_sample_supplied) and (not profile or not company or not company.hiring_profiles_enabled):
+        scenario_supplied = "scenario_configuration" in attrs
+        if (configuration_supplied or eligibility_supplied or work_sample_supplied or scenario_supplied) and (not profile or not company or not company.hiring_profiles_enabled):
             raise serializers.ValidationError({
                 "application_configuration": "Choose an enabled hiring profile before configuring the candidate journey."
             })
@@ -631,6 +693,7 @@ class JobSerializer(serializers.ModelSerializer):
                 attrs["application_configuration"] = {}
                 attrs["eligibility_requirements"] = []
                 attrs["work_sample_configuration"] = {}
+                attrs["scenario_configuration"] = {}
             else:
                 attrs["hiring_engine"] = Job.HiringEngine.CONFIGURABLE
                 attrs["hiring_profile_version"] = profile.version
@@ -649,6 +712,14 @@ class JobSerializer(serializers.ModelSerializer):
         if work_sample_configuration.get("enabled") and not _profile_supports_work_sample(profile):
             raise serializers.ValidationError({
                 "work_sample_configuration": "The selected hiring profile does not support a written work sample."
+            })
+        scenario_configuration = attrs.get(
+            "scenario_configuration",
+            getattr(self.instance, "scenario_configuration", {}) or {},
+        )
+        if scenario_configuration.get("enabled") and not _profile_supports_scenario(profile):
+            raise serializers.ValidationError({
+                "scenario_configuration": "The selected hiring profile does not support a written scenario."
             })
 
         work_mode = attrs.get("work_mode", getattr(self.instance, "work_mode", "") or "")
@@ -766,6 +837,7 @@ class JobUpdateSerializer(serializers.ModelSerializer):
     application_configuration = serializers.JSONField(read_only=True)
     eligibility_requirements = serializers.JSONField(read_only=True)
     work_sample_configuration = serializers.JSONField(read_only=True)
+    scenario_configuration = serializers.JSONField(read_only=True)
 
     class Meta:
         model = Job
@@ -781,6 +853,7 @@ class JobUpdateSerializer(serializers.ModelSerializer):
             "application_configuration",
             "eligibility_requirements",
             "work_sample_configuration",
+            "scenario_configuration",
             "job_status",
             "job_type",
             "job_level",
@@ -1134,6 +1207,85 @@ class ApplicationWorkSampleReviewSerializer(serializers.Serializer):
         return instance
 
 
+class ApplicationScenarioScoreSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ApplicationScenarioScore
+        fields = (
+            "criterion_code",
+            "criterion_label",
+            "criterion_description",
+            "weight",
+            "score",
+            "reviewer_note",
+        )
+        read_only_fields = fields
+
+
+class ApplicationScenarioResponseSerializer(serializers.ModelSerializer):
+    reviewer_name = serializers.SerializerMethodField()
+    scores = ApplicationScenarioScoreSerializer(many=True, read_only=True)
+    weighted_score = serializers.SerializerMethodField()
+
+    def get_reviewer_name(self, obj):
+        if not obj.reviewer_id:
+            return None
+        return obj.reviewer.get_full_name() or obj.reviewer.email
+
+    def get_weighted_score(self, obj):
+        return _work_sample_weighted_score(obj.scores.all())
+
+    class Meta:
+        model = ApplicationScenarioResponse
+        fields = (
+            "id",
+            "response",
+            "status",
+            "reviewer_name",
+            "reviewer_reason",
+            "reviewed_at",
+            "scores",
+            "weighted_score",
+            "created_at",
+        )
+        read_only_fields = fields
+
+
+class ApplicationScenarioResponseReviewSerializer(ApplicationWorkSampleReviewSerializer):
+    """Scores a scenario with the same rubric contract as a work sample."""
+
+    def _criteria(self):
+        rubric = self.instance.application.job.get_scenario_configuration().get("rubric", {})
+        criteria = rubric.get("criteria", [])
+        return rubric, criteria if isinstance(criteria, list) else []
+
+    def update(self, instance, validated_data):
+        validated_data.pop("weighted_score", None)
+        scores = validated_data.pop("scores", None)
+        score_notes = validated_data.pop("score_notes", {})
+        _rubric, criteria = self._criteria()
+        with transaction.atomic():
+            instance.status = validated_data["status"]
+            instance.reviewer_reason = (validated_data.get("reviewer_reason") or "").strip()
+            instance.reviewer = self.context["request"].user
+            instance.reviewed_at = timezone.now()
+            instance.save(update_fields=("status", "reviewer_reason", "reviewer", "reviewed_at", "updated_at"))
+            if scores is not None:
+                instance.scores.all().delete()
+                ApplicationScenarioScore.objects.bulk_create([
+                    ApplicationScenarioScore(
+                        scenario_response=instance,
+                        criterion_code=criterion["code"],
+                        criterion_label=criterion["label"],
+                        criterion_description=criterion.get("description", ""),
+                        weight=criterion["weight"],
+                        score=scores[criterion["code"]],
+                        reviewer_note=score_notes.get(criterion["code"], "").strip(),
+                    )
+                    for criterion in criteria
+                ])
+        return instance
+
+
 class JobApplicationSerializer(serializers.ModelSerializer):
     job = JobSerializer(read_only=True)
     applicant = serializers.SerializerMethodField()
@@ -1144,6 +1296,7 @@ class JobApplicationSerializer(serializers.ModelSerializer):
     eligibility_declarations = serializers.JSONField(required=False, write_only=True)
     eligibility_checks = ApplicationEligibilityCheckSerializer(many=True, read_only=True)
     work_samples = ApplicationWorkSampleSerializer(many=True, read_only=True)
+    scenario_response = ApplicationScenarioResponseSerializer(read_only=True)
 
     class Meta:
         model = JobApplication
@@ -1162,6 +1315,7 @@ class JobApplicationSerializer(serializers.ModelSerializer):
             "eligibility_declarations",
             "eligibility_checks",
             "work_samples",
+            "scenario_response",
         )
 
     def get_applicant(self, obj):
@@ -1280,6 +1434,7 @@ class GuestJobApplicationSerializer(serializers.Serializer):
     additional_info = serializers.CharField(required=False, allow_blank=True, max_length=3000)
     work_sample = serializers.FileField(required=False, allow_null=True, write_only=True)
     work_sample_note = serializers.CharField(required=False, allow_blank=True, max_length=1000, write_only=True)
+    scenario_response = serializers.CharField(required=False, allow_blank=True, max_length=SCENARIO_RESPONSE_MAX_LENGTH, write_only=True)
     eligibility_declarations = serializers.JSONField(required=False, write_only=True)
     terms_accepted = serializers.BooleanField()
 
@@ -1358,6 +1513,14 @@ class GuestJobApplicationSerializer(serializers.Serializer):
         if work_sample and not work_sample_configuration["enabled"]:
             raise serializers.ValidationError({"work_sample": "This job is not accepting work samples."})
 
+        scenario_configuration = job.get_scenario_configuration()
+        scenario_response = (attrs.get("scenario_response") or "").strip()
+        if scenario_configuration["enabled"] and scenario_configuration["required"] and not scenario_response:
+            raise serializers.ValidationError({"scenario_response": "A response to this scenario is required for this job."})
+        if scenario_response and not scenario_configuration["enabled"]:
+            raise serializers.ValidationError({"scenario_response": "This job is not accepting scenario responses."})
+        attrs["scenario_response"] = scenario_response
+
         try:
             attrs["eligibility_declarations"] = normalise_eligibility_declarations(
                 job.get_eligibility_requirements(),
@@ -1373,6 +1536,7 @@ class GuestJobApplicationSerializer(serializers.Serializer):
         eligibility_declarations = validated_data.pop("eligibility_declarations", {})
         work_sample = validated_data.pop("work_sample", None)
         work_sample_note = validated_data.pop("work_sample_note", "")
+        scenario_response = validated_data.pop("scenario_response", "")
         application = JobApplication.objects.create(
             applicant=None,
             job=job,
@@ -1393,6 +1557,11 @@ class GuestJobApplicationSerializer(serializers.Serializer):
                 original_filename=work_sample.name[:255],
                 content_type=(getattr(work_sample, "content_type", "") or "")[:120],
                 candidate_note=work_sample_note.strip(),
+            )
+        if scenario_response:
+            ApplicationScenarioResponse.objects.create(
+                application=application,
+                response=scenario_response,
             )
         return application
 

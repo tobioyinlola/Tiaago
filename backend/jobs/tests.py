@@ -640,7 +640,7 @@ class EligibilityReviewFoundationTests(TestCase):
                 {"code": "driving-licence", "required": True},
             ]
         }
-        self.driver.evaluation_defaults = {"methods": ["work_sample", "structured_interview"]}
+        self.driver.evaluation_defaults = {"methods": ["work_sample", "scenario", "structured_interview"]}
         self.driver.save(update_fields=["application_defaults", "eligibility_defaults", "evaluation_defaults"])
 
     def _job_data(self, **overrides):
@@ -663,7 +663,7 @@ class EligibilityReviewFoundationTests(TestCase):
         self.assertEqual(response.status_code, 201, response.data)
         return Job.objects.get(public_id=response.data["public_id"])
 
-    def _apply_as_guest(self, job, *, email, declarations, work_sample=None):
+    def _apply_as_guest(self, job, *, email, declarations, work_sample=None, scenario_response=None):
         with patch("jobs.views.emails.application_received_mail"), patch(
             "jobs.views.carry_out_resume_analysis.delay"
         ):
@@ -677,6 +677,8 @@ class EligibilityReviewFoundationTests(TestCase):
             }
             if work_sample:
                 payload["work_sample"] = work_sample
+            if scenario_response is not None:
+                payload["scenario_response"] = scenario_response
             response = self.client.post(
                 f"/api/jobs/apply/{job.apply_token}/guest/",
                 payload,
@@ -945,6 +947,75 @@ class EligibilityReviewFoundationTests(TestCase):
                 format="json",
             )
             self.assertEqual(response.status_code, 200, response.data)
+        with patch("jobs.views.send_assessment_link.apply_async"):
+            response = self.client.patch(
+                f"/api/jobs/job-applications/{application.id}/",
+                {"status": JobApplication.JobApplicationStatus.REVIEWED},
+                format="json",
+            )
+        self.assertEqual(response.status_code, 200, response.data)
+
+    def test_required_scenario_response_is_scoreable_and_blocks_progression(self):
+        job = self._publish_job(
+            scenario_configuration={
+                "enabled": True,
+                "required": True,
+                "prompt": "A customer reports a delayed delivery. What would you do first?",
+                "instructions": "Keep the response practical and concise.",
+                "response_label": "Your response",
+                "rubric": {
+                    "version": 1,
+                    "passing_score": 70,
+                    "criteria": [
+                        {"label": "Customer judgement", "description": "Responds safely and professionally.", "weight": 60},
+                        {"label": "Operational follow-through", "description": "Sets out a clear next action.", "weight": 40},
+                    ],
+                },
+            }
+        )
+        application = self._apply_as_guest(
+            job,
+            email="driver-scenario@example.com",
+            declarations={"right-to-work": True, "driving-licence": True},
+            scenario_response="I would confirm the delivery status, update the customer with a realistic ETA, and escalate the delay to dispatch.",
+        )
+        scenario_response = application.scenario_response
+        self.assertEqual(scenario_response.status, "SUBMITTED")
+
+        for check in application.eligibility_checks.all():
+            response = self.client.patch(
+                f"/api/jobs/job-applications/{application.id}/eligibility/{check.id}/",
+                {"status": ApplicationEligibilityCheck.Status.PASS},
+                format="json",
+            )
+            self.assertEqual(response.status_code, 200, response.data)
+        response = self.client.patch(
+            f"/api/jobs/job-applications/{application.id}/",
+            {"status": JobApplication.JobApplicationStatus.REVIEWED},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400, response.data)
+        self.assertIn("scenario response", response.data["detail"])
+
+        response = self.client.patch(
+            f"/api/jobs/job-applications/{application.id}/scenario-responses/{scenario_response.id}/",
+            {"status": "PASS", "scores": {"criterion-1": 3, "criterion-2": 3}},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400, response.data)
+        response = self.client.patch(
+            f"/api/jobs/job-applications/{application.id}/scenario-responses/{scenario_response.id}/",
+            {
+                "status": "PASS",
+                "scores": {"criterion-1": 4, "criterion-2": 3},
+                "score_notes": {"criterion-1": "Clear customer update and escalation path."},
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data["weighted_score"], 72.0)
+        self.assertEqual(len(response.data["scores"]), 2)
+
         with patch("jobs.views.send_assessment_link.apply_async"):
             response = self.client.patch(
                 f"/api/jobs/job-applications/{application.id}/",

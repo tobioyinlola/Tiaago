@@ -1,6 +1,6 @@
 import * as Yup from "yup";
 
-import { ApplicationConfiguration, EligibilityRequirement, FormField, Job, RichTextToolbar, WorkSampleConfiguration } from "@/app/common/types";
+import { ApplicationConfiguration, EligibilityRequirement, FormField, Job, RichTextToolbar, ScenarioConfiguration, WorkSampleConfiguration } from "@/app/common/types";
 import {
   handlePlural,
   jobSalaryTypeToLabel,
@@ -32,6 +32,7 @@ export const jobBasicDetailsValidationSchema = Yup.object().shape({
   application_configuration: Yup.mixed<ApplicationConfiguration>().notRequired(),
   eligibility_requirements: Yup.array<EligibilityRequirement[]>().notRequired(),
   work_sample_configuration: Yup.mixed<WorkSampleConfiguration>().notRequired(),
+  scenario_configuration: Yup.mixed<ScenarioConfiguration>().notRequired(),
   job_type: Yup.string()
     .required()
     .label("Job type")
@@ -206,6 +207,14 @@ export const initialValues: InitialValues = {
     required: false,
     prompt: "",
     instructions: "",
+    rubric: { version: 1, passing_score: 60, criteria: [] },
+  },
+  scenario_configuration: {
+    enabled: false,
+    required: false,
+    prompt: "",
+    instructions: "",
+    response_label: "Your response",
     rubric: { version: 1, passing_score: 60, criteria: [] },
   },
   // @ts-ignore

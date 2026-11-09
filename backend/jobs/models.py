@@ -193,6 +193,9 @@ class Job(models.Model):
     eligibility_requirements = models.JSONField(default=list, blank=True)
     # Immutable, reviewer-owned work-sample request for this requisition.
     work_sample_configuration = models.JSONField(default=dict, blank=True)
+    # A short, mobile-friendly written scenario captured with an application.
+    # Like work samples, its prompt and scorecard are published with the job.
+    scenario_configuration = models.JSONField(default=dict, blank=True)
     #tags = models.JSONField(blank=True, default=list, help_text="Optional tags for categorizing the job")
 
     LEGACY_APPLICATION_CONFIGURATION = {
@@ -467,6 +470,27 @@ class Job(models.Model):
             },
         }
         stored_configuration = deepcopy(self.work_sample_configuration or {})
+        stored_rubric = stored_configuration.pop("rubric", None)
+        configuration.update(stored_configuration)
+        if isinstance(stored_rubric, dict):
+            configuration["rubric"].update(stored_rubric)
+        return configuration
+
+    def get_scenario_configuration(self):
+        """Return a complete, published written-scenario contract."""
+        configuration = {
+            "enabled": False,
+            "required": False,
+            "prompt": "",
+            "instructions": "",
+            "response_label": "Your response",
+            "rubric": {
+                "version": 1,
+                "passing_score": 60,
+                "criteria": [],
+            },
+        }
+        stored_configuration = deepcopy(self.scenario_configuration or {})
         stored_rubric = stored_configuration.pop("rubric", None)
         configuration.update(stored_configuration)
         if isinstance(stored_rubric, dict):
@@ -785,6 +809,63 @@ class ApplicationWorkSampleScore(TimeStampedModel):
 
     def __str__(self):
         return f"{self.sample_id}: {self.criterion_label} ({self.score}/5)"
+
+
+class ApplicationScenarioResponse(TimeStampedModel):
+    """Candidate's written response to a job-published hiring scenario."""
+
+    class Status(models.TextChoices):
+        SUBMITTED = "SUBMITTED", _("Submitted")
+        PASS = "PASS", _("Accepted")
+        NEEDS_REVIEW = "NEEDS_REVIEW", _("Needs changes")
+        FAIL = "FAIL", _("Not accepted")
+
+    application = models.OneToOneField(
+        "jobs.JobApplication", on_delete=models.CASCADE, related_name="scenario_response"
+    )
+    response = models.TextField(max_length=5000)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.SUBMITTED)
+    reviewer = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="reviewed_application_scenario_responses",
+    )
+    reviewer_reason = models.TextField(max_length=1000, blank=True, default="")
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        indexes = [models.Index(fields=("status", "updated_at"))]
+
+    def __str__(self):
+        return f"{self.application_id}: scenario ({self.status})"
+
+
+class ApplicationScenarioScore(TimeStampedModel):
+    """Immutable criterion snapshot recorded when a scenario is reviewed."""
+
+    scenario_response = models.ForeignKey(
+        ApplicationScenarioResponse, on_delete=models.CASCADE, related_name="scores"
+    )
+    criterion_code = models.SlugField(max_length=80)
+    criterion_label = models.CharField(max_length=120)
+    criterion_description = models.CharField(max_length=360, blank=True, default="")
+    weight = models.PositiveSmallIntegerField(validators=[MinValueValidator(1), MaxValueValidator(100)])
+    score = models.PositiveSmallIntegerField(validators=[MinValueValidator(0), MaxValueValidator(5)])
+    reviewer_note = models.TextField(max_length=1000, blank=True, default="")
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=("scenario_response", "criterion_code"),
+                name="unique_scenario_score_criterion",
+            )
+        ]
+        ordering = ("criterion_code",)
+
+    def __str__(self):
+        return f"{self.scenario_response_id}: {self.criterion_label} ({self.score}/5)"
 
 
 class JobApplication(models.Model):

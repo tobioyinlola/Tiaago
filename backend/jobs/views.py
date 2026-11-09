@@ -54,6 +54,7 @@ from .models import (
     JobApplication,
     ApplicationEligibilityCheck,
     ApplicationWorkSample,
+    ApplicationScenarioResponse,
     Portfolio,
     Tool,
     Project,
@@ -93,6 +94,8 @@ from .serializers import (
     ApplicationEligibilityCheckReviewSerializer,
     ApplicationWorkSampleSerializer,
     ApplicationWorkSampleReviewSerializer,
+    ApplicationScenarioResponseSerializer,
+    ApplicationScenarioResponseReviewSerializer,
 )
 from .tasks import (
     ACCEPTANCE_MAIL_DELAY_SECONDS,
@@ -1358,6 +1361,63 @@ class ApplicationWorkSampleReviewView(APIView):
         serializer.is_valid(raise_exception=True)
         sample = serializer.save()
         return Response(ApplicationWorkSampleSerializer(sample, context={"request": request}).data)
+
+
+class JobApplicationScenarioReviewQueueView(ListAPIView):
+    """Company-scoped queue for written scenario responses."""
+
+    serializer_class = JobApplicationSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    pagination_class = JobPagination
+
+    def get_queryset(self):
+        reviewable = (
+            ApplicationScenarioResponse.Status.SUBMITTED,
+            ApplicationScenarioResponse.Status.NEEDS_REVIEW,
+        )
+        queryset = JobApplication.objects.filter(
+            scenario_response__status__in=reviewable,
+        ).distinct().order_by("-applied_date").select_related(
+            "job", "job__company", "applicant", "applicant__user", "scenario_response", "scenario_response__reviewer"
+        ).prefetch_related("scenario_response__scores")
+        if self.request.user.is_staff:
+            return queryset
+        company = get_user_company(self.request.user)
+        if not company or not user_is_company_role(
+            self.request.user,
+            company,
+            (CompanyTeamMember.ROLE.ADMIN, CompanyTeamMember.ROLE.RECRUITER),
+        ):
+            return JobApplication.objects.none()
+        return queryset.filter(job__company=company)
+
+
+class ApplicationScenarioResponseReviewView(APIView):
+    """Records a human decision for one written scenario response."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def patch(self, request, pk, response_pk):
+        scenario_response = get_object_or_404(
+            ApplicationScenarioResponse.objects.select_related("application__job__company").prefetch_related("scores"),
+            id=response_pk,
+            application_id=pk,
+        )
+        company = scenario_response.application.job.company
+        if not request.user.is_staff and not user_is_company_role(
+            request.user,
+            company,
+            (CompanyTeamMember.ROLE.ADMIN, CompanyTeamMember.ROLE.RECRUITER),
+        ):
+            return Response({"detail": "You are not authorized for this scenario review."}, status=HTTP_403_FORBIDDEN)
+        serializer = ApplicationScenarioResponseReviewSerializer(
+            scenario_response,
+            data=request.data,
+            context={"request": request},
+        )
+        serializer.is_valid(raise_exception=True)
+        scenario_response = serializer.save()
+        return Response(ApplicationScenarioResponseSerializer(scenario_response, context={"request": request}).data)
 
 
 class ApplicationWorkSampleDownloadView(APIView):

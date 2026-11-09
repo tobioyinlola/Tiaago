@@ -7,6 +7,7 @@ import {
   AssessmentQuestionSection,
   ApplicationEligibilityCheck,
   ApplicationWorkSample,
+  ApplicationScenarioResponse,
   ID,
   InterviewSlotInput,
   HiringProfilesResponse,
@@ -291,6 +292,7 @@ export type GuestJobApplicationPayload = {
   additional_info?: string;
   work_sample?: File;
   work_sample_note?: string;
+  scenario_response?: string;
   /** Candidate statements for the published job's reviewed eligibility rules.
    * They are declarations only; the hiring team records the final decision. */
   eligibility_declarations?: Record<string, boolean>;
@@ -312,6 +314,7 @@ export const submitGuestJobApplication = async (
     formData.set("additional_info", payload.additional_info || "");
     if (payload.work_sample) formData.set("work_sample", payload.work_sample);
     formData.set("work_sample_note", payload.work_sample_note || "");
+    formData.set("scenario_response", payload.scenario_response || "");
     if (payload.eligibility_declarations) {
       formData.set("eligibility_declarations", JSON.stringify(payload.eligibility_declarations));
     }
@@ -415,6 +418,40 @@ export const reviewApplicationWorkSample = async (
         json: { status, reviewer_reason, ...(scores ? { scores } : {}), ...(score_notes ? { score_notes } : {}) },
       })
       .json<ApplicationWorkSample>();
+    return { success: true, data };
+  } catch (error) {
+    const errMsg = await handleServerApiCallError(error);
+    return { success: false, error: errMsg };
+  }
+};
+
+export const getScenarioReviewQueue = async (page = 1, page_size = 50) => {
+  try {
+    return await serverKyInstance
+      .get<PagedResource<JobApplication>>("jobs/job-applications/scenario-review/", {
+        searchParams: { page, page_size },
+      })
+      .json();
+  } catch (error) {
+    const errMsg = await handleServerApiCallError(error);
+    throw Error(errMsg);
+  }
+};
+
+export const reviewApplicationScenarioResponse = async (
+  applicationId: ID,
+  responseId: ID,
+  status: WorkSampleReviewDecision,
+  reviewer_reason = "",
+  scores?: Record<string, number>,
+  score_notes?: Record<string, string>
+): Promise<ApiResponse<ApplicationScenarioResponse>> => {
+  try {
+    const data = await serverKyInstance
+      .patch(`jobs/job-applications/${applicationId}/scenario-responses/${responseId}/`, {
+        json: { status, reviewer_reason, ...(scores ? { scores } : {}), ...(score_notes ? { score_notes } : {}) },
+      })
+      .json<ApplicationScenarioResponse>();
     return { success: true, data };
   } catch (error) {
     const errMsg = await handleServerApiCallError(error);

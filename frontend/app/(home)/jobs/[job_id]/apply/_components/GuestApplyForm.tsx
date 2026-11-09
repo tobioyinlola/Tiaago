@@ -54,6 +54,7 @@ type FormValues = {
   linkedin_url: string;
   cover_letter: string;
   additional_info: string;
+  scenario_response: string;
   terms_accepted: boolean;
 };
 
@@ -64,6 +65,7 @@ const initialValues: FormValues = {
   linkedin_url: "",
   cover_letter: "",
   additional_info: "",
+  scenario_response: "",
   terms_accepted: false,
 };
 
@@ -75,6 +77,14 @@ const GuestApplyForm = ({ job }: { job: Job }) => {
     required: false,
     prompt: "",
     instructions: "",
+    rubric: { version: 1, passing_score: 60, criteria: [] },
+  };
+  const scenarioConfiguration = job.scenario_configuration || {
+    enabled: false,
+    required: false,
+    prompt: "",
+    instructions: "",
+    response_label: "Your response",
     rubric: { version: 1, passing_score: 60, criteria: [] },
   };
   const validationSchema = useMemo(() => makeValidationSchema(configuration), [configuration]);
@@ -150,6 +160,11 @@ const GuestApplyForm = ({ job }: { job: Job }) => {
                 setSubmitting(false);
                 return;
               }
+              if (scenarioConfiguration.enabled && scenarioConfiguration.required && !values.scenario_response.trim()) {
+                toast.error("Please complete the required scenario response");
+                setSubmitting(false);
+                return;
+              }
               if (eligibilityRequirements.some(requirement => requirement.required && !eligibilityDeclarations[requirement.code])) {
                 toast.error("Please confirm every required eligibility requirement");
                 setSubmitting(false);
@@ -161,6 +176,7 @@ const GuestApplyForm = ({ job }: { job: Job }) => {
                 email: values.email.trim(),
                 ...(resumeFile ? { resume: resumeFile } : {}),
                 ...(workSampleFile ? { work_sample: workSampleFile } : {}),
+                scenario_response: values.scenario_response.trim(),
                 eligibility_declarations: eligibilityDeclarations,
               });
               setSubmitting(false);
@@ -176,7 +192,7 @@ const GuestApplyForm = ({ job }: { job: Job }) => {
               const hasConfirmedRequiredEligibility = eligibilityRequirements.every(
                 requirement => !requirement.required || eligibilityDeclarations[requirement.code]
               );
-              const canSubmit = isValid && dirty && (!configuration.resume.required || !!resumeFile) && (!workSampleConfiguration.required || !!workSampleFile) && hasConfirmedRequiredEligibility && !isSubmitting;
+              const canSubmit = isValid && dirty && (!configuration.resume.required || !!resumeFile) && (!workSampleConfiguration.required || !!workSampleFile) && (!scenarioConfiguration.required || !!values.scenario_response.trim()) && hasConfirmedRequiredEligibility && !isSubmitting;
               return (
                 <form onSubmit={handleSubmit} className='flex flex-col gap-6'>
                   <div className='flex flex-col gap-5'>
@@ -227,7 +243,7 @@ const GuestApplyForm = ({ job }: { job: Job }) => {
                     )}
                   </div>
 
-                  {(configuration.resume.enabled || configuration.cover_letter.enabled || configuration.additional_info.enabled || workSampleConfiguration.enabled) && (
+                  {(configuration.resume.enabled || configuration.cover_letter.enabled || configuration.additional_info.enabled || workSampleConfiguration.enabled || scenarioConfiguration.enabled) && (
                   <div className='flex flex-col gap-5 pt-6 border-t border-gray-100'>
                     <p className='text-xs font-semibold uppercase tracking-wide text-secondary-black'>
                       Application details
@@ -301,6 +317,25 @@ const GuestApplyForm = ({ job }: { job: Job }) => {
                       {workSampleFileName && <p className='flex items-center gap-1.5 text-sm text-primary-black mt-2'>
                         <Paperclip className='h-3.5 w-3.5' /> {workSampleFileName}
                       </p>}
+                    </div>}
+
+                    {scenarioConfiguration.enabled && <div className='rounded-xl border border-[#EAECF0] bg-[#FCFCFD] p-4'>
+                      <label className='label-text text-black font-medium font-onest mb-1 flex items-center gap-1.5'>
+                        <FileText className='h-3.5 w-3.5 text-secondary-black' />
+                        Scenario: {scenarioConfiguration.response_label} {scenarioConfiguration.required && <span className='text-error'>*</span>}
+                      </label>
+                      <p className='mb-2 text-sm text-primary-black'>{scenarioConfiguration.prompt}</p>
+                      {scenarioConfiguration.instructions && <p className='mb-3 text-xs text-secondary-black'>{scenarioConfiguration.instructions}</p>}
+                      <FormikField
+                        name='scenario_response'
+                        type='textarea'
+                        label=''
+                        placeholder='Write your response here...'
+                        value={values.scenario_response}
+                        error={errors.scenario_response}
+                        touched={touched.scenario_response}
+                      />
+                      <p className='mt-1 text-right text-xs text-secondary-black'>{values.scenario_response.length}/5000</p>
                     </div>}
                   </div>
                   )}

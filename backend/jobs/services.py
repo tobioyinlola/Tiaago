@@ -272,6 +272,17 @@ def eligibility_progression_block_detail(application):
             reviewed_at__isnull=False,
         ).exists():
             return "A reviewer must accept this candidate's required work sample before moving them forward."
+
+    scenario_configuration = application.job.get_scenario_configuration()
+    if scenario_configuration["enabled"] and scenario_configuration["required"]:
+        from .models import ApplicationScenarioResponse
+
+        if not ApplicationScenarioResponse.objects.filter(
+            application=application,
+            status=ApplicationScenarioResponse.Status.PASS,
+            reviewed_at__isnull=False,
+        ).exists():
+            return "A reviewer must accept this candidate's required scenario response before moving them forward."
     return ""
 
 

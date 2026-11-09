@@ -450,6 +450,7 @@ export type Job = {
    * collected from the candidate; a recruiter records the final decision. */
   eligibility_requirements?: EligibilityRequirement[];
   work_sample_configuration?: WorkSampleConfiguration;
+  scenario_configuration?: ScenarioConfiguration;
   country: string;
   work_mode: string;
   salary_duration: "PH" | "PM" | "CT";
@@ -549,6 +550,15 @@ export type WorkSampleConfiguration = {
   rubric: WorkSampleRubric;
 };
 
+export type ScenarioConfiguration = {
+  enabled: boolean;
+  required: boolean;
+  prompt: string;
+  instructions: string;
+  response_label: string;
+  rubric: WorkSampleRubric;
+};
+
 export type ApplicationConfiguration = {
   version: 1;
   resume: ApplicationFieldConfiguration;
@@ -605,6 +615,18 @@ export type ApplicationWorkSample = {
   created_at: string;
 };
 
+export type ApplicationScenarioResponse = {
+  id: ID;
+  response: string;
+  status: "SUBMITTED" | "PASS" | "NEEDS_REVIEW" | "FAIL";
+  reviewer_name: string | null;
+  reviewer_reason: string;
+  reviewed_at: string | null;
+  scores: ApplicationWorkSampleScore[];
+  weighted_score: number | null;
+  created_at: string;
+};
+
 export type HiringProfile = {
   code: string;
   name: string;
@@ -616,6 +638,7 @@ export type HiringProfile = {
   application_configuration: ApplicationConfiguration;
   eligibility_requirements: EligibilityRequirement[];
   work_sample_supported: boolean;
+  scenario_supported: boolean;
 };
 
 export type HiringProfilesResponse = {
@@ -769,6 +792,7 @@ export type JobApplication = {
   cover_letter: string;
   eligibility_checks?: ApplicationEligibilityCheck[];
   work_samples?: ApplicationWorkSample[];
+  scenario_response?: ApplicationScenarioResponse | null;
   status:
     | "APPLIED"
     | "REVIEWED"
