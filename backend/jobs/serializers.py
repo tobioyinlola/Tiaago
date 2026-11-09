@@ -407,6 +407,7 @@ class HiringProfileSerializer(serializers.ModelSerializer):
     eligibility_requirements = serializers.SerializerMethodField()
     work_sample_supported = serializers.SerializerMethodField()
     scenario_supported = serializers.SerializerMethodField()
+    workflow_configuration = serializers.SerializerMethodField()
 
     def get_application_configuration(self, obj):
         return _profile_application_configuration(obj)
@@ -419,6 +420,9 @@ class HiringProfileSerializer(serializers.ModelSerializer):
 
     def get_scenario_supported(self, obj):
         return _profile_supports_scenario(obj)
+
+    def get_workflow_configuration(self, obj):
+        return _profile_workflow_configuration(obj)
 
     class Meta:
         model = HiringProfile
@@ -434,6 +438,7 @@ class HiringProfileSerializer(serializers.ModelSerializer):
             "eligibility_requirements",
             "work_sample_supported",
             "scenario_supported",
+            "workflow_configuration",
         )
 
 

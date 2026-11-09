@@ -451,6 +451,7 @@ export type Job = {
   eligibility_requirements?: EligibilityRequirement[];
   work_sample_configuration?: WorkSampleConfiguration;
   scenario_configuration?: ScenarioConfiguration;
+  workflow_configuration?: WorkflowConfiguration;
   country: string;
   work_mode: string;
   salary_duration: "PH" | "PM" | "CT";
@@ -559,6 +560,9 @@ export type ScenarioConfiguration = {
   rubric: WorkSampleRubric;
 };
 
+export type WorkflowStage = "application" | "eligibility" | "screen" | "work_sample" | "scenario" | "assessment" | "practical" | "interview" | "decision" | "readiness";
+export type WorkflowConfiguration = { version: 1; stages: WorkflowStage[] };
+
 export type ApplicationConfiguration = {
   version: 1;
   resume: ApplicationFieldConfiguration;
@@ -639,6 +643,7 @@ export type HiringProfile = {
   eligibility_requirements: EligibilityRequirement[];
   work_sample_supported: boolean;
   scenario_supported: boolean;
+  workflow_configuration: WorkflowConfiguration;
 };
 
 export type HiringProfilesResponse = {

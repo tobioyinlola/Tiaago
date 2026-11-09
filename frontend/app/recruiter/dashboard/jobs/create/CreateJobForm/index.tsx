@@ -18,7 +18,7 @@ import Modal from "@/app/common/components/Modal";
 import { createJob, getJobDraft, saveJobDraft, deleteJobDraft } from "@/app/common/services/jobs";
 import { useAlert } from "@/app/common/store/useAlert";
 import InfoTooltip from "@/app/common/components/InfoTooltip";
-import { ApplicationConfiguration, CountryField, EligibilityRequirement, HiringProfile, ScenarioConfiguration, TalentRole, WorkSampleConfiguration } from "@/app/common/types";
+import { ApplicationConfiguration, CountryField, EligibilityRequirement, HiringProfile, ScenarioConfiguration, TalentRole, WorkflowConfiguration, WorkSampleConfiguration } from "@/app/common/types";
 import { useScrollToTop } from "@/app/common/hooks/useScrollToTop";
 import { cn, handleFormSubmissionError } from "@/app/common/utils";
 import FormikField from "@/app/common/components/Forms/FormikField";
@@ -35,6 +35,7 @@ import ApplicationRequirements from "./_components/ApplicationRequirements";
 import EligibilityRequirements from "./_components/EligibilityRequirements";
 import WorkSampleRequirements from "./_components/WorkSampleRequirements";
 import ScenarioRequirements from "./_components/ScenarioRequirements";
+import WorkflowRequirements from "./_components/WorkflowRequirements";
 
 const totalSteps = wizardSteps.length;
 
@@ -226,6 +227,7 @@ const CreateJobForm = ({
             eligibility_requirements,
             work_sample_configuration,
             scenario_configuration,
+            workflow_configuration,
             screening_threshold,
             passing_grade,
             assessment_time_limit,
@@ -261,6 +263,7 @@ const CreateJobForm = ({
               : {}),
             ...(hiring_profile_code && work_sample_configuration ? { work_sample_configuration } : {}),
             ...(hiring_profile_code && scenario_configuration ? { scenario_configuration } : {}),
+            ...(hiring_profile_code && workflow_configuration ? { workflow_configuration } : {}),
             payment_currency,
             ...(payment_currency === "USD"
               ? { payment_range_usd: payment_range }
@@ -333,6 +336,7 @@ const CreateJobForm = ({
                     setFieldValue("hiring_profile_code", value);
                     const profile = hiringProfiles.find(item => item.code === value);
                     setFieldValue("application_configuration", profile?.application_configuration);
+                    setFieldValue("workflow_configuration", profile?.workflow_configuration);
                     setFieldValue("eligibility_requirements", profile?.eligibility_requirements || []);
                     setFieldValue("work_sample_configuration", {
                       enabled: false,
@@ -351,6 +355,7 @@ const CreateJobForm = ({
                     });
                   }}
                 />
+                {values.hiring_profile_code && values.workflow_configuration && <WorkflowRequirements configuration={values.workflow_configuration as WorkflowConfiguration} onChange={configuration => setFieldValue("workflow_configuration", configuration)} />}
                 {values.hiring_profile_code && values.application_configuration && (
                   <ApplicationRequirements
                     configuration={values.application_configuration as ApplicationConfiguration}
