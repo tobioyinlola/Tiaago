@@ -5,6 +5,7 @@ import serverKyInstance from "../utils/server-ky.instance";
 import {
   ApiResponse,
   AssessmentQuestionSection,
+  ApplicationEligibilityCheck,
   ID,
   InterviewSlotInput,
   HiringProfilesResponse,
@@ -337,6 +338,46 @@ export const getJobApplications = async (page = 1, page_size = 10) => {
     const errMsg = await handleServerApiCallError(error);
     console.log("getJobApplications Error: ", errMsg);
     throw Error(errMsg);
+  }
+};
+
+/** Applications with at least one declaration that a recruiter still needs
+ * to decide. The backend scopes this to the current recruiter's company. */
+export const getEligibilityReviewQueue = async (page = 1, page_size = 50) => {
+  try {
+    return await serverKyInstance
+      .get<PagedResource<JobApplication>>("jobs/job-applications/eligibility-review/", {
+        searchParams: { page, page_size },
+      })
+      .json();
+  } catch (error) {
+    const errMsg = await handleServerApiCallError(error);
+    console.log("getEligibilityReviewQueue Error: ", errMsg);
+    throw Error(errMsg);
+  }
+};
+
+export type EligibilityReviewDecision = Exclude<ApplicationEligibilityCheck["status"], "PENDING">;
+
+/** Records the recruiter's human decision. A candidate declaration never
+ * changes a check to pass by itself. */
+export const reviewApplicationEligibilityCheck = async (
+  applicationId: ID,
+  checkId: ID,
+  status: EligibilityReviewDecision,
+  reason = ""
+): Promise<ApiResponse<ApplicationEligibilityCheck>> => {
+  try {
+    const data = await serverKyInstance
+      .patch(`jobs/job-applications/${applicationId}/eligibility/${checkId}/`, {
+        json: { status, reason },
+      })
+      .json<ApplicationEligibilityCheck>();
+    return { success: true, data };
+  } catch (error) {
+    const errMsg = await handleServerApiCallError(error);
+    console.log("reviewApplicationEligibilityCheck Error: ", errMsg);
+    return { success: false, error: errMsg };
   }
 };
 

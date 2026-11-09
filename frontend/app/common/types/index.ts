@@ -546,8 +546,12 @@ export type EligibilityRequirement = {
   required: boolean;
 };
 
-export type ApplicationEligibilityCheck = EligibilityRequirement & {
+export type ApplicationEligibilityCheck = {
   id: ID;
+  requirement_code: EligibilityRequirement["code"];
+  requirement_label: string;
+  requirement_description: string;
+  is_required: boolean;
   declaration: boolean | null;
   status: "PENDING" | "PASS" | "FAIL" | "NEEDS_REVIEW" | "NOT_APPLICABLE";
   reviewer_name: string | null;

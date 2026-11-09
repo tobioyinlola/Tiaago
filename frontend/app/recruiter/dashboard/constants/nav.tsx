@@ -44,6 +44,11 @@ export const recruiterNavItems: DashboardNavItemV3[] = [
         href: `${baseHref}/jobs/jobs-posted`,
       },
       {
+        name: "Eligibility reviews",
+        href: `${baseHref}/eligibility`,
+        requiredRoles: ["admin", "recruiter"],
+      },
+      {
         // The interviews list now has its own top-level nav item -- this
         // sub-link keeps pointing at the older schedule/calendar view.
         name: "Schedule",
