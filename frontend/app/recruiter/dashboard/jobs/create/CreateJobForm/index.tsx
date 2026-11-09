@@ -18,7 +18,7 @@ import Modal from "@/app/common/components/Modal";
 import { createJob, getJobDraft, saveJobDraft, deleteJobDraft } from "@/app/common/services/jobs";
 import { useAlert } from "@/app/common/store/useAlert";
 import InfoTooltip from "@/app/common/components/InfoTooltip";
-import { ApplicationConfiguration, CountryField, EligibilityRequirement, HiringProfile, TalentRole } from "@/app/common/types";
+import { ApplicationConfiguration, CountryField, EligibilityRequirement, HiringProfile, TalentRole, WorkSampleConfiguration } from "@/app/common/types";
 import { useScrollToTop } from "@/app/common/hooks/useScrollToTop";
 import { cn, handleFormSubmissionError } from "@/app/common/utils";
 import FormikField from "@/app/common/components/Forms/FormikField";
@@ -33,6 +33,7 @@ import { expandAvailabilityToSlots } from "./_components/availability";
 import HiringProfilePicker from "./_components/HiringProfilePicker";
 import ApplicationRequirements from "./_components/ApplicationRequirements";
 import EligibilityRequirements from "./_components/EligibilityRequirements";
+import WorkSampleRequirements from "./_components/WorkSampleRequirements";
 
 const totalSteps = wizardSteps.length;
 
@@ -222,6 +223,7 @@ const CreateJobForm = ({
             hiring_profile_code,
             application_configuration,
             eligibility_requirements,
+            work_sample_configuration,
             screening_threshold,
             passing_grade,
             assessment_time_limit,
@@ -255,6 +257,7 @@ const CreateJobForm = ({
                   })),
                 }
               : {}),
+            ...(hiring_profile_code && work_sample_configuration ? { work_sample_configuration } : {}),
             payment_currency,
             ...(payment_currency === "USD"
               ? { payment_range_usd: payment_range }
@@ -328,6 +331,7 @@ const CreateJobForm = ({
                     const profile = hiringProfiles.find(item => item.code === value);
                     setFieldValue("application_configuration", profile?.application_configuration);
                     setFieldValue("eligibility_requirements", profile?.eligibility_requirements || []);
+                    setFieldValue("work_sample_configuration", { enabled: false, required: false, prompt: "", instructions: "" });
                   }}
                 />
                 {values.hiring_profile_code && values.application_configuration && (
@@ -340,6 +344,12 @@ const CreateJobForm = ({
                   <EligibilityRequirements
                     requirements={values.eligibility_requirements as EligibilityRequirement[]}
                     onChange={requirements => setFieldValue("eligibility_requirements", requirements)}
+                  />
+                )}
+                {values.hiring_profile_code && hiringProfiles.find(item => item.code === values.hiring_profile_code)?.work_sample_supported && (
+                  <WorkSampleRequirements
+                    configuration={values.work_sample_configuration as WorkSampleConfiguration}
+                    onChange={configuration => setFieldValue("work_sample_configuration", configuration)}
                   />
                 )}
                 {formSections.map(({ title, description, fields }, i) => (

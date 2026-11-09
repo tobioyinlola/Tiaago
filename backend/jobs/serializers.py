@@ -19,6 +19,7 @@ from .models import (
     HiringProfile,
     JobApplication,
     ApplicationEligibilityCheck,
+    ApplicationWorkSample,
     Portfolio,
     Education,
     Experience,
@@ -114,6 +115,10 @@ def _hiring_profile_summary(job):
 APPLICATION_CONFIGURATION_VERSION = 1
 APPLICATION_CONFIGURATION_FIELDS = ("resume", "linkedin", "cover_letter", "additional_info")
 APPLICATION_CONFIGURATION_LABEL_MAX_LENGTH = 120
+WORK_SAMPLE_PROMPT_MAX_LENGTH = 800
+WORK_SAMPLE_INSTRUCTIONS_MAX_LENGTH = 1200
+WORK_SAMPLE_MAX_SIZE = 10 * 1024 * 1024
+WORK_SAMPLE_ALLOWED_EXTENSIONS = {"pdf", "docx", "xlsx", "csv"}
 
 
 def _normalise_application_configuration(value):
@@ -186,6 +191,57 @@ def _profile_eligibility_requirements(profile):
     return profile_eligibility_requirements(profile)
 
 
+def _profile_supports_work_sample(profile):
+    methods = (profile.evaluation_defaults or {}).get("methods", [])
+    return "work_sample" in methods or "scenario" in methods
+
+
+def _normalise_work_sample_configuration(value):
+    """Validate the intentionally small first work-sample contract."""
+    if not isinstance(value, dict):
+        raise serializers.ValidationError("Work-sample configuration must be an object.")
+    unknown = set(value) - {"enabled", "required", "prompt", "instructions"}
+    if unknown:
+        raise serializers.ValidationError(
+            {key: "This work-sample setting is not supported." for key in sorted(unknown)}
+        )
+    enabled = value.get("enabled")
+    required = value.get("required")
+    prompt = value.get("prompt", "")
+    instructions = value.get("instructions", "")
+    if not isinstance(enabled, bool) or not isinstance(required, bool):
+        raise serializers.ValidationError("Enabled and required must be true or false.")
+    if required and not enabled:
+        raise serializers.ValidationError("A hidden work sample cannot be required.")
+    if not isinstance(prompt, str) or not isinstance(instructions, str):
+        raise serializers.ValidationError("Work-sample prompt and instructions must be text.")
+    prompt = prompt.strip()
+    instructions = instructions.strip()
+    if enabled and not prompt:
+        raise serializers.ValidationError({"prompt": "Describe the work sample candidates should submit."})
+    if len(prompt) > WORK_SAMPLE_PROMPT_MAX_LENGTH:
+        raise serializers.ValidationError({"prompt": f"Keep the prompt to {WORK_SAMPLE_PROMPT_MAX_LENGTH} characters or fewer."})
+    if len(instructions) > WORK_SAMPLE_INSTRUCTIONS_MAX_LENGTH:
+        raise serializers.ValidationError({"instructions": f"Keep the instructions to {WORK_SAMPLE_INSTRUCTIONS_MAX_LENGTH} characters or fewer."})
+    return {
+        "enabled": enabled,
+        "required": required,
+        "prompt": prompt,
+        "instructions": instructions,
+    }
+
+
+def _validate_work_sample_file(value):
+    if not value:
+        return value
+    if value.size > WORK_SAMPLE_MAX_SIZE:
+        raise serializers.ValidationError("Work sample is too large. The maximum size is 10MB.")
+    extension = value.name.rsplit(".", 1)[-1].lower() if "." in value.name else ""
+    if extension not in WORK_SAMPLE_ALLOWED_EXTENSIONS:
+        raise serializers.ValidationError("Work samples must be PDF, DOCX, XLSX, or CSV files.")
+    return value
+
+
 class HiringProfileSerializer(serializers.ModelSerializer):
     """The safe, recruiter-facing profile library response.
 
@@ -196,12 +252,16 @@ class HiringProfileSerializer(serializers.ModelSerializer):
 
     application_configuration = serializers.SerializerMethodField()
     eligibility_requirements = serializers.SerializerMethodField()
+    work_sample_supported = serializers.SerializerMethodField()
 
     def get_application_configuration(self, obj):
         return _profile_application_configuration(obj)
 
     def get_eligibility_requirements(self, obj):
         return _profile_eligibility_requirements(obj)
+
+    def get_work_sample_supported(self, obj):
+        return _profile_supports_work_sample(obj)
 
     class Meta:
         model = HiringProfile
@@ -215,6 +275,7 @@ class HiringProfileSerializer(serializers.ModelSerializer):
             "work_setting",
             "application_configuration",
             "eligibility_requirements",
+            "work_sample_supported",
         )
 
 
@@ -272,6 +333,7 @@ class JobSerializer(serializers.ModelSerializer):
     )
     application_configuration = serializers.JSONField(required=False)
     eligibility_requirements = serializers.JSONField(required=False)
+    work_sample_configuration = serializers.JSONField(required=False)
 
     def validate_application_configuration(self, value):
         return _normalise_application_configuration(value)
@@ -281,6 +343,9 @@ class JobSerializer(serializers.ModelSerializer):
             return normalise_eligibility_requirements(value)
         except ValueError as error:
             raise serializers.ValidationError(str(error))
+
+    def validate_work_sample_configuration(self, value):
+        return _normalise_work_sample_configuration(value)
 
     def get_existing_assessment_questions(self, obj):
         template = getattr(obj, "assessment_template", None)
@@ -328,6 +393,7 @@ class JobSerializer(serializers.ModelSerializer):
             "hiring_profile_version",
             "application_configuration",
             "eligibility_requirements",
+            "work_sample_configuration",
             "job_type",
             "job_level",
             "location",
@@ -468,7 +534,8 @@ class JobSerializer(serializers.ModelSerializer):
         company = getattr(self.instance, "company", None) or self.context.get("company")
         configuration_supplied = "application_configuration" in attrs
         eligibility_supplied = "eligibility_requirements" in attrs
-        if (configuration_supplied or eligibility_supplied) and (not profile or not company or not company.hiring_profiles_enabled):
+        work_sample_supplied = "work_sample_configuration" in attrs
+        if (configuration_supplied or eligibility_supplied or work_sample_supplied) and (not profile or not company or not company.hiring_profiles_enabled):
             raise serializers.ValidationError({
                 "application_configuration": "Choose an enabled hiring profile before configuring the candidate journey."
             })
@@ -492,6 +559,7 @@ class JobSerializer(serializers.ModelSerializer):
                 attrs["hiring_profile_snapshot"] = {}
                 attrs["application_configuration"] = {}
                 attrs["eligibility_requirements"] = []
+                attrs["work_sample_configuration"] = {}
             else:
                 attrs["hiring_engine"] = Job.HiringEngine.CONFIGURABLE
                 attrs["hiring_profile_version"] = profile.version
@@ -502,6 +570,15 @@ class JobSerializer(serializers.ModelSerializer):
                 attrs["eligibility_requirements"] = attrs.get(
                     "eligibility_requirements", _profile_eligibility_requirements(profile)
                 )
+
+        work_sample_configuration = attrs.get(
+            "work_sample_configuration",
+            getattr(self.instance, "work_sample_configuration", {}) or {},
+        )
+        if work_sample_configuration.get("enabled") and not _profile_supports_work_sample(profile):
+            raise serializers.ValidationError({
+                "work_sample_configuration": "The selected hiring profile does not support a written work sample."
+            })
 
         work_mode = attrs.get("work_mode", getattr(self.instance, "work_mode", "") or "")
         country = attrs.get("country", getattr(self.instance, "country", "") or "")
@@ -617,6 +694,7 @@ class JobUpdateSerializer(serializers.ModelSerializer):
     # exposes it for review but only permits configuration at publish time.
     application_configuration = serializers.JSONField(read_only=True)
     eligibility_requirements = serializers.JSONField(read_only=True)
+    work_sample_configuration = serializers.JSONField(read_only=True)
 
     class Meta:
         model = Job
@@ -631,6 +709,7 @@ class JobUpdateSerializer(serializers.ModelSerializer):
             "hiring_profile_version",
             "application_configuration",
             "eligibility_requirements",
+            "work_sample_configuration",
             "job_status",
             "job_type",
             "job_level",
@@ -832,6 +911,53 @@ class ApplicationEligibilityCheckReviewSerializer(serializers.Serializer):
         )
 
 
+class ApplicationWorkSampleSerializer(serializers.ModelSerializer):
+    reviewer_name = serializers.SerializerMethodField()
+
+    def get_reviewer_name(self, obj):
+        if not obj.reviewer_id:
+            return None
+        return obj.reviewer.get_full_name() or obj.reviewer.email
+
+    class Meta:
+        model = ApplicationWorkSample
+        # Deliberately excludes `file`: sample storage remains private and is
+        # only opened by the permission-checked download endpoint.
+        fields = (
+            "id",
+            "original_filename",
+            "content_type",
+            "candidate_note",
+            "status",
+            "reviewer_name",
+            "reviewer_reason",
+            "reviewed_at",
+            "created_at",
+        )
+        read_only_fields = fields
+
+
+class ApplicationWorkSampleReviewSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ApplicationWorkSample
+        fields = ("status", "reviewer_reason")
+
+    def validate(self, attrs):
+        status = attrs.get("status", self.instance.status)
+        reason = (attrs.get("reviewer_reason") or "").strip()
+        if status in {ApplicationWorkSample.Status.FAIL, ApplicationWorkSample.Status.NEEDS_REVIEW} and not reason:
+            raise serializers.ValidationError({"reviewer_reason": "Add a reason for this review decision."})
+        return attrs
+
+    def update(self, instance, validated_data):
+        instance.status = validated_data["status"]
+        instance.reviewer_reason = (validated_data.get("reviewer_reason") or "").strip()
+        instance.reviewer = self.context["request"].user
+        instance.reviewed_at = timezone.now()
+        instance.save(update_fields=("status", "reviewer_reason", "reviewer", "reviewed_at", "updated_at"))
+        return instance
+
+
 class JobApplicationSerializer(serializers.ModelSerializer):
     job = JobSerializer(read_only=True)
     applicant = serializers.SerializerMethodField()
@@ -841,6 +967,7 @@ class JobApplicationSerializer(serializers.ModelSerializer):
     cover_letter = serializers.CharField(required=False, allow_blank=True, max_length=3000)
     eligibility_declarations = serializers.JSONField(required=False, write_only=True)
     eligibility_checks = ApplicationEligibilityCheckSerializer(many=True, read_only=True)
+    work_samples = ApplicationWorkSampleSerializer(many=True, read_only=True)
 
     class Meta:
         model = JobApplication
@@ -858,6 +985,7 @@ class JobApplicationSerializer(serializers.ModelSerializer):
             "resume",
             "eligibility_declarations",
             "eligibility_checks",
+            "work_samples",
         )
 
     def get_applicant(self, obj):
@@ -974,6 +1102,8 @@ class GuestJobApplicationSerializer(serializers.Serializer):
     resume = serializers.FileField(required=False, allow_null=True)
     cover_letter = serializers.CharField(required=False, allow_blank=True, max_length=3000)
     additional_info = serializers.CharField(required=False, allow_blank=True, max_length=3000)
+    work_sample = serializers.FileField(required=False, allow_null=True, write_only=True)
+    work_sample_note = serializers.CharField(required=False, allow_blank=True, max_length=1000, write_only=True)
     eligibility_declarations = serializers.JSONField(required=False, write_only=True)
     terms_accepted = serializers.BooleanField()
 
@@ -1000,6 +1130,9 @@ class GuestJobApplicationSerializer(serializers.Serializer):
         if file_extension not in allowed_extensions:
             raise serializers.ValidationError(f"Only {', '.join(allowed_extensions)} files are allowed.")
         return value
+
+    def validate_work_sample(self, value):
+        return _validate_work_sample_file(value)
 
     def validate(self, attrs):
         job = self.context["job"]
@@ -1042,6 +1175,13 @@ class GuestJobApplicationSerializer(serializers.Serializer):
         if errors:
             raise serializers.ValidationError(errors)
 
+        work_sample_configuration = job.get_work_sample_configuration()
+        work_sample = attrs.get("work_sample")
+        if work_sample_configuration["enabled"] and work_sample_configuration["required"] and not work_sample:
+            raise serializers.ValidationError({"work_sample": "A work sample is required for this job."})
+        if work_sample and not work_sample_configuration["enabled"]:
+            raise serializers.ValidationError({"work_sample": "This job is not accepting work samples."})
+
         try:
             attrs["eligibility_declarations"] = normalise_eligibility_declarations(
                 job.get_eligibility_requirements(),
@@ -1055,6 +1195,8 @@ class GuestJobApplicationSerializer(serializers.Serializer):
     def create(self, validated_data):
         job = self.context["job"]
         eligibility_declarations = validated_data.pop("eligibility_declarations", {})
+        work_sample = validated_data.pop("work_sample", None)
+        work_sample_note = validated_data.pop("work_sample_note", "")
         application = JobApplication.objects.create(
             applicant=None,
             job=job,
@@ -1068,6 +1210,14 @@ class GuestJobApplicationSerializer(serializers.Serializer):
             is_external_application=False,
         )
         sync_application_eligibility_checks(application, eligibility_declarations)
+        if work_sample:
+            ApplicationWorkSample.objects.create(
+                application=application,
+                file=work_sample,
+                original_filename=work_sample.name[:255],
+                content_type=(getattr(work_sample, "content_type", "") or "")[:120],
+                candidate_note=work_sample_note.strip(),
+            )
         return application
 
 

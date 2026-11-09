@@ -5,6 +5,7 @@ from .models import (
     HiringProfile,
     JobApplication,
     ApplicationEligibilityCheck,
+    ApplicationWorkSample,
     Portfolio,
     Education,
     Experience,
@@ -53,6 +54,14 @@ class ApplicationEligibilityCheckAdmin(admin.ModelAdmin):
         "application__guest_email",
         "application__applicant__user__email",
     )
+    list_select_related = ("application__job", "reviewer")
+
+
+@admin.register(ApplicationWorkSample)
+class ApplicationWorkSampleAdmin(admin.ModelAdmin):
+    list_display = ("original_filename", "application", "status", "reviewer", "reviewed_at")
+    list_filter = ("status",)
+    search_fields = ("original_filename", "application__guest_full_name", "application__guest_email")
     list_select_related = ("application__job", "reviewer")
 
 

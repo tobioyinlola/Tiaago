@@ -11,6 +11,7 @@ from datetime import timedelta
 from unittest.mock import patch
 
 from django.test import TestCase
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.utils import timezone
 
 from ai_interviews.models import AIInterview
@@ -639,7 +640,8 @@ class EligibilityReviewFoundationTests(TestCase):
                 {"code": "driving-licence", "required": True},
             ]
         }
-        self.driver.save(update_fields=["application_defaults", "eligibility_defaults"])
+        self.driver.evaluation_defaults = {"methods": ["work_sample", "structured_interview"]}
+        self.driver.save(update_fields=["application_defaults", "eligibility_defaults", "evaluation_defaults"])
 
     def _job_data(self, **overrides):
         data = {
@@ -661,20 +663,23 @@ class EligibilityReviewFoundationTests(TestCase):
         self.assertEqual(response.status_code, 201, response.data)
         return Job.objects.get(public_id=response.data["public_id"])
 
-    def _apply_as_guest(self, job, *, email, declarations):
+    def _apply_as_guest(self, job, *, email, declarations, work_sample=None):
         with patch("jobs.views.emails.application_received_mail"), patch(
             "jobs.views.carry_out_resume_analysis.delay"
         ):
+            payload = {
+                "full_name": "Eligible Driver",
+                "email": email,
+                "phone_number": "+2348000000000",
+                "additional_info": "Three years of last-mile delivery experience.",
+                "eligibility_declarations": json.dumps(declarations),
+                "terms_accepted": True,
+            }
+            if work_sample:
+                payload["work_sample"] = work_sample
             response = self.client.post(
                 f"/api/jobs/apply/{job.apply_token}/guest/",
-                {
-                    "full_name": "Eligible Driver",
-                    "email": email,
-                    "phone_number": "+2348000000000",
-                    "additional_info": "Three years of last-mile delivery experience.",
-                    "eligibility_declarations": json.dumps(declarations),
-                    "terms_accepted": True,
-                },
+                payload,
                 format="multipart",
             )
         self.assertEqual(response.status_code, 201, response.data)
@@ -823,3 +828,58 @@ class EligibilityReviewFoundationTests(TestCase):
         self.assertTrue(
             all(check.status == ApplicationEligibilityCheck.Status.NEEDS_REVIEW for check in checks)
         )
+
+    def test_required_work_sample_is_private_reviewable_and_blocks_progression(self):
+        job = self._publish_job()
+        job.work_sample_configuration = {
+            "enabled": True,
+            "required": True,
+            "prompt": "Upload a redacted delivery-route improvement proposal.",
+            "instructions": "Use a CSV or short document with no customer data.",
+        }
+        job.save(update_fields=["work_sample_configuration"])
+        application = self._apply_as_guest(
+            job,
+            email="driver-sample@example.com",
+            declarations={"right-to-work": True, "driving-licence": True},
+            work_sample=SimpleUploadedFile("route-plan.csv", b"route,minutes\nA,20\n", content_type="text/csv"),
+        )
+        sample = application.work_samples.get()
+        self.assertEqual(sample.status, "SUBMITTED")
+
+        for check in application.eligibility_checks.all():
+            response = self.client.patch(
+                f"/api/jobs/job-applications/{application.id}/eligibility/{check.id}/",
+                {"status": ApplicationEligibilityCheck.Status.PASS},
+                format="json",
+            )
+            self.assertEqual(response.status_code, 200, response.data)
+
+        response = self.client.patch(
+            f"/api/jobs/job-applications/{application.id}/",
+            {"status": JobApplication.JobApplicationStatus.REVIEWED},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400, response.data)
+        self.assertIn("work sample", response.data["detail"])
+
+        response = self.client.get(
+            f"/api/jobs/job-applications/{application.id}/work-samples/{sample.id}/download/"
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get("Content-Disposition"), 'attachment; filename="route-plan.csv"')
+
+        response = self.client.patch(
+            f"/api/jobs/job-applications/{application.id}/work-samples/{sample.id}/",
+            {"status": "PASS", "reviewer_reason": "Redacted route plan reviewed."},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+
+        with patch("jobs.views.send_assessment_link.apply_async"):
+            response = self.client.patch(
+                f"/api/jobs/job-applications/{application.id}/",
+                {"status": JobApplication.JobApplicationStatus.REVIEWED},
+                format="json",
+            )
+        self.assertEqual(response.status_code, 200, response.data)

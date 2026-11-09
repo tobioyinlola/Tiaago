@@ -9,6 +9,7 @@ from django.views.decorators.cache import cache_page
 from django.db.models.query import Q
 from django.contrib.auth import get_user_model
 from django.shortcuts import get_object_or_404
+from django.http import FileResponse
 from django.utils import timezone
 from rest_framework.generics import (
     CreateAPIView,
@@ -52,6 +53,7 @@ from .models import (
     Job,
     JobApplication,
     ApplicationEligibilityCheck,
+    ApplicationWorkSample,
     Portfolio,
     Tool,
     Project,
@@ -89,6 +91,8 @@ from .serializers import (
     HiringProfileSerializer,
     ApplicationEligibilityCheckSerializer,
     ApplicationEligibilityCheckReviewSerializer,
+    ApplicationWorkSampleSerializer,
+    ApplicationWorkSampleReviewSerializer,
 )
 from .tasks import (
     ACCEPTANCE_MAIL_DELAY_SECONDS,
@@ -1297,6 +1301,98 @@ class JobApplicationEligibilityCheckReviewView(APIView):
         serializer.is_valid(raise_exception=True)
         check = serializer.save()
         return Response(ApplicationEligibilityCheckSerializer(check, context={"request": request}).data)
+
+
+class JobApplicationWorkSampleReviewQueueView(ListAPIView):
+    """Company-scoped queue for private candidate work samples."""
+
+    serializer_class = JobApplicationSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    pagination_class = JobPagination
+
+    def get_queryset(self):
+        reviewable = (
+            ApplicationWorkSample.Status.SUBMITTED,
+            ApplicationWorkSample.Status.NEEDS_REVIEW,
+        )
+        queryset = JobApplication.objects.filter(
+            work_samples__status__in=reviewable,
+        ).distinct().order_by("-applied_date").select_related(
+            "job", "job__company", "applicant", "applicant__user"
+        ).prefetch_related("work_samples__reviewer")
+        if self.request.user.is_staff:
+            return queryset
+        company = get_user_company(self.request.user)
+        if not company or not user_is_company_role(
+            self.request.user,
+            company,
+            (CompanyTeamMember.ROLE.ADMIN, CompanyTeamMember.ROLE.RECRUITER),
+        ):
+            return JobApplication.objects.none()
+        return queryset.filter(job__company=company)
+
+
+class ApplicationWorkSampleReviewView(APIView):
+    """Records a human decision for one candidate work sample."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def patch(self, request, pk, sample_pk):
+        sample = get_object_or_404(
+            ApplicationWorkSample.objects.select_related("application__job__company"),
+            id=sample_pk,
+            application_id=pk,
+        )
+        company = sample.application.job.company
+        if not request.user.is_staff and not user_is_company_role(
+            request.user,
+            company,
+            (CompanyTeamMember.ROLE.ADMIN, CompanyTeamMember.ROLE.RECRUITER),
+        ):
+            return Response({"detail": "You are not authorized for this work-sample review."}, status=HTTP_403_FORBIDDEN)
+        serializer = ApplicationWorkSampleReviewSerializer(
+            sample,
+            data=request.data,
+            context={"request": request},
+        )
+        serializer.is_valid(raise_exception=True)
+        sample = serializer.save()
+        return Response(ApplicationWorkSampleSerializer(sample, context={"request": request}).data)
+
+
+class ApplicationWorkSampleDownloadView(APIView):
+    """Streams a private sample only to its applicant or owning hiring team."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, pk, sample_pk):
+        sample = get_object_or_404(
+            ApplicationWorkSample.objects.select_related(
+                "application__job__company", "application__applicant__user"
+            ),
+            id=sample_pk,
+            application_id=pk,
+        )
+        application = sample.application
+        company = application.job.company
+        talent_owns_application = (
+            application.applicant_id
+            and application.applicant.user_id == request.user.id
+        )
+        recruiter_can_review = user_is_company_role(
+            request.user,
+            company,
+            (CompanyTeamMember.ROLE.ADMIN, CompanyTeamMember.ROLE.RECRUITER),
+        )
+        if not (request.user.is_staff or talent_owns_application or recruiter_can_review):
+            return Response({"detail": "You are not authorized to access this work sample."}, status=HTTP_403_FORBIDDEN)
+        if not sample.file:
+            return Response({"detail": "Work sample file not found."}, status=HTTP_404_NOT_FOUND)
+        return FileResponse(
+            sample.file.open("rb"),
+            as_attachment=True,
+            filename=sample.original_filename,
+        )
 
 class JobApplyView(CreateAPIView):
     """Endpoint to apply for a job"""

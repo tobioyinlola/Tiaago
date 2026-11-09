@@ -244,18 +244,35 @@ def required_eligibility_blockers(application):
 
 
 def eligibility_progression_block_detail(application):
-    """Give every entry point the same actionable explanation of a hold."""
+    """Return an eligibility or required-work-sample hold message.
+
+    Existing callers guard every recruiter and automated transition through
+    this helper. Keeping the composite check here means the new work-sample
+    requirement receives the same protection without creating a second set
+    of fragile stage-specific checks.
+    """
     blockers = required_eligibility_blockers(application)
-    if not blockers:
-        return ""
-    labels = ", ".join(check.requirement_label for check in blockers[:3])
-    remainder = len(blockers) - 3
-    if remainder > 0:
-        labels = f"{labels}, and {remainder} more"
-    return (
-        "Complete the required eligibility reviews before moving this candidate "
-        f"forward: {labels}."
-    )
+    if blockers:
+        labels = ", ".join(check.requirement_label for check in blockers[:3])
+        remainder = len(blockers) - 3
+        if remainder > 0:
+            labels = f"{labels}, and {remainder} more"
+        return (
+            "Complete the required eligibility reviews before moving this candidate "
+            f"forward: {labels}."
+        )
+
+    configuration = application.job.get_work_sample_configuration()
+    if configuration["enabled"] and configuration["required"]:
+        from .models import ApplicationWorkSample
+
+        if not ApplicationWorkSample.objects.filter(
+            application=application,
+            status=ApplicationWorkSample.Status.PASS,
+            reviewed_at__isnull=False,
+        ).exists():
+            return "A reviewer must accept this candidate's required work sample before moving them forward."
+    return ""
 
 
 def cancel_pending_tasks_for_rejected_application(job_application_id):

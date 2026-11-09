@@ -1,6 +1,6 @@
 import * as Yup from "yup";
 
-import { ApplicationConfiguration, EligibilityRequirement, FormField, Job, RichTextToolbar } from "@/app/common/types";
+import { ApplicationConfiguration, EligibilityRequirement, FormField, Job, RichTextToolbar, WorkSampleConfiguration } from "@/app/common/types";
 import {
   handlePlural,
   jobSalaryTypeToLabel,
@@ -31,6 +31,7 @@ export const jobBasicDetailsValidationSchema = Yup.object().shape({
   hiring_profile_code: Yup.string().max(80).notRequired().label("Hiring profile"),
   application_configuration: Yup.mixed<ApplicationConfiguration>().notRequired(),
   eligibility_requirements: Yup.array<EligibilityRequirement[]>().notRequired(),
+  work_sample_configuration: Yup.mixed<WorkSampleConfiguration>().notRequired(),
   job_type: Yup.string()
     .required()
     .label("Job type")
@@ -200,6 +201,7 @@ export const initialValues: InitialValues = {
   hiring_profile_code: "",
   application_configuration: undefined,
   eligibility_requirements: [],
+  work_sample_configuration: { enabled: false, required: false, prompt: "", instructions: "" },
   // @ts-ignore
   job_level: "",
   // @ts-ignore,

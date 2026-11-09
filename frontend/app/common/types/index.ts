@@ -449,6 +449,7 @@ export type Job = {
   /** Reviewed, immutable eligibility rules for this job. A declaration is
    * collected from the candidate; a recruiter records the final decision. */
   eligibility_requirements?: EligibilityRequirement[];
+  work_sample_configuration?: WorkSampleConfiguration;
   country: string;
   work_mode: string;
   salary_duration: "PH" | "PM" | "CT";
@@ -526,6 +527,13 @@ export type ApplicationFieldConfiguration = {
   required: boolean;
 };
 
+export type WorkSampleConfiguration = {
+  enabled: boolean;
+  required: boolean;
+  prompt: string;
+  instructions: string;
+};
+
 export type ApplicationConfiguration = {
   version: 1;
   resume: ApplicationFieldConfiguration;
@@ -559,6 +567,18 @@ export type ApplicationEligibilityCheck = {
   reviewed_at: string | null;
 };
 
+export type ApplicationWorkSample = {
+  id: ID;
+  original_filename: string;
+  content_type: string;
+  candidate_note: string;
+  status: "SUBMITTED" | "PASS" | "NEEDS_REVIEW" | "FAIL";
+  reviewer_name: string | null;
+  reviewer_reason: string;
+  reviewed_at: string | null;
+  created_at: string;
+};
+
 export type HiringProfile = {
   code: string;
   name: string;
@@ -569,6 +589,7 @@ export type HiringProfile = {
   work_setting: string;
   application_configuration: ApplicationConfiguration;
   eligibility_requirements: EligibilityRequirement[];
+  work_sample_supported: boolean;
 };
 
 export type HiringProfilesResponse = {
@@ -721,6 +742,7 @@ export type JobApplication = {
   applied_date: string;
   cover_letter: string;
   eligibility_checks?: ApplicationEligibilityCheck[];
+  work_samples?: ApplicationWorkSample[];
   status:
     | "APPLIED"
     | "REVIEWED"

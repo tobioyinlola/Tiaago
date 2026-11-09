@@ -33,6 +33,13 @@ def get_location_options():
     return tuple(location_options)
 
 
+def private_work_sample_upload_to(_instance, filename):
+    """Use an unguessable media path; the API never exposes this path."""
+    suffix = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+    extension = f".{suffix}" if suffix else ""
+    return f"private_work_samples/{timezone.now():%Y/%m/%d}/{uuid4().hex}{extension}"
+
+
 #class ScreeningFeeCurrencies(models.TextChoices):
 #    USD = "USD", "USD"
 #    NAIRA = "NGN", "NGN"
@@ -183,6 +190,8 @@ class Job(models.Model):
     # rather than a live pointer to a profile, so later library revisions do
     # not change a candidate's requirements after they have applied.
     eligibility_requirements = models.JSONField(default=list, blank=True)
+    # Immutable, reviewer-owned work-sample request for this requisition.
+    work_sample_configuration = models.JSONField(default=dict, blank=True)
     #tags = models.JSONField(blank=True, default=list, help_text="Optional tags for categorizing the job")
 
     LEGACY_APPLICATION_CONFIGURATION = {
@@ -443,6 +452,17 @@ class Job(models.Model):
         """
         return deepcopy(self.eligibility_requirements or [])
 
+    def get_work_sample_configuration(self):
+        """Return a complete, published work-sample contract."""
+        configuration = {
+            "enabled": False,
+            "required": False,
+            "prompt": "",
+            "instructions": "",
+        }
+        configuration.update(deepcopy(self.work_sample_configuration or {}))
+        return configuration
+
     @property
     def hires_with_ai(self):
         return self.hiring_type == WITH_AI
@@ -683,6 +703,46 @@ class ApplicationEligibilityCheck(TimeStampedModel):
 
     def __str__(self):
         return f"{self.application_id}: {self.requirement_label} ({self.status})"
+
+
+class ApplicationWorkSample(TimeStampedModel):
+    """Private candidate work-sample submission with a human review trail."""
+
+    class Status(models.TextChoices):
+        SUBMITTED = "SUBMITTED", _("Submitted")
+        PASS = "PASS", _("Accepted")
+        NEEDS_REVIEW = "NEEDS_REVIEW", _("Needs changes")
+        FAIL = "FAIL", _("Not accepted")
+
+    application = models.ForeignKey(
+        "jobs.JobApplication", on_delete=models.CASCADE, related_name="work_samples"
+    )
+    # File paths are never returned in the API. Downloads pass through a
+    # permission-checked view so a work sample is not public media.
+    file = models.FileField(upload_to=private_work_sample_upload_to)
+    original_filename = models.CharField(max_length=255)
+    content_type = models.CharField(max_length=120, blank=True, default="")
+    candidate_note = models.TextField(max_length=1000, blank=True, default="")
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.SUBMITTED)
+    reviewer = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="reviewed_application_work_samples",
+    )
+    reviewer_reason = models.TextField(max_length=1000, blank=True, default="")
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=("status", "updated_at")),
+            models.Index(fields=("application", "status")),
+        ]
+        ordering = ("-created_at",)
+
+    def __str__(self):
+        return f"{self.application_id}: {self.original_filename} ({self.status})"
 
 
 class JobApplication(models.Model):

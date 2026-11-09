@@ -16,6 +16,7 @@ import { VanillaFileInput } from "@/app/common/components/Forms/FileInput";
 import { submitGuestJobApplication } from "@/app/common/services/jobs";
 
 const MAX_RESUME_SIZE = 5 * 1024 * 1024; // 5MB
+const MAX_WORK_SAMPLE_SIZE = 10 * 1024 * 1024;
 
 const legacyApplicationConfiguration: ApplicationConfiguration = {
   version: 1,
@@ -69,9 +70,12 @@ const initialValues: FormValues = {
 const GuestApplyForm = ({ job }: { job: Job }) => {
   const configuration = job.application_configuration || legacyApplicationConfiguration;
   const eligibilityRequirements = job.eligibility_requirements || [];
+  const workSampleConfiguration = job.work_sample_configuration || { enabled: false, required: false, prompt: "", instructions: "" };
   const validationSchema = useMemo(() => makeValidationSchema(configuration), [configuration]);
   const [resumeFile, setResumeFile] = useState<File>();
   const [resumeFileName, setResumeFileName] = useState<string>();
+  const [workSampleFile, setWorkSampleFile] = useState<File>();
+  const [workSampleFileName, setWorkSampleFileName] = useState<string>();
   const [eligibilityDeclarations, setEligibilityDeclarations] = useState<Record<string, boolean>>(() =>
     Object.fromEntries(eligibilityRequirements.map(requirement => [requirement.code, false]))
   );
@@ -135,6 +139,11 @@ const GuestApplyForm = ({ job }: { job: Job }) => {
                 setSubmitting(false);
                 return;
               }
+              if (workSampleConfiguration.enabled && workSampleConfiguration.required && !workSampleFile) {
+                toast.error("Please upload the required work sample");
+                setSubmitting(false);
+                return;
+              }
               if (eligibilityRequirements.some(requirement => requirement.required && !eligibilityDeclarations[requirement.code])) {
                 toast.error("Please confirm every required eligibility requirement");
                 setSubmitting(false);
@@ -145,6 +154,7 @@ const GuestApplyForm = ({ job }: { job: Job }) => {
                 full_name: values.full_name.trim(),
                 email: values.email.trim(),
                 ...(resumeFile ? { resume: resumeFile } : {}),
+                ...(workSampleFile ? { work_sample: workSampleFile } : {}),
                 eligibility_declarations: eligibilityDeclarations,
               });
               setSubmitting(false);
@@ -160,7 +170,7 @@ const GuestApplyForm = ({ job }: { job: Job }) => {
               const hasConfirmedRequiredEligibility = eligibilityRequirements.every(
                 requirement => !requirement.required || eligibilityDeclarations[requirement.code]
               );
-              const canSubmit = isValid && dirty && (!configuration.resume.required || !!resumeFile) && hasConfirmedRequiredEligibility && !isSubmitting;
+              const canSubmit = isValid && dirty && (!configuration.resume.required || !!resumeFile) && (!workSampleConfiguration.required || !!workSampleFile) && hasConfirmedRequiredEligibility && !isSubmitting;
               return (
                 <form onSubmit={handleSubmit} className='flex flex-col gap-6'>
                   <div className='flex flex-col gap-5'>
@@ -211,7 +221,7 @@ const GuestApplyForm = ({ job }: { job: Job }) => {
                     )}
                   </div>
 
-                  {(configuration.resume.enabled || configuration.cover_letter.enabled || configuration.additional_info.enabled) && (
+                  {(configuration.resume.enabled || configuration.cover_letter.enabled || configuration.additional_info.enabled || workSampleConfiguration.enabled) && (
                   <div className='flex flex-col gap-5 pt-6 border-t border-gray-100'>
                     <p className='text-xs font-semibold uppercase tracking-wide text-secondary-black'>
                       Application details
@@ -261,6 +271,31 @@ const GuestApplyForm = ({ job }: { job: Job }) => {
                       error={errors.additional_info}
                       touched={touched.additional_info}
                     />}
+
+                    {workSampleConfiguration.enabled && <div>
+                      <label className='label-text text-black font-medium font-onest mb-1 flex items-center gap-1.5'>
+                        <FileText className='h-3.5 w-3.5 text-secondary-black' />
+                        Work sample {workSampleConfiguration.required && <span className='text-error'>*</span>}
+                      </label>
+                      <p className='mb-2 text-sm text-secondary-black'>{workSampleConfiguration.prompt}</p>
+                      {workSampleConfiguration.instructions && <p className='mb-2 text-xs text-secondary-black'>{workSampleConfiguration.instructions}</p>}
+                      <VanillaFileInput
+                        name='work_sample'
+                        label=''
+                        value={workSampleFileName}
+                        accept='.pdf,.docx,.xlsx,.csv'
+                        acceptText='PDF, DOCX, XLSX, or CSV (max. 10MB)'
+                        maxFileSize={MAX_WORK_SAMPLE_SIZE}
+                        className='h-36'
+                        setFile={file => {
+                          setWorkSampleFile(file);
+                          setWorkSampleFileName(file.name);
+                        }}
+                      />
+                      {workSampleFileName && <p className='flex items-center gap-1.5 text-sm text-primary-black mt-2'>
+                        <Paperclip className='h-3.5 w-3.5' /> {workSampleFileName}
+                      </p>}
+                    </div>}
                   </div>
                   )}
 
