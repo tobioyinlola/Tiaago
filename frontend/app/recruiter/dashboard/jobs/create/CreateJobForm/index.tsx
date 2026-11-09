@@ -331,7 +331,13 @@ const CreateJobForm = ({
                     const profile = hiringProfiles.find(item => item.code === value);
                     setFieldValue("application_configuration", profile?.application_configuration);
                     setFieldValue("eligibility_requirements", profile?.eligibility_requirements || []);
-                    setFieldValue("work_sample_configuration", { enabled: false, required: false, prompt: "", instructions: "" });
+                    setFieldValue("work_sample_configuration", {
+                      enabled: false,
+                      required: false,
+                      prompt: "",
+                      instructions: "",
+                      rubric: { version: 1, passing_score: 60, criteria: [] },
+                    });
                   }}
                 />
                 {values.hiring_profile_code && values.application_configuration && (

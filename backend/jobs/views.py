@@ -1319,7 +1319,7 @@ class JobApplicationWorkSampleReviewQueueView(ListAPIView):
             work_samples__status__in=reviewable,
         ).distinct().order_by("-applied_date").select_related(
             "job", "job__company", "applicant", "applicant__user"
-        ).prefetch_related("work_samples__reviewer")
+        ).prefetch_related("work_samples__reviewer", "work_samples__scores")
         if self.request.user.is_staff:
             return queryset
         company = get_user_company(self.request.user)
@@ -1339,7 +1339,7 @@ class ApplicationWorkSampleReviewView(APIView):
 
     def patch(self, request, pk, sample_pk):
         sample = get_object_or_404(
-            ApplicationWorkSample.objects.select_related("application__job__company"),
+            ApplicationWorkSample.objects.select_related("application__job__company").prefetch_related("scores"),
             id=sample_pk,
             application_id=pk,
         )

@@ -527,11 +527,26 @@ export type ApplicationFieldConfiguration = {
   required: boolean;
 };
 
+export type WorkSampleRubricCriterion = {
+  /** Assigned by the API when the job is published. */
+  code?: string;
+  label: string;
+  description: string;
+  weight: number;
+};
+
+export type WorkSampleRubric = {
+  version: 1;
+  passing_score: number;
+  criteria: WorkSampleRubricCriterion[];
+};
+
 export type WorkSampleConfiguration = {
   enabled: boolean;
   required: boolean;
   prompt: string;
   instructions: string;
+  rubric: WorkSampleRubric;
 };
 
 export type ApplicationConfiguration = {
@@ -567,6 +582,15 @@ export type ApplicationEligibilityCheck = {
   reviewed_at: string | null;
 };
 
+export type ApplicationWorkSampleScore = {
+  criterion_code: string;
+  criterion_label: string;
+  criterion_description: string;
+  weight: number;
+  score: number;
+  reviewer_note: string;
+};
+
 export type ApplicationWorkSample = {
   id: ID;
   original_filename: string;
@@ -576,6 +600,8 @@ export type ApplicationWorkSample = {
   reviewer_name: string | null;
   reviewer_reason: string;
   reviewed_at: string | null;
+  scores: ApplicationWorkSampleScore[];
+  weighted_score: number | null;
   created_at: string;
 };
 

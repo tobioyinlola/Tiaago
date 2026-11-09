@@ -5,6 +5,7 @@ from types import SimpleNamespace
 
 import pycountry
 from django.contrib.postgres.fields import ArrayField
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 from base.models import TimeStampedModel
@@ -459,8 +460,17 @@ class Job(models.Model):
             "required": False,
             "prompt": "",
             "instructions": "",
+            "rubric": {
+                "version": 1,
+                "passing_score": 60,
+                "criteria": [],
+            },
         }
-        configuration.update(deepcopy(self.work_sample_configuration or {}))
+        stored_configuration = deepcopy(self.work_sample_configuration or {})
+        stored_rubric = stored_configuration.pop("rubric", None)
+        configuration.update(stored_configuration)
+        if isinstance(stored_rubric, dict):
+            configuration["rubric"].update(stored_rubric)
         return configuration
 
     @property
@@ -743,6 +753,38 @@ class ApplicationWorkSample(TimeStampedModel):
 
     def __str__(self):
         return f"{self.application_id}: {self.original_filename} ({self.status})"
+
+
+class ApplicationWorkSampleScore(TimeStampedModel):
+    """An immutable-at-review snapshot of one work-sample rubric criterion.
+
+    The rubric belongs to the job, while these rows record precisely what a
+    reviewer assessed for this candidate.  Keeping the label, description and
+    weight here makes a completed scorecard readable even if a future job
+    configuration editor introduces a new rubric version.
+    """
+
+    sample = models.ForeignKey(
+        ApplicationWorkSample, on_delete=models.CASCADE, related_name="scores"
+    )
+    criterion_code = models.SlugField(max_length=80)
+    criterion_label = models.CharField(max_length=120)
+    criterion_description = models.CharField(max_length=360, blank=True, default="")
+    weight = models.PositiveSmallIntegerField(validators=[MinValueValidator(1), MaxValueValidator(100)])
+    score = models.PositiveSmallIntegerField(validators=[MinValueValidator(0), MaxValueValidator(5)])
+    reviewer_note = models.TextField(max_length=1000, blank=True, default="")
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=("sample", "criterion_code"),
+                name="unique_work_sample_score_criterion",
+            )
+        ]
+        ordering = ("criterion_code",)
+
+    def __str__(self):
+        return f"{self.sample_id}: {self.criterion_label} ({self.score}/5)"
 
 
 class JobApplication(models.Model):

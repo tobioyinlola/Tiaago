@@ -20,6 +20,7 @@ from .models import (
     JobApplication,
     ApplicationEligibilityCheck,
     ApplicationWorkSample,
+    ApplicationWorkSampleScore,
     Portfolio,
     Education,
     Experience,
@@ -117,6 +118,10 @@ APPLICATION_CONFIGURATION_FIELDS = ("resume", "linkedin", "cover_letter", "addit
 APPLICATION_CONFIGURATION_LABEL_MAX_LENGTH = 120
 WORK_SAMPLE_PROMPT_MAX_LENGTH = 800
 WORK_SAMPLE_INSTRUCTIONS_MAX_LENGTH = 1200
+WORK_SAMPLE_RUBRIC_MAX_CRITERIA = 6
+WORK_SAMPLE_CRITERION_LABEL_MAX_LENGTH = 120
+WORK_SAMPLE_CRITERION_DESCRIPTION_MAX_LENGTH = 360
+WORK_SAMPLE_PASSING_SCORE_DEFAULT = 60
 WORK_SAMPLE_MAX_SIZE = 10 * 1024 * 1024
 WORK_SAMPLE_ALLOWED_EXTENSIONS = {"pdf", "docx", "xlsx", "csv"}
 
@@ -200,7 +205,7 @@ def _normalise_work_sample_configuration(value):
     """Validate the intentionally small first work-sample contract."""
     if not isinstance(value, dict):
         raise serializers.ValidationError("Work-sample configuration must be an object.")
-    unknown = set(value) - {"enabled", "required", "prompt", "instructions"}
+    unknown = set(value) - {"enabled", "required", "prompt", "instructions", "rubric"}
     if unknown:
         raise serializers.ValidationError(
             {key: "This work-sample setting is not supported." for key in sorted(unknown)}
@@ -223,11 +228,77 @@ def _normalise_work_sample_configuration(value):
         raise serializers.ValidationError({"prompt": f"Keep the prompt to {WORK_SAMPLE_PROMPT_MAX_LENGTH} characters or fewer."})
     if len(instructions) > WORK_SAMPLE_INSTRUCTIONS_MAX_LENGTH:
         raise serializers.ValidationError({"instructions": f"Keep the instructions to {WORK_SAMPLE_INSTRUCTIONS_MAX_LENGTH} characters or fewer."})
+    rubric = _normalise_work_sample_rubric(value.get("rubric"))
     return {
         "enabled": enabled,
         "required": required,
         "prompt": prompt,
         "instructions": instructions,
+        "rubric": rubric,
+    }
+
+
+def _normalise_work_sample_rubric(value):
+    """Return the scorecard stored with a job's work-sample request.
+
+    Criterion IDs are assigned by the server in display order.  This keeps a
+    recruiter-facing label from becoming an identifier that a client can
+    choose or mutate, while still making the published scorecard safe to
+    round-trip through the API.
+    """
+    if value is None:
+        value = {}
+    if not isinstance(value, dict):
+        raise serializers.ValidationError({"rubric": "A work-sample scorecard must be an object."})
+    unknown = set(value) - {"version", "passing_score", "criteria"}
+    if unknown:
+        raise serializers.ValidationError({"rubric": f"Unsupported scorecard setting: {', '.join(sorted(unknown))}."})
+    version = value.get("version", 1)
+    if version != 1:
+        raise serializers.ValidationError({"rubric": "Only scorecard version 1 is supported."})
+    passing_score = value.get("passing_score", WORK_SAMPLE_PASSING_SCORE_DEFAULT)
+    if isinstance(passing_score, bool) or not isinstance(passing_score, int) or not 0 <= passing_score <= 100:
+        raise serializers.ValidationError({"rubric": "Passing score must be a whole number from 0 to 100."})
+    criteria = value.get("criteria", [])
+    if not isinstance(criteria, list):
+        raise serializers.ValidationError({"rubric": "Scorecard criteria must be a list."})
+    if len(criteria) > WORK_SAMPLE_RUBRIC_MAX_CRITERIA:
+        raise serializers.ValidationError({"rubric": f"Use at most {WORK_SAMPLE_RUBRIC_MAX_CRITERIA} scorecard criteria."})
+
+    normalised_criteria = []
+    for index, criterion in enumerate(criteria, start=1):
+        if not isinstance(criterion, dict):
+            raise serializers.ValidationError({"rubric": "Each scorecard criterion must be an object."})
+        # `code` is accepted only to make an existing published configuration
+        # round-trip cleanly; it is deliberately ignored and regenerated.
+        unsupported = set(criterion) - {"code", "label", "description", "weight"}
+        if unsupported:
+            raise serializers.ValidationError({"rubric": f"Unsupported criterion setting: {', '.join(sorted(unsupported))}."})
+        label = criterion.get("label", "")
+        description = criterion.get("description", "")
+        weight = criterion.get("weight")
+        if not isinstance(label, str) or not label.strip():
+            raise serializers.ValidationError({"rubric": "Every scorecard criterion needs a label."})
+        if len(label.strip()) > WORK_SAMPLE_CRITERION_LABEL_MAX_LENGTH:
+            raise serializers.ValidationError({"rubric": f"Criterion labels must be {WORK_SAMPLE_CRITERION_LABEL_MAX_LENGTH} characters or fewer."})
+        if not isinstance(description, str):
+            raise serializers.ValidationError({"rubric": "Criterion descriptions must be text."})
+        if len(description.strip()) > WORK_SAMPLE_CRITERION_DESCRIPTION_MAX_LENGTH:
+            raise serializers.ValidationError({"rubric": f"Criterion descriptions must be {WORK_SAMPLE_CRITERION_DESCRIPTION_MAX_LENGTH} characters or fewer."})
+        if isinstance(weight, bool) or not isinstance(weight, int) or not 1 <= weight <= 100:
+            raise serializers.ValidationError({"rubric": "Each criterion weight must be a whole number from 1 to 100."})
+        normalised_criteria.append({
+            "code": f"criterion-{index}",
+            "label": label.strip(),
+            "description": description.strip(),
+            "weight": weight,
+        })
+    if normalised_criteria and sum(criterion["weight"] for criterion in normalised_criteria) != 100:
+        raise serializers.ValidationError({"rubric": "Scorecard criterion weights must add up to 100."})
+    return {
+        "version": 1,
+        "passing_score": passing_score,
+        "criteria": normalised_criteria,
     }
 
 
@@ -911,13 +982,40 @@ class ApplicationEligibilityCheckReviewSerializer(serializers.Serializer):
         )
 
 
+def _work_sample_weighted_score(scores):
+    """Return a percentage score from stored 0–5 ratings, or None if blank."""
+    scores = list(scores)
+    if not scores:
+        return None
+    return round(sum((score.score / 5) * score.weight for score in scores), 1)
+
+
+class ApplicationWorkSampleScoreSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ApplicationWorkSampleScore
+        fields = (
+            "criterion_code",
+            "criterion_label",
+            "criterion_description",
+            "weight",
+            "score",
+            "reviewer_note",
+        )
+        read_only_fields = fields
+
+
 class ApplicationWorkSampleSerializer(serializers.ModelSerializer):
     reviewer_name = serializers.SerializerMethodField()
+    scores = ApplicationWorkSampleScoreSerializer(many=True, read_only=True)
+    weighted_score = serializers.SerializerMethodField()
 
     def get_reviewer_name(self, obj):
         if not obj.reviewer_id:
             return None
         return obj.reviewer.get_full_name() or obj.reviewer.email
+
+    def get_weighted_score(self, obj):
+        return _work_sample_weighted_score(obj.scores.all())
 
     class Meta:
         model = ApplicationWorkSample
@@ -932,29 +1030,107 @@ class ApplicationWorkSampleSerializer(serializers.ModelSerializer):
             "reviewer_name",
             "reviewer_reason",
             "reviewed_at",
+            "scores",
+            "weighted_score",
             "created_at",
         )
         read_only_fields = fields
 
 
-class ApplicationWorkSampleReviewSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = ApplicationWorkSample
-        fields = ("status", "reviewer_reason")
+class ApplicationWorkSampleReviewSerializer(serializers.Serializer):
+    status = serializers.ChoiceField(
+        choices=(
+            ApplicationWorkSample.Status.PASS,
+            ApplicationWorkSample.Status.FAIL,
+            ApplicationWorkSample.Status.NEEDS_REVIEW,
+        )
+    )
+    reviewer_reason = serializers.CharField(max_length=1000, required=False, allow_blank=True)
+    scores = serializers.DictField(
+        child=serializers.IntegerField(min_value=0, max_value=5),
+        required=False,
+    )
+    score_notes = serializers.DictField(
+        child=serializers.CharField(max_length=1000, allow_blank=True),
+        required=False,
+    )
+
+    def _criteria(self):
+        rubric = self.instance.application.job.get_work_sample_configuration().get("rubric", {})
+        criteria = rubric.get("criteria", [])
+        return rubric, criteria if isinstance(criteria, list) else []
 
     def validate(self, attrs):
-        status = attrs.get("status", self.instance.status)
+        status = attrs["status"]
         reason = (attrs.get("reviewer_reason") or "").strip()
         if status in {ApplicationWorkSample.Status.FAIL, ApplicationWorkSample.Status.NEEDS_REVIEW} and not reason:
             raise serializers.ValidationError({"reviewer_reason": "Add a reason for this review decision."})
+
+        rubric, criteria = self._criteria()
+        scores = attrs.get("scores")
+        score_notes = attrs.get("score_notes", {})
+        if not criteria:
+            if scores is not None or score_notes:
+                raise serializers.ValidationError({"scores": "This work sample does not have a scorecard."})
+            return attrs
+
+        criterion_codes = [criterion.get("code") for criterion in criteria]
+        if len(criterion_codes) != len(set(criterion_codes)) or not all(criterion_codes):
+            raise serializers.ValidationError("This job's work-sample scorecard is invalid.")
+        if scores is None and score_notes:
+            raise serializers.ValidationError({"score_notes": "Add score notes together with criterion scores."})
+        if scores is not None:
+            supplied_codes = set(scores)
+            expected_codes = set(criterion_codes)
+            if supplied_codes != expected_codes:
+                raise serializers.ValidationError({
+                    "scores": "Score every criterion in this job's scorecard exactly once."
+                })
+            unknown_note_codes = set(score_notes) - expected_codes
+            if unknown_note_codes:
+                raise serializers.ValidationError({"score_notes": "Notes can only be added to scorecard criteria."})
+
+            weighted_score = round(sum(
+                (scores[criterion["code"]] / 5) * criterion["weight"]
+                for criterion in criteria
+            ), 1)
+            attrs["weighted_score"] = weighted_score
+            if status == ApplicationWorkSample.Status.PASS and weighted_score < rubric.get("passing_score", WORK_SAMPLE_PASSING_SCORE_DEFAULT):
+                raise serializers.ValidationError({
+                    "status": (
+                        f"The weighted score is {weighted_score}%, below this job's "
+                        f"{rubric.get('passing_score', WORK_SAMPLE_PASSING_SCORE_DEFAULT)}% passing score."
+                    )
+                })
+        elif status in {ApplicationWorkSample.Status.PASS, ApplicationWorkSample.Status.FAIL}:
+            raise serializers.ValidationError({"scores": "Score every criterion before recording a final decision."})
         return attrs
 
     def update(self, instance, validated_data):
-        instance.status = validated_data["status"]
-        instance.reviewer_reason = (validated_data.get("reviewer_reason") or "").strip()
-        instance.reviewer = self.context["request"].user
-        instance.reviewed_at = timezone.now()
-        instance.save(update_fields=("status", "reviewer_reason", "reviewer", "reviewed_at", "updated_at"))
+        validated_data.pop("weighted_score", None)
+        scores = validated_data.pop("scores", None)
+        score_notes = validated_data.pop("score_notes", {})
+        _rubric, criteria = self._criteria()
+        with transaction.atomic():
+            instance.status = validated_data["status"]
+            instance.reviewer_reason = (validated_data.get("reviewer_reason") or "").strip()
+            instance.reviewer = self.context["request"].user
+            instance.reviewed_at = timezone.now()
+            instance.save(update_fields=("status", "reviewer_reason", "reviewer", "reviewed_at", "updated_at"))
+            if scores is not None:
+                instance.scores.all().delete()
+                ApplicationWorkSampleScore.objects.bulk_create([
+                    ApplicationWorkSampleScore(
+                        sample=instance,
+                        criterion_code=criterion["code"],
+                        criterion_label=criterion["label"],
+                        criterion_description=criterion.get("description", ""),
+                        weight=criterion["weight"],
+                        score=scores[criterion["code"]],
+                        reviewer_note=score_notes.get(criterion["code"], "").strip(),
+                    )
+                    for criterion in criteria
+                ])
         return instance
 
 

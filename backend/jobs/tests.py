@@ -657,9 +657,9 @@ class EligibilityReviewFoundationTests(TestCase):
         data.update(overrides)
         return data
 
-    def _publish_job(self):
+    def _publish_job(self, **overrides):
         with patch("talent_network.tasks.run_talent_network_matching.delay"):
-            response = self.client.post("/api/jobs/", self._job_data(), format="json")
+            response = self.client.post("/api/jobs/", self._job_data(**overrides), format="json")
         self.assertEqual(response.status_code, 201, response.data)
         return Job.objects.get(public_id=response.data["public_id"])
 
@@ -876,6 +876,75 @@ class EligibilityReviewFoundationTests(TestCase):
         )
         self.assertEqual(response.status_code, 200, response.data)
 
+        with patch("jobs.views.send_assessment_link.apply_async"):
+            response = self.client.patch(
+                f"/api/jobs/job-applications/{application.id}/",
+                {"status": JobApplication.JobApplicationStatus.REVIEWED},
+                format="json",
+            )
+        self.assertEqual(response.status_code, 200, response.data)
+
+    def test_work_sample_scorecard_snapshots_reviews_and_enforces_its_passing_score(self):
+        job = self._publish_job(
+            work_sample_configuration={
+                "enabled": True,
+                "required": True,
+                "prompt": "Upload a redacted delivery-route improvement proposal.",
+                "instructions": "Use a CSV or short document with no customer data.",
+                "rubric": {
+                    "version": 1,
+                    "passing_score": 70,
+                    "criteria": [
+                        {"label": "Route accuracy", "description": "Routes are practical and correctly calculated.", "weight": 60},
+                        {"label": "Written clarity", "description": "The recommendation is clear and actionable.", "weight": 40},
+                    ],
+                },
+            }
+        )
+        criteria = job.get_work_sample_configuration()["rubric"]["criteria"]
+        self.assertEqual([criterion["code"] for criterion in criteria], ["criterion-1", "criterion-2"])
+
+        application = self._apply_as_guest(
+            job,
+            email="driver-scorecard@example.com",
+            declarations={"right-to-work": True, "driving-licence": True},
+            work_sample=SimpleUploadedFile("route-plan.csv", b"route,minutes\nA,20\n", content_type="text/csv"),
+        )
+        sample = application.work_samples.get()
+
+        response = self.client.patch(
+            f"/api/jobs/job-applications/{application.id}/work-samples/{sample.id}/",
+            {
+                "status": "PASS",
+                "scores": {"criterion-1": 3, "criterion-2": 3},
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400, response.data)
+        self.assertIn("below", str(response.data))
+
+        response = self.client.patch(
+            f"/api/jobs/job-applications/{application.id}/work-samples/{sample.id}/",
+            {
+                "status": "PASS",
+                "scores": {"criterion-1": 4, "criterion-2": 3},
+                "score_notes": {"criterion-1": "All route estimates are consistent."},
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data["weighted_score"], 72.0)
+        self.assertEqual(len(response.data["scores"]), 2)
+        self.assertEqual(response.data["scores"][0]["criterion_label"], "Route accuracy")
+        self.assertEqual(response.data["scores"][0]["reviewer_note"], "All route estimates are consistent.")
+
+        for check in application.eligibility_checks.all():
+            response = self.client.patch(
+                f"/api/jobs/job-applications/{application.id}/eligibility/{check.id}/",
+                {"status": ApplicationEligibilityCheck.Status.PASS},
+                format="json",
+            )
+            self.assertEqual(response.status_code, 200, response.data)
         with patch("jobs.views.send_assessment_link.apply_async"):
             response = self.client.patch(
                 f"/api/jobs/job-applications/{application.id}/",

@@ -405,12 +405,14 @@ export const reviewApplicationWorkSample = async (
   applicationId: ID,
   sampleId: ID,
   status: WorkSampleReviewDecision,
-  reviewer_reason = ""
+  reviewer_reason = "",
+  scores?: Record<string, number>,
+  score_notes?: Record<string, string>
 ): Promise<ApiResponse<ApplicationWorkSample>> => {
   try {
     const data = await serverKyInstance
       .patch(`jobs/job-applications/${applicationId}/work-samples/${sampleId}/`, {
-        json: { status, reviewer_reason },
+        json: { status, reviewer_reason, ...(scores ? { scores } : {}), ...(score_notes ? { score_notes } : {}) },
       })
       .json<ApplicationWorkSample>();
     return { success: true, data };

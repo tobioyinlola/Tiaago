@@ -70,7 +70,13 @@ const initialValues: FormValues = {
 const GuestApplyForm = ({ job }: { job: Job }) => {
   const configuration = job.application_configuration || legacyApplicationConfiguration;
   const eligibilityRequirements = job.eligibility_requirements || [];
-  const workSampleConfiguration = job.work_sample_configuration || { enabled: false, required: false, prompt: "", instructions: "" };
+  const workSampleConfiguration = job.work_sample_configuration || {
+    enabled: false,
+    required: false,
+    prompt: "",
+    instructions: "",
+    rubric: { version: 1, passing_score: 60, criteria: [] },
+  };
   const validationSchema = useMemo(() => makeValidationSchema(configuration), [configuration]);
   const [resumeFile, setResumeFile] = useState<File>();
   const [resumeFileName, setResumeFileName] = useState<string>();

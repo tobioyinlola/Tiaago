@@ -201,7 +201,13 @@ export const initialValues: InitialValues = {
   hiring_profile_code: "",
   application_configuration: undefined,
   eligibility_requirements: [],
-  work_sample_configuration: { enabled: false, required: false, prompt: "", instructions: "" },
+  work_sample_configuration: {
+    enabled: false,
+    required: false,
+    prompt: "",
+    instructions: "",
+    rubric: { version: 1, passing_score: 60, criteria: [] },
+  },
   // @ts-ignore
   job_level: "",
   // @ts-ignore,
