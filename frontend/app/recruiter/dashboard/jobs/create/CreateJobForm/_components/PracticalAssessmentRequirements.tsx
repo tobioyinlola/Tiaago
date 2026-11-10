@@ -2,7 +2,7 @@
 
 import { Plus, Trash2 } from "lucide-react";
 
-import { PracticalAssessmentConfiguration, WorkSampleRubricCriterion } from "@/app/common/types";
+import { DEFAULT_PRACTICAL_POLICY, PracticalAssessmentConfiguration, WorkSampleRubricCriterion } from "@/app/common/types";
 
 const distributeWeights = (criteria: WorkSampleRubricCriterion[]) => {
   if (!criteria.length) return criteria;
@@ -17,6 +17,8 @@ const PracticalAssessmentRequirements = ({ configuration, onChange }: {
 }) => {
   const rubric = configuration.rubric || { version: 1 as const, passing_score: 60, criteria: [] };
   const updateRubric = (next: typeof rubric) => onChange({ ...configuration, rubric: next });
+  const policy = { ...DEFAULT_PRACTICAL_POLICY, ...(configuration.policy || {}) };
+  const updatePolicy = (change: Partial<typeof policy>) => onChange({ ...configuration, policy: { ...policy, ...change } });
   const totalWeight = rubric.criteria.reduce((sum, criterion) => sum + (Number(criterion.weight) || 0), 0);
 
   return <section className='rounded-xl border border-[#D0D5DD] bg-white p-4'>
@@ -33,6 +35,19 @@ const PracticalAssessmentRequirements = ({ configuration, onChange }: {
         <div className='grid gap-3 md:grid-cols-2'>
           <label className='flex flex-col gap-1.5 text-sm font-medium text-primary-black'>Assessment title<input value={configuration.title} maxLength={120} onChange={event => onChange({ ...configuration, title: event.target.value })} placeholder='e.g. Safe road assessment' className='h-10 rounded-lg border border-[#D0D5DD] px-3 text-sm font-normal' /></label>
           <label className='flex flex-col gap-1.5 text-sm font-medium text-primary-black'>Instructions <span className='font-normal text-secondary-black'>(optional)</span><input value={configuration.instructions} maxLength={1200} onChange={event => onChange({ ...configuration, instructions: event.target.value })} placeholder='State what the candidate should bring or prepare.' className='h-10 rounded-lg border border-[#D0D5DD] px-3 text-sm font-normal' /></label>
+        </div>
+        <div className='rounded-lg border border-[#EAECF0] bg-[#FCFCFD] p-3'>
+          <h3 className='text-sm font-semibold text-primary-black'>Booking, attempts and no-shows</h3>
+          <p className='mt-1 text-xs text-secondary-black'>These rules apply to everyone who books, whether the candidate books online or your team does. Your team can exceed the attempt or retest limit only by recording a reason.</p>
+          <div className='mt-3 grid gap-3 md:grid-cols-3'>
+            <label className='flex flex-col gap-1 text-xs font-medium text-primary-black'>Maximum attempts<input type='number' min={1} max={5} value={policy.max_attempts} onChange={event => updatePolicy({ max_attempts: Number(event.target.value) })} className='h-10 rounded-lg border border-[#D0D5DD] px-3 text-sm font-normal' /></label>
+            <label className='flex flex-col gap-1 text-xs font-medium text-primary-black'>Wait before a retest (days)<input type='number' min={0} max={90} value={policy.retest_wait_days} onChange={event => updatePolicy({ retest_wait_days: Number(event.target.value) })} className='h-10 rounded-lg border border-[#D0D5DD] px-3 text-sm font-normal' /></label>
+            <label className='flex flex-col gap-1 text-xs font-medium text-primary-black'>Candidate can cancel until (hours before)<input type='number' min={0} max={168} value={policy.cancellation_cutoff_hours} onChange={event => updatePolicy({ cancellation_cutoff_hours: Number(event.target.value) })} className='h-10 rounded-lg border border-[#D0D5DD] px-3 text-sm font-normal' /></label>
+          </div>
+          <div className='mt-3 flex flex-wrap gap-5'>
+            <label className='flex cursor-pointer items-center gap-2 text-sm text-primary-black'><input type='checkbox' checked={policy.self_booking} onChange={event => updatePolicy({ self_booking: event.target.checked })} className='h-4 w-4 rounded border-gray-300 accent-primary' /> Let candidates book their own slot</label>
+            <label className='flex cursor-pointer items-center gap-2 text-sm text-primary-black'><input type='checkbox' checked={policy.no_show_counts_as_attempt} onChange={event => updatePolicy({ no_show_counts_as_attempt: event.target.checked })} className='h-4 w-4 rounded border-gray-300 accent-primary' /> A no-show uses up an attempt</label>
+          </div>
         </div>
         <div className='rounded-lg border border-[#EAECF0] bg-[#FCFCFD] p-3'>
           <div className='flex flex-wrap items-start justify-between gap-3'><div><h3 className='text-sm font-semibold text-primary-black'>Assessor scorecard</h3><p className='mt-1 text-xs text-secondary-black'>Add at least one clear, observable criterion. Assessors can record a critical failure that always results in a fail.</p></div><button type='button' disabled={rubric.criteria.length >= 6} onClick={() => updateRubric({ ...rubric, criteria: distributeWeights([...rubric.criteria, { label: "", description: "", weight: 100 }]) })} className='inline-flex items-center gap-1 rounded-lg border border-primary px-3 py-2 text-sm font-medium text-primary disabled:opacity-50'><Plus className='h-4 w-4' /> Add criterion</button></div>

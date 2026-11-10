@@ -108,6 +108,19 @@ const ApplicationRequirements = ({
           );
         })}
       </div>
+
+      <label className='mt-4 flex cursor-pointer items-start gap-2 rounded-lg border border-[#EAECF0] p-3 text-sm text-primary-black'>
+        <input
+          type='checkbox'
+          checked={!!configuration.intake?.assisted}
+          onChange={event => onChange({ ...configuration, intake: { assisted: event.target.checked } })}
+          className='mt-0.5 h-4 w-4 rounded border-gray-300 accent-primary'
+        />
+        <span>
+          Let my team enter applications for phone or walk-in candidates
+          <span className='mt-0.5 block text-xs text-secondary-black'>A signed-in team member records the candidate&apos;s details and confirms the candidate agreed. Candidates without an email address are flagged for a phone follow-up wherever an email would normally be sent.</span>
+        </span>
+      </label>
     </section>
   );
 };

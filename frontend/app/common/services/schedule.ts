@@ -1,5 +1,5 @@
 "use server";
-import { ApiResponse, ID, InterviewSlot, ScheduledMeeting } from "../types";
+import { ApiResponse, ApplicationPracticalAssessment, ID, InterviewSlot, PracticalBookingState, ScheduledMeeting } from "../types";
 import { handleServerApiCallError } from "../utils";
 import serverKyInstance from "../utils/server-ky.instance";
 import { publicKyInstance } from "../utils/client-ky.instance";
@@ -106,5 +106,45 @@ export const claimGuestInterviewSlot = async (
     const errMsg = await handleServerApiCallError(error);
     console.log("claimGuestInterviewSlot Error: ", errMsg);
     return { success: false, error: errMsg };
+  }
+};
+
+
+// No-login practical-assessment self-booking, keyed by the signed link the
+// hiring team sends (see jobs.views.PracticalBooking*View).
+export const getPracticalBooking = async (token: string): Promise<ApiResponse<PracticalBookingState>> => {
+  try {
+    const data = await publicKyInstance.get(`jobs/practical-booking/${token}/`).json<PracticalBookingState>();
+    return { success: true, data };
+  } catch (error) {
+    return { success: false, error: await handleServerApiCallError(error) };
+  }
+};
+
+export const bookPracticalSlot = async (
+  token: string,
+  slotId: ID
+): Promise<ApiResponse<ApplicationPracticalAssessment>> => {
+  try {
+    const data = await publicKyInstance
+      .post(`jobs/practical-booking/${token}/slots/${slotId}/book/`)
+      .json<ApplicationPracticalAssessment>();
+    return { success: true, data };
+  } catch (error) {
+    return { success: false, error: await handleServerApiCallError(error) };
+  }
+};
+
+export const cancelPracticalBooking = async (
+  token: string,
+  reason: string
+): Promise<ApiResponse<ApplicationPracticalAssessment>> => {
+  try {
+    const data = await publicKyInstance
+      .post(`jobs/practical-booking/${token}/cancel/`, { json: { reason } })
+      .json<ApplicationPracticalAssessment>();
+    return { success: true, data };
+  } catch (error) {
+    return { success: false, error: await handleServerApiCallError(error) };
   }
 };
