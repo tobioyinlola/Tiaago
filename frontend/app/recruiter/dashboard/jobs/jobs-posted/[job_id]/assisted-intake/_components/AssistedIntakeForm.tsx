@@ -1,7 +1,7 @@
 "use client";
 
 import { Loader2 } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { Job } from "@/app/common/types";
@@ -20,6 +20,8 @@ const AssistedIntakeForm = ({ job }: { job: Job }) => {
   const [declarations, setDeclarations] = useState<Record<string, boolean>>({});
   const [consent, setConsent] = useState(false);
   const [saving, setSaving] = useState(false);
+  // One key per entry: a double click or retry replays the first result instead of creating a second record.
+  const idempotencyKey = useRef(crypto.randomUUID());
   const set = (key: keyof typeof values, value: string) => setValues(current => ({ ...current, [key]: value }));
 
   const submit = async (event: React.FormEvent) => {
@@ -31,10 +33,11 @@ const AssistedIntakeForm = ({ job }: { job: Job }) => {
       email: values.email.trim() || undefined,
       consent_confirmed: consent,
       eligibility_declarations: declarations,
-    });
+    }, idempotencyKey.current);
     setSaving(false);
     if (!result.success) return toast.error(result.error || "Could not save the application");
     toast.success("Application entered");
+    idempotencyKey.current = crypto.randomUUID();
     setValues({ full_name: "", phone_number: "", email: "", channel: values.channel, additional_info: "", cover_letter: "", linkedin_url: "", scenario_response: "", intake_notes: "" });
     setDeclarations({});
     setConsent(false);

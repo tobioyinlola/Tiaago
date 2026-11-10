@@ -1,0 +1,12 @@
+{% extends "emails/base.html" %}
+{% block title %}{{ heading }}{% endblock %}
+{% block preheader %}{{ preheader|default:heading }}{% endblock %}
+{% block content %}
+  <h1 class="h1" style="margin:0 0 14px; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:28px; line-height:1.2; letter-spacing:-0.5px; font-weight:800; color:#0F172A;">{{ heading }}</h1>
+  {% for line in lines %}{% if line %}
+  <p style="margin:0 0 14px; font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:16px; line-height:1.65; color:#475569;">{{ line }}</p>
+  {% endif %}{% endfor %}
+  {% if button_url %}
+  <p style="margin:22px 0;"><a href="{{ button_url }}" style="display:inline-block; background:#4F46E5; color:#ffffff; text-decoration:none; font-family:'Inter',Arial,sans-serif; font-size:15px; font-weight:600; padding:12px 22px; border-radius:10px;">{{ button_label|default:"Open" }}</a></p>
+  {% endif %}
+{% endblock %}

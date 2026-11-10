@@ -2,10 +2,9 @@
 import logging
 from datetime import timedelta
 
-from django.core.mail import EmailMultiAlternatives
+from django.apps import apps
 from django.db import IntegrityError, transaction
 from django.utils import timezone
-from django.utils.html import escape
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +14,6 @@ RETRY_BACKOFF = (
     timedelta(hours=2), timedelta(hours=6),
 )
 MAX_ATTEMPTS = len(RETRY_BACKOFF) + 1
-FROM_EMAIL = "Tiaago <support@email.tiaago.com>"
 
 
 class CannotDeliver(Exception):
@@ -55,12 +53,20 @@ def _recipient(application):
     return email
 
 
-def _send(application, subject, lines):
-    body = "\n\n".join(lines)
-    html = "".join(f"<p>{escape(line)}</p>" for line in lines)
-    message = EmailMultiAlternatives(subject=subject, body=body, from_email=FROM_EMAIL, to=[_recipient(application)])
-    message.attach_alternative(html, "text/html")
-    message.send(fail_silently=False)
+def _send(application, subject, lines, *, heading=None, button_url="", button_label=""):
+    """Branded HTML notice through the normal provider chain (Resend/Mailgun)."""
+    from utils.email_handler import EmailHandler
+
+    EmailHandler([_recipient(application)]).send_mail(
+        subject=subject,
+        context={
+            "heading": heading or subject,
+            "lines": [line for line in lines if line],
+            "button_url": button_url,
+            "button_label": button_label,
+        },
+        template="emails/generic_notice.html",
+    )
 
 
 def _slot_line(payload):
@@ -95,9 +101,9 @@ def _practical_no_show(application, payload):
 def _practical_invite(application, payload):
     _send(application, f"Book your practical assessment – {application.job.title}", [
         f"Hello {application.candidate_full_name},",
-        f"Please choose a time for your {payload.get('title', 'practical assessment')}: {payload.get('url', '')}",
+        f"Please choose a time for your {payload.get('title', 'practical assessment')}.",
         "This link is personal to you. Do not share it.",
-    ])
+    ], button_url=payload.get("url", ""), button_label="Choose a time")
 
 
 def _manual_rejection(application, payload):
@@ -106,6 +112,46 @@ def _manual_rejection(application, payload):
     emails.applicant_vetting_mail(
         application.as_email_recipient(), application.job, "unconsider",
         areas_for_improvement=payload.get("reason", ""),
+    )
+
+
+def _application_received(application, payload):
+    from emails import emails
+
+    _recipient(application)
+    emails.application_received_mail(application.as_email_recipient(), application.job)
+
+
+def _offer_extended(application, payload):
+    from emails import emails
+
+    _recipient(application)
+    emails.offer_extended_notice_mail(
+        application.as_email_recipient(), application.job.company.company_name, application.job.title
+    )
+
+
+def _interview_scheduled_notice(application, payload):
+    from emails import emails
+
+    _recipient(application)
+    emails.interview_scheduled_notice_mail(
+        application.as_email_recipient(), application.job.company.company_name, application.job.title
+    )
+
+
+def _templated_email(application, payload):
+    """A pre-rendered-context email: subject/template/context live in the payload."""
+    from utils.email_handler import EmailHandler
+
+    to = (payload.get("to") or application.candidate_email or "").strip()
+    if not to:
+        raise CannotDeliver("No email address on file; contact the candidate by phone.")
+    EmailHandler([to]).send_mail(
+        subject=payload["subject"],
+        context=dict(payload.get("context") or {}),
+        template=payload["template"],
+        email_type=payload.get("email_type"),
     )
 
 
@@ -121,7 +167,30 @@ HANDLERS = {
     "practical_no_show": _practical_no_show,
     "practical_booking_invite": _practical_invite,
     "manual_rejection": _manual_rejection,
+    "screening_rejection": _manual_rejection,
+    "application_received": _application_received,
+    "offer_extended": _offer_extended,
+    "interview_scheduled_notice": _interview_scheduled_notice,
+    "interview_slot_invite": _templated_email,
+    "ai_interview_invite": _templated_email,
+    "ai_interview_reminder": _templated_email,
+    "ai_interview_no_show": _templated_email,
 }
+
+
+def _stamp_sent(payload):
+    """Set a "sent at" column on another row once delivery succeeds.
+
+    payload["stamp"] = {"model": "app_label.Model", "pk": ..., "field": "..."}
+    """
+    stamp = payload.get("stamp")
+    if not stamp:
+        return
+    try:
+        model = apps.get_model(stamp["model"])
+        model.objects.filter(pk=stamp["pk"]).update(**{stamp["field"]: timezone.now()})
+    except Exception:  # noqa: BLE001 - a bookkeeping failure must not undo a sent message
+        logger.exception("Could not stamp %s after delivery", stamp)
 
 
 # ------------------------------------------------------------------ delivery
@@ -144,7 +213,10 @@ def deliver(notification_id):
         try:
             if handler is None:
                 raise CannotDeliver(f"No handler for notification kind {notification.kind!r}.")
-            handler(notification.application, notification.payload)
+            from utils.email_handler import strict_delivery
+
+            with strict_delivery():
+                handler(notification.application, notification.payload)
         except CannotDeliver as exc:
             notification.status = N.Status.SKIPPED
             notification.last_error = str(exc)[:500]
@@ -159,6 +231,7 @@ def deliver(notification_id):
             notification.status = N.Status.SENT
             notification.sent_at = timezone.now()
             notification.last_error = ""
+            _stamp_sent(notification.payload)
         notification.save(update_fields=(
             "status", "attempts", "next_attempt_at", "last_error", "sent_at", "updated_at",
         ))

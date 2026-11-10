@@ -228,6 +228,45 @@ def generate_preview_questions_task(self, interview_id):
     interview.save(update_fields=["invitation_sent_at"])
 
 
+def _queue_candidate_mail(interview, kind, *, subject, template, context, email_type, stamp_field=None):
+    """Send an AI-interview email through the durable outbox.
+
+    A candidate with no email address (phone-only, assisted intake) cannot be
+    reached by this message: it is flagged for a phone follow-up instead of
+    failing silently. Returns False when no application exists to attach the
+    notification to (the caller then uses its legacy inline send).
+    """
+    from jobs.notifications import queue_notification
+
+    application = interview.job_application
+    if application is None:
+        return False
+    candidate_email, _first = _candidate_recipient(interview)
+    if not candidate_email:
+        queue_notification(
+            application,
+            "contact_by_phone",
+            dedupe_key=f"contact_by_phone:{kind}:{interview.id}",
+            payload={"reason": (
+                f"{application.candidate_full_name} has no email address, so the AI interview message "
+                f"('{subject}') could not be sent. Contact them by phone"
+                + (f" ({application.candidate_phone_number})." if application.candidate_phone_number else ".")
+            )},
+        )
+        return True
+    payload = {
+        "to": candidate_email,
+        "subject": subject,
+        "template": template,
+        "context": context,
+        "email_type": email_type,
+    }
+    if stamp_field:
+        payload["stamp"] = {"model": "ai_interviews.AIInterview", "pk": str(interview.id), "field": stamp_field}
+    queue_notification(application, kind, dedupe_key=f"{kind}:{interview.id}", payload=payload)
+    return True
+
+
 def _send_invitation_email(interview, job):
     candidate_email, first_name = _candidate_recipient(interview)
     context = {
@@ -239,6 +278,14 @@ def _send_invitation_email(interview, job):
         "window_end": interview.window_end_at.strftime("%b %d, %I:%M %p"),
         "interview_url": interview.get_join_url(),
     }
+    if _queue_candidate_mail(
+        interview, "ai_interview_invite",
+        subject="You're invited to an AI interview",
+        template="emails/ai_interview_invite.html",
+        context=context,
+        email_type=EmailTypes.AI_INTERVIEW_INVITE_MAIL,
+    ):
+        return
     try:
         EmailHandler(recipients=[candidate_email]).send_mail(
             subject="You're invited to an AI interview",
@@ -497,18 +544,28 @@ def send_ai_interview_reminder_task(interview_id):
 
     job = interview.job
     candidate_email, first_name = _candidate_recipient(interview)
+    context = {
+        "first_name": first_name,
+        "company": interview.organisation.company_name,
+        "role": job.title,
+        "questions_total": interview.questions_total,
+        "duration_minutes": job.ai_interview_duration_minutes,
+        "window_end": interview.window_end_at.strftime("%b %d, %I:%M %p"),
+        "interview_url": interview.get_join_url(),
+    }
+    if _queue_candidate_mail(
+        interview, "ai_interview_reminder",
+        subject="Reminder: your AI interview is still open",
+        template="emails/ai_interview_invite.html",
+        context=context,
+        email_type=EmailTypes.AI_INTERVIEW_REMINDER_MAIL,
+        stamp_field="reminder_sent_at",
+    ):
+        return
     try:
         EmailHandler(recipients=[candidate_email]).send_mail(
             subject="Reminder: your AI interview is still open",
-            context={
-                "first_name": first_name,
-                "company": interview.organisation.company_name,
-                "role": job.title,
-                "questions_total": interview.questions_total,
-                "duration_minutes": job.ai_interview_duration_minutes,
-                "window_end": interview.window_end_at.strftime("%b %d, %I:%M %p"),
-                "interview_url": interview.get_join_url(),
-            },
+            context=context,
             template="emails/ai_interview_invite.html",
             email_type=EmailTypes.AI_INTERVIEW_REMINDER_MAIL,
         )
@@ -536,21 +593,30 @@ def send_ai_interview_no_show_followup_task(interview_id):
 
     job = interview.job
     candidate_email, first_name = _candidate_recipient(interview)
-    try:
-        EmailHandler(recipients=[candidate_email]).send_mail(
-            subject="Your AI interview window has closed",
-            context={
-                "first_name": first_name,
-                "company": interview.organisation.company_name,
-                "role": job.title,
-            },
-            template="emails/ai_interview_no_show_followup.html",
-            email_type=EmailTypes.AI_INTERVIEW_NO_SHOW_FOLLOWUP_MAIL,
-        )
-        interview.no_show_followup_sent_at = timezone.now()
-        interview.save(update_fields=["no_show_followup_sent_at"])
-    except Exception:
-        logger.exception("Failed to send AI interview no-show followup for interview %s", interview.id)
+    context = {
+        "first_name": first_name,
+        "company": interview.organisation.company_name,
+        "role": job.title,
+    }
+    if not _queue_candidate_mail(
+        interview, "ai_interview_no_show",
+        subject="Your AI interview window has closed",
+        template="emails/ai_interview_no_show_followup.html",
+        context=context,
+        email_type=EmailTypes.AI_INTERVIEW_NO_SHOW_FOLLOWUP_MAIL,
+        stamp_field="no_show_followup_sent_at",
+    ):
+        try:
+            EmailHandler(recipients=[candidate_email]).send_mail(
+                subject="Your AI interview window has closed",
+                context=context,
+                template="emails/ai_interview_no_show_followup.html",
+                email_type=EmailTypes.AI_INTERVIEW_NO_SHOW_FOLLOWUP_MAIL,
+            )
+            interview.no_show_followup_sent_at = timezone.now()
+            interview.save(update_fields=["no_show_followup_sent_at"])
+        except Exception:
+            logger.exception("Failed to send AI interview no-show followup for interview %s", interview.id)
 
     recipient = getattr(interview.organisation, "company_rep", None)
     if recipient:

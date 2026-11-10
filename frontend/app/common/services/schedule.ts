@@ -123,11 +123,14 @@ export const getPracticalBooking = async (token: string): Promise<ApiResponse<Pr
 
 export const bookPracticalSlot = async (
   token: string,
-  slotId: ID
+  slotId: ID,
+  idempotencyKey?: string
 ): Promise<ApiResponse<ApplicationPracticalAssessment>> => {
   try {
     const data = await publicKyInstance
-      .post(`jobs/practical-booking/${token}/slots/${slotId}/book/`)
+      .post(`jobs/practical-booking/${token}/slots/${slotId}/book/`, {
+        ...(idempotencyKey ? { headers: { "Idempotency-Key": idempotencyKey } } : {}),
+      })
       .json<ApplicationPracticalAssessment>();
     return { success: true, data };
   } catch (error) {

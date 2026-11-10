@@ -122,6 +122,7 @@ from .tasks import (
 )
 from django.conf import settings
 from . import practical
+from .idempotency import idempotent
 from .notifications import retry_dead
 from .transitions import guard_block, retry_hold, transition_block
 from emails import emails
@@ -1080,6 +1081,7 @@ class JobApplicationRetrieveUpdateView(RetrieveUpdateAPIView):
     def patch(self, request, *args, **kwargs):
         return self._update_status(request, *args, **kwargs)
 
+    @idempotent("application-status")
     def _update_status(self, request, *args, **kwargs):
         user = request.user
         instance = self.get_object()
@@ -1637,6 +1639,7 @@ class PracticalBookingView(_PracticalBookingBase):
 
 
 class PracticalBookingBookView(_PracticalBookingBase):
+    @idempotent("practical-book")
     def post(self, request, slot_id, token=None, pk=None):
         application = self._application(request, token, pk)
         if not application:
@@ -2341,6 +2344,7 @@ class AssistedApplicationCreateView(APIView):
     throttle_classes = [ScopedRateThrottle]
     throttle_scope = "assisted_intake"
 
+    @idempotent("assisted-intake")
     def post(self, request, public_id):
         job = get_object_or_404(Job.objects.select_related("company"), public_id=public_id)
         if not _recruiter_can_manage(request.user, job.company):
@@ -2359,14 +2363,13 @@ class AssistedApplicationCreateView(APIView):
                 {"detail": "This candidate has already applied to this job."}, status=HTTP_400_BAD_REQUEST
             )
 
-        if application.candidate_email:
-            try:
-                emails.application_received_mail(application.as_email_recipient(), job)
-            except Exception:
-                logger.exception("Failed to send application-received email for application %s", application.id)
-        else:
-            from .notifications import queue_notification
+        from .notifications import queue_notification
 
+        if application.candidate_email:
+            queue_notification(
+                application, "application_received", dedupe_key=f"application_received:{application.id}"
+            )
+        else:
             queue_notification(
                 application,
                 "contact_by_phone",
@@ -2421,10 +2424,11 @@ class JobApplyByIdView(APIView):
 
         job_owner = job.company
 
-        try:
-            emails.application_received_mail(application.as_email_recipient(), job)
-        except Exception:
-            logger.exception("Failed to send application-received email for application %s", application.id)
+        from .notifications import queue_notification
+
+        queue_notification(
+            application, "application_received", dedupe_key=f"application_received:{application.id}"
+        )
 
         # If job uses AI hiring, trigger resume analysis. Dispatch failures
         # (e.g. AI service unreachable, or CELERY_TASK_ALWAYS_EAGER running the

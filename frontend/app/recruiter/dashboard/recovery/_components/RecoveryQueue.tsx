@@ -19,6 +19,14 @@ const KIND_LABELS: Record<string, string> = {
   practical_no_show: "Missed practical assessment notice",
   practical_booking_invite: "Practical assessment booking link",
   manual_rejection: "Decision email",
+  screening_rejection: "Screening result email",
+  application_received: "Application received email",
+  offer_extended: "Offer notice",
+  interview_scheduled_notice: "Interview scheduled notice",
+  interview_slot_invite: "Interview time invitation",
+  ai_interview_invite: "AI interview invitation",
+  ai_interview_reminder: "AI interview reminder",
+  ai_interview_no_show: "Missed AI interview notice",
   contact_by_phone: "Needs a phone call",
 };
 

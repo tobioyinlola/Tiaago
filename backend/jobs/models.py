@@ -1015,6 +1015,32 @@ class ApplicationPracticalAssessment(TimeStampedModel):
         return f"{self.application_id}: practical attempt {self.attempt_number} ({self.status})"
 
 
+class IdempotencyRecord(models.Model):
+    """Remembers the outcome of a state-changing request by client-supplied key.
+
+    A client that retries (double click, timeout, flaky network) sends the same
+    ``Idempotency-Key`` and gets the original response back instead of a second
+    side effect. The owner is the signed-in user or a hash of the signed link.
+    """
+
+    owner = models.CharField(max_length=80)
+    scope = models.CharField(max_length=40)
+    key = models.CharField(max_length=80)
+    request_hash = models.CharField(max_length=64)
+    status_code = models.PositiveSmallIntegerField(null=True, blank=True)  # null while in flight
+    response_body = models.JSONField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=("owner", "scope", "key"), name="unique_idempotency_key")
+        ]
+        indexes = [models.Index(fields=("created_at",))]
+
+    def __str__(self):
+        return f"{self.scope}:{self.key} ({self.status_code})"
+
+
 class ApplicationNotification(TimeStampedModel):
     """Durable outbox for candidate-facing messages.
 

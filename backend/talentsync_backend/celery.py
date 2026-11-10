@@ -54,6 +54,10 @@ app.conf.beat_schedule = {
         "task": "jobs.tasks.retry_held_transitions",
         "schedule": crontab(minute="*/5"),  # Release holds once eligibility etc. clears
     },
+    "purge_idempotency_records": {
+        "task": "jobs.tasks.purge_idempotency_records",
+        "schedule": crontab(hour=3, minute=17),
+    },
     "advance_sequence_steps": {
         "task": "campaigns.tasks.advance_sequence_steps",
         "schedule": crontab(minute="*/5"),  # Fire step 2+ of drip sequences every 5 min

@@ -1,4 +1,5 @@
 import logging
+from django.utils import timezone
 import uuid
 from datetime import timedelta
 from django.db import transaction
@@ -349,14 +350,15 @@ def send_rejection_mail(job_id, job_application_id, areas_for_improvement=None):
     This is sent after AI analyzes the applicant's resume and marks them as unfit for the role
     """
     logger.info(f"send_rejection_mail called with job_id={job_id}, job_application_id={job_application_id}")
-    job = Job.objects.filter(id=job_id).first()
-    job_application = JobApplication.objects.filter(id=job_application_id).first()
-    if job and job_application:
-        emails.applicant_vetting_mail(
-            job_application.as_email_recipient(),
-            job,
-            "unconsider",
-            areas_for_improvement=areas_for_improvement,
+    job_application = JobApplication.objects.filter(id=job_application_id, job_id=job_id).first()
+    if job_application:
+        from .notifications import queue_notification
+
+        queue_notification(
+            job_application,
+            "screening_rejection",
+            dedupe_key=f"screening_rejection:{job_application.id}",
+            payload={"reason": areas_for_improvement or ""},
         )
 
 
@@ -1174,18 +1176,26 @@ def send_interview_slot_invite(job_application_id):
         # is always a first round and never passes this.
         "is_second_round": is_second_round,
     }
-    try:
-        EmailHandler(recipients=[candidate_email]).send_mail(
-            subject=(
-                f"Second Interview Invitation: {job.title}" if is_second_round
-                else "Pick your interview time"
-            ),
-            context=context,
-            template="emails/interview_slot_selection.html",
-            email_type=EmailTypes.INTERVIEW_SLOT_SELECTION_MAIL,
-        )
-    except Exception:
-        logger.exception("Failed to send interview slot selection invite for job_application %s", job_application_id)
+    from .notifications import queue_notification
+
+    subject = f"Second Interview Invitation: {job.title}" if is_second_round else "Pick your interview time"
+    queue_notification(
+        job_application,
+        "interview_slot_invite",
+        # One per round per day: a re-delivered task is deduped, a deliberate
+        # re-invite on another day is still sent.
+        dedupe_key=(
+            f"interview_slot_invite:{job_application.id}:{'2' if is_second_round else '1'}"
+            f":{timezone.now():%Y%m%d}"
+        ),
+        payload={
+            "to": candidate_email,
+            "subject": subject,
+            "template": "emails/interview_slot_selection.html",
+            "context": context,
+            "email_type": EmailTypes.INTERVIEW_SLOT_SELECTION_MAIL,
+        },
+    )
 
 
 @shared_task(name="send_manual_rejection_mail")
@@ -1228,14 +1238,13 @@ def send_interview_scheduled_notice_mail(job_application_id):
     ).first()
     if not job_application:
         return
-    try:
-        emails.interview_scheduled_notice_mail(
-            job_application.as_email_recipient(),
-            job_application.job.company.company_name,
-            job_application.job.title,
-        )
-    except Exception:
-        logger.exception("Failed to send interview scheduled notice for job_application %s", job_application_id)
+    from .notifications import queue_notification
+
+    queue_notification(
+        job_application,
+        "interview_scheduled_notice",
+        dedupe_key=f"interview_scheduled_notice:{job_application.id}:{job_application.status}",
+    )
 
 
 @shared_task(name="send_offer_extended_notice_mail")
@@ -1247,14 +1256,13 @@ def send_offer_extended_notice_mail(job_application_id):
     ).first()
     if not job_application:
         return
-    try:
-        emails.offer_extended_notice_mail(
-            job_application.as_email_recipient(),
-            job_application.job.company.company_name,
-            job_application.job.title,
-        )
-    except Exception:
-        logger.exception("Failed to send offer extended notice for job_application %s", job_application_id)
+    from .notifications import queue_notification
+
+    queue_notification(
+        job_application,
+        "offer_extended",
+        dedupe_key=f"offer_extended:{job_application.id}:{job_application.status}",
+    )
 
 
 
@@ -1366,3 +1374,13 @@ def retry_held_transitions():
         except Exception:  # noqa: BLE001 - one bad row must not stall the sweep
             logger.exception("Retrying held transition %s failed", hold.id)
     return released
+
+
+@shared_task(name="jobs.tasks.purge_idempotency_records", ignore_result=True)
+def purge_idempotency_records():
+    """Forget idempotency keys older than their retention window."""
+    from .idempotency import RETENTION
+    from .models import IdempotencyRecord
+
+    deleted, _ = IdempotencyRecord.objects.filter(created_at__lt=timezone.now() - RETENTION).delete()
+    return deleted

@@ -1963,7 +1963,7 @@ class DurableNotificationAndRecoveryTests(TestCase):
             notification = queue_notification(application, "manual_rejection", dedupe_key="t:1", payload={"reason": "x"})
             # Idempotent on the dedupe key.
             self.assertEqual(queue_notification(application, "manual_rejection", dedupe_key="t:1").id, notification.id)
-        self.assertEqual(N.objects.filter(application=application).count(), 1)
+        self.assertEqual(N.objects.filter(application=application, kind="manual_rejection").count(), 1)
 
         calls = {"n": 0}
 
@@ -2449,3 +2449,233 @@ class TransitionRulesTests(TestCase):
         self.assertEqual(response.status_code, 400, response.data)
         application.refresh_from_db()
         self.assertEqual(application.status, self.S.REVIEWED)
+
+
+class OutboxSenderTests(TestCase):
+    """Legacy candidate senders on the outbox; strict delivery; AI-interview mail."""
+
+    setUp = EligibilityReviewFoundationTests.setUp
+    _job_data = EligibilityReviewFoundationTests._job_data
+    _publish_job = EligibilityReviewFoundationTests._publish_job
+    _apply_as_guest = EligibilityReviewFoundationTests._apply_as_guest
+    _application = DurableNotificationAndRecoveryTests._application
+
+
+    def _ai_interview(self, application, **extra):
+        return AIInterview.objects.create(
+            job=application.job, candidate=None, job_application=application,
+            organisation=self.company, livekit_room_name=f"room-{application.id}",
+            candidate_identity="cand", window_end_at=timezone.now() + timedelta(hours=48),
+            questions_total=5, **extra,
+        )
+
+    def test_strict_delivery_raises_when_no_provider_accepts_the_mail(self):
+        from utils.email_handler import EmailDeliveryError, EmailHandler, strict_delivery
+
+        context = {"heading": "Hello", "lines": ["x"]}
+        with patch("utils.email_handler.RESEND_API_KEY", ""), patch("utils.email_handler.MAILGUN_API_KEY", ""):
+            # Default behaviour is unchanged: a failed send is swallowed.
+            EmailHandler(["a@example.com"]).send_mail("Hi", dict(context), "emails/generic_notice.html")
+            with strict_delivery(), self.assertRaises(EmailDeliveryError):
+                EmailHandler(["a@example.com"]).send_mail("Hi", dict(context), "emails/generic_notice.html")
+
+    def test_outbox_treats_a_swallowed_email_failure_as_a_failure_and_retries(self):
+        from jobs.models import ApplicationNotification as N
+        from jobs.notifications import deliver, queue_notification
+
+        application = self._application("strict@example.com")
+        with patch("jobs.tasks.deliver_application_notification.delay"):
+            notification = queue_notification(application, "offer_extended", dedupe_key="strict:1")
+        with patch("utils.email_handler.RESEND_API_KEY", ""), patch("utils.email_handler.MAILGUN_API_KEY", ""):
+            result = deliver(notification.id)
+        self.assertEqual(result.status, N.Status.PENDING)
+        self.assertEqual(result.attempts, 1)
+        self.assertIn("No provider accepted", result.last_error)
+
+    def test_decision_notices_use_the_outbox_and_are_deduped(self):
+        from jobs.models import ApplicationNotification as N
+        from jobs.tasks import send_interview_scheduled_notice_mail, send_offer_extended_notice_mail
+
+        application = self._application("notices@example.com")
+        with patch("jobs.tasks.deliver_application_notification.delay"):
+            send_offer_extended_notice_mail(application.id)
+            send_offer_extended_notice_mail(application.id)  # re-delivered task
+            send_interview_scheduled_notice_mail(application.id)
+        kinds = list(N.objects.filter(application=application).exclude(kind="application_received").values_list("kind", flat=True))
+        self.assertCountEqual(kinds, ["offer_extended", "interview_scheduled_notice"])
+
+    def test_ai_interview_mail_is_durable_and_stamps_when_sent(self):
+        from jobs.models import ApplicationNotification as N
+        from jobs.notifications import deliver
+        from ai_interviews.tasks import send_ai_interview_reminder_task
+
+        application = self._application("ai-mail@example.com")
+        interview = self._ai_interview(application, status=AIInterview.Status.INVITED)
+        with patch("jobs.tasks.deliver_application_notification.delay"):
+            send_ai_interview_reminder_task(str(interview.id))
+        notification = N.objects.get(application=application, kind="ai_interview_reminder")
+        self.assertEqual(notification.payload["to"], "ai-mail@example.com")
+        interview.refresh_from_db()
+        self.assertIsNone(interview.reminder_sent_at)  # not claimed before it is really sent
+
+        with patch("utils.email_handler.EmailHandler.send_mail") as send:
+            deliver(notification.id)
+        send.assert_called_once()
+        notification.refresh_from_db()
+        interview.refresh_from_db()
+        self.assertEqual(notification.status, "SENT")
+        self.assertIsNotNone(interview.reminder_sent_at)
+
+    def test_ai_interview_mail_for_a_phone_only_candidate_is_flagged_for_a_call(self):
+        from jobs.models import ApplicationNotification as N
+        from ai_interviews.tasks import _send_invitation_email, send_ai_interview_no_show_followup_task
+
+        application = self._application("ai-phone@example.com")
+        JobApplication.objects.filter(id=application.id).update(guest_email="", guest_phone_number="+2348012345678")
+        application.refresh_from_db()
+        interview = self._ai_interview(application, status=AIInterview.Status.INVITED)
+        with patch("jobs.tasks.deliver_application_notification.delay"), patch.object(
+            AIInterview, "get_join_url", return_value="https://example.com/join"
+        ):
+            _send_invitation_email(interview, application.job)
+            send_ai_interview_no_show_followup_task(str(interview.id))
+        flagged = N.objects.filter(application=application, kind="contact_by_phone", dedupe_key__contains=str(interview.id))
+        self.assertEqual(flagged.count(), 2)
+        self.assertIn("+2348012345678", flagged.first().payload["reason"])
+        self.assertFalse(N.objects.filter(application=application, kind__startswith="ai_interview").exists())
+
+
+class IdempotencyTests(TestCase):
+    """A retried request with the same key must not repeat its side effects."""
+
+    setUp = TransitionRulesTests.setUp
+    _application = TransitionRulesTests._application
+    S = JobApplication.JobApplicationStatus
+
+    def _move(self, application, status, key=None, **extra):
+        headers = {"HTTP_IDEMPOTENCY_KEY": key} if key else {}
+        with patch("jobs.views.send_assessment_link.apply_async") as invite:
+            response = self.client.patch(
+                f"/api/jobs/job-applications/{application.id}/", {"status": status, **extra},
+                format="json", **headers,
+            )
+        return response, invite
+
+    def test_repeat_with_same_key_replays_and_does_not_re_run_side_effects(self):
+        application = self._application(status=self.S.APPLIED)
+        first, invite = self._move(application, self.S.REVIEWED, key="move-1")
+        self.assertEqual(first.status_code, 200, first.data)
+        invite.assert_called_once()
+
+        again, invite = self._move(application, self.S.REVIEWED, key="move-1")
+        self.assertEqual(again.status_code, 200)
+        self.assertEqual(again["Idempotent-Replayed"], "true")
+        invite.assert_not_called()  # the assessment invite is not sent twice
+        self.assertEqual(again.data["status"], first.data["status"])
+
+    def test_same_key_for_a_different_request_is_refused(self):
+        application = self._application(status=self.S.APPLIED)
+        self._move(application, self.S.REVIEWED, key="move-2")
+        other, _ = self._move(application, self.S.PENDING_DECISION, key="move-2")
+        self.assertEqual(other.status_code, 422, other.data)
+
+    def test_failed_requests_are_not_remembered_so_a_fix_can_reuse_the_key(self):
+        application = self._application(status=self.S.REVIEWED)
+        blocked, _ = self._move(application, self.S.OFFER_EXTENDED, key="move-3")
+        self.assertEqual(blocked.status_code, 400)
+        from jobs.models import IdempotencyRecord
+
+        self.assertFalse(IdempotencyRecord.objects.filter(key="move-3").exists())
+        JobApplication.objects.filter(id=application.id).update(status=self.S.HUMAN_INTERVIEW)
+        with patch("jobs.tasks.send_offer_extended_notice_mail.delay"):
+            ok, _ = self._move(application, self.S.OFFER_EXTENDED, key="move-3")
+        self.assertEqual(ok.status_code, 200, ok.data)
+
+    def test_in_flight_key_is_refused_and_keys_are_per_user(self):
+        from jobs.models import IdempotencyRecord
+
+        application = self._application(status=self.S.APPLIED)
+        IdempotencyRecord.objects.create(
+            owner=f"u:{self.rep.pk}", scope="application-status", key="move-4",
+            request_hash="", status_code=None,
+        )
+        # A different request hash while another is in flight: hash mismatch is reported first.
+        response, _ = self._move(application, self.S.REVIEWED, key="move-4")
+        self.assertIn(response.status_code, (409, 422))
+
+        other_rep = CustomUser.objects.create_company_user(username="idem-other", email="idem-other@example.com", password="x")
+        self.assertNotEqual(f"u:{other_rep.pk}", f"u:{self.rep.pk}")
+
+    def test_no_header_behaves_as_before_and_overlong_key_is_rejected(self):
+        application = self._application(status=self.S.APPLIED)
+        response, _ = self._move(application, self.S.REVIEWED)
+        self.assertEqual(response.status_code, 200)
+        long_key, _ = self._move(application, self.S.PENDING_DECISION, key="x" * 81)
+        self.assertEqual(long_key.status_code, 400)
+
+
+class IdempotentCreateTests(TestCase):
+    """Double submits of creating requests produce one record."""
+
+    setUp = SignedInAndAssistedIntakeTests.setUp
+    _job_data = SignedInAndAssistedIntakeTests._job_data
+    _publish_job = SignedInAndAssistedIntakeTests._publish_job
+    _job = SignedInAndAssistedIntakeTests._job
+    _declarations = SignedInAndAssistedIntakeTests._declarations
+
+    def test_assisted_intake_double_submit_creates_one_application(self):
+        job = self._job(assisted=True)
+        payload = {
+            "full_name": "Phone Candidate", "phone_number": "+2348012345678", "channel": "PHONE",
+            "consent_confirmed": True, "additional_info": "Ten years driving.",
+            "eligibility_declarations": self._declarations(),
+        }
+        responses = []
+        for _ in range(2):
+            with patch("jobs.views.carry_out_resume_analysis.delay"):
+                responses.append(self.client.post(
+                    f"/api/jobs/{job.public_id}/assisted-applications/", payload,
+                    format="multipart", HTTP_IDEMPOTENCY_KEY="intake-1",
+                ))
+        self.assertEqual([r.status_code for r in responses], [201, 201])
+        self.assertEqual(responses[0].data["id"], responses[1].data["id"])
+        self.assertEqual(JobApplication.objects.filter(job=job).count(), 1)
+        # Without a key the second submit is rejected as a duplicate candidate instead.
+        with patch("jobs.views.carry_out_resume_analysis.delay"):
+            plain = self.client.post(f"/api/jobs/{job.public_id}/assisted-applications/", payload, format="multipart")
+        self.assertEqual(plain.status_code, 400)
+
+
+class IdempotentBookingTests(TestCase):
+    """A guest's double-clicked 'Book' makes one appointment (token-scoped key)."""
+
+    setUp = PracticalAssessmentFoundationTests.setUp
+    _publish_practical_job = PracticalAssessmentFoundationTests._publish_practical_job
+    _application = PracticalAssessmentFoundationTests._application
+    _create_slot = PracticalAssessmentFoundationTests._create_slot
+    _job = PracticalBookingPolicyTests._job
+    _link = PracticalBookingPolicyTests._link
+    _guest = PracticalBookingPolicyTests._guest
+
+    def test_double_click_books_once_and_other_tokens_do_not_collide(self):
+        job = self._job()
+        first_app = self._application(job, "idem-guest-1@example.com")
+        second_app = self._application(job, "idem-guest-2@example.com")
+        slot = self._create_slot(job, timezone.now() + timedelta(days=3), capacity=2)
+        guest = self._guest()
+
+        token = self._link(first_app)
+        url = f"/api/jobs/practical-booking/{token}/slots/{slot['id']}/book/"
+        one = guest.post(url, HTTP_IDEMPOTENCY_KEY="book-1")
+        two = guest.post(url, HTTP_IDEMPOTENCY_KEY="book-1")
+        self.assertEqual((one.status_code, two.status_code), (201, 201), (one.data, two.data))
+        self.assertEqual(one.data["id"], two.data["id"])
+        self.assertEqual(first_app.practical_assessments.count(), 1)
+
+        # The same key text from a different candidate's link is a different request.
+        other_token = self._link(second_app)
+        other = guest.post(
+            f"/api/jobs/practical-booking/{other_token}/slots/{slot['id']}/book/", HTTP_IDEMPOTENCY_KEY="book-1"
+        )
+        self.assertEqual(other.status_code, 201, other.data)
+        self.assertNotEqual(other.data["id"], one.data["id"])

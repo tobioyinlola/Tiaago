@@ -353,7 +353,9 @@ export const JobApplicationsTable = ({
           : a
       )
     );
-    const res = await updateJobApplicationStatus(item.application_id, newStatus, reason, item.status);
+    const res = await updateJobApplicationStatus(
+      item.application_id, newStatus, reason, item.status, crypto.randomUUID()
+    );
     setMovingId(null);
     if (!res.success) {
       toast.error(res.error);

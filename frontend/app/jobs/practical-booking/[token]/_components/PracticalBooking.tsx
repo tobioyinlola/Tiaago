@@ -1,7 +1,7 @@
 "use client";
 
 import { Loader2 } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { bookPracticalSlot, cancelPracticalBooking, getPracticalBooking } from "@/app/common/services/schedule";
@@ -12,6 +12,7 @@ const when = (iso: string) => new Date(iso).toLocaleString(undefined, { dateStyl
 const PracticalBooking = ({ token, initial }: { token: string; initial: PracticalBookingState }) => {
   const [state, setState] = useState(initial);
   const [busy, setBusy] = useState<string | null>(null);
+  const bookingKey = useRef(crypto.randomUUID());
 
   const refresh = async () => {
     const res = await getPracticalBooking(token);
@@ -20,12 +21,13 @@ const PracticalBooking = ({ token, initial }: { token: string; initial: Practica
 
   const book = async (slotId: ID) => {
     setBusy(`book-${slotId}`);
-    const res = await bookPracticalSlot(token, slotId);
+    const res = await bookPracticalSlot(token, slotId, bookingKey.current);
     if (!res.success) {
       toast.error(res.error || "Could not book that time");
       await refresh();
     } else {
       toast.success("Your assessment is booked");
+      bookingKey.current = crypto.randomUUID();
       await refresh();
     }
     setBusy(null);

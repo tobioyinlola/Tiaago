@@ -595,11 +595,14 @@ export const updateJobApplicationStatus = async (
   rejectionReason?: string,
   /** The status the caller last saw. If the application has since moved, the
    * server answers 409 instead of overwriting the newer decision. */
-  expectedStatus?: JobApplication["status"]
+  expectedStatus?: JobApplication["status"],
+  /** One key per user action; a retry of the same action replays its result. */
+  idempotencyKey?: string
 ): Promise<ApiResponse<JobApplication>> => {
   try {
     const data = await serverKyInstance
       .put(`jobs/job-applications/${id}/`, {
+        ...(idempotencyKey ? { headers: { "Idempotency-Key": idempotencyKey } } : {}),
         json: {
           status,
           ...(expectedStatus ? { expected_status: expectedStatus } : {}),
@@ -762,11 +765,15 @@ export type AssistedIntakePayload = {
 
 export const submitAssistedApplication = async (
   jobPublicId: string,
-  payload: AssistedIntakePayload
+  payload: AssistedIntakePayload,
+  idempotencyKey?: string
 ): Promise<ApiResponse<{ id: ID }>> => {
   try {
     const data = await serverKyInstance
-      .post(`jobs/${jobPublicId}/assisted-applications/`, { json: payload })
+      .post(`jobs/${jobPublicId}/assisted-applications/`, {
+        json: payload,
+        ...(idempotencyKey ? { headers: { "Idempotency-Key": idempotencyKey } } : {}),
+      })
       .json<{ id: ID }>();
     return { success: true, data };
   } catch (error) {
