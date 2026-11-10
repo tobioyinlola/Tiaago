@@ -10,6 +10,11 @@ import { CheckCircle2, Paperclip, FileText } from "lucide-react";
 import "react-phone-input-2/lib/style.css";
 
 import { ApplicationConfiguration, Job } from "@/app/common/types";
+import {
+  resolveApplicationConfiguration,
+  resolveScenarioConfiguration,
+  resolveWorkSampleConfiguration,
+} from "@/app/common/utils/jobConfiguration";
 import DaisyButton from "@/app/common/components/DaisyButton";
 import FormikField from "@/app/common/components/Forms/FormikField";
 import { VanillaFileInput } from "@/app/common/components/Forms/FileInput";
@@ -17,18 +22,6 @@ import { submitGuestJobApplication, submitSignedInJobApplication } from "@/app/c
 
 const MAX_RESUME_SIZE = 5 * 1024 * 1024; // 5MB
 const MAX_WORK_SAMPLE_SIZE = 10 * 1024 * 1024;
-
-const legacyApplicationConfiguration: ApplicationConfiguration = {
-  version: 1,
-  resume: { enabled: true, required: true },
-  linkedin: { enabled: true, required: true },
-  cover_letter: { enabled: true, required: false },
-  additional_info: {
-    enabled: false,
-    required: false,
-    label: "Anything else you'd like us to know?",
-  },
-};
 
 export type SignedInApplicant = { name: string; email: string; hasResume: boolean };
 
@@ -74,23 +67,10 @@ const initialValues: FormValues = {
 
 const GuestApplyForm = ({ job, signedIn }: { job: Job; signedIn?: SignedInApplicant }) => {
   const resumeNeeded = (configuration: ApplicationConfiguration) => configuration.resume.required && !signedIn?.hasResume;
-  const configuration = job.application_configuration || legacyApplicationConfiguration;
+  const configuration = resolveApplicationConfiguration(job.application_configuration);
   const eligibilityRequirements = job.eligibility_requirements || [];
-  const workSampleConfiguration = job.work_sample_configuration || {
-    enabled: false,
-    required: false,
-    prompt: "",
-    instructions: "",
-    rubric: { version: 1, passing_score: 60, criteria: [] },
-  };
-  const scenarioConfiguration = job.scenario_configuration || {
-    enabled: false,
-    required: false,
-    prompt: "",
-    instructions: "",
-    response_label: "Your response",
-    rubric: { version: 1, passing_score: 60, criteria: [] },
-  };
+  const workSampleConfiguration = resolveWorkSampleConfiguration(job);
+  const scenarioConfiguration = resolveScenarioConfiguration(job);
   const validationSchema = useMemo(() => makeValidationSchema(configuration, !!signedIn), [configuration, signedIn]);
   const [resumeFile, setResumeFile] = useState<File>();
   const [resumeFileName, setResumeFileName] = useState<string>();
