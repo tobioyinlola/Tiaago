@@ -126,6 +126,10 @@ def _(path):
 # task forever.
 DEFAULT_AI_TIMEOUT = 30
 
+# The AI service generates the categories concurrently with a ~60s ceiling each
+# (and one retry), so a healthy call finishes well inside this.
+CATEGORIZED_AI_TIMEOUT = 180
+
 # Only transport-level failures (connection refused/reset, read timeout) are
 # retried -- a parsed HTTP error response from the AI service (4xx/5xx) is
 # not transient and is left to the caller's existing except-Exception
@@ -260,7 +264,17 @@ class AIServiceHandler:
         # rich text, and URL-encoding it overran the AI server's request-line
         # limit for roles with long descriptions (the call came back as an
         # HTTP error and generation "failed" for just those roles).
-        response = self.post("/create-categorized-assessment", json=data, timeout=240)
+        #
+        # One bounded attempt, not post()'s transport retries: those would
+        # repeat a timeout of this length up to three times (the recruiter sat
+        # on a spinner for ~12 minutes), and the Celery task already retries.
+        try:
+            response = self.requests.post(
+                _("/create-categorized-assessment"), json=data, timeout=CATEGORIZED_AI_TIMEOUT
+            )
+        except requests.exceptions.RequestException as exc:
+            logger.error("Categorized assessment request failed: %s", exc)
+            raise
         try:
             body = response.json()
         except ValueError:

@@ -14,6 +14,10 @@ import { AssessmentGenerationFormValues } from "../wizard.constants";
 import AssessmentSourcePicker from "./AssessmentSourcePicker";
 
 const POLL_INTERVAL_MS = 3000;
+// The API ends a stuck request itself (a few minutes); this is the browser-side
+// backstop so the spinner can never run indefinitely if the API is unreachable.
+const GENERATION_DEADLINE_MS = 12 * 60 * 1000;
+const MAX_CONSECUTIVE_POLL_FAILURES = 3;
 
 const INTEGRITY_LEVELS = [
   { min: 0, label: "Minimal", className: "bg-[#EAECF0] text-secondary-black w-1/3" },
@@ -52,6 +56,7 @@ const AssessmentGenerationStep = ({
   const [status, setStatus] = useState<"idle" | "generating" | "error">("idle");
   const [errorMessage, setErrorMessage] = useState("");
   const [sourcePickerOpen, setSourcePickerOpen] = useState(false);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const hasQuestions = (values.assessment_questions || []).length > 0;
@@ -88,27 +93,42 @@ const AssessmentGenerationStep = ({
     }
 
     const requestId = started.data.request_id;
+    const startedAt = Date.now();
+    let consecutiveFailures = 0;
+    setElapsedSeconds(0);
+
+    const stopPolling = () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+      pollRef.current = null;
+    };
+    const fail = (message: string) => {
+      stopPolling();
+      setStatus("error");
+      setErrorMessage(message);
+    };
 
     const poll = async () => {
+      setElapsedSeconds(Math.round((Date.now() - startedAt) / 1000));
+      if (Date.now() - startedAt > GENERATION_DEADLINE_MS) {
+        return fail("Generating questions is taking much longer than expected. Please try again.");
+      }
       const result = await getAssessmentGenerationStatus(requestId);
       if (!result.success) {
-        if (pollRef.current) clearInterval(pollRef.current);
-        pollRef.current = null;
-        setStatus("error");
-        setErrorMessage(result.error || "Failed to generate assessment questions");
+        // One dropped poll must not discard a generation that is still running.
+        consecutiveFailures += 1;
+        if (consecutiveFailures >= MAX_CONSECUTIVE_POLL_FAILURES) {
+          fail(result.error || "Failed to generate assessment questions");
+        }
         return;
       }
+      consecutiveFailures = 0;
       if (result.data.status === "READY") {
-        if (pollRef.current) clearInterval(pollRef.current);
-        pollRef.current = null;
+        stopPolling();
         setFieldValue("assessment_questions", result.data.sections);
         setStatus("idle");
         toast.success("Assessment questions generated");
       } else if (result.data.status === "FAILED") {
-        if (pollRef.current) clearInterval(pollRef.current);
-        pollRef.current = null;
-        setStatus("error");
-        setErrorMessage(result.data.error || "Failed to generate assessment questions");
+        fail(result.data.error || "Failed to generate assessment questions");
       }
       // PENDING/GENERATING -- keep polling
     };
@@ -332,6 +352,11 @@ const AssessmentGenerationStep = ({
             <p className='text-sm text-secondary-black'>
               Writing your assessment questions across multiple categories -- this can take a minute...
             </p>
+            {elapsedSeconds >= 90 && (
+              <p className='text-xs text-secondary-black max-w-sm text-center'>
+                Still working ({Math.floor(elapsedSeconds / 60)}m {elapsedSeconds % 60}s). Longer job descriptions take more time. If this fails you can retry.
+              </p>
+            )}
           </div>
         )}
 

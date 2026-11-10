@@ -1050,7 +1050,7 @@ def _plain_job_text(value, limit=MAX_JOB_TEXT_FOR_AI):
     return text[:limit]
 
 
-@shared_task(bind=True, name="generate_job_assessment_questions_task", max_retries=2, rate_limit="30/m")
+@shared_task(bind=True, name="generate_job_assessment_questions_task", max_retries=1, rate_limit="30/m")
 def generate_job_assessment_questions_task(self, request_id, description, job_requirement, role_id):
     """Runs the job-creation wizard's Step 3 AI question generation out of
     band -- see jobs.views.GenerateAssessmentQuestionsView, which used to make
@@ -1059,6 +1059,22 @@ def generate_job_assessment_questions_task(self, request_id, description, job_re
     skill_assessment.tasks.create_talent_coding_assessment_task_v2 does.
     rate_limit shares the same AI-service capacity budget as resume screening
     and grading -- see carry_out_resume_analysis's rate_limit comment."""
+    try:
+        return _generate_job_assessment_questions(self, request_id, description, job_requirement, role_id)
+    except Retry:
+        raise
+    except Exception:
+        # Anything unexpected (a bug, a database hiccup) must still end the
+        # request: otherwise the wizard polls a row stuck on GENERATING forever.
+        logger.exception("Assessment question generation crashed for request %s", request_id)
+        AssessmentQuestionGenerationRequest.objects.filter(id=request_id).update(
+            status=AssessmentQuestionGenerationRequest.GenerationStatus.FAILED,
+            error="Question generation hit an unexpected error. Please try again.",
+        )
+        return {"status": "failed", "id": str(request_id)}
+
+
+def _generate_job_assessment_questions(self, request_id, description, job_requirement, role_id):
     request_row = AssessmentQuestionGenerationRequest.objects.filter(id=request_id).first()
     if not request_row:
         logger.warning("AssessmentQuestionGenerationRequest %s not found", request_id)

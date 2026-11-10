@@ -2709,3 +2709,76 @@ class JobLinkHostTests(TestCase):
 
         apply_url, _ = links("https://evil.example.com")
         self.assertTrue(apply_url.startswith("https://www.tiaago.com/"))
+
+
+class AssessmentGenerationNeverHangsTests(TestCase):
+    """A question-generation request always ends in READY or FAILED."""
+
+    setUp = ReadinessFoundationTests.setUp
+
+    def _row(self, status, age_minutes):
+        from jobs.models import AssessmentQuestionGenerationRequest as R
+
+        row = R.objects.create(company=self.company, requested_by=self.rep, status=status)
+        past = timezone.now() - timedelta(minutes=age_minutes)
+        R.objects.filter(id=row.id).update(created_at=past, updated_at=past)
+        return row
+
+    def _status(self, row):
+        response = self.client.get(f"/api/jobs/generate-assessment-questions/{row.id}/status/")
+        self.assertEqual(response.status_code, 200, response.data)
+        return response.data
+
+    def test_a_request_no_worker_ever_picked_up_is_failed_with_a_clear_message(self):
+        row = self._row("PENDING", age_minutes=5)
+        data = self._status(row)
+        self.assertEqual(data["status"], "FAILED")
+        self.assertIn("did not start", data["error"])
+
+    def test_a_generation_that_outlasts_every_timeout_is_stopped(self):
+        data = self._status(self._row("GENERATING", age_minutes=12))
+        self.assertEqual(data["status"], "FAILED")
+        self.assertIn("too long", data["error"])
+
+    def test_recent_requests_and_finished_ones_are_left_alone(self):
+        self.assertEqual(self._status(self._row("PENDING", age_minutes=1))["status"], "PENDING")
+        self.assertEqual(self._status(self._row("GENERATING", age_minutes=4))["status"], "GENERATING")
+        ready = self._row("READY", age_minutes=60)
+        self.assertEqual(self._status(ready)["status"], "READY")
+
+    def test_an_unexpected_crash_in_the_task_marks_the_request_failed(self):
+        from jobs.models import AssessmentQuestionGenerationRequest as R
+        from jobs.tasks import generate_job_assessment_questions_task
+
+        row = self._row("PENDING", age_minutes=0)
+        with patch("jobs.tasks._plain_job_text", side_effect=RuntimeError("bug")):
+            result = generate_job_assessment_questions_task.apply(args=[str(row.id), "jd", "", None])
+        self.assertEqual(result.result["status"], "failed")
+        row = R.objects.get(id=row.id)
+        self.assertEqual(row.status, "FAILED")
+        self.assertIn("unexpected error", row.error)
+
+    def test_a_slow_ai_call_is_attempted_once_not_three_times(self):
+        import requests as requests_lib
+        from utils.ai_service import AIServiceHandler
+
+        handler = AIServiceHandler()
+        with patch.object(handler.requests, "post", side_effect=requests_lib.exceptions.Timeout("slow")) as post:
+            with self.assertRaises(requests_lib.exceptions.Timeout):
+                handler.get_categorized_mcq_questions("jd", ["A"], 1)
+        self.assertEqual(post.call_count, 1)
+        self.assertEqual(post.call_args.kwargs["timeout"], 180)
+
+    def test_the_task_still_completes_normally(self):
+        from unittest.mock import MagicMock
+        from jobs.models import AssessmentQuestionGenerationRequest as R
+        from jobs.tasks import generate_job_assessment_questions_task
+
+        row = self._row("PENDING", age_minutes=0)
+        reply = MagicMock(status_code=200, ok=True, text="")
+        reply.json.return_value = {"sections": [{"category": "Role Knowledge", "questions": [
+            {"question": "q?", "answers": ["A) a", "B) b", "C) c", "D) d"], "correct_answer": "B) b"}]}]}
+        with patch("requests.Session.post", return_value=reply):
+            result = generate_job_assessment_questions_task.apply(args=[str(row.id), "<p>JD</p>", "", None])
+        self.assertEqual(result.result["status"], "ready")
+        self.assertEqual(R.objects.get(id=row.id).sections[0]["questions"][0]["correct_option_index"], 1)

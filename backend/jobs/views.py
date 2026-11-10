@@ -539,6 +539,39 @@ class GenerateAssessmentQuestionsView(APIView):
         return Response({"request_id": str(request_row.id)}, status=HTTP_202_ACCEPTED)
 
 
+# How long a generation may sit in each state before it is declared failed.
+# PENDING that long means no worker ever picked the task up; GENERATING that
+# long outlasts the AI call's own timeout plus the task's single retry.
+GENERATION_PENDING_LIMIT = timedelta(minutes=3)
+GENERATION_RUNNING_LIMIT = timedelta(minutes=9)
+
+
+def _fail_if_generation_stuck(request_row):
+    """End a generation request that can no longer finish, so the wizard shows
+    an error and a Retry button instead of polling indefinitely."""
+    Status = AssessmentQuestionGenerationRequest.GenerationStatus
+    now = timezone.now()
+    if request_row.status == Status.PENDING and now - request_row.created_at > GENERATION_PENDING_LIMIT:
+        message = (
+            "Question generation did not start. The background worker may be busy or offline. "
+            "Please try again in a moment."
+        )
+    elif request_row.status == Status.GENERATING and now - request_row.updated_at > GENERATION_RUNNING_LIMIT:
+        message = "Question generation took too long and was stopped. Please try again."
+    else:
+        return
+    logger.error(
+        "Assessment generation %s stuck in %s since %s -- marking failed",
+        request_row.id, request_row.status, request_row.updated_at,
+    )
+    # Conditional update: never overwrite a result that landed a moment ago.
+    updated = AssessmentQuestionGenerationRequest.objects.filter(
+        id=request_row.id, status=request_row.status
+    ).update(status=Status.FAILED, error=message)
+    if updated:
+        request_row.status, request_row.error = Status.FAILED, message
+
+
 class JobAssessmentGenerationStatusView(APIView):
     """GET, polled every ~3s by AssessmentGenerationStep.tsx after it kicks off
     GenerateAssessmentQuestionsView -- mirrors InterviewProcessingStatusView's
@@ -556,6 +589,8 @@ class JobAssessmentGenerationStatusView(APIView):
         ).first()
         if not request_row:
             return Response({"detail": "Not found"}, status=HTTP_404_NOT_FOUND)
+
+        _fail_if_generation_stuck(request_row)
 
         return Response({
             "status": request_row.status,
