@@ -2532,7 +2532,8 @@ class JobApplicationOtpVerificationView(APIView):
             otp_entry = OneTimePassword.objects.select_related("user").get(
                 user__email=email, 
                 code=otp_code, 
-                otp_expires__gte=timezone.now()
+                otp_expires__gte=timezone.now(),
+                used_at__isnull=True,
             )
             
             otp_entry.user.is_verified = True

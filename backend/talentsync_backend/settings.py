@@ -517,6 +517,9 @@ TIAAGO_STARTUP_LOGIN_URL = _required_url_in_prod(
 )
 FRONTEND_URL = _required_url_in_prod("FRONTEND_URL", "https://www.tiaago.com/")
 FRONTEND_BASE_URL = _required_url_in_prod("FRONTEND_BASE_URL", "https://www.tiaago.com")
+# Extra frontend origins (e.g. a second domain or a preview host) whose
+# X-Frontend-Origin may be used when building links; see utils/frontend_origin.py.
+FRONTEND_EXTRA_ORIGINS = env.list("FRONTEND_EXTRA_ORIGINS", default=[])
 TIAAGO_MAIL_SUPPORT = "mailto:support@Tiaago.com"
 
 IS_PRODUCTION = ENV == "production"

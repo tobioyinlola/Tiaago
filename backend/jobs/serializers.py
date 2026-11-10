@@ -722,15 +722,22 @@ class JobSerializer(serializers.ModelSerializer):
         return obj.title
 
 
+    def _frontend_base(self):
+        """Frontend host the caller was served from (validated; see
+        utils.frontend_origin), so links match the site the user is on."""
+        from utils.frontend_origin import frontend_base_url
+
+        return frontend_base_url(self.context.get("request"))
+
     def get_get_apply_url(self, obj):
         try:
-            return obj.get_apply_url()
+            return obj.get_apply_url(self._frontend_base())
         except Exception:
             return None
         
     def get_detail_url(self, obj):
         try:
-            return obj.get_detail_url()
+            return obj.get_detail_url(self._frontend_base())
         except:
             return None
 
@@ -2801,9 +2808,16 @@ class GenericJobSerializer(serializers.ModelSerializer):
         """Get title from role for backward compatibility"""
         return obj.title
 
+    def _frontend_base(self):
+        """Frontend host the caller was served from (validated; see
+        utils.frontend_origin), so links match the site the user is on."""
+        from utils.frontend_origin import frontend_base_url
+
+        return frontend_base_url(self.context.get("request"))
+
     def get_get_apply_url(self, obj):
         try:
-            return obj.get_apply_url()
+            return obj.get_apply_url(self._frontend_base())
         except Exception:
             return None
         

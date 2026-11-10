@@ -10,7 +10,7 @@ import json
 from datetime import date, timedelta
 from unittest.mock import patch
 
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.utils import timezone
 
@@ -2679,3 +2679,33 @@ class IdempotentBookingTests(TestCase):
         )
         self.assertEqual(other.status_code, 201, other.data)
         self.assertNotEqual(other.data["id"], one.data["id"])
+
+
+class JobLinkHostTests(TestCase):
+    """A job's public links are built on the host the user is actually on."""
+
+    setUp = ReadinessFoundationTests.setUp
+
+    @override_settings(
+        FRONTEND_URL="https://www.tiaago.com/", FRONTEND_BASE_URL="https://www.tiaago.com",
+        CSRF_TRUSTED_ORIGINS=[], CORS_ALLOWED_ORIGINS=[], FRONTEND_EXTRA_ORIGINS=[],
+    )
+    def test_links_follow_the_trusted_host_and_ignore_forged_ones(self):
+        job = _make_job(self.company)
+        url = f"/api/jobs/{job.public_id}/"
+
+        def links(origin=None):
+            extra = {"HTTP_X_FRONTEND_ORIGIN": origin} if origin else {}
+            data = self.client.get(url, **extra).data
+            return data["get_apply_url"], data["detail_url"]
+
+        apply_url, detail_url = links()
+        self.assertEqual(apply_url, f"https://www.tiaago.com/jobs/{job.apply_token}/apply")
+        self.assertEqual(detail_url, f"https://www.tiaago.com/jobs/{job.apply_token}")
+
+        apply_url, detail_url = links("https://tiaago.com")
+        self.assertEqual(apply_url, f"https://tiaago.com/jobs/{job.apply_token}/apply")
+        self.assertEqual(detail_url, f"https://tiaago.com/jobs/{job.apply_token}")
+
+        apply_url, _ = links("https://evil.example.com")
+        self.assertTrue(apply_url.startswith("https://www.tiaago.com/"))

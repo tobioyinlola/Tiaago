@@ -423,12 +423,14 @@ class Job(models.Model):
     def __str__(self):
         return f"{self.role or 'Unknown Role'} - {self.job_type}"
 
-    def get_apply_url(self):
-        base = str(settings.FRONTEND_URL).rstrip("/")
+    def get_apply_url(self, base=None):
+        """Public apply link. ``base`` lets a request pick the frontend host it
+        was served from (see utils.frontend_origin); default is FRONTEND_URL."""
+        base = (base or str(settings.FRONTEND_URL)).rstrip("/")
         return f"{base}/jobs/{self.apply_token}/apply"
 
-    def get_detail_url(self):
-        base = str(settings.FRONTEND_URL).rstrip("/")
+    def get_detail_url(self, base=None):
+        base = (base or str(settings.FRONTEND_URL)).rstrip("/")
         return f"{base}/jobs/{self.apply_token}"
 
     
