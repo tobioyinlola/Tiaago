@@ -252,44 +252,85 @@ class AIServiceHandler:
             "questions_per_category": questions_per_category,
             "role_type": role_type,
         }
-        # Categories are generated sequentially server-side (~60s ceiling each --
+        # Categories are generated concurrently server-side (~60s ceiling each --
         # up to 4 for technical roles, which add a "Coding" category), so this
         # needs headroom well beyond the other single-call AI endpoints.
-        response = self.post(
-            "/create-categorized-assessment", params=data, timeout=240
-        )
+        #
+        # Sent as a JSON body, not query parameters: a job description is long
+        # rich text, and URL-encoding it overran the AI server's request-line
+        # limit for roles with long descriptions (the call came back as an
+        # HTTP error and generation "failed" for just those roles).
+        response = self.post("/create-categorized-assessment", json=data, timeout=240)
         try:
-            response = response.json()
-            if "sections" not in response:
-                logger.error(f"Categorized assessment error: {response}")
-                return None
-            formatted_sections = []
-            for section in response["sections"]:
-                formatted_questions = []
-                for question in section.get("questions", []):
-                    main_question = question.get("question")
-                    options = question.get("answers", [])
-                    correct_answer = self.clean_option(question.get("correct_answer"))
-                    formatted_options = [self.clean_option(option) for option in options]
-                    correct_option_index = formatted_options.index(correct_answer)
-                    formatted_questions.append(
-                        {
-                            "is_ai_generated": True,
-                            "question": main_question,
-                            "options": [
-                                {"index": index, "value": option}
-                                for (index, option) in enumerate(formatted_options)
-                            ],
-                            "correct_option_index": correct_option_index,
-                        }
-                    )
-                formatted_sections.append(
-                    {"category": section.get("category"), "questions": formatted_questions}
-                )
-            return formatted_sections
-        except Exception as e:
-            logger.error(f"Failed to parse categorized assessment response: {str(e)}")
+            body = response.json()
+        except ValueError:
+            logger.error(
+                "Categorized assessment: non-JSON response (HTTP %s): %.300s",
+                response.status_code, response.text,
+            )
             return None
+        if not response.ok or "sections" not in body:
+            logger.error("Categorized assessment failed (HTTP %s): %.500s", response.status_code, body)
+            return None
+
+        formatted_sections = []
+        for section in body["sections"]:
+            formatted_questions = []
+            skipped = 0
+            for question in section.get("questions", []):
+                formatted = self._format_mcq_question(question)
+                if formatted is None:
+                    skipped += 1
+                    continue
+                formatted_questions.append(formatted)
+            if skipped:
+                logger.warning(
+                    "Categorized assessment: skipped %s malformed question(s) in category %r",
+                    skipped, section.get("category"),
+                )
+            if not formatted_questions:
+                logger.error("Categorized assessment: no usable questions in category %r", section.get("category"))
+                return None
+            formatted_sections.append({"category": section.get("category"), "questions": formatted_questions})
+        return formatted_sections
+
+    @staticmethod
+    def _normalise_for_match(text):
+        return re.sub(r"\s+", " ", str(text or "")).strip().strip(".").casefold()
+
+    def _format_mcq_question(self, question):
+        """One AI question -> stored shape, or ``None`` if it cannot be used.
+
+        The model sometimes returns a correct answer that differs from its
+        option text only by case, spacing, trailing punctuation or an option
+        letter ("C"). Those are matched rather than discarded, and a question
+        that still cannot be matched is skipped on its own instead of failing
+        every other question in the assessment.
+        """
+        text = question.get("question")
+        raw_options = question.get("answers") or []
+        if not text or not isinstance(raw_options, list) or len(raw_options) < 2:
+            return None
+        options = [self.clean_option(option) for option in raw_options]
+        raw_correct = question.get("correct_answer")
+        correct = self.clean_option(raw_correct)
+
+        index = options.index(correct) if correct in options else None
+        if index is None:
+            wanted = self._normalise_for_match(correct)
+            index = next((i for i, o in enumerate(options) if self._normalise_for_match(o) == wanted), None)
+        if index is None:
+            letter = re.match(r"^\s*([A-Ha-h])\s*[\.\):]?\s*$", str(raw_correct or ""))
+            if letter and ord(letter.group(1).upper()) - 65 < len(options):
+                index = ord(letter.group(1).upper()) - 65
+        if index is None:
+            return None
+        return {
+            "is_ai_generated": True,
+            "question": text,
+            "options": [{"index": i, "value": option} for i, option in enumerate(options)],
+            "correct_option_index": index,
+        }
 
     def get_talent_coding_questions(
         self,

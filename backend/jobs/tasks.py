@@ -1029,6 +1029,27 @@ def retry_pending_resume_analysis(pending_resume_analysis_id):
     return "Completed"
 
 
+MAX_JOB_TEXT_FOR_AI = 12000
+
+
+def _plain_job_text(value, limit=MAX_JOB_TEXT_FOR_AI):
+    """Rich-text job copy -> bounded plain text for the AI prompt.
+
+    The wizard stores HTML; the markup adds nothing to question quality, costs
+    tokens, and (together with a long description) made some roles too large
+    to send at all.
+    """
+    import html as html_lib
+    import re
+
+    text = re.sub(r"(?i)<\s*(br|/p|/li|/h[1-6]|/div)\s*/?>", "\n", value or "")
+    text = re.sub(r"<[^>]+>", " ", text)
+    text = html_lib.unescape(text)
+    text = re.sub(r"[ \t\r\f\v]+", " ", text)
+    text = re.sub(r"\n\s*\n+", "\n\n", text).strip()
+    return text[:limit]
+
+
 @shared_task(bind=True, name="generate_job_assessment_questions_task", max_retries=2, rate_limit="30/m")
 def generate_job_assessment_questions_task(self, request_id, description, job_requirement, role_id):
     """Runs the job-creation wizard's Step 3 AI question generation out of
@@ -1046,7 +1067,7 @@ def generate_job_assessment_questions_task(self, request_id, description, job_re
     request_row.status = AssessmentQuestionGenerationRequest.GenerationStatus.GENERATING
     request_row.save(update_fields=["status"])
 
-    job_description = "\n\n".join(part for part in [description, job_requirement] if part)
+    job_description = _plain_job_text("\n\n".join(part for part in [description, job_requirement] if part))
 
     # Defaults non-technical when role_id doesn't match an existing Role --
     # see jobs.tasks.send_assessment_link for the matching fix and why.
