@@ -983,6 +983,18 @@ class ApplicationPracticalAssessment(TimeStampedModel):
     critical_failure_reason = models.TextField(max_length=1000, blank=True, default="")
     completed_at = models.DateTimeField(null=True, blank=True)
 
+    class BookedBy(models.TextChoices):
+        RECRUITER = "RECRUITER", _("Hiring team")
+        CANDIDATE = "CANDIDATE", _("Candidate")
+
+    booked_by = models.CharField(max_length=10, choices=BookedBy.choices, default=BookedBy.RECRUITER)
+    # Why an appointment was cancelled / marked no-show, who did it, and why a
+    # booking exceeded the job's attempt or retest policy.
+    status_reason = models.CharField(max_length=500, blank=True, default="")
+    status_changed_by = models.CharField(max_length=10, choices=BookedBy.choices, blank=True, default="")
+    status_changed_at = models.DateTimeField(null=True, blank=True)
+    policy_override_reason = models.CharField(max_length=500, blank=True, default="")
+
     class Meta:
         constraints = [
             models.UniqueConstraint(

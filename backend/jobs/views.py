@@ -117,6 +117,8 @@ from .tasks import (
     send_manual_rejection_mail,
     send_offer_extended_notice_mail,
 )
+from django.conf import settings
+from . import practical
 from .services import eligibility_progression_block_detail, workflow_transition_block_detail
 from emails import emails
 from rest_framework.permissions import AllowAny
@@ -1480,6 +1482,156 @@ class JobApplicationPracticalAssessmentCreateView(APIView):
             ApplicationPracticalAssessmentSerializer(appointment, context={"request": request}).data,
             status=HTTP_201_CREATED,
         )
+
+
+def _recruiter_can_manage(user, company):
+    return user.is_staff or user_is_company_role(
+        user, company, (CompanyTeamMember.ROLE.ADMIN, CompanyTeamMember.ROLE.RECRUITER)
+    )
+
+
+class ApplicationPracticalAssessmentAttendanceView(APIView):
+    """Hiring team cancels an appointment or records a candidate no-show."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def patch(self, request, pk, assessment_pk):
+        appointment = get_object_or_404(
+            ApplicationPracticalAssessment.objects.select_related("application__job__company", "slot"),
+            id=assessment_pk,
+            application_id=pk,
+        )
+        if not _recruiter_can_manage(request.user, appointment.application.job.company):
+            return Response(
+                {"detail": "You are not authorized to manage this practical assessment."},
+                status=HTTP_403_FORBIDDEN,
+            )
+        target = request.data.get("status")
+        reason = str(request.data.get("reason") or "").strip()
+        if target not in (ApplicationPracticalAssessment.Status.NO_SHOW, ApplicationPracticalAssessment.Status.CANCELLED):
+            return Response({"detail": "Status must be NO_SHOW or CANCELLED."}, status=HTTP_400_BAD_REQUEST)
+        if target == ApplicationPracticalAssessment.Status.CANCELLED:
+            appointment = practical.cancel_appointment(
+                appointment, by=ApplicationPracticalAssessment.BookedBy.RECRUITER, reason=reason
+            )
+        else:
+            appointment = practical.mark_no_show(appointment, reason=reason)
+        return Response(ApplicationPracticalAssessmentSerializer(appointment, context={"request": request}).data)
+
+
+class PracticalBookingLinkView(APIView):
+    """Hiring team gets the candidate's self-booking link for an application."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, pk):
+        application = get_object_or_404(JobApplication.objects.select_related("job__company"), id=pk)
+        if not _recruiter_can_manage(request.user, application.job.company):
+            return Response({"detail": "You are not authorized for this application."}, status=HTTP_403_FORBIDDEN)
+        if not practical.job_policy(application.job)["self_booking"]:
+            return Response(
+                {"detail": "Enable self-booking in this job's practical assessment policy first."},
+                status=HTTP_400_BAD_REQUEST,
+            )
+        token = practical.make_booking_token(application)
+        base = str(settings.FRONTEND_URL).rstrip("/")
+        return Response({"token": token, "url": f"{base}/jobs/practical-booking/{token}"})
+
+
+class _PracticalBookingBase(APIView):
+    """Candidate access by signed link (guests) or by owning account."""
+
+    permission_classes = [AllowAny]
+
+    def _application(self, request, token=None, pk=None):
+        if token:
+            return practical.application_from_token(token)
+        if request.user.is_authenticated:
+            return JobApplication.objects.select_related("job__company").filter(
+                id=pk, applicant__user=request.user
+            ).first()
+        return None
+
+    @staticmethod
+    def _denied():
+        return Response(
+            {"detail": "This booking link is invalid or has expired."}, status=HTTP_403_FORBIDDEN
+        )
+
+    @staticmethod
+    def _state(application):
+        job = application.job
+        policy = practical.job_policy(job)
+        configuration = job.get_practical_assessment_configuration()
+        block, _overridable = practical.booking_block(application, candidate_facing=True)
+        scheduled = application.practical_assessments.filter(
+            status=ApplicationPracticalAssessment.Status.SCHEDULED
+        ).select_related("slot").first()
+        can_book = policy["self_booking"] and not block
+        return {
+            "job_title": job.title,
+            "company_name": job.company.company_name,
+            "title": configuration["title"],
+            "instructions": configuration["instructions"],
+            "policy": policy,
+            "self_booking_enabled": policy["self_booking"],
+            "can_book": bool(can_book),
+            "blocked_reason": "" if can_book else (block or "Self-booking is not enabled for this job."),
+            "scheduled": (
+                ApplicationPracticalAssessmentSerializer(scheduled).data if scheduled else None
+            ),
+            "history": ApplicationPracticalAssessmentSerializer(
+                application.practical_assessments.exclude(
+                    status=ApplicationPracticalAssessment.Status.SCHEDULED
+                ).select_related("slot"),
+                many=True,
+            ).data,
+            "slots": (
+                JobPracticalAssessmentSlotSerializer(
+                    practical.available_slots(job, candidate_facing=True), many=True
+                ).data
+                if can_book else []
+            ),
+        }
+
+
+class PracticalBookingView(_PracticalBookingBase):
+    def get(self, request, token=None, pk=None):
+        application = self._application(request, token, pk)
+        if not application:
+            return self._denied()
+        return Response(self._state(application))
+
+
+class PracticalBookingBookView(_PracticalBookingBase):
+    def post(self, request, slot_id, token=None, pk=None):
+        application = self._application(request, token, pk)
+        if not application:
+            return self._denied()
+        appointment = practical.book_slot(
+            application.id, slot_id, booked_by=ApplicationPracticalAssessment.BookedBy.CANDIDATE
+        )
+        return Response(
+            ApplicationPracticalAssessmentSerializer(appointment).data, status=HTTP_201_CREATED
+        )
+
+
+class PracticalBookingCancelView(_PracticalBookingBase):
+    def post(self, request, token=None, pk=None):
+        application = self._application(request, token, pk)
+        if not application:
+            return self._denied()
+        appointment = application.practical_assessments.filter(
+            status=ApplicationPracticalAssessment.Status.SCHEDULED
+        ).first()
+        if not appointment:
+            return Response({"detail": "You have no scheduled appointment to cancel."}, status=HTTP_400_BAD_REQUEST)
+        appointment = practical.cancel_appointment(
+            appointment,
+            by=ApplicationPracticalAssessment.BookedBy.CANDIDATE,
+            reason=str(request.data.get("reason") or ""),
+        )
+        return Response(ApplicationPracticalAssessmentSerializer(appointment).data)
 
 
 class JobApplicationPracticalAssessmentReviewQueueView(ListAPIView):

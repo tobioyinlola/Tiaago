@@ -37,6 +37,7 @@ from .models import (
     JobInterviewAvailabilitySlot,
 )
 from .malware import validate_upload_content
+from .practical import book_slot, normalise_policy
 from .services import (
     current_workflow_stage,
     normalise_eligibility_declarations,
@@ -257,7 +258,7 @@ def _normalise_practical_assessment_configuration(value):
     """Validate a human-observed practical assessment published with a job."""
     if not isinstance(value, dict):
         raise serializers.ValidationError("Practical assessment configuration must be an object.")
-    unknown = set(value) - {"enabled", "required", "title", "instructions", "rubric"}
+    unknown = set(value) - {"enabled", "required", "title", "instructions", "rubric", "policy"}
     if unknown:
         raise serializers.ValidationError(
             {key: "This practical-assessment setting is not supported." for key in sorted(unknown)}
@@ -288,6 +289,7 @@ def _normalise_practical_assessment_configuration(value):
         "title": title,
         "instructions": instructions,
         "rubric": rubric,
+        "policy": normalise_policy(value.get("policy")),
     }
 
 
@@ -1502,17 +1504,27 @@ class ApplicationPracticalAssessmentSerializer(serializers.ModelSerializer):
             "critical_failure",
             "critical_failure_reason",
             "completed_at",
+            "booked_by",
+            "status_reason",
+            "status_changed_by",
+            "status_changed_at",
+            "policy_override_reason",
             "created_at",
         )
         read_only_fields = fields
 
 
 class ApplicationPracticalAssessmentAssignSerializer(serializers.Serializer):
-    """Books a candidate into one of the job's practical-assessment slots."""
+    """Books a candidate into one of the job's practical-assessment slots.
+
+    The hiring team is held to the job's attempt and retest policy unless it
+    records an ``override_reason``, which is stored on the appointment.
+    """
 
     slot_id = serializers.PrimaryKeyRelatedField(
         queryset=JobPracticalAssessmentSlot.objects.select_related("job")
     )
+    override_reason = serializers.CharField(max_length=500, required=False, allow_blank=True)
 
     def validate(self, attrs):
         application = self.context["application"]
@@ -1527,36 +1539,12 @@ class ApplicationPracticalAssessmentAssignSerializer(serializers.Serializer):
         return attrs
 
     def create(self, validated_data):
-        application_id = self.context["application"].id
-        requested_slot_id = validated_data["slot_id"].id
-        with transaction.atomic():
-            application = JobApplication.objects.select_for_update().select_related("job").get(id=application_id)
-            slot = JobPracticalAssessmentSlot.objects.select_for_update().get(id=requested_slot_id)
-            configuration = application.job.get_practical_assessment_configuration()
-            if not configuration["enabled"] or slot.job_id != application.job_id:
-                raise serializers.ValidationError({"slot_id": "This practical-assessment slot is no longer available for this job."})
-            if not slot.is_active or slot.starts_at <= timezone.now():
-                raise serializers.ValidationError({"slot_id": "This practical-assessment slot is no longer available."})
-            if ApplicationPracticalAssessment.objects.filter(
-                application=application,
-                status=ApplicationPracticalAssessment.Status.SCHEDULED,
-            ).exists():
-                raise serializers.ValidationError({"slot_id": "This candidate already has a scheduled practical assessment."})
-            scheduled_count = ApplicationPracticalAssessment.objects.filter(
-                slot=slot,
-                status=ApplicationPracticalAssessment.Status.SCHEDULED,
-            ).count()
-            if scheduled_count >= slot.capacity:
-                raise serializers.ValidationError({"slot_id": "This practical-assessment slot is full."})
-            latest_attempt = ApplicationPracticalAssessment.objects.filter(
-                application=application
-            ).order_by("-attempt_number").values_list("attempt_number", flat=True).first() or 0
-            return ApplicationPracticalAssessment.objects.create(
-                application=application,
-                slot=slot,
-                attempt_number=latest_attempt + 1,
-                rubric_snapshot=configuration["rubric"],
-            )
+        return book_slot(
+            self.context["application"].id,
+            validated_data["slot_id"].id,
+            booked_by=ApplicationPracticalAssessment.BookedBy.RECRUITER,
+            override_reason=validated_data.get("override_reason", ""),
+        )
 
 
 class ApplicationPracticalAssessmentReviewSerializer(serializers.Serializer):

@@ -1297,12 +1297,21 @@ class PracticalAssessmentFoundationTests(TestCase):
         self.assertIsNone(response.data["weighted_score"])
 
         retry_slot = self._create_slot(job, timezone.now() + timedelta(days=3))
+        # A critical safety failure needs a documented decision to retest.
         response = self.client.post(
             f"/api/jobs/job-applications/{application.id}/practical-assessments/",
             {"slot_id": retry_slot["id"]},
             format="json",
         )
+        self.assertEqual(response.status_code, 400, response.data)
+        self.assertIn("critical safety failure", str(response.data))
+        response = self.client.post(
+            f"/api/jobs/job-applications/{application.id}/practical-assessments/",
+            {"slot_id": retry_slot["id"], "override_reason": "Safety retraining completed."},
+            format="json",
+        )
         self.assertEqual(response.status_code, 201, response.data)
+        self.assertEqual(response.data["policy_override_reason"], "Safety retraining completed.")
         retry_id = response.data["id"]
         self.assertEqual(response.data["attempt_number"], 2)
 
@@ -1657,3 +1666,212 @@ class WorkSampleMalwareScanTests(TestCase):
         with patch("jobs.malware.socket.create_connection", side_effect=OSError("refused")):
             with self.assertRaises(malware.ScannerUnavailable):
                 malware._clamd_scan(io.BytesIO(b"abc"))
+
+
+class PracticalBookingPolicyTests(TestCase):
+    """Self-booking, attempt limits, retest waits, no-shows and late cancels."""
+
+    setUp = PracticalAssessmentFoundationTests.setUp
+    _publish_practical_job = PracticalAssessmentFoundationTests._publish_practical_job
+    _application = PracticalAssessmentFoundationTests._application
+    _create_slot = PracticalAssessmentFoundationTests._create_slot
+
+    def _job(self, **policy):
+        job = self._publish_practical_job()
+        configuration = job.get_practical_assessment_configuration()
+        configuration["policy"] = {"self_booking": True, **policy}
+        job.practical_assessment_configuration = configuration
+        job.save(update_fields=["practical_assessment_configuration"])
+        return job
+
+    def _link(self, application):
+        response = self.client.post(f"/api/jobs/job-applications/{application.id}/practical-booking-link/")
+        self.assertEqual(response.status_code, 200, response.data)
+        return response.data["token"]
+
+    def _guest(self):
+        from rest_framework.test import APIClient
+
+        return APIClient()  # unauthenticated: a guest holding only the signed link
+
+    def _clear_eligibility(self, application):
+        application.eligibility_checks.update(status="PASS", reviewed_at=timezone.now())
+
+    def test_policy_is_validated_and_link_requires_self_booking(self):
+        job = self._publish_practical_job()
+        application = self._application(job, "no-selfbook@example.com")
+        response = self.client.post(f"/api/jobs/job-applications/{application.id}/practical-booking-link/")
+        self.assertEqual(response.status_code, 400, response.data)
+
+        from jobs.practical import normalise_policy
+        from rest_framework.exceptions import ValidationError
+
+        for bad in ({"max_attempts": 0}, {"retest_wait_days": 400}, {"unknown": 1}, {"self_booking": "yes"}):
+            with self.assertRaises(ValidationError):
+                normalise_policy(bad)
+        self.assertEqual(normalise_policy(None)["max_attempts"], 2)
+
+    def test_guest_books_cancels_and_late_cancel_is_refused(self):
+        job = self._job(cancellation_cutoff_hours=24)
+        application = self._application(job, "guest-book@example.com")
+        token = self._link(application)
+        near = self._create_slot(job, timezone.now() + timedelta(hours=5))
+        far = self._create_slot(job, timezone.now() + timedelta(days=3))
+        guest = self._guest()
+
+        state = guest.get(f"/api/jobs/practical-booking/{token}/")
+        self.assertEqual(state.status_code, 200, state.data)
+        self.assertTrue(state.data["can_book"], state.data)
+        # Only slots beyond the cancellation cutoff are offered for self-booking.
+        self.assertEqual([slot["id"] for slot in state.data["slots"]], [far["id"]])
+
+        refused = guest.post(f"/api/jobs/practical-booking/{token}/slots/{near['id']}/book/")
+        self.assertEqual(refused.status_code, 400, refused.data)
+        booked = guest.post(f"/api/jobs/practical-booking/{token}/slots/{far['id']}/book/")
+        self.assertEqual(booked.status_code, 201, booked.data)
+        self.assertEqual(booked.data["booked_by"], "CANDIDATE")
+        # One active appointment at a time.
+        again = guest.post(f"/api/jobs/practical-booking/{token}/slots/{far['id']}/book/")
+        self.assertEqual(again.status_code, 400, again.data)
+
+        cancelled = guest.post(f"/api/jobs/practical-booking/{token}/cancel/", {"reason": "Illness"}, format="json")
+        self.assertEqual(cancelled.status_code, 200, cancelled.data)
+        self.assertEqual(cancelled.data["status"], "CANCELLED")
+        self.assertEqual(cancelled.data["status_changed_by"], "CANDIDATE")
+
+        # Late cancellation: move the booked slot inside the cutoff.
+        rebooked = guest.post(f"/api/jobs/practical-booking/{token}/slots/{far['id']}/book/")
+        self.assertEqual(rebooked.status_code, 201, rebooked.data)
+        ApplicationPracticalAssessment.objects.filter(id=rebooked.data["id"]).update()
+        from jobs.models import JobPracticalAssessmentSlot
+
+        JobPracticalAssessmentSlot.objects.filter(id=far["id"]).update(starts_at=timezone.now() + timedelta(hours=2))
+        late = guest.post(f"/api/jobs/practical-booking/{token}/cancel/")
+        self.assertEqual(late.status_code, 400, late.data)
+        self.assertIn("too late", str(late.data))
+
+    def test_invalid_or_foreign_token_is_rejected(self):
+        job = self._job()
+        application = self._application(job, "tok@example.com")
+        guest = self._guest()
+        self.assertEqual(guest.get("/api/jobs/practical-booking/not-a-token/").status_code, 403)
+        self.assertEqual(guest.get(f"/api/jobs/job-applications/{application.id}/practical-booking/").status_code, 403)
+
+    def test_attempt_limit_no_show_and_retest_wait(self):
+        job = self._job(max_attempts=2, retest_wait_days=3, no_show_counts_as_attempt=True)
+        application = self._application(job, "noshow@example.com")
+        token = self._link(application)
+        guest = self._guest()
+        slot_one = self._create_slot(job, timezone.now() + timedelta(days=3))
+        booked = guest.post(f"/api/jobs/practical-booking/{token}/slots/{slot_one['id']}/book/")
+        self.assertEqual(booked.status_code, 201, booked.data)
+        appointment_id = booked.data["id"]
+
+        # A no-show cannot be recorded before the appointment starts.
+        url = f"/api/jobs/job-applications/{application.id}/practical-assessments/{appointment_id}/attendance/"
+        early = self.client.patch(url, {"status": "NO_SHOW", "reason": "x"}, format="json")
+        self.assertEqual(early.status_code, 400, early.data)
+
+        from jobs.models import JobPracticalAssessmentSlot
+
+        JobPracticalAssessmentSlot.objects.filter(id=slot_one["id"]).update(
+            starts_at=timezone.now() - timedelta(hours=2), ends_at=timezone.now() - timedelta(hours=1)
+        )
+        marked = self.client.patch(url, {"status": "NO_SHOW", "reason": "Did not arrive"}, format="json")
+        self.assertEqual(marked.status_code, 200, marked.data)
+        self.assertEqual(marked.data["status"], "NO_SHOW")
+        # Candidates cannot record attendance.
+        self.assertEqual(guest.patch(url, {"status": "NO_SHOW"}, format="json").status_code, 401)
+
+        slot_two = self._create_slot(job, timezone.now() + timedelta(days=5))
+        waiting = guest.get(f"/api/jobs/practical-booking/{token}/")
+        self.assertFalse(waiting.data["can_book"])
+        self.assertIn("wait", waiting.data["blocked_reason"])
+        self.assertEqual(
+            guest.post(f"/api/jobs/practical-booking/{token}/slots/{slot_two['id']}/book/").status_code, 400
+        )
+
+        # Once the wait has passed the no-show counts as attempt 1 of 2 and a retest opens.
+        JobPracticalAssessmentSlot.objects.filter(id=slot_one["id"]).update(
+            ends_at=timezone.now() - timedelta(days=4)
+        )
+        retest = guest.post(f"/api/jobs/practical-booking/{token}/slots/{slot_two['id']}/book/")
+        self.assertEqual(retest.status_code, 201, retest.data)
+        self.assertEqual(retest.data["attempt_number"], 2)
+
+        # Fail attempt 2: the limit is used up; self-booking stays closed.
+        complete = self.client.patch(
+            f"/api/jobs/job-applications/{application.id}/practical-assessments/{retest.data['id']}/",
+            {"outcome": "FAIL", "observations": "Did not meet the standard.", "scores": {"criterion-1": 1, "criterion-2": 1}},
+            format="json",
+        )
+        self.assertEqual(complete.status_code, 200, complete.data)
+        ApplicationPracticalAssessment.objects.filter(id=retest.data["id"]).update(
+            completed_at=timezone.now() - timedelta(days=10)
+        )
+        slot_three = self._create_slot(job, timezone.now() + timedelta(days=9))
+        state = guest.get(f"/api/jobs/practical-booking/{token}/")
+        self.assertFalse(state.data["can_book"])
+        self.assertIn("maximum of 2", state.data["blocked_reason"])
+        # The hiring team can exceed the limit only with a recorded reason.
+        no_reason = self.client.post(
+            f"/api/jobs/job-applications/{application.id}/practical-assessments/",
+            {"slot_id": slot_three["id"]},
+            format="json",
+        )
+        self.assertEqual(no_reason.status_code, 400, no_reason.data)
+        overridden = self.client.post(
+            f"/api/jobs/job-applications/{application.id}/practical-assessments/",
+            {"slot_id": slot_three["id"], "override_reason": "Manager approved a third attempt."},
+            format="json",
+        )
+        self.assertEqual(overridden.status_code, 201, overridden.data)
+        self.assertEqual(overridden.data["attempt_number"], 3)
+
+    def test_no_show_can_be_excluded_from_attempts(self):
+        job = self._job(max_attempts=1, no_show_counts_as_attempt=False)
+        application = self._application(job, "free-noshow@example.com")
+        slot = self._create_slot(job, timezone.now() + timedelta(days=3))
+        booked = self.client.post(
+            f"/api/jobs/job-applications/{application.id}/practical-assessments/",
+            {"slot_id": slot["id"]}, format="json",
+        )
+        from jobs.models import JobPracticalAssessmentSlot
+
+        JobPracticalAssessmentSlot.objects.filter(id=slot["id"]).update(
+            starts_at=timezone.now() - timedelta(hours=2), ends_at=timezone.now() - timedelta(hours=1)
+        )
+        self.client.patch(
+            f"/api/jobs/job-applications/{application.id}/practical-assessments/{booked.data['id']}/attendance/",
+            {"status": "NO_SHOW"}, format="json",
+        )
+        from jobs.practical import booking_block
+
+        application.refresh_from_db()
+        self.assertEqual(booking_block(application, candidate_facing=True), ("", False))
+
+    def test_account_holder_can_book_only_their_own_application(self):
+        job = self._job()
+        talent_user = CustomUser.objects.create_talent_user(
+            username="own-talent", email="own-talent@example.com", password="x"
+        )
+        profile = TalentProfile.objects.create(user=talent_user, full_name="Own Talent")
+        application = self._application(job, "owned@example.com")
+        JobApplication.objects.filter(id=application.id).update(applicant=profile)
+        slot = self._create_slot(job, timezone.now() + timedelta(days=4))
+
+        from rest_framework.test import APIClient
+
+        owner = APIClient()
+        owner.force_authenticate(user=talent_user)
+        response = owner.post(f"/api/jobs/job-applications/{application.id}/practical-booking/slots/{slot['id']}/book/")
+        self.assertEqual(response.status_code, 201, response.data)
+
+        stranger_user = CustomUser.objects.create_talent_user(
+            username="stranger", email="stranger@example.com", password="x"
+        )
+        stranger = APIClient()
+        stranger.force_authenticate(user=stranger_user)
+        self.assertEqual(
+            stranger.get(f"/api/jobs/job-applications/{application.id}/practical-booking/").status_code, 403
+        )
