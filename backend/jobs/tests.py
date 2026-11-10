@@ -140,6 +140,25 @@ class AIInterviewPassMarkGateTests(TestCase):
         self.assertEqual(self.application.status, JobApplication.JobApplicationStatus.INTERVIEW_SCHEDULED)
         invite.assert_called_once_with(self.application.id)
 
+    def test_ai_result_respects_a_workflow_without_an_interview_stage(self):
+        from jobs.models import HeldTransition
+
+        self.job.hiring_engine = Job.HiringEngine.CONFIGURABLE
+        self.job.workflow_configuration = {"version": 1, "stages": ["application", "screen", "decision"]}
+        self.job.save(update_fields=["hiring_engine", "workflow_configuration"])
+        invite = self._run(90)
+        self.assertEqual(self.application.status, JobApplication.JobApplicationStatus.AI_INTERVIEW)
+        invite.assert_not_called()
+        self.assertTrue(HeldTransition.objects.filter(application=self.application, source="ai_interview").exists())
+
+    def test_late_ai_result_does_not_overwrite_a_closed_application(self):
+        JobApplication.objects.filter(id=self.application.id).update(
+            status=JobApplication.JobApplicationStatus.REJECTED
+        )
+        invite = self._run(95)
+        self.assertEqual(self.application.status, JobApplication.JobApplicationStatus.REJECTED)
+        invite.assert_not_called()
+
     def test_below_the_mark_holds_for_recruiter_review(self):
         """Deliberately not an auto-rejection -- the recruiter still decides."""
         invite = self._run(69)
@@ -2255,3 +2274,178 @@ class SignedInAndAssistedIntakeTests(TestCase):
             result = send_assessment_link(application.id)
         self.assertIn("phone follow-up", result)
         self.assertTrue(N.objects.filter(application=application, dedupe_key__startswith="contact_by_phone:assessment").exists())
+
+
+class TransitionRulesTests(TestCase):
+    """One definition of an allowed move, on every route that changes status."""
+
+    setUp = ReadinessFoundationTests.setUp
+    _application = ReadinessFoundationTests._application
+
+    S = JobApplication.JobApplicationStatus
+
+    def _patch(self, application, status, **extra):
+        with patch("jobs.views.send_assessment_link.apply_async"), patch(
+            "jobs.views.send_interview_slot_invite.delay", create=True
+        ), patch("jobs.tasks.send_interview_slot_invite.delay"), patch("jobs.tasks.send_offer_extended_notice_mail.delay", create=True):
+            return self.client.patch(
+                f"/api/jobs/job-applications/{application.id}/", {"status": status, **extra}, format="json"
+            )
+
+    def test_closed_applications_cannot_be_moved_or_revived(self):
+        for closed in (self.S.REJECTED, self.S.WITHDRAWN, self.S.OFFER_DECLINED):
+            application = self._application(status=closed)
+            response = self._patch(application, self.S.REVIEWED)
+            self.assertEqual(response.status_code, 400, (closed, response.data))
+            self.assertIn("no longer be moved", response.data["detail"])
+            application.refresh_from_db()
+            self.assertEqual(application.status, closed)
+
+    def test_offer_cannot_skip_the_interview_stage(self):
+        application = self._application(status=self.S.REVIEWED)
+        response = self._patch(application, self.S.OFFER_EXTENDED)
+        self.assertEqual(response.status_code, 400, response.data)
+        self.assertIn("after the interview", response.data["detail"])
+
+        interviewed = self._application(status=self.S.HUMAN_INTERVIEW)
+        self.assertEqual(self._patch(interviewed, self.S.OFFER_EXTENDED).status_code, 200)
+
+    def test_stale_expected_status_is_refused_with_409(self):
+        application = self._application(status=self.S.REVIEWED)
+        JobApplication.objects.filter(id=application.id).update(status=self.S.REJECTED)
+        response = self._patch(application, self.S.PENDING_DECISION, expected_status=self.S.REVIEWED)
+        self.assertEqual(response.status_code, 409, response.data)
+        self.assertEqual(response.data["current_status"], self.S.REJECTED)
+
+    def test_acceptance_creates_readiness_atomically(self):
+        from rest_framework.test import APIClient
+
+        application = self._application(status=self.S.OFFER_EXTENDED)
+        talent = APIClient()
+        talent.force_authenticate(user=self.talent_user)
+        response = talent.patch(
+            f"/api/jobs/job-applications/{application.id}/", {"status": "OFFER_ACCEPTED"}, format="json"
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        application.refresh_from_db()
+        self.assertEqual(application.readiness_status, JobApplication.ReadinessStatus.CHECKS_OUTSTANDING)
+
+        # Recruiters cannot accept on a candidate's behalf, and an accepted offer is final.
+        other = self._application(status=self.S.OFFER_EXTENDED)
+        self.assertEqual(self._patch(other, self.S.OFFER_ACCEPTED).status_code, 400)
+        self.assertEqual(self._patch(application, self.S.REVIEWED).status_code, 400)
+
+    def test_automation_never_moves_backwards_and_respects_closed(self):
+        from jobs.transitions import apply_transition
+
+        advanced = self._application(status=self.S.HUMAN_INTERVIEW)
+        result = apply_transition(advanced.id, self.S.INTERVIEW_SCHEDULED, actor="automation")
+        self.assertFalse(result)
+        self.assertIn("backwards", result.detail)
+
+        closed = self._application(status=self.S.REJECTED)
+        self.assertFalse(apply_transition(closed.id, self.S.INTERVIEW_SCHEDULED, actor="automation"))
+
+        stale = self._application(status=self.S.AI_INTERVIEW)
+        result = apply_transition(
+            stale.id, self.S.INTERVIEW_SCHEDULED, actor="automation", expected_status=self.S.REVIEWED
+        )
+        self.assertTrue(result.stale)
+
+    def test_workflow_without_an_interview_stage_blocks_every_automated_route(self):
+        from jobs.models import HeldTransition
+        from jobs.transitions import apply_transition
+
+        application = self._application(status=self.S.REVIEWED)
+        job = application.job
+        job.hiring_engine = Job.HiringEngine.CONFIGURABLE
+        job.workflow_configuration = {"version": 1, "stages": ["application", "screen", "decision"]}
+        job.save(update_fields=["hiring_engine", "workflow_configuration"])
+
+        for target in (self.S.INTERVIEW_SCHEDULED, self.S.AI_INTERVIEW, self.S.PENDING_DECISION, self.S.SECOND_INTERVIEW):
+            result = apply_transition(application.id, target, actor="automation", held_source="assessment")
+            self.assertFalse(result, target)
+            self.assertIn("interview stage", result.detail)
+        application.refresh_from_db()
+        self.assertEqual(application.status, self.S.REVIEWED)
+        self.assertTrue(HeldTransition.objects.filter(application=application).exists())
+
+        # With no interview stage, an offer may follow the screen directly.
+        self.assertTrue(apply_transition(application.id, self.S.OFFER_EXTENDED, actor="recruiter"))
+
+    def test_scheduler_recommendation_cannot_extend_offer_to_a_withdrawn_candidate(self):
+        from jobs.transitions import transition_block
+
+        withdrawn = self._application(status=self.S.WITHDRAWN)
+        self.assertIn("no longer", transition_block(withdrawn, self.S.OFFER_EXTENDED))
+
+    def test_reports_count_only_started_candidates_as_filled(self):
+        from reports.services import compute_role_data
+
+        accepted = self._application(status=self.S.OFFER_ACCEPTED)
+        job = accepted.job
+        today = timezone.now().date()
+
+        def filled():
+            data = compute_role_data(job, today - timedelta(days=30), today + timedelta(days=1))
+            return data["funnel"]["filled"], data["funnel"].get("offers_accepted")
+
+        self.assertEqual(filled()[0], 0)
+        JobApplication.objects.filter(id=accepted.id).update(
+            readiness_status=JobApplication.ReadinessStatus.STARTED
+        )
+        self.assertEqual(filled()[0], 1)
+
+    # ---- route-level: the review/decision endpoints use the same rules
+
+    def _interview(self, application):
+        return Scheduler.objects.create(
+            title="Interview", meeting_date=timezone.now().date(), start_time="10:00", end_time="11:00",
+            talent=self.talent, job_application=application, company=self.company,
+            description="Interview", status=Scheduler.Status.COMPLETED,
+        )
+
+    def _decide(self, interview, recommendation="YES", **extra):
+        with patch("jobs.tasks.send_offer_extended_notice_mail.delay"), patch(
+            "jobs.tasks.send_manual_rejection_mail.apply_async"
+        ):
+            return self.client.post(
+                f"/api/schedulers/{interview.id}/decision/",
+                {"recommendation": recommendation, "confidence": "HIGH", **extra},
+                format="json",
+            )
+
+    def test_interview_decision_cannot_extend_an_offer_to_a_withdrawn_candidate(self):
+        application = self._application(status=self.S.WITHDRAWN)
+        response = self._decide(self._interview(application), "YES")
+        self.assertEqual(response.status_code, 400, response.data)
+        application.refresh_from_db()
+        self.assertEqual(application.status, self.S.WITHDRAWN)
+
+    def test_interview_decision_extends_offer_atomically_for_a_valid_candidate(self):
+        application = self._application(status=self.S.HUMAN_INTERVIEW)
+        response = self._decide(self._interview(application), "YES")
+        self.assertEqual(response.status_code, 200, response.data)
+        application.refresh_from_db()
+        self.assertEqual(application.status, self.S.OFFER_EXTENDED)
+
+    def test_interview_decision_still_records_feedback_for_a_withdrawn_rejection(self):
+        application = self._application(status=self.S.WITHDRAWN)
+        response = self._decide(self._interview(application), "NO", rejection_reason="Not a fit")
+        self.assertEqual(response.status_code, 200, response.data)
+        application.refresh_from_db()
+        self.assertEqual(application.status, self.S.WITHDRAWN)  # never overwritten
+
+    def test_second_round_is_refused_when_the_workflow_has_no_interview_stage(self):
+        application = self._application(status=self.S.REVIEWED)
+        job = application.job
+        job.hiring_engine = Job.HiringEngine.CONFIGURABLE
+        job.workflow_configuration = {"version": 1, "stages": ["application", "screen", "decision"]}
+        job.save(update_fields=["hiring_engine", "workflow_configuration"])
+        interview = self._interview(application)
+        with patch("jobs.views._unclaimed_future_slots") as slots:
+            slots.return_value.exists.return_value = True
+            response = self.client.post(f"/api/schedulers/{interview.id}/advance-round/")
+        self.assertEqual(response.status_code, 400, response.data)
+        application.refresh_from_db()
+        self.assertEqual(application.status, self.S.REVIEWED)

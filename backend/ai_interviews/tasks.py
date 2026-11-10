@@ -395,32 +395,25 @@ def _advance_on_ai_interview_result(interview, job):
         )
         return
 
-    from jobs.services import eligibility_progression_block_detail
+    from jobs.transitions import apply_transition
 
-    eligibility_hold = eligibility_progression_block_detail(application)
-    if eligibility_hold:
+    # Only advance forward from the interview stage: a recruiter who has
+    # already moved this candidate on by hand must not be dragged back by a
+    # late scoring task (expected_status makes that atomic). A workflow or
+    # eligibility hold is recorded and re-checked by the recovery sweep.
+    moved = apply_transition(
+        application.id,
+        JobApplication.JobApplicationStatus.INTERVIEW_SCHEDULED,
+        actor="automation",
+        expected_status=JobApplication.JobApplicationStatus.AI_INTERVIEW,
+        held_source="ai_interview",
+    )
+    updated = bool(moved)
+    if not moved:
         logger.info(
-            "AI interview progression held for job application %s: %s",
-            application.id,
-            eligibility_hold,
+            "AI interview progression not applied for job application %s: %s",
+            application.id, moved.detail,
         )
-        from jobs.transitions import record_held_transition
-
-        record_held_transition(
-            application,
-            source="ai_interview",
-            target_status=JobApplication.JobApplicationStatus.INTERVIEW_SCHEDULED,
-            reason=eligibility_hold,
-        )
-        return
-
-    # Only advance forward. A recruiter who has already moved this candidate
-    # past the interview stage by hand must not be dragged back by a late
-    # scoring task.
-    updated = JobApplication.objects.filter(
-        id=application.id,
-        status=JobApplication.JobApplicationStatus.AI_INTERVIEW,
-    ).update(status=JobApplication.JobApplicationStatus.INTERVIEW_SCHEDULED)
 
     if updated:
         send_interview_slot_invite.delay(application.id)

@@ -9,6 +9,22 @@ logger = logging.getLogger(__name__)
 TERMINAL = ("REJECTED", "WITHDRAWN", "OFFER_DECLINED")
 
 
+# Statuses nothing may leave. WITHDRAWN and OFFER_DECLINED are the candidate's
+# decisions; REJECTED is the hiring team's (the board already locks it);
+# OFFER_ACCEPTED hands over to the readiness record rather than the pipeline.
+CLOSED_STATUSES = ("REJECTED", "WITHDRAWN", "OFFER_DECLINED", "OFFER_ACCEPTED")
+# Moves that always remain available (they end or answer the process) and so
+# bypass the progression guards; their own preconditions are checked below.
+NON_PROGRESSING_TARGETS = ("APPLIED", "REJECTED", "WITHDRAWN", "OFFER_DECLINED", "OFFER_ACCEPTED")
+INTERVIEW_FAMILY = (
+    "PENDING_DECISION", "AI_INTERVIEW", "INTERVIEW_SCHEDULED", "HUMAN_INTERVIEW",
+    "INTERVIEW_COMPLETED", "SECOND_INTERVIEW",
+)
+# Where an offer may be extended from. A job whose published workflow has no
+# interview stage may also extend from the screen/assessment stage.
+OFFER_SOURCES = INTERVIEW_FAMILY
+
+
 def guard_block(application, target_status):
     """The combined workflow + eligibility guard for an automated move."""
     from .services import eligibility_progression_block_detail, workflow_transition_block_detail
@@ -17,6 +33,99 @@ def guard_block(application, target_status):
         workflow_transition_block_detail(application, target_status)
         or eligibility_progression_block_detail(application)
     )
+
+
+def transition_block(application, target_status, *, actor="recruiter"):
+    """Why ``application`` may not move to ``target_status`` ("" if it may).
+
+    One definition of an allowed move, shared by the board API, the automated
+    scoring/decision tasks and the recruiter review endpoints, so no route can
+    skip the published workflow, an eligibility/evidence gate, or a stage.
+    ``actor`` is "recruiter", "automation" or "candidate".
+    """
+    current = application.status
+    if target_status == current:
+        return ""
+    if current in CLOSED_STATUSES:
+        label = current.replace("_", " ").lower()
+        return f"This application is {label} and can no longer be moved."
+    if target_status in ("REJECTED",):
+        return ""
+    if target_status in ("OFFER_ACCEPTED", "OFFER_DECLINED"):
+        if actor != "candidate":
+            return "Only the candidate can accept or decline an offer."
+        return "" if current == "OFFER_EXTENDED" else "Only an extended offer can be accepted or declined."
+    if target_status == "WITHDRAWN":
+        return ""
+    if target_status == "APPLIED":
+        return "An application cannot be moved back to applied."
+    if (
+        actor == "automation"
+        and PIPELINE_ORDER.get(target_status, 0) < PIPELINE_ORDER.get(current, 0)
+    ):
+        # A late scoring task must never drag back a candidate a person has
+        # already moved further along. (Recruiters may move back deliberately.)
+        return "Automation does not move a candidate backwards."
+
+    if target_status == "OFFER_EXTENDED":
+        sources = set(OFFER_SOURCES)
+        if "interview" not in application.job.get_workflow_configuration()["stages"]:
+            sources |= {"REVIEWED"}
+        if current not in sources:
+            return "An offer can only be extended after the interview stage."
+
+    return guard_block(application, target_status)
+
+
+# Funnel position for forward-only automation. Statuses sharing a number are
+# alternative entries to the same step.
+PIPELINE_ORDER = {
+    "APPLIED": 0, "REVIEWED": 1, "PENDING_DECISION": 2, "AI_INTERVIEW": 2,
+    "INTERVIEW_SCHEDULED": 3, "HUMAN_INTERVIEW": 4, "INTERVIEW_COMPLETED": 5,
+    "SECOND_INTERVIEW": 6, "OFFER_EXTENDED": 7,
+}
+
+
+class TransitionResult:
+    def __init__(self, ok, detail="", application=None, stale=False):
+        self.ok, self.detail, self.application, self.stale = ok, detail, application, stale
+
+    def __bool__(self):
+        return self.ok
+
+
+def apply_transition(application_id, target_status, *, actor="automation", expected_status=None,
+                     held_source=None, extra_updates=None):
+    """Atomically move one application, honouring every rule.
+
+    Locks the row, rejects a stale caller (``expected_status`` no longer
+    current), evaluates ``transition_block`` against the locked state and only
+    then writes. A guard hold is recorded as a HeldTransition when
+    ``held_source`` is given. Returns a TransitionResult; never raises for a
+    refusal.
+    """
+    from .models import JobApplication
+
+    with transaction.atomic():
+        application = JobApplication.objects.select_for_update().select_related("job").get(id=application_id)
+        if expected_status is not None and application.status != expected_status:
+            return TransitionResult(
+                False, "This application changed since it was loaded; refresh and try again.",
+                application, stale=True,
+            )
+        block = transition_block(application, target_status, actor=actor)
+        if block:
+            if held_source and application.status not in CLOSED_STATUSES:
+                record_held_transition(
+                    application, source=held_source, target_status=target_status, reason=block
+                )
+            return TransitionResult(False, block, application)
+        if application.status != target_status:
+            application.status = target_status
+            for field, value in (extra_updates or {}).items():
+                setattr(application, field, value)
+            application.save(update_fields=["status", "last_updated", *(extra_updates or {})])
+    return TransitionResult(True, "", application)
 
 
 def record_held_transition(application, *, source, target_status, reason):
@@ -88,7 +197,7 @@ def retry_hold(hold, *, user=None):
             hold.save()
             return "superseded"
 
-        block = guard_block(application, hold.target_status)
+        block = transition_block(application, hold.target_status, actor="automation")
         if block:
             hold.reason = block[:1000]
             hold.save(update_fields=("reason", "attempts", "last_checked_at", "updated_at"))

@@ -8,7 +8,7 @@ import logging
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-from rest_framework.status import HTTP_200_OK, HTTP_400_BAD_REQUEST
+from rest_framework.status import HTTP_200_OK, HTTP_400_BAD_REQUEST, HTTP_409_CONFLICT
 
 from emails import emails
 
@@ -226,11 +226,37 @@ class InterviewDecisionView(APIView):
                 InterviewSummary.Recommendation.YES,
             )
         ):
-            from jobs.services import eligibility_progression_block_detail
+            from jobs.transitions import transition_block
 
-            eligibility_hold = eligibility_progression_block_detail(job_application)
-            if eligibility_hold:
-                return Response({"error": eligibility_hold}, status=HTTP_400_BAD_REQUEST)
+            hold = transition_block(
+                job_application, JobApplication.JobApplicationStatus.OFFER_EXTENDED, actor="recruiter"
+            )
+            if hold:
+                return Response({"error": hold}, status=HTTP_400_BAD_REQUEST)
+
+        moved = None
+        if job_application:
+            from jobs.transitions import apply_transition
+
+            if recommendation in (InterviewSummary.Recommendation.STRONG_YES, InterviewSummary.Recommendation.YES):
+                moved = apply_transition(
+                    job_application.id,
+                    JobApplication.JobApplicationStatus.OFFER_EXTENDED,
+                    actor="recruiter",
+                    expected_status=job_application.status,
+                )
+                if not moved:
+                    return Response(
+                        {"error": moved.detail}, status=HTTP_409_CONFLICT if moved.stale else HTTP_400_BAD_REQUEST
+                    )
+            elif is_rejecting and not already_rejected:
+                # A withdrawn/declined candidate cannot be moved; the feedback
+                # is still recorded below.
+                moved = apply_transition(
+                    job_application.id,
+                    JobApplication.JobApplicationStatus.REJECTED,
+                    actor="recruiter",
+                )
 
         summary, _created = InterviewSummary.objects.get_or_create(interview=interview)
         summary.recommendation = recommendation
@@ -247,20 +273,14 @@ class InterviewDecisionView(APIView):
                 send_offer_extended_notice_mail,
             )
 
-            if recommendation in (InterviewSummary.Recommendation.STRONG_YES, InterviewSummary.Recommendation.YES):
-                was_already_extended = job_application.status == JobApplication.JobApplicationStatus.OFFER_EXTENDED
-                job_application.status = JobApplication.JobApplicationStatus.OFFER_EXTENDED
-                job_application.save(update_fields=["status"])
-                if not was_already_extended:
+            if moved and recommendation in (InterviewSummary.Recommendation.STRONG_YES, InterviewSummary.Recommendation.YES):
+                if job_application.status != JobApplication.JobApplicationStatus.OFFER_EXTENDED:
                     send_offer_extended_notice_mail.delay(job_application.id)
-            elif is_rejecting:
-                job_application.status = JobApplication.JobApplicationStatus.REJECTED
-                job_application.save(update_fields=["status"])
-                if not already_rejected:
-                    send_manual_rejection_mail.apply_async(
-                        args=[job_application.id, rejection_reason],
-                        countdown=REJECTION_MAIL_DELAY_SECONDS,
-                    )
+            elif moved and is_rejecting:
+                send_manual_rejection_mail.apply_async(
+                    args=[job_application.id, rejection_reason],
+                    countdown=REJECTION_MAIL_DELAY_SECONDS,
+                )
                 from jobs.services import cancel_pending_tasks_for_rejected_application
 
                 cancel_pending_tasks_for_rejected_application(job_application.id)
@@ -326,18 +346,22 @@ class InterviewAdvanceRoundView(APIView):
                 status=HTTP_400_BAD_REQUEST,
             )
 
-        from jobs.services import eligibility_progression_block_detail
-
-        eligibility_hold = eligibility_progression_block_detail(job_application)
-        if eligibility_hold:
-            return Response({"error": eligibility_hold}, status=HTTP_400_BAD_REQUEST)
+        from jobs.transitions import apply_transition
 
         # SECOND_INTERVIEW rather than PENDING_DECISION: the candidate is at the
         # same point in the funnel either way (waiting to pick a slot), but the
         # board needs to distinguish a second round from a first, and sending
         # them back to the first-round column read as though nothing happened.
-        job_application.status = JobApplication.JobApplicationStatus.SECOND_INTERVIEW
-        job_application.save(update_fields=["status"])
+        moved = apply_transition(
+            job_application.id,
+            JobApplication.JobApplicationStatus.SECOND_INTERVIEW,
+            actor="recruiter",
+            expected_status=job_application.status,
+        )
+        if not moved:
+            return Response(
+                {"error": moved.detail}, status=HTTP_409_CONFLICT if moved.stale else HTTP_400_BAD_REQUEST
+            )
         send_interview_slot_invite.delay(job_application.id)
 
         return Response(

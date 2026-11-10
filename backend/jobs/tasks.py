@@ -831,33 +831,21 @@ def carry_out_resume_analysis(job_application_id):
                     # Auto-advance to the next stage -- surfaced on the View
                     # Applicants table so recruiters see candidates move
                     # forward without manual status changes.
-                    from .services import (
-                        eligibility_progression_block_detail,
-                        workflow_transition_block_detail,
-                    )
+                    from .transitions import apply_transition
 
-                    workflow_hold = workflow_transition_block_detail(
-                        job_application, JobApplication.JobApplicationStatus.REVIEWED
+                    moved = apply_transition(
+                        job_application_id,
+                        JobApplication.JobApplicationStatus.REVIEWED,
+                        actor="automation",
+                        held_source="resume_screening",
                     )
-                    eligibility_hold = eligibility_progression_block_detail(job_application)
-                    if workflow_hold or eligibility_hold:
+                    if not moved:
                         logger.info(
-                            "Resume-screening progression held for job application %s: %s",
+                            "Resume-screening progression not applied for job application %s: %s",
                             job_application_id,
-                            workflow_hold or eligibility_hold,
-                        )
-                        from .transitions import record_held_transition
-
-                        record_held_transition(
-                            job_application,
-                            source="resume_screening",
-                            target_status=JobApplication.JobApplicationStatus.REVIEWED,
-                            reason=workflow_hold or eligibility_hold,
+                            moved.detail,
                         )
                     else:
-                        JobApplication.objects.filter(id=job_application_id).update(
-                            status=JobApplication.JobApplicationStatus.REVIEWED
-                        )
                         if (
                             job.hiring_engine != Job.HiringEngine.CONFIGURABLE
                             or "assessment" in job.get_workflow_configuration()["stages"]

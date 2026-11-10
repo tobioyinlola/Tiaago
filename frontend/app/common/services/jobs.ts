@@ -592,13 +592,17 @@ export const scheduleApplicationPracticalAssessment = async (
 export const updateJobApplicationStatus = async (
   id: ID,
   status: JobApplication["status"],
-  rejectionReason?: string
+  rejectionReason?: string,
+  /** The status the caller last saw. If the application has since moved, the
+   * server answers 409 instead of overwriting the newer decision. */
+  expectedStatus?: JobApplication["status"]
 ): Promise<ApiResponse<JobApplication>> => {
   try {
     const data = await serverKyInstance
       .put(`jobs/job-applications/${id}/`, {
         json: {
           status,
+          ...(expectedStatus ? { expected_status: expectedStatus } : {}),
           ...(rejectionReason ? { rejection_reason: rejectionReason } : {}),
         },
       })

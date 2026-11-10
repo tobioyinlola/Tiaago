@@ -284,35 +284,24 @@ def _finalize_submission_score(submission, assessment, total_score, is_passed, p
             else:
                 next_status = JobApplication.JobApplicationStatus.REJECTED
 
-            if is_passed:
-                from jobs.services import eligibility_progression_block_detail
+            from jobs.transitions import apply_transition
 
-                eligibility_hold = eligibility_progression_block_detail(
-                    assessment.job_application
+            # One atomic, guarded move for pass and fail alike. A hold (workflow
+            # or eligibility) is recorded for the recovery sweep; a candidate who
+            # was rejected/withdrew or already moved further on is left alone.
+            moved = apply_transition(
+                assessment.job_application_id,
+                next_status,
+                actor="automation",
+                held_source="assessment" if is_passed else None,
+            )
+            if is_passed and not moved:
+                logger.info(
+                    "Assessment progression not applied for job application %s: %s",
+                    assessment.job_application_id,
+                    moved.detail,
                 )
-                if eligibility_hold:
-                    logger.info(
-                        "Assessment progression held for job application %s: %s",
-                        assessment.job_application_id,
-                        eligibility_hold,
-                    )
-                    from jobs.transitions import record_held_transition
-
-                    record_held_transition(
-                        assessment.job_application,
-                        source="assessment",
-                        target_status=next_status,
-                        reason=eligibility_hold,
-                    )
-                    progression_held = True
-                else:
-                    JobApplication.objects.filter(id=assessment.job_application_id).update(
-                        status=next_status
-                    )
-            else:
-                JobApplication.objects.filter(id=assessment.job_application_id).update(
-                    status=next_status
-                )
+                progression_held = True
 
     # Completion notification -- candidate confirmation + scored result +
     # recruiter notice. Fires exactly once (guarded by completion_email_sent,

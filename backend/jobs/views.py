@@ -123,8 +123,7 @@ from .tasks import (
 from django.conf import settings
 from . import practical
 from .notifications import retry_dead
-from .transitions import retry_hold
-from .services import eligibility_progression_block_detail, workflow_transition_block_detail
+from .transitions import guard_block, retry_hold, transition_block
 from emails import emails
 from rest_framework.permissions import AllowAny
 from payments.models import PaymentMethod
@@ -670,9 +669,13 @@ def _claim_interview_slot(job, job_application, slot_id):
     profile = job_application.applicant
 
     with transaction.atomic():
-        eligibility_hold = eligibility_progression_block_detail(job_application)
-        if eligibility_hold:
-            return {"detail": eligibility_hold}, HTTP_400_BAD_REQUEST
+        job_application = JobApplication.objects.select_for_update().select_related("job").get(id=job_application.id)
+        target = JobApplication.JobApplicationStatus.HUMAN_INTERVIEW
+        # A second-round booking keeps its SECOND_INTERVIEW status, so the
+        # guards are evaluated for the stage being entered either way.
+        hold = transition_block(job_application, target, actor="candidate") or guard_block(job_application, target)
+        if hold:
+            return {"detail": hold}, HTTP_400_BAD_REQUEST
 
         slot = (
             JobInterviewAvailabilitySlot.objects.select_for_update()
@@ -1141,20 +1144,26 @@ class JobApplicationRetrieveUpdateView(RetrieveUpdateAPIView):
         # UI, so direct API callers and future clients cannot bypass it.
         # Rejection, withdrawal and declining an offer remain available while
         # an application is on hold.
-        non_progressing_statuses = {
-            JobApplication.JobApplicationStatus.APPLIED,
-            JobApplication.JobApplicationStatus.REJECTED,
-            JobApplication.JobApplicationStatus.WITHDRAWN,
-            JobApplication.JobApplicationStatus.OFFER_DECLINED,
-            JobApplication.JobApplicationStatus.OFFER_ACCEPTED,
-        }
-        if status_value != previous_status and status_value not in non_progressing_statuses:
-            workflow_hold = workflow_transition_block_detail(instance, status_value)
-            if workflow_hold:
-                return Response({"detail": workflow_hold}, status=HTTP_400_BAD_REQUEST)
-            eligibility_hold = eligibility_progression_block_detail(instance)
-            if eligibility_hold:
-                return Response({"detail": eligibility_hold}, status=HTTP_400_BAD_REQUEST)
+        # Optimistic concurrency: a client that supplies the status it loaded
+        # is refused (409) if the application has moved since, instead of
+        # silently overwriting a newer decision.
+        expected_status = request.data.get("expected_status")
+        if expected_status and expected_status != previous_status:
+            return Response(
+                {"detail": "This application changed since it was loaded; refresh and try again.",
+                 "current_status": previous_status},
+                status=HTTP_409_CONFLICT,
+            )
+
+        # One definition of an allowed move for every route (closed statuses
+        # are immutable, an offer needs an interview first, the published
+        # workflow and eligibility/evidence gates apply). Checked for PUT and
+        # PATCH alike so direct API callers cannot bypass the board UI.
+        if status_value != previous_status:
+            actor = "candidate" if user.user_type == User.USER_TYPE.TALENT else "recruiter"
+            transition_hold = transition_block(instance, status_value, actor=actor)
+            if transition_hold:
+                return Response({"detail": transition_hold}, status=HTTP_400_BAD_REQUEST)
 
         # Moving a candidate to interview on a non-AI-interview job silently
         # no-ops (send_interview_slot_invite just logs a warning and returns)
@@ -1187,16 +1196,26 @@ class JobApplicationRetrieveUpdateView(RetrieveUpdateAPIView):
                 status=HTTP_400_BAD_REQUEST,
             )
 
-        self.perform_update(serializer)
-        if (
-            status_value == JobApplication.JobApplicationStatus.OFFER_ACCEPTED
-            and status_value != previous_status
-            and instance.readiness_status == JobApplication.ReadinessStatus.NOT_STARTED
-        ):
-            instance.readiness_status = JobApplication.ReadinessStatus.CHECKS_OUTSTANDING
-            instance.readiness_updated_at = timezone.now()
-            instance.save(update_fields=("readiness_status", "readiness_updated_at", "last_updated"))
-
+        with transaction.atomic():
+            # Re-check under a row lock: the guards above ran on a snapshot.
+            locked = JobApplication.objects.select_for_update().get(pk=instance.pk)
+            if locked.status != previous_status:
+                return Response(
+                    {"detail": "This application changed since it was loaded; refresh and try again.",
+                     "current_status": locked.status},
+                    status=HTTP_409_CONFLICT,
+                )
+            self.perform_update(serializer)
+            # Acceptance and its readiness record are one unit: a crash between
+            # them must not leave an accepted offer with no readiness state.
+            if (
+                status_value == JobApplication.JobApplicationStatus.OFFER_ACCEPTED
+                and status_value != previous_status
+                and instance.readiness_status == JobApplication.ReadinessStatus.NOT_STARTED
+            ):
+                instance.readiness_status = JobApplication.ReadinessStatus.CHECKS_OUTSTANDING
+                instance.readiness_updated_at = timezone.now()
+                instance.save(update_fields=("readiness_status", "readiness_updated_at", "last_updated"))
         # A recruiter manually advancing a candidate should trigger the same
         # candidate-facing signal the automatic pipeline sends for that same
         # transition (see jobs.tasks.carry_out_resume_analysis for REVIEWED,

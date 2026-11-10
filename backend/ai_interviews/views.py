@@ -455,18 +455,20 @@ class RecruiterAIInterviewDecisionView(APIView):
             )
         ):
             from jobs.models import JobApplication
-            from jobs.services import eligibility_progression_block_detail
+            from jobs.transitions import transition_block
 
             application = JobApplication.objects.select_related("job").filter(
                 id=interview.job_application_id
             ).first()
-            eligibility_hold = (
-                eligibility_progression_block_detail(application)
+            hold = (
+                transition_block(
+                    application, JobApplication.JobApplicationStatus.PENDING_DECISION, actor="recruiter"
+                )
                 if application
                 else ""
             )
-            if eligibility_hold:
-                return Response({"error": eligibility_hold}, status=HTTP_400_BAD_REQUEST)
+            if hold:
+                return Response({"error": hold}, status=HTTP_400_BAD_REQUEST)
 
         interview.recruiter_decision = decision
         interview.recruiter_decision_at = timezone.now()
@@ -486,19 +488,28 @@ class RecruiterAIInterviewDecisionView(APIView):
             from jobs.models import JobApplication
 
             if decision in (AIInterview.RecruiterDecision.ACCEPTED, AIInterview.RecruiterDecision.OVERRIDDEN_PROCEED):
-                JobApplication.objects.filter(id=interview.job_application_id).update(
-                    status=JobApplication.JobApplicationStatus.PENDING_DECISION
-                )
-                from .tasks import send_ai_interview_proceed_invite
+                from jobs.transitions import apply_transition
 
-                send_ai_interview_proceed_invite.delay(str(interview.id))
+                moved = apply_transition(
+                    interview.job_application_id,
+                    JobApplication.JobApplicationStatus.PENDING_DECISION,
+                    actor="recruiter",
+                )
+                if moved:
+                    from .tasks import send_ai_interview_proceed_invite
+
+                    send_ai_interview_proceed_invite.delay(str(interview.id))
             elif decision == AIInterview.RecruiterDecision.OVERRIDDEN_DECLINE:
-                JobApplication.objects.filter(id=interview.job_application_id).update(
-                    status=JobApplication.JobApplicationStatus.REJECTED
-                )
-                from jobs.services import cancel_pending_tasks_for_rejected_application
+                from jobs.transitions import apply_transition
 
-                cancel_pending_tasks_for_rejected_application(interview.job_application_id)
+                if apply_transition(
+                    interview.job_application_id,
+                    JobApplication.JobApplicationStatus.REJECTED,
+                    actor="recruiter",
+                ):
+                    from jobs.services import cancel_pending_tasks_for_rejected_application
+
+                    cancel_pending_tasks_for_rejected_application(interview.job_application_id)
 
         return Response(_serialize_interview_detail(interview), status=HTTP_200_OK)
 
