@@ -17,6 +17,7 @@ import DisplayErrorMessages, {
 } from "@/app/common/components/DisplayErrorMessages";
 import { handleServerApiCallError } from "@/app/common/utils";
 import { ISearchParams } from "@/app/common/types";
+import PracticalAssessmentScheduler from "./_components/PracticalAssessmentScheduler";
 
 export const metadata = {
   title: "View Talent Applications",
@@ -123,6 +124,9 @@ const ViewTalentApplicationsPage = async ({
         </h4>
       </div>
       <UpdateJobStatus job={job} />
+      {job.practical_assessment_configuration?.enabled && (
+        <PracticalAssessmentScheduler job={job} applications={applications} />
+      )}
       {isHireWithAi ? (
         <JobApplicationsTable data={aiFeedbacks} aiInterviewEnabled={!!job.ai_interview_enabled} />
       ) : (

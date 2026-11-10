@@ -341,6 +341,19 @@ def eligibility_progression_block_detail(application):
             reviewed_at__isnull=False,
         ).exists():
             return "A reviewer must accept this candidate's required scenario response before moving them forward."
+
+    practical_configuration = application.job.get_practical_assessment_configuration()
+    if practical_configuration["enabled"] and practical_configuration["required"]:
+        from .models import ApplicationPracticalAssessment
+
+        if not ApplicationPracticalAssessment.objects.filter(
+            application=application,
+            status=ApplicationPracticalAssessment.Status.COMPLETED,
+            outcome=ApplicationPracticalAssessment.Outcome.PASS,
+            critical_failure=False,
+            completed_at__isnull=False,
+        ).exists():
+            return "An assessor must record a passed practical assessment before moving this candidate forward."
     return ""
 
 

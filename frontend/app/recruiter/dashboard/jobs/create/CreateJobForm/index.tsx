@@ -18,7 +18,7 @@ import Modal from "@/app/common/components/Modal";
 import { createJob, getJobDraft, saveJobDraft, deleteJobDraft } from "@/app/common/services/jobs";
 import { useAlert } from "@/app/common/store/useAlert";
 import InfoTooltip from "@/app/common/components/InfoTooltip";
-import { ApplicationConfiguration, CountryField, EligibilityRequirement, HiringProfile, ScenarioConfiguration, TalentRole, WorkflowConfiguration, WorkSampleConfiguration } from "@/app/common/types";
+import { ApplicationConfiguration, CountryField, EligibilityRequirement, HiringProfile, PracticalAssessmentConfiguration, ScenarioConfiguration, TalentRole, WorkflowConfiguration, WorkSampleConfiguration } from "@/app/common/types";
 import { useScrollToTop } from "@/app/common/hooks/useScrollToTop";
 import { cn, handleFormSubmissionError } from "@/app/common/utils";
 import FormikField from "@/app/common/components/Forms/FormikField";
@@ -35,6 +35,7 @@ import ApplicationRequirements from "./_components/ApplicationRequirements";
 import EligibilityRequirements from "./_components/EligibilityRequirements";
 import WorkSampleRequirements from "./_components/WorkSampleRequirements";
 import ScenarioRequirements from "./_components/ScenarioRequirements";
+import PracticalAssessmentRequirements from "./_components/PracticalAssessmentRequirements";
 import WorkflowRequirements from "./_components/WorkflowRequirements";
 
 const totalSteps = wizardSteps.length;
@@ -227,6 +228,7 @@ const CreateJobForm = ({
             eligibility_requirements,
             work_sample_configuration,
             scenario_configuration,
+            practical_assessment_configuration,
             workflow_configuration,
             screening_threshold,
             passing_grade,
@@ -263,6 +265,7 @@ const CreateJobForm = ({
               : {}),
             ...(hiring_profile_code && work_sample_configuration ? { work_sample_configuration } : {}),
             ...(hiring_profile_code && scenario_configuration ? { scenario_configuration } : {}),
+            ...(hiring_profile_code && practical_assessment_configuration ? { practical_assessment_configuration } : {}),
             ...(hiring_profile_code && workflow_configuration ? { workflow_configuration } : {}),
             payment_currency,
             ...(payment_currency === "USD"
@@ -353,6 +356,13 @@ const CreateJobForm = ({
                       response_label: "Your response",
                       rubric: { version: 1, passing_score: 60, criteria: [] },
                     });
+                    setFieldValue("practical_assessment_configuration", {
+                      enabled: false,
+                      required: false,
+                      title: "Practical assessment",
+                      instructions: "",
+                      rubric: { version: 1, passing_score: 60, criteria: [] },
+                    });
                   }}
                 />
                 {values.hiring_profile_code && values.workflow_configuration && <WorkflowRequirements configuration={values.workflow_configuration as WorkflowConfiguration} onChange={configuration => setFieldValue("workflow_configuration", configuration)} />}
@@ -378,6 +388,24 @@ const CreateJobForm = ({
                   <ScenarioRequirements
                     configuration={values.scenario_configuration as ScenarioConfiguration}
                     onChange={configuration => setFieldValue("scenario_configuration", configuration)}
+                  />
+                )}
+                {values.hiring_profile_code && hiringProfiles.find(item => item.code === values.hiring_profile_code)?.practical_assessment_supported && (
+                  <PracticalAssessmentRequirements
+                    configuration={values.practical_assessment_configuration as PracticalAssessmentConfiguration}
+                    onChange={configuration => {
+                      setFieldValue("practical_assessment_configuration", configuration);
+                      if (configuration.enabled && values.workflow_configuration && !values.workflow_configuration.stages.includes("practical")) {
+                        const stages = values.workflow_configuration.stages;
+                        const beforeAssessment = stages.indexOf("assessment");
+                        setFieldValue("workflow_configuration", {
+                          ...values.workflow_configuration,
+                          stages: beforeAssessment === -1
+                            ? [...stages, "practical"]
+                            : [...stages.slice(0, beforeAssessment), "practical", ...stages.slice(beforeAssessment)],
+                        });
+                      }
+                    }}
                   />
                 )}
                 {formSections.map(({ title, description, fields }, i) => (

@@ -55,6 +55,8 @@ from .models import (
     ApplicationEligibilityCheck,
     ApplicationWorkSample,
     ApplicationScenarioResponse,
+    ApplicationPracticalAssessment,
+    JobPracticalAssessmentSlot,
     Portfolio,
     Tool,
     Project,
@@ -96,6 +98,10 @@ from .serializers import (
     ApplicationWorkSampleReviewSerializer,
     ApplicationScenarioResponseSerializer,
     ApplicationScenarioResponseReviewSerializer,
+    JobPracticalAssessmentSlotSerializer,
+    ApplicationPracticalAssessmentSerializer,
+    ApplicationPracticalAssessmentAssignSerializer,
+    ApplicationPracticalAssessmentReviewSerializer,
 )
 from .tasks import (
     ACCEPTANCE_MAIL_DELAY_SECONDS,
@@ -1314,6 +1320,150 @@ class JobApplicationEligibilityCheckReviewView(APIView):
         serializer.is_valid(raise_exception=True)
         check = serializer.save()
         return Response(ApplicationEligibilityCheckSerializer(check, context={"request": request}).data)
+
+
+class JobPracticalAssessmentSlotListCreateView(APIView):
+    """Lets the owning hiring team publish the observed-assessment roster."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def _job_for_request(self, request, public_id):
+        job = get_object_or_404(Job.objects.select_related("company"), public_id=public_id)
+        if not request.user.is_staff and not user_is_company_role(
+            request.user,
+            job.company,
+            (CompanyTeamMember.ROLE.ADMIN, CompanyTeamMember.ROLE.RECRUITER),
+        ):
+            return None
+        return job
+
+    def get(self, request, public_id):
+        job = self._job_for_request(request, public_id)
+        if job is None:
+            return Response(
+                {"detail": "You are not authorized to view this practical-assessment roster."},
+                status=HTTP_403_FORBIDDEN,
+            )
+        slots = job.practical_assessment_slots.annotate(
+            scheduled_count=Count(
+                "appointments",
+                filter=Q(appointments__status=ApplicationPracticalAssessment.Status.SCHEDULED),
+            )
+        )
+        return Response(JobPracticalAssessmentSlotSerializer(slots, many=True).data)
+
+    def post(self, request, public_id):
+        job = self._job_for_request(request, public_id)
+        if job is None:
+            return Response(
+                {"detail": "You are not authorized to manage this practical-assessment roster."},
+                status=HTTP_403_FORBIDDEN,
+            )
+        if not job.get_practical_assessment_configuration()["enabled"]:
+            return Response(
+                {"detail": "Enable a practical assessment on this job before adding slots."},
+                status=HTTP_400_BAD_REQUEST,
+            )
+        serializer = JobPracticalAssessmentSlotSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        slot = serializer.save(job=job)
+        return Response(JobPracticalAssessmentSlotSerializer(slot).data, status=HTTP_201_CREATED)
+
+
+class JobApplicationPracticalAssessmentCreateView(APIView):
+    """Assigns a candidate to a practical slot with an atomic capacity check."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, pk):
+        application = get_object_or_404(
+            JobApplication.objects.select_related("job__company"),
+            id=pk,
+        )
+        company = application.job.company
+        if not request.user.is_staff and not user_is_company_role(
+            request.user,
+            company,
+            (CompanyTeamMember.ROLE.ADMIN, CompanyTeamMember.ROLE.RECRUITER),
+        ):
+            return Response(
+                {"detail": "You are not authorized to schedule this practical assessment."},
+                status=HTTP_403_FORBIDDEN,
+            )
+        serializer = ApplicationPracticalAssessmentAssignSerializer(
+            data=request.data,
+            context={"request": request, "application": application},
+        )
+        serializer.is_valid(raise_exception=True)
+        appointment = serializer.save()
+        return Response(
+            ApplicationPracticalAssessmentSerializer(appointment, context={"request": request}).data,
+            status=HTTP_201_CREATED,
+        )
+
+
+class JobApplicationPracticalAssessmentReviewQueueView(ListAPIView):
+    """Company-scoped roster of candidates awaiting an observed assessment."""
+
+    serializer_class = JobApplicationSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    pagination_class = JobPagination
+
+    def get_queryset(self):
+        scheduled = ApplicationPracticalAssessment.Status.SCHEDULED
+        practical_assessments = ApplicationPracticalAssessment.objects.filter(
+            status=scheduled
+        ).select_related("slot", "assessor")
+        queryset = JobApplication.objects.filter(
+            practical_assessments__status=scheduled,
+        ).distinct().order_by("practical_assessments__slot__starts_at", "id").select_related(
+            "job", "job__company", "applicant", "applicant__user"
+        ).prefetch_related(
+            Prefetch("practical_assessments", queryset=practical_assessments),
+        )
+        if self.request.user.is_staff:
+            return queryset
+        company = get_user_company(self.request.user)
+        if not company or not user_is_company_role(
+            self.request.user,
+            company,
+            (CompanyTeamMember.ROLE.ADMIN, CompanyTeamMember.ROLE.RECRUITER),
+        ):
+            return JobApplication.objects.none()
+        return queryset.filter(job__company=company)
+
+
+class ApplicationPracticalAssessmentReviewView(APIView):
+    """Stores the assessor’s final observed assessment result."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def patch(self, request, pk, assessment_pk):
+        appointment = get_object_or_404(
+            ApplicationPracticalAssessment.objects.select_related(
+                "application__job__company", "slot", "assessor"
+            ),
+            id=assessment_pk,
+            application_id=pk,
+        )
+        company = appointment.application.job.company
+        if not request.user.is_staff and not user_is_company_role(
+            request.user,
+            company,
+            (CompanyTeamMember.ROLE.ADMIN, CompanyTeamMember.ROLE.RECRUITER),
+        ):
+            return Response(
+                {"detail": "You are not authorized to record this practical-assessment result."},
+                status=HTTP_403_FORBIDDEN,
+            )
+        serializer = ApplicationPracticalAssessmentReviewSerializer(
+            appointment,
+            data=request.data,
+            context={"request": request},
+        )
+        serializer.is_valid(raise_exception=True)
+        appointment = serializer.save()
+        return Response(ApplicationPracticalAssessmentSerializer(appointment, context={"request": request}).data)
 
 
 class JobApplicationWorkSampleReviewQueueView(ListAPIView):

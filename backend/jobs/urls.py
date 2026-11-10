@@ -49,6 +49,10 @@ from .views import (
     ApplicationWorkSampleDownloadView,
     JobApplicationScenarioReviewQueueView,
     ApplicationScenarioResponseReviewView,
+    JobPracticalAssessmentSlotListCreateView,
+    JobApplicationPracticalAssessmentCreateView,
+    JobApplicationPracticalAssessmentReviewQueueView,
+    ApplicationPracticalAssessmentReviewView,
 )
 
 urlpatterns = [
@@ -105,6 +109,21 @@ urlpatterns = [
         name="job-application-scenario-response-review",
     ),
     path(
+        "job-applications/practical-assessment-review/",
+        JobApplicationPracticalAssessmentReviewQueueView.as_view(),
+        name="job-application-practical-assessment-review-queue",
+    ),
+    path(
+        "job-applications/<int:pk>/practical-assessments/",
+        JobApplicationPracticalAssessmentCreateView.as_view(),
+        name="job-application-practical-assessment-create",
+    ),
+    path(
+        "job-applications/<int:pk>/practical-assessments/<int:assessment_pk>/",
+        ApplicationPracticalAssessmentReviewView.as_view(),
+        name="job-application-practical-assessment-review",
+    ),
+    path(
         "job-applications/<int:pk>/",
         JobApplicationRetrieveUpdateView.as_view(),
         name="job-application-detail",
@@ -153,6 +172,11 @@ urlpatterns = [
     # old `<int:pk>`, which only matched digits) -- must stay LAST among
     # single-segment patterns so they never shadow the literal paths above
     # (job-applications/, portfolio/, apply-pending-job/, etc.).
+    path(
+        "<str:public_id>/practical-assessment-slots/",
+        JobPracticalAssessmentSlotListCreateView.as_view(),
+        name="job-practical-assessment-slots",
+    ),
     path("<str:public_id>/", JobRetrieveUpdateView.as_view(), name="job-detail"),
     path("<str:public_id>/delete", JobDeleteView.as_view(), name="job-delete"),
     path("<str:public_id>/interview-slots/", JobInterviewSlotListView.as_view(), name="job-interview-slots"),

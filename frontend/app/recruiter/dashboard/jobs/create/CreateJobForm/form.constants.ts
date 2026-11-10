@@ -1,6 +1,6 @@
 import * as Yup from "yup";
 
-import { ApplicationConfiguration, EligibilityRequirement, FormField, Job, RichTextToolbar, ScenarioConfiguration, WorkflowConfiguration, WorkSampleConfiguration } from "@/app/common/types";
+import { ApplicationConfiguration, EligibilityRequirement, FormField, Job, PracticalAssessmentConfiguration, RichTextToolbar, ScenarioConfiguration, WorkflowConfiguration, WorkSampleConfiguration } from "@/app/common/types";
 import {
   handlePlural,
   jobSalaryTypeToLabel,
@@ -33,6 +33,7 @@ export const jobBasicDetailsValidationSchema = Yup.object().shape({
   eligibility_requirements: Yup.array<EligibilityRequirement[]>().notRequired(),
   work_sample_configuration: Yup.mixed<WorkSampleConfiguration>().notRequired(),
   scenario_configuration: Yup.mixed<ScenarioConfiguration>().notRequired(),
+  practical_assessment_configuration: Yup.mixed<PracticalAssessmentConfiguration>().notRequired(),
   workflow_configuration: Yup.mixed<WorkflowConfiguration>().notRequired(),
   job_type: Yup.string()
     .required()
@@ -211,6 +212,13 @@ export const initialValues: InitialValues = {
     rubric: { version: 1, passing_score: 60, criteria: [] },
   },
   workflow_configuration: { version: 1, stages: ["application", "screen", "assessment", "interview", "decision"] },
+  practical_assessment_configuration: {
+    enabled: false,
+    required: false,
+    title: "Practical assessment",
+    instructions: "",
+    rubric: { version: 1, passing_score: 60, criteria: [] },
+  },
   scenario_configuration: {
     enabled: false,
     required: false,

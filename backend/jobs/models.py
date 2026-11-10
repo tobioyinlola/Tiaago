@@ -193,6 +193,10 @@ class Job(models.Model):
     eligibility_requirements = models.JSONField(default=list, blank=True)
     # Immutable, reviewer-owned work-sample request for this requisition.
     work_sample_configuration = models.JSONField(default=dict, blank=True)
+    # A scheduled, observed practical assessment for field/frontline roles.
+    # Its scorecard is immutable once published; actual appointments and
+    # assessor decisions live on the application below.
+    practical_assessment_configuration = models.JSONField(default=dict, blank=True)
     # A short, mobile-friendly written scenario captured with an application.
     # Like work samples, its prompt and scorecard are published with the job.
     scenario_configuration = models.JSONField(default=dict, blank=True)
@@ -473,6 +477,26 @@ class Job(models.Model):
             },
         }
         stored_configuration = deepcopy(self.work_sample_configuration or {})
+        stored_rubric = stored_configuration.pop("rubric", None)
+        configuration.update(stored_configuration)
+        if isinstance(stored_rubric, dict):
+            configuration["rubric"].update(stored_rubric)
+        return configuration
+
+    def get_practical_assessment_configuration(self):
+        """Return the observed practical-assessment contract for this job."""
+        configuration = {
+            "enabled": False,
+            "required": False,
+            "title": "Practical assessment",
+            "instructions": "",
+            "rubric": {
+                "version": 1,
+                "passing_score": 60,
+                "criteria": [],
+            },
+        }
+        stored_configuration = deepcopy(self.practical_assessment_configuration or {})
         stored_rubric = stored_configuration.pop("rubric", None)
         configuration.update(stored_configuration)
         if isinstance(stored_rubric, dict):
@@ -876,6 +900,89 @@ class ApplicationScenarioScore(TimeStampedModel):
 
     def __str__(self):
         return f"{self.scenario_response_id}: {self.criterion_label} ({self.score}/5)"
+
+
+class JobPracticalAssessmentSlot(TimeStampedModel):
+    """A capacity-controlled in-person practical assessment appointment."""
+
+    job = models.ForeignKey(
+        Job, on_delete=models.CASCADE, related_name="practical_assessment_slots"
+    )
+    starts_at = models.DateTimeField()
+    ends_at = models.DateTimeField()
+    location = models.CharField(max_length=255)
+    capacity = models.PositiveSmallIntegerField(default=1, validators=[MinValueValidator(1)])
+    instructions = models.TextField(max_length=1200, blank=True, default="")
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ("starts_at", "id")
+        indexes = [models.Index(fields=("job", "is_active", "starts_at"))]
+
+    def __str__(self):
+        return f"{self.job_id}: practical slot {self.starts_at:%Y-%m-%d %H:%M}"
+
+
+class ApplicationPracticalAssessment(TimeStampedModel):
+    """Observed practical-assessment record with immutable scorecard context.
+
+    This does not certify a person or a provider. It records the human
+    assessor's decision for a particular appointment and retains the exact
+    rubric used, including a critical-failure flag that cannot be averaged
+    away by other scores.
+    """
+
+    class Status(models.TextChoices):
+        SCHEDULED = "SCHEDULED", _("Scheduled")
+        COMPLETED = "COMPLETED", _("Completed")
+        CANCELLED = "CANCELLED", _("Cancelled")
+        NO_SHOW = "NO_SHOW", _("No show")
+
+    class Outcome(models.TextChoices):
+        PENDING = "PENDING", _("Pending")
+        PASS = "PASS", _("Pass")
+        FAIL = "FAIL", _("Fail")
+
+    application = models.ForeignKey(
+        "jobs.JobApplication", on_delete=models.CASCADE, related_name="practical_assessments"
+    )
+    slot = models.ForeignKey(
+        JobPracticalAssessmentSlot,
+        on_delete=models.PROTECT,
+        related_name="appointments",
+    )
+    attempt_number = models.PositiveSmallIntegerField(default=1)
+    status = models.CharField(max_length=12, choices=Status.choices, default=Status.SCHEDULED)
+    outcome = models.CharField(max_length=10, choices=Outcome.choices, default=Outcome.PENDING)
+    rubric_snapshot = models.JSONField(default=dict, blank=True)
+    scorecard = models.JSONField(default=list, blank=True)
+    assessor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="assessed_practical_assessments",
+    )
+    observations = models.TextField(max_length=2000, blank=True, default="")
+    critical_failure = models.BooleanField(default=False)
+    critical_failure_reason = models.TextField(max_length=1000, blank=True, default="")
+    completed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=("application", "attempt_number"),
+                name="unique_practical_assessment_attempt",
+            )
+        ]
+        indexes = [
+            models.Index(fields=("slot", "status")),
+            models.Index(fields=("application", "outcome")),
+        ]
+        ordering = ("attempt_number",)
+
+    def __str__(self):
+        return f"{self.application_id}: practical attempt {self.attempt_number} ({self.status})"
 
 
 class JobApplication(models.Model):

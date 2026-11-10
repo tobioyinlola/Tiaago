@@ -17,7 +17,13 @@ from django.utils import timezone
 from ai_interviews.models import AIInterview
 from ai_interviews.tasks import _advance_on_ai_interview_result
 from create_user.models import Company, CustomUser, TalentProfile
-from jobs.models import ApplicationEligibilityCheck, HiringProfile, Job, JobApplication
+from jobs.models import (
+    ApplicationEligibilityCheck,
+    ApplicationPracticalAssessment,
+    HiringProfile,
+    Job,
+    JobApplication,
+)
 from jobs.serializers import GuestJobApplicationSerializer, JobApplicationSerializer, JobSerializer
 from jobs.services import current_workflow_stage, workflow_transition_block_detail
 from jobs.views import _has_booked_interview
@@ -1126,3 +1132,224 @@ class EligibilityReviewFoundationTests(TestCase):
                 format="json",
             )
         self.assertEqual(response.status_code, 200, response.data)
+
+
+class PracticalAssessmentFoundationTests(TestCase):
+    """Observed field assessments retain capacity, safety and scorecard context."""
+
+    def setUp(self):
+        from rest_framework.test import APIClient
+
+        self.rep = CustomUser.objects.create_company_user(
+            username="practical-rep", email="practical-rep@example.com", password="x"
+        )
+        self.rep.verified = True
+        self.rep.save(update_fields=["verified"])
+        self.company = Company.objects.create(
+            company_name="Practical Co",
+            company_rep=self.rep,
+            hiring_profiles_enabled=True,
+        )
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.rep)
+        self.profile = HiringProfile.objects.create(
+            code="practical-driver-test",
+            name="Practical driver",
+            summary="Observed frontline driving assessment.",
+            role_family=HiringProfile.RoleFamily.FRONTLINE,
+            industry_context="Transport",
+            work_setting="Depot and road",
+            evaluation_defaults={"methods": ["practical_assessment", "structured_interview"]},
+            workflow_defaults={
+                "stages": ["application", "eligibility", "screen", "practical", "assessment", "interview", "decision"]
+            },
+        )
+
+    def _publish_practical_job(self):
+        payload = {
+            "role": "Delivery Driver",
+            "job_type": Job.JobType.FULL_TIME,
+            "job_level": Job.JobLevel.JUNIOR,
+            "experience": 1,
+            "salary_duration": Job.SalaryDuration.PER_MONTH,
+            "payment_currency": Job.PaymentCurrency.USD,
+            "payment_range_usd": Job.DollarPaymentRange.RANGE_600_1000,
+            "hiring_profile_code": self.profile.code,
+            "workflow_configuration": {
+                "version": 1,
+                "stages": ["application", "eligibility", "screen", "practical", "assessment", "interview", "decision"],
+            },
+            "practical_assessment_configuration": {
+                "enabled": True,
+                "required": True,
+                "title": "Safe road assessment",
+                "instructions": "Complete the observed route and vehicle checks with the assessor.",
+                "rubric": {
+                    "version": 1,
+                    "passing_score": 70,
+                    "criteria": [
+                        {"label": "Vehicle safety", "description": "Completes all critical safety checks.", "weight": 60},
+                        {"label": "Route judgement", "description": "Makes safe, lawful decisions on the route.", "weight": 40},
+                    ],
+                },
+            },
+        }
+        with patch("talent_network.tasks.run_talent_network_matching.delay"):
+            response = self.client.post("/api/jobs/", payload, format="json")
+        self.assertEqual(response.status_code, 201, response.data)
+        return Job.objects.get(public_id=response.data["public_id"])
+
+    def _application(self, job, email):
+        return JobApplication.objects.create(
+            applicant=None,
+            job=job,
+            guest_full_name="Practical Candidate",
+            guest_email=email,
+            guest_phone_number="+2348000000000",
+        )
+
+    def _create_slot(self, job, starts_at, *, capacity=1):
+        response = self.client.post(
+            f"/api/jobs/{job.public_id}/practical-assessment-slots/",
+            {
+                "starts_at": starts_at.isoformat(),
+                "ends_at": (starts_at + timedelta(hours=1)).isoformat(),
+                "location": "Lagos depot, bay 2",
+                "capacity": capacity,
+                "instructions": "Bring photo ID and protective footwear.",
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 201, response.data)
+        return response.data
+
+    def test_practical_assessment_capacity_scorecard_and_required_pass_gate(self):
+        job = self._publish_practical_job()
+        application = self._application(job, "practical-primary@example.com")
+        slot = self._create_slot(job, timezone.now() + timedelta(days=2))
+        self.assertEqual(slot["scheduled_count"], 0)
+
+        response = self.client.post(
+            f"/api/jobs/job-applications/{application.id}/practical-assessments/",
+            {"slot_id": slot["id"]},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 201, response.data)
+        assessment_id = response.data["id"]
+        self.assertEqual(response.data["status"], ApplicationPracticalAssessment.Status.SCHEDULED)
+        self.assertEqual(response.data["rubric_snapshot"]["passing_score"], 70)
+
+        queue = self.client.get("/api/jobs/job-applications/practical-assessment-review/")
+        self.assertEqual(queue.status_code, 200, queue.data)
+        self.assertEqual(queue.data["count"], 1)
+        self.assertEqual(queue.data["results"][0]["practical_assessments"][0]["id"], assessment_id)
+
+        another_application = self._application(job, "practical-capacity@example.com")
+        response = self.client.post(
+            f"/api/jobs/job-applications/{another_application.id}/practical-assessments/",
+            {"slot_id": slot["id"]},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400, response.data)
+        self.assertIn("full", str(response.data).lower())
+
+        response = self.client.patch(
+            f"/api/jobs/job-applications/{application.id}/",
+            {"status": JobApplication.JobApplicationStatus.REVIEWED},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400, response.data)
+        self.assertIn("practical assessment", response.data["detail"])
+
+        response = self.client.patch(
+            f"/api/jobs/job-applications/{application.id}/practical-assessments/{assessment_id}/",
+            {
+                "outcome": "PASS",
+                "critical_failure": True,
+                "critical_failure_reason": "Unsafe reversing manoeuvre.",
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400, response.data)
+        self.assertIn("critical failure", str(response.data).lower())
+
+        response = self.client.patch(
+            f"/api/jobs/job-applications/{application.id}/practical-assessments/{assessment_id}/",
+            {
+                "outcome": "FAIL",
+                "critical_failure": True,
+                "critical_failure_reason": "Unsafe reversing manoeuvre.",
+                "observations": "Assessor stopped the route assessment immediately.",
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data["status"], ApplicationPracticalAssessment.Status.COMPLETED)
+        self.assertEqual(response.data["outcome"], ApplicationPracticalAssessment.Outcome.FAIL)
+        self.assertTrue(response.data["critical_failure"])
+        self.assertIsNone(response.data["weighted_score"])
+
+        retry_slot = self._create_slot(job, timezone.now() + timedelta(days=3))
+        response = self.client.post(
+            f"/api/jobs/job-applications/{application.id}/practical-assessments/",
+            {"slot_id": retry_slot["id"]},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 201, response.data)
+        retry_id = response.data["id"]
+        self.assertEqual(response.data["attempt_number"], 2)
+
+        response = self.client.patch(
+            f"/api/jobs/job-applications/{application.id}/practical-assessments/{retry_id}/",
+            {
+                "outcome": "PASS",
+                "scores": {"criterion-1": 3, "criterion-2": 3},
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400, response.data)
+        self.assertIn("below", str(response.data))
+
+        response = self.client.patch(
+            f"/api/jobs/job-applications/{application.id}/practical-assessments/{retry_id}/",
+            {
+                "outcome": "PASS",
+                "scores": {"criterion-1": 4, "criterion-2": 3},
+                "score_notes": {"criterion-1": "Completed all vehicle checks correctly."},
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data["weighted_score"], 72.0)
+        self.assertEqual(response.data["assessor_name"], self.rep.email)
+        self.assertEqual(response.data["scorecard"][0]["label"], "Vehicle safety")
+
+        with patch("jobs.views.send_assessment_link.apply_async"):
+            response = self.client.patch(
+                f"/api/jobs/job-applications/{application.id}/",
+                {"status": JobApplication.JobApplicationStatus.REVIEWED},
+                format="json",
+            )
+        self.assertEqual(response.status_code, 200, response.data)
+
+    def test_practical_assessment_requires_a_supported_profile_and_workflow_stage(self):
+        payload = {
+            "role": "Delivery Driver",
+            "job_type": Job.JobType.FULL_TIME,
+            "job_level": Job.JobLevel.JUNIOR,
+            "experience": 1,
+            "salary_duration": Job.SalaryDuration.PER_MONTH,
+            "payment_currency": Job.PaymentCurrency.USD,
+            "payment_range_usd": Job.DollarPaymentRange.RANGE_600_1000,
+            "hiring_profile_code": self.profile.code,
+            "workflow_configuration": {"version": 1, "stages": ["application", "screen", "assessment", "interview", "decision"]},
+            "practical_assessment_configuration": {
+                "enabled": True,
+                "required": False,
+                "title": "Road assessment",
+                "rubric": {"criteria": [{"label": "Safety", "description": "Uses safe operating practice.", "weight": 100}]},
+            },
+        }
+        response = self.client.post("/api/jobs/", payload, format="json")
+        self.assertEqual(response.status_code, 400, response.data)
+        self.assertIn("workflow_configuration", response.data["errors"])

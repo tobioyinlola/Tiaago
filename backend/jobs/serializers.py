@@ -23,6 +23,8 @@ from .models import (
     ApplicationWorkSampleScore,
     ApplicationScenarioResponse,
     ApplicationScenarioScore,
+    ApplicationPracticalAssessment,
+    JobPracticalAssessmentSlot,
     Portfolio,
     Education,
     Experience,
@@ -131,6 +133,8 @@ SCENARIO_PROMPT_MAX_LENGTH = 1200
 SCENARIO_INSTRUCTIONS_MAX_LENGTH = 1200
 SCENARIO_RESPONSE_LABEL_MAX_LENGTH = 120
 SCENARIO_RESPONSE_MAX_LENGTH = 5000
+PRACTICAL_ASSESSMENT_TITLE_MAX_LENGTH = 120
+PRACTICAL_ASSESSMENT_INSTRUCTIONS_MAX_LENGTH = 1200
 WORKFLOW_CONFIGURATION_VERSION = 1
 WORKFLOW_STAGE_CODES = {
     "application", "eligibility", "screen", "work_sample", "scenario",
@@ -241,6 +245,48 @@ def _profile_supports_work_sample(profile):
 
 def _profile_supports_scenario(profile):
     return "scenario" in (profile.evaluation_defaults or {}).get("methods", [])
+
+
+def _profile_supports_practical_assessment(profile):
+    return "practical_assessment" in (profile.evaluation_defaults or {}).get("methods", [])
+
+
+def _normalise_practical_assessment_configuration(value):
+    """Validate a human-observed practical assessment published with a job."""
+    if not isinstance(value, dict):
+        raise serializers.ValidationError("Practical assessment configuration must be an object.")
+    unknown = set(value) - {"enabled", "required", "title", "instructions", "rubric"}
+    if unknown:
+        raise serializers.ValidationError(
+            {key: "This practical-assessment setting is not supported." for key in sorted(unknown)}
+        )
+    enabled = value.get("enabled")
+    required = value.get("required")
+    title = value.get("title", "Practical assessment")
+    instructions = value.get("instructions", "")
+    if not isinstance(enabled, bool) or not isinstance(required, bool):
+        raise serializers.ValidationError("Enabled and required must be true or false.")
+    if required and not enabled:
+        raise serializers.ValidationError("A hidden practical assessment cannot be required.")
+    if not isinstance(title, str) or not isinstance(instructions, str):
+        raise serializers.ValidationError("Practical assessment title and instructions must be text.")
+    title, instructions = title.strip(), instructions.strip()
+    if enabled and not title:
+        raise serializers.ValidationError({"title": "Provide a practical assessment title."})
+    if len(title) > PRACTICAL_ASSESSMENT_TITLE_MAX_LENGTH:
+        raise serializers.ValidationError({"title": f"Keep the title to {PRACTICAL_ASSESSMENT_TITLE_MAX_LENGTH} characters or fewer."})
+    if len(instructions) > PRACTICAL_ASSESSMENT_INSTRUCTIONS_MAX_LENGTH:
+        raise serializers.ValidationError({"instructions": f"Keep the instructions to {PRACTICAL_ASSESSMENT_INSTRUCTIONS_MAX_LENGTH} characters or fewer."})
+    rubric = _normalise_work_sample_rubric(value.get("rubric"))
+    if enabled and not rubric["criteria"]:
+        raise serializers.ValidationError({"rubric": "Add at least one observable criterion for this practical assessment."})
+    return {
+        "enabled": enabled,
+        "required": required,
+        "title": title,
+        "instructions": instructions,
+        "rubric": rubric,
+    }
 
 
 def _normalise_work_sample_configuration(value):
@@ -408,6 +454,7 @@ class HiringProfileSerializer(serializers.ModelSerializer):
     eligibility_requirements = serializers.SerializerMethodField()
     work_sample_supported = serializers.SerializerMethodField()
     scenario_supported = serializers.SerializerMethodField()
+    practical_assessment_supported = serializers.SerializerMethodField()
     workflow_configuration = serializers.SerializerMethodField()
 
     def get_application_configuration(self, obj):
@@ -421,6 +468,9 @@ class HiringProfileSerializer(serializers.ModelSerializer):
 
     def get_scenario_supported(self, obj):
         return _profile_supports_scenario(obj)
+
+    def get_practical_assessment_supported(self, obj):
+        return _profile_supports_practical_assessment(obj)
 
     def get_workflow_configuration(self, obj):
         return _profile_workflow_configuration(obj)
@@ -439,6 +489,7 @@ class HiringProfileSerializer(serializers.ModelSerializer):
             "eligibility_requirements",
             "work_sample_supported",
             "scenario_supported",
+            "practical_assessment_supported",
             "workflow_configuration",
         )
 
@@ -499,6 +550,7 @@ class JobSerializer(serializers.ModelSerializer):
     eligibility_requirements = serializers.JSONField(required=False)
     work_sample_configuration = serializers.JSONField(required=False)
     scenario_configuration = serializers.JSONField(required=False)
+    practical_assessment_configuration = serializers.JSONField(required=False)
     workflow_configuration = serializers.JSONField(required=False)
 
     def validate_application_configuration(self, value):
@@ -515,6 +567,9 @@ class JobSerializer(serializers.ModelSerializer):
 
     def validate_scenario_configuration(self, value):
         return _normalise_scenario_configuration(value)
+
+    def validate_practical_assessment_configuration(self, value):
+        return _normalise_practical_assessment_configuration(value)
 
     def validate_workflow_configuration(self, value):
         return _normalise_workflow_configuration(value)
@@ -567,6 +622,7 @@ class JobSerializer(serializers.ModelSerializer):
             "eligibility_requirements",
             "work_sample_configuration",
             "scenario_configuration",
+            "practical_assessment_configuration",
             "workflow_configuration",
             "job_type",
             "job_level",
@@ -710,8 +766,9 @@ class JobSerializer(serializers.ModelSerializer):
         eligibility_supplied = "eligibility_requirements" in attrs
         work_sample_supplied = "work_sample_configuration" in attrs
         scenario_supplied = "scenario_configuration" in attrs
+        practical_supplied = "practical_assessment_configuration" in attrs
         workflow_supplied = "workflow_configuration" in attrs
-        if (configuration_supplied or eligibility_supplied or work_sample_supplied or scenario_supplied or workflow_supplied) and (not profile or not company or not company.hiring_profiles_enabled):
+        if (configuration_supplied or eligibility_supplied or work_sample_supplied or scenario_supplied or practical_supplied or workflow_supplied) and (not profile or not company or not company.hiring_profiles_enabled):
             raise serializers.ValidationError({
                 "application_configuration": "Choose an enabled hiring profile before configuring the candidate journey."
             })
@@ -737,6 +794,7 @@ class JobSerializer(serializers.ModelSerializer):
                 attrs["eligibility_requirements"] = []
                 attrs["work_sample_configuration"] = {}
                 attrs["scenario_configuration"] = {}
+                attrs["practical_assessment_configuration"] = {}
                 attrs["workflow_configuration"] = {}
             else:
                 attrs["hiring_engine"] = Job.HiringEngine.CONFIGURABLE
@@ -767,6 +825,24 @@ class JobSerializer(serializers.ModelSerializer):
         if scenario_configuration.get("enabled") and not _profile_supports_scenario(profile):
             raise serializers.ValidationError({
                 "scenario_configuration": "The selected hiring profile does not support a written scenario."
+            })
+        practical_assessment_configuration = attrs.get(
+            "practical_assessment_configuration",
+            getattr(self.instance, "practical_assessment_configuration", {}) or {},
+        )
+        if practical_assessment_configuration.get("enabled") and not _profile_supports_practical_assessment(profile):
+            raise serializers.ValidationError({
+                "practical_assessment_configuration": "The selected hiring profile does not support an observed practical assessment."
+            })
+        workflow_configuration = attrs.get(
+            "workflow_configuration",
+            getattr(self.instance, "workflow_configuration", {}) or {},
+        )
+        if practical_assessment_configuration.get("enabled") and "practical" not in _normalise_workflow_configuration(
+            workflow_configuration
+        )["stages"]:
+            raise serializers.ValidationError({
+                "workflow_configuration": "Include the practical stage when an observed practical assessment is enabled."
             })
 
         work_mode = attrs.get("work_mode", getattr(self.instance, "work_mode", "") or "")
@@ -885,6 +961,7 @@ class JobUpdateSerializer(serializers.ModelSerializer):
     eligibility_requirements = serializers.JSONField(read_only=True)
     work_sample_configuration = serializers.JSONField(read_only=True)
     scenario_configuration = serializers.JSONField(read_only=True)
+    practical_assessment_configuration = serializers.JSONField(read_only=True)
     workflow_configuration = serializers.JSONField(read_only=True)
 
     class Meta:
@@ -902,6 +979,7 @@ class JobUpdateSerializer(serializers.ModelSerializer):
             "eligibility_requirements",
             "work_sample_configuration",
             "scenario_configuration",
+            "practical_assessment_configuration",
             "workflow_configuration",
             "job_status",
             "job_type",
@@ -1335,6 +1413,256 @@ class ApplicationScenarioResponseReviewSerializer(ApplicationWorkSampleReviewSer
         return instance
 
 
+class JobPracticalAssessmentSlotSerializer(serializers.ModelSerializer):
+    """A recruiter-managed, capacity-controlled in-person assessment slot."""
+
+    scheduled_count = serializers.SerializerMethodField()
+
+    def get_scheduled_count(self, obj):
+        if hasattr(obj, "scheduled_count"):
+            return obj.scheduled_count
+        return obj.appointments.filter(
+            status=ApplicationPracticalAssessment.Status.SCHEDULED
+        ).count()
+
+    def validate(self, attrs):
+        starts_at = attrs.get("starts_at", getattr(self.instance, "starts_at", None))
+        ends_at = attrs.get("ends_at", getattr(self.instance, "ends_at", None))
+        if starts_at and starts_at <= timezone.now():
+            raise serializers.ValidationError({"starts_at": "Choose a future practical-assessment slot."})
+        if starts_at and ends_at and ends_at <= starts_at:
+            raise serializers.ValidationError({"ends_at": "The slot must end after it starts."})
+        return attrs
+
+    class Meta:
+        model = JobPracticalAssessmentSlot
+        fields = (
+            "id",
+            "starts_at",
+            "ends_at",
+            "location",
+            "capacity",
+            "instructions",
+            "is_active",
+            "scheduled_count",
+            "created_at",
+        )
+        read_only_fields = ("id", "scheduled_count", "created_at")
+
+
+class ApplicationPracticalAssessmentSerializer(serializers.ModelSerializer):
+    """An observed assessment record. It never represents a credential."""
+
+    slot = JobPracticalAssessmentSlotSerializer(read_only=True)
+    assessor_name = serializers.SerializerMethodField()
+    weighted_score = serializers.SerializerMethodField()
+
+    def get_assessor_name(self, obj):
+        if not obj.assessor_id:
+            return None
+        return obj.assessor.get_full_name().strip() or obj.assessor.email
+
+    def get_weighted_score(self, obj):
+        scorecard = obj.scorecard if isinstance(obj.scorecard, list) else []
+        scored_criteria = [
+            criterion for criterion in scorecard
+            if isinstance(criterion, dict) and isinstance(criterion.get("score"), int)
+        ]
+        if not scored_criteria:
+            return None
+        return round(sum((criterion["score"] / 5) * criterion["weight"] for criterion in scored_criteria), 1)
+
+    class Meta:
+        model = ApplicationPracticalAssessment
+        fields = (
+            "id",
+            "attempt_number",
+            "slot",
+            "status",
+            "outcome",
+            "rubric_snapshot",
+            "scorecard",
+            "weighted_score",
+            "assessor_name",
+            "observations",
+            "critical_failure",
+            "critical_failure_reason",
+            "completed_at",
+            "created_at",
+        )
+        read_only_fields = fields
+
+
+class ApplicationPracticalAssessmentAssignSerializer(serializers.Serializer):
+    """Books a candidate into one of the job's practical-assessment slots."""
+
+    slot_id = serializers.PrimaryKeyRelatedField(
+        queryset=JobPracticalAssessmentSlot.objects.select_related("job")
+    )
+
+    def validate(self, attrs):
+        application = self.context["application"]
+        slot = attrs["slot_id"]
+        configuration = application.job.get_practical_assessment_configuration()
+        if not configuration["enabled"]:
+            raise serializers.ValidationError({"slot_id": "This job does not have a practical assessment enabled."})
+        if slot.job_id != application.job_id:
+            raise serializers.ValidationError({"slot_id": "Choose a slot for this application’s job."})
+        if not slot.is_active or slot.starts_at <= timezone.now():
+            raise serializers.ValidationError({"slot_id": "Choose an active future practical-assessment slot."})
+        return attrs
+
+    def create(self, validated_data):
+        application_id = self.context["application"].id
+        requested_slot_id = validated_data["slot_id"].id
+        with transaction.atomic():
+            application = JobApplication.objects.select_for_update().select_related("job").get(id=application_id)
+            slot = JobPracticalAssessmentSlot.objects.select_for_update().get(id=requested_slot_id)
+            configuration = application.job.get_practical_assessment_configuration()
+            if not configuration["enabled"] or slot.job_id != application.job_id:
+                raise serializers.ValidationError({"slot_id": "This practical-assessment slot is no longer available for this job."})
+            if not slot.is_active or slot.starts_at <= timezone.now():
+                raise serializers.ValidationError({"slot_id": "This practical-assessment slot is no longer available."})
+            if ApplicationPracticalAssessment.objects.filter(
+                application=application,
+                status=ApplicationPracticalAssessment.Status.SCHEDULED,
+            ).exists():
+                raise serializers.ValidationError({"slot_id": "This candidate already has a scheduled practical assessment."})
+            scheduled_count = ApplicationPracticalAssessment.objects.filter(
+                slot=slot,
+                status=ApplicationPracticalAssessment.Status.SCHEDULED,
+            ).count()
+            if scheduled_count >= slot.capacity:
+                raise serializers.ValidationError({"slot_id": "This practical-assessment slot is full."})
+            latest_attempt = ApplicationPracticalAssessment.objects.filter(
+                application=application
+            ).order_by("-attempt_number").values_list("attempt_number", flat=True).first() or 0
+            return ApplicationPracticalAssessment.objects.create(
+                application=application,
+                slot=slot,
+                attempt_number=latest_attempt + 1,
+                rubric_snapshot=configuration["rubric"],
+            )
+
+
+class ApplicationPracticalAssessmentReviewSerializer(serializers.Serializer):
+    """Records the assessor’s scorecard and any safety-critical failure."""
+
+    outcome = serializers.ChoiceField(
+        choices=(
+            ApplicationPracticalAssessment.Outcome.PASS,
+            ApplicationPracticalAssessment.Outcome.FAIL,
+        )
+    )
+    observations = serializers.CharField(max_length=2000, required=False, allow_blank=True)
+    critical_failure = serializers.BooleanField(required=False, default=False)
+    critical_failure_reason = serializers.CharField(max_length=1000, required=False, allow_blank=True)
+    scores = serializers.DictField(
+        child=serializers.IntegerField(min_value=0, max_value=5),
+        required=False,
+    )
+    score_notes = serializers.DictField(
+        child=serializers.CharField(max_length=1000, allow_blank=True),
+        required=False,
+    )
+
+    def _rubric(self):
+        rubric = self.instance.rubric_snapshot if isinstance(self.instance.rubric_snapshot, dict) else {}
+        criteria = rubric.get("criteria", [])
+        return rubric, criteria if isinstance(criteria, list) else []
+
+    def validate(self, attrs):
+        if self.instance.status != ApplicationPracticalAssessment.Status.SCHEDULED:
+            raise serializers.ValidationError("Only a scheduled practical assessment can be completed.")
+
+        outcome = attrs["outcome"]
+        observations = (attrs.get("observations") or "").strip()
+        critical_failure = attrs.get("critical_failure", False)
+        critical_failure_reason = (attrs.get("critical_failure_reason") or "").strip()
+        if critical_failure:
+            if outcome != ApplicationPracticalAssessment.Outcome.FAIL:
+                raise serializers.ValidationError({"outcome": "A critical failure must result in a failed assessment."})
+            if not critical_failure_reason:
+                raise serializers.ValidationError({"critical_failure_reason": "Record why this was a critical failure."})
+        elif critical_failure_reason:
+            raise serializers.ValidationError({"critical_failure_reason": "Only record a critical-failure reason when a critical failure occurred."})
+        if outcome == ApplicationPracticalAssessment.Outcome.FAIL and not (observations or critical_failure_reason):
+            raise serializers.ValidationError({"observations": "Record the assessor’s observations for a failed assessment."})
+
+        rubric, criteria = self._rubric()
+        scores = attrs.get("scores")
+        score_notes = attrs.get("score_notes", {})
+        if not criteria:
+            if scores is not None or score_notes:
+                raise serializers.ValidationError({"scores": "This practical assessment does not have a scorecard."})
+            return attrs
+
+        criterion_codes = [criterion.get("code") for criterion in criteria]
+        if len(criterion_codes) != len(set(criterion_codes)) or not all(criterion_codes):
+            raise serializers.ValidationError("This practical assessment’s published scorecard is invalid.")
+        expected_codes = set(criterion_codes)
+        if scores is None:
+            if score_notes:
+                raise serializers.ValidationError({"score_notes": "Add score notes together with criterion scores."})
+            if not critical_failure:
+                raise serializers.ValidationError({"scores": "Score every criterion before recording this decision."})
+            return attrs
+        if set(scores) != expected_codes:
+            raise serializers.ValidationError({"scores": "Score every criterion in this assessment’s scorecard exactly once."})
+        if set(score_notes) - expected_codes:
+            raise serializers.ValidationError({"score_notes": "Notes can only be added to scorecard criteria."})
+
+        weighted_score = round(sum(
+            (scores[criterion["code"]] / 5) * criterion["weight"]
+            for criterion in criteria
+        ), 1)
+        attrs["weighted_score"] = weighted_score
+        if outcome == ApplicationPracticalAssessment.Outcome.PASS and weighted_score < rubric.get(
+            "passing_score", WORK_SAMPLE_PASSING_SCORE_DEFAULT
+        ):
+            raise serializers.ValidationError({
+                "outcome": (
+                    f"The weighted score is {weighted_score}%, below this assessment’s "
+                    f"{rubric.get('passing_score', WORK_SAMPLE_PASSING_SCORE_DEFAULT)}% passing score."
+                )
+            })
+        return attrs
+
+    def update(self, instance, validated_data):
+        scores = validated_data.pop("scores", None)
+        score_notes = validated_data.pop("score_notes", {})
+        validated_data.pop("weighted_score", None)
+        _rubric, criteria = self._rubric()
+        scorecard = []
+        if scores is not None:
+            scorecard = [
+                {
+                    "code": criterion["code"],
+                    "label": criterion["label"],
+                    "description": criterion.get("description", ""),
+                    "weight": criterion["weight"],
+                    "score": scores[criterion["code"]],
+                    "assessor_note": score_notes.get(criterion["code"], "").strip(),
+                }
+                for criterion in criteria
+            ]
+        instance.status = ApplicationPracticalAssessment.Status.COMPLETED
+        instance.outcome = validated_data["outcome"]
+        instance.observations = (validated_data.get("observations") or "").strip()
+        instance.critical_failure = validated_data.get("critical_failure", False)
+        instance.critical_failure_reason = (validated_data.get("critical_failure_reason") or "").strip()
+        instance.scorecard = scorecard
+        instance.assessor = self.context["request"].user
+        instance.completed_at = timezone.now()
+        instance.save(
+            update_fields=(
+                "status", "outcome", "observations", "critical_failure",
+                "critical_failure_reason", "scorecard", "assessor", "completed_at", "updated_at",
+            )
+        )
+        return instance
+
+
 class JobApplicationSerializer(serializers.ModelSerializer):
     job = JobSerializer(read_only=True)
     applicant = serializers.SerializerMethodField()
@@ -1346,6 +1674,7 @@ class JobApplicationSerializer(serializers.ModelSerializer):
     eligibility_checks = ApplicationEligibilityCheckSerializer(many=True, read_only=True)
     work_samples = ApplicationWorkSampleSerializer(many=True, read_only=True)
     scenario_response = ApplicationScenarioResponseSerializer(read_only=True)
+    practical_assessments = ApplicationPracticalAssessmentSerializer(many=True, read_only=True)
     workflow_stage = serializers.SerializerMethodField()
 
     def get_workflow_stage(self, obj):
@@ -1369,6 +1698,7 @@ class JobApplicationSerializer(serializers.ModelSerializer):
             "eligibility_checks",
             "work_samples",
             "scenario_response",
+            "practical_assessments",
             "workflow_stage",
         )
 

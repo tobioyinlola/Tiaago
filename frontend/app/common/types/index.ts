@@ -451,6 +451,7 @@ export type Job = {
   eligibility_requirements?: EligibilityRequirement[];
   work_sample_configuration?: WorkSampleConfiguration;
   scenario_configuration?: ScenarioConfiguration;
+  practical_assessment_configuration?: PracticalAssessmentConfiguration;
   workflow_configuration?: WorkflowConfiguration;
   country: string;
   work_mode: string;
@@ -560,6 +561,15 @@ export type ScenarioConfiguration = {
   rubric: WorkSampleRubric;
 };
 
+/** Immutable, job-level contract for an assessor-observed field assessment. */
+export type PracticalAssessmentConfiguration = {
+  enabled: boolean;
+  required: boolean;
+  title: string;
+  instructions: string;
+  rubric: WorkSampleRubric;
+};
+
 export type WorkflowStage = "application" | "eligibility" | "screen" | "work_sample" | "scenario" | "assessment" | "practical" | "interview" | "decision" | "readiness";
 export type WorkflowConfiguration = { version: 1; stages: WorkflowStage[] };
 
@@ -631,6 +641,35 @@ export type ApplicationScenarioResponse = {
   created_at: string;
 };
 
+export type PracticalAssessmentSlot = {
+  id: ID;
+  starts_at: string;
+  ends_at: string;
+  location: string;
+  capacity: number;
+  instructions: string;
+  is_active: boolean;
+  scheduled_count: number;
+  created_at: string;
+};
+
+export type ApplicationPracticalAssessment = {
+  id: ID;
+  attempt_number: number;
+  slot: PracticalAssessmentSlot;
+  status: "SCHEDULED" | "COMPLETED" | "CANCELLED" | "NO_SHOW";
+  outcome: "PENDING" | "PASS" | "FAIL";
+  rubric_snapshot: WorkSampleRubric;
+  scorecard: Array<WorkSampleRubricCriterion & { score: number; assessor_note: string }>;
+  weighted_score: number | null;
+  assessor_name: string | null;
+  observations: string;
+  critical_failure: boolean;
+  critical_failure_reason: string;
+  completed_at: string | null;
+  created_at: string;
+};
+
 export type HiringProfile = {
   code: string;
   name: string;
@@ -643,6 +682,7 @@ export type HiringProfile = {
   eligibility_requirements: EligibilityRequirement[];
   work_sample_supported: boolean;
   scenario_supported: boolean;
+  practical_assessment_supported: boolean;
   workflow_configuration: WorkflowConfiguration;
 };
 
@@ -798,6 +838,7 @@ export type JobApplication = {
   eligibility_checks?: ApplicationEligibilityCheck[];
   work_samples?: ApplicationWorkSample[];
   scenario_response?: ApplicationScenarioResponse | null;
+  practical_assessments?: ApplicationPracticalAssessment[];
   workflow_stage?: WorkflowStage;
   status:
     | "APPLIED"

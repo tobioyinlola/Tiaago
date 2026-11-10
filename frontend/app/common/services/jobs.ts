@@ -8,6 +8,8 @@ import {
   ApplicationEligibilityCheck,
   ApplicationWorkSample,
   ApplicationScenarioResponse,
+  ApplicationPracticalAssessment,
+  PracticalAssessmentSlot,
   ID,
   InterviewSlotInput,
   HiringProfilesResponse,
@@ -452,6 +454,83 @@ export const reviewApplicationScenarioResponse = async (
         json: { status, reviewer_reason, ...(scores ? { scores } : {}), ...(score_notes ? { score_notes } : {}) },
       })
       .json<ApplicationScenarioResponse>();
+    return { success: true, data };
+  } catch (error) {
+    const errMsg = await handleServerApiCallError(error);
+    return { success: false, error: errMsg };
+  }
+};
+
+export const getPracticalAssessmentReviewQueue = async (page = 1, page_size = 50) => {
+  try {
+    return await serverKyInstance
+      .get<PagedResource<JobApplication>>("jobs/job-applications/practical-assessment-review/", {
+        searchParams: { page, page_size },
+      })
+      .json();
+  } catch (error) {
+    const errMsg = await handleServerApiCallError(error);
+    throw Error(errMsg);
+  }
+};
+
+export type PracticalAssessmentReviewInput = {
+  outcome: "PASS" | "FAIL";
+  observations?: string;
+  critical_failure?: boolean;
+  critical_failure_reason?: string;
+  scores?: Record<string, number>;
+  score_notes?: Record<string, string>;
+};
+
+export const reviewApplicationPracticalAssessment = async (
+  applicationId: ID,
+  assessmentId: ID,
+  input: PracticalAssessmentReviewInput
+): Promise<ApiResponse<ApplicationPracticalAssessment>> => {
+  try {
+    const data = await serverKyInstance
+      .patch(`jobs/job-applications/${applicationId}/practical-assessments/${assessmentId}/`, { json: input })
+      .json<ApplicationPracticalAssessment>();
+    return { success: true, data };
+  } catch (error) {
+    const errMsg = await handleServerApiCallError(error);
+    return { success: false, error: errMsg };
+  }
+};
+
+export const getPracticalAssessmentSlots = async (jobPublicId: string): Promise<PracticalAssessmentSlot[]> => {
+  try {
+    return await serverKyInstance.get(`jobs/${jobPublicId}/practical-assessment-slots/`).json<PracticalAssessmentSlot[]>();
+  } catch (error) {
+    const errMsg = await handleServerApiCallError(error);
+    throw Error(errMsg);
+  }
+};
+
+export const createPracticalAssessmentSlot = async (
+  jobPublicId: string,
+  slot: Pick<PracticalAssessmentSlot, "starts_at" | "ends_at" | "location" | "capacity" | "instructions">
+): Promise<ApiResponse<PracticalAssessmentSlot>> => {
+  try {
+    const data = await serverKyInstance
+      .post(`jobs/${jobPublicId}/practical-assessment-slots/`, { json: slot })
+      .json<PracticalAssessmentSlot>();
+    return { success: true, data };
+  } catch (error) {
+    const errMsg = await handleServerApiCallError(error);
+    return { success: false, error: errMsg };
+  }
+};
+
+export const scheduleApplicationPracticalAssessment = async (
+  applicationId: ID,
+  slotId: ID
+): Promise<ApiResponse<ApplicationPracticalAssessment>> => {
+  try {
+    const data = await serverKyInstance
+      .post(`jobs/job-applications/${applicationId}/practical-assessments/`, { json: { slot_id: slotId } })
+      .json<ApplicationPracticalAssessment>();
     return { success: true, data };
   } catch (error) {
     const errMsg = await handleServerApiCallError(error);
