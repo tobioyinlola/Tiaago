@@ -2,6 +2,7 @@ import { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { getPublicJob } from "@/app/common/services/jobs";
+import { getCurrentUser } from "@/app/common/services/profile";
 import { trackTalentNetworkClick } from "@/app/common/services/talent-network";
 import GuestApplyForm from "./_components/GuestApplyForm";
 import JobClosedNotice from "../_components/JobClosedNotice";
@@ -31,7 +32,19 @@ const ApplyPage = async ({ params, searchParams }: Props) => {
   // once the response is sent on some serverless/edge runtimes.
   if (tn) await trackTalentNetworkClick(tn);
 
-  return <GuestApplyForm job={job} />;
+  // A signed-in talent applies through the same published journey, with their
+  // account details instead of retyping them.
+  const session = await getCurrentUser("talent", { allowNull: true }).catch(() => null);
+  const talent = session?.currentUser;
+  const signedIn = talent && talent.user_type === "T"
+    ? {
+        name: [talent.first_name, talent.last_name].filter(Boolean).join(" ") || talent.username,
+        email: talent.email,
+        hasResume: !!talent.resume,
+      }
+    : undefined;
+
+  return <GuestApplyForm job={job} signedIn={signedIn} />;
 };
 
 export default ApplyPage;

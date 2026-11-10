@@ -1,3 +1,5 @@
+import contextlib
+import contextvars
 import logging
 import os
 import time
@@ -24,6 +26,28 @@ def log_mail(email, email_type, email_status, provider_message_id="", delivery_s
         delivery_status=delivery_status or EmailTrack.DeliveryStatus.PENDING,
     )
     return email_track_obj.id
+
+
+class EmailDeliveryError(Exception):
+    """Every provider refused or was unreachable (raised only in strict mode)."""
+
+
+_strict_delivery = contextvars.ContextVar("strict_email_delivery", default=False)
+
+
+@contextlib.contextmanager
+def strict_delivery():
+    """Make ``EmailHandler.send_mail`` raise when no provider accepts the mail.
+
+    By default a failed send is logged and swallowed, which is right for
+    fire-and-forget callers but hides failures from a retrying outbox. The
+    notification outbox wraps its handlers in this so a failure is retried.
+    """
+    token = _strict_delivery.set(True)
+    try:
+        yield
+    finally:
+        _strict_delivery.reset(token)
 
 
 class EmailTypes:
@@ -289,6 +313,13 @@ class EmailHandler:
         if not success:
             logger.error("Failed to send email via all providers.")
             delivery_status = EmailTrack.DeliveryStatus.FAILED
+            if _strict_delivery.get():
+                if email_type is not None:
+                    log_mail(
+                        ", ".join(self.recipients), email_type, False,
+                        provider_message_id="", delivery_status=delivery_status,
+                    )
+                raise EmailDeliveryError(f"No provider accepted the email to {', '.join(self.recipients)}")
 
         email_log_id = None
         if email_type is not None:

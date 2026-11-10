@@ -84,6 +84,23 @@ services:
     restart: unless-stopped
     logging: *logtail-logging
 
+  # Malware scanner for private candidate uploads (backend/jobs/malware.py).
+  # The backend fails closed: uploads stay locked until clamd returns a verdict.
+  # clamd needs roughly 1-1.5GB RAM; size the host accordingly.
+  clamav:
+    image: clamav/clamav:1.4
+    expose:
+      - "3310"
+    volumes:
+      - clamav_db:/var/lib/clamav
+    healthcheck:
+      test: ["CMD", "clamdcheck.sh"]
+      interval: 60s
+      timeout: 10s
+      retries: 5
+      start_period: 180s
+    restart: unless-stopped
+
   interview-agent:
     build:
       context: ./interview_agent
@@ -123,6 +140,7 @@ services:
     restart: unless-stopped
 
 volumes:
+  clamav_db:
   static_files:
   media_files:
   certbot_www:

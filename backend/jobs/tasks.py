@@ -1,4 +1,5 @@
 import logging
+from django.utils import timezone
 import uuid
 from datetime import timedelta
 from django.db import transaction
@@ -349,14 +350,15 @@ def send_rejection_mail(job_id, job_application_id, areas_for_improvement=None):
     This is sent after AI analyzes the applicant's resume and marks them as unfit for the role
     """
     logger.info(f"send_rejection_mail called with job_id={job_id}, job_application_id={job_application_id}")
-    job = Job.objects.filter(id=job_id).first()
-    job_application = JobApplication.objects.filter(id=job_application_id).first()
-    if job and job_application:
-        emails.applicant_vetting_mail(
-            job_application.as_email_recipient(),
-            job,
-            "unconsider",
-            areas_for_improvement=areas_for_improvement,
+    job_application = JobApplication.objects.filter(id=job_application_id, job_id=job_id).first()
+    if job_application:
+        from .notifications import queue_notification
+
+        queue_notification(
+            job_application,
+            "screening_rejection",
+            dedupe_key=f"screening_rejection:{job_application.id}",
+            payload={"reason": areas_for_improvement or ""},
         )
 
 
@@ -394,6 +396,21 @@ def send_assessment_link(job_application_id, trials=0):
             eligibility_hold,
         )
         return eligibility_hold
+
+    if not job_application.candidate_email:
+        # Phone-only (assisted) candidate: there is no inbox for the link.
+        from .notifications import queue_notification
+
+        queue_notification(
+            job_application,
+            "contact_by_phone",
+            dedupe_key=f"contact_by_phone:assessment:{job_application.id}",
+            payload={"reason": (
+                f"{job_application.candidate_full_name} has no email address, so the online "
+                "assessment invitation could not be sent. Contact them by phone."
+            )},
+        )
+        return "No email address; flagged for phone follow-up"
 
     # Idempotency guard: GeneralSkillAssessment.job_application is a plain FK
     # (not unique), and this task can be re-delivered by Celery (worker crash/
@@ -816,25 +833,21 @@ def carry_out_resume_analysis(job_application_id):
                     # Auto-advance to the next stage -- surfaced on the View
                     # Applicants table so recruiters see candidates move
                     # forward without manual status changes.
-                    from .services import (
-                        eligibility_progression_block_detail,
-                        workflow_transition_block_detail,
-                    )
+                    from .transitions import apply_transition
 
-                    workflow_hold = workflow_transition_block_detail(
-                        job_application, JobApplication.JobApplicationStatus.REVIEWED
+                    moved = apply_transition(
+                        job_application_id,
+                        JobApplication.JobApplicationStatus.REVIEWED,
+                        actor="automation",
+                        held_source="resume_screening",
                     )
-                    eligibility_hold = eligibility_progression_block_detail(job_application)
-                    if workflow_hold or eligibility_hold:
+                    if not moved:
                         logger.info(
-                            "Resume-screening progression held for job application %s: %s",
+                            "Resume-screening progression not applied for job application %s: %s",
                             job_application_id,
-                            workflow_hold or eligibility_hold,
+                            moved.detail,
                         )
                     else:
-                        JobApplication.objects.filter(id=job_application_id).update(
-                            status=JobApplication.JobApplicationStatus.REVIEWED
-                        )
                         if (
                             job.hiring_engine != Job.HiringEngine.CONFIGURABLE
                             or "assessment" in job.get_workflow_configuration()["stages"]
@@ -1016,6 +1029,27 @@ def retry_pending_resume_analysis(pending_resume_analysis_id):
     return "Completed"
 
 
+MAX_JOB_TEXT_FOR_AI = 12000
+
+
+def _plain_job_text(value, limit=MAX_JOB_TEXT_FOR_AI):
+    """Rich-text job copy -> bounded plain text for the AI prompt.
+
+    The wizard stores HTML; the markup adds nothing to question quality, costs
+    tokens, and (together with a long description) made some roles too large
+    to send at all.
+    """
+    import html as html_lib
+    import re
+
+    text = re.sub(r"(?i)<\s*(br|/p|/li|/h[1-6]|/div)\s*/?>", "\n", value or "")
+    text = re.sub(r"<[^>]+>", " ", text)
+    text = html_lib.unescape(text)
+    text = re.sub(r"[ \t\r\f\v]+", " ", text)
+    text = re.sub(r"\n\s*\n+", "\n\n", text).strip()
+    return text[:limit]
+
+
 @shared_task(bind=True, name="generate_job_assessment_questions_task", max_retries=2, rate_limit="30/m")
 def generate_job_assessment_questions_task(self, request_id, description, job_requirement, role_id):
     """Runs the job-creation wizard's Step 3 AI question generation out of
@@ -1033,7 +1067,7 @@ def generate_job_assessment_questions_task(self, request_id, description, job_re
     request_row.status = AssessmentQuestionGenerationRequest.GenerationStatus.GENERATING
     request_row.save(update_fields=["status"])
 
-    job_description = "\n\n".join(part for part in [description, job_requirement] if part)
+    job_description = _plain_job_text("\n\n".join(part for part in [description, job_requirement] if part))
 
     # Defaults non-technical when role_id doesn't match an existing Role --
     # see jobs.tasks.send_assessment_link for the matching fix and why.
@@ -1107,6 +1141,20 @@ def send_interview_slot_invite(job_application_id):
     # second round.
     is_second_round = Scheduler.objects.filter(job_application=job_application).exists()
 
+    if not job_application.candidate_email:
+        from .notifications import queue_notification
+
+        queue_notification(
+            job_application,
+            "contact_by_phone",
+            dedupe_key=f"contact_by_phone:interview:{job_application.id}:{'2' if is_second_round else '1'}",
+            payload={"reason": (
+                f"{job_application.candidate_full_name} has no email address, so the interview "
+                "slot invitation could not be sent. Contact them by phone."
+            )},
+        )
+        return
+
     if not job.interview_availability_slots.filter(is_claimed=False).exists():
         logger.warning(
             "send_interview_slot_invite: no published interview slots for job %s (job_application %s)",
@@ -1149,18 +1197,26 @@ def send_interview_slot_invite(job_application_id):
         # is always a first round and never passes this.
         "is_second_round": is_second_round,
     }
-    try:
-        EmailHandler(recipients=[candidate_email]).send_mail(
-            subject=(
-                f"Second Interview Invitation: {job.title}" if is_second_round
-                else "Pick your interview time"
-            ),
-            context=context,
-            template="emails/interview_slot_selection.html",
-            email_type=EmailTypes.INTERVIEW_SLOT_SELECTION_MAIL,
-        )
-    except Exception:
-        logger.exception("Failed to send interview slot selection invite for job_application %s", job_application_id)
+    from .notifications import queue_notification
+
+    subject = f"Second Interview Invitation: {job.title}" if is_second_round else "Pick your interview time"
+    queue_notification(
+        job_application,
+        "interview_slot_invite",
+        # One per round per day: a re-delivered task is deduped, a deliberate
+        # re-invite on another day is still sent.
+        dedupe_key=(
+            f"interview_slot_invite:{job_application.id}:{'2' if is_second_round else '1'}"
+            f":{timezone.now():%Y%m%d}"
+        ),
+        payload={
+            "to": candidate_email,
+            "subject": subject,
+            "template": "emails/interview_slot_selection.html",
+            "context": context,
+            "email_type": EmailTypes.INTERVIEW_SLOT_SELECTION_MAIL,
+        },
+    )
 
 
 @shared_task(name="send_manual_rejection_mail")
@@ -1177,15 +1233,16 @@ def send_manual_rejection_mail(job_application_id, reason):
     ).first()
     if not job_application:
         return
-    try:
-        emails.applicant_vetting_mail(
-            job_application.as_email_recipient(),
-            job_application.job,
-            "unconsider",
-            areas_for_improvement=reason,
-        )
-    except Exception:
-        logger.exception("Failed to send manual rejection mail for job_application %s", job_application_id)
+    # Durable: delivery is retried with backoff and a final failure shows up
+    # in the hiring team's recovery queue instead of only in a log line.
+    from .notifications import queue_notification
+
+    queue_notification(
+        job_application,
+        "manual_rejection",
+        dedupe_key=f"manual_rejection:{job_application.id}",
+        payload={"reason": reason},
+    )
 
 
 @shared_task(name="send_interview_scheduled_notice_mail")
@@ -1202,14 +1259,13 @@ def send_interview_scheduled_notice_mail(job_application_id):
     ).first()
     if not job_application:
         return
-    try:
-        emails.interview_scheduled_notice_mail(
-            job_application.as_email_recipient(),
-            job_application.job.company.company_name,
-            job_application.job.title,
-        )
-    except Exception:
-        logger.exception("Failed to send interview scheduled notice for job_application %s", job_application_id)
+    from .notifications import queue_notification
+
+    queue_notification(
+        job_application,
+        "interview_scheduled_notice",
+        dedupe_key=f"interview_scheduled_notice:{job_application.id}:{job_application.status}",
+    )
 
 
 @shared_task(name="send_offer_extended_notice_mail")
@@ -1221,12 +1277,131 @@ def send_offer_extended_notice_mail(job_application_id):
     ).first()
     if not job_application:
         return
-    try:
-        emails.offer_extended_notice_mail(
-            job_application.as_email_recipient(),
-            job_application.job.company.company_name,
-            job_application.job.title,
-        )
-    except Exception:
-        logger.exception("Failed to send offer extended notice for job_application %s", job_application_id)
+    from .notifications import queue_notification
 
+    queue_notification(
+        job_application,
+        "offer_extended",
+        dedupe_key=f"offer_extended:{job_application.id}:{job_application.status}",
+    )
+
+
+
+WORK_SAMPLE_MAX_SCAN_ATTEMPTS = 5
+
+
+@shared_task(name="jobs.tasks.scan_application_work_sample", ignore_result=True)
+def scan_application_work_sample(sample_id):
+    """Scan one uploaded work sample and record a verdict.
+
+    A scanner outage leaves the sample PENDING so the beat sweeper retries it;
+    after WORK_SAMPLE_MAX_SCAN_ATTEMPTS it is marked ERROR (still blocked) so a
+    recruiter sees that it needs attention rather than waiting indefinitely.
+    Infected files are removed from storage immediately.
+    """
+    from django.utils import timezone
+    from jobs.malware import INFECTED, ScannerUnavailable, scan_stream
+    from jobs.models import ApplicationWorkSample
+
+    sample = ApplicationWorkSample.objects.filter(id=sample_id).first()
+    if not sample or sample.scan_status in (
+        ApplicationWorkSample.ScanStatus.CLEAN,
+        ApplicationWorkSample.ScanStatus.INFECTED,
+    ):
+        return
+    if not sample.file:
+        sample.scan_status = ApplicationWorkSample.ScanStatus.ERROR
+        sample.scan_detail = "file missing from storage"
+        sample.save(update_fields=("scan_status", "scan_detail", "updated_at"))
+        return
+
+    sample.scan_attempts += 1
+    try:
+        with sample.file.open("rb") as stream:
+            verdict, detail = scan_stream(stream)
+    except (ScannerUnavailable, OSError) as exc:
+        sample.scan_detail = str(exc)[:255]
+        if sample.scan_attempts >= WORK_SAMPLE_MAX_SCAN_ATTEMPTS:
+            sample.scan_status = ApplicationWorkSample.ScanStatus.ERROR
+        sample.save(update_fields=("scan_status", "scan_detail", "scan_attempts", "updated_at"))
+        logger.warning("Work sample %s scan unavailable (attempt %s): %s", sample_id, sample.scan_attempts, exc)
+        return
+
+    sample.scanned_at = timezone.now()
+    sample.scan_detail = detail
+    if verdict == INFECTED:
+        sample.scan_status = ApplicationWorkSample.ScanStatus.INFECTED
+        sample.file.delete(save=False)
+        logger.warning("Work sample %s blocked: %s", sample_id, detail)
+    else:
+        sample.scan_status = ApplicationWorkSample.ScanStatus.CLEAN
+    sample.save(update_fields=(
+        "scan_status", "scan_detail", "scan_attempts", "scanned_at", "file", "updated_at",
+    ))
+
+
+@shared_task(name="jobs.tasks.sweep_unscanned_work_samples", ignore_result=True)
+def sweep_unscanned_work_samples():
+    """Re-queue samples stuck unscanned (lost task, scanner outage)."""
+    from datetime import timedelta
+    from django.utils import timezone
+    from jobs.models import ApplicationWorkSample
+
+    stale_before = timezone.now() - timedelta(minutes=2)
+    ids = list(
+        ApplicationWorkSample.objects.filter(
+            scan_status=ApplicationWorkSample.ScanStatus.PENDING,
+            updated_at__lt=stale_before,
+        ).values_list("id", flat=True)[:200]
+    )
+    for sample_id in ids:
+        scan_application_work_sample.delay(sample_id)
+    return len(ids)
+
+
+@shared_task(name="jobs.tasks.deliver_application_notification", ignore_result=True)
+def deliver_application_notification(notification_id):
+    from .notifications import deliver
+
+    deliver(notification_id)
+
+
+@shared_task(name="jobs.tasks.sweep_due_notifications", ignore_result=True)
+def sweep_due_notifications():
+    """Pick up outbox rows whose retry time has come (or whose task was lost)."""
+    from django.utils import timezone
+    from .models import ApplicationNotification as N
+
+    ids = list(
+        N.objects.filter(status=N.Status.PENDING, next_attempt_at__lte=timezone.now())
+        .order_by("next_attempt_at").values_list("id", flat=True)[:200]
+    )
+    for notification_id in ids:
+        deliver_application_notification.delay(notification_id)
+    return len(ids)
+
+
+@shared_task(name="jobs.tasks.retry_held_transitions", ignore_result=True)
+def retry_held_transitions():
+    """Re-check open holds; release those whose guards have cleared."""
+    from .models import HeldTransition
+    from .transitions import retry_hold
+
+    released = 0
+    for hold in HeldTransition.objects.filter(status=HeldTransition.Status.OPEN).order_by("created_at")[:200]:
+        try:
+            if retry_hold(hold) == "resolved":
+                released += 1
+        except Exception:  # noqa: BLE001 - one bad row must not stall the sweep
+            logger.exception("Retrying held transition %s failed", hold.id)
+    return released
+
+
+@shared_task(name="jobs.tasks.purge_idempotency_records", ignore_result=True)
+def purge_idempotency_records():
+    """Forget idempotency keys older than their retention window."""
+    from .idempotency import RETENTION
+    from .models import IdempotencyRecord
+
+    deleted, _ = IdempotencyRecord.objects.filter(created_at__lt=timezone.now() - RETENTION).delete()
+    return deleted

@@ -7,6 +7,13 @@ import { toast } from "sonner";
 import { ApplicationWorkSample, JobApplication, WorkSampleRubricCriterion } from "@/app/common/types";
 import { reviewApplicationWorkSample, WorkSampleReviewDecision } from "@/app/common/services/jobs";
 
+const scanMessages: Record<ApplicationWorkSample["scan_status"], string> = {
+  PENDING: "Scanning for malware – download will unlock when the scan finishes.",
+  CLEAN: "",
+  INFECTED: "Blocked: malware was detected and the file was removed. Do not accept; decline this sample.",
+  ERROR: "The malware scan could not be completed. The file stays locked until it is rescanned.",
+};
+
 const reviewable = new Set<ApplicationWorkSample["status"]>(["SUBMITTED", "NEEDS_REVIEW"]);
 
 type ReviewDraft = {
@@ -77,7 +84,9 @@ const WorkSampleReviewQueue = ({ initialApplications }: { initialApplications: J
         const updateDraft = (change: Partial<ReviewDraft>) => setDrafts(current => ({ ...current, [String(sample.id)]: { ...draft, ...change } }));
         return <div key={sample.id} className='mt-4 rounded-xl border border-[#EAECF0] p-4'>
           <div className='flex flex-wrap items-start justify-between gap-3'>
-            <div><p className='font-medium text-primary-black'>{sample.original_filename}</p><a className='mt-2 inline-flex items-center gap-1 text-sm text-primary underline' href={`/api/work-samples/${application.id}/${sample.id}`}><FileDown className='h-4 w-4' /> Download private sample</a></div>
+            <div><p className='font-medium text-primary-black'>{sample.original_filename}</p>{sample.scan_status === 'CLEAN'
+              ? <a className='mt-2 inline-flex items-center gap-1 text-sm text-primary underline' href={`/api/work-samples/${application.id}/${sample.id}`}><FileDown className='h-4 w-4' /> Download private sample</a>
+              : <p className={`mt-2 text-sm ${sample.scan_status === 'INFECTED' ? 'font-medium text-red-600' : 'text-secondary-black'}`}>{scanMessages[sample.scan_status] || scanMessages.PENDING}</p>}</div>
             <select value={draft.status || ""} onChange={event => updateDraft({ status: event.target.value as WorkSampleReviewDecision })} className='h-10 rounded-lg border border-[#D0D5DD] px-3 text-sm'><option value=''>Decision</option><option value='PASS'>Accept</option><option value='NEEDS_REVIEW'>Request changes</option><option value='FAIL'>Do not accept</option></select>
           </div>
           {!!criteria.length && <div className='mt-4 rounded-lg bg-[#F9FAFB] p-3'>

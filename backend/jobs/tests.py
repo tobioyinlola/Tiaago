@@ -10,7 +10,7 @@ import json
 from datetime import date, timedelta
 from unittest.mock import patch
 
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.utils import timezone
 
@@ -115,6 +115,48 @@ class AIInterviewPassMarkGateTests(TestCase):
             self.application.eligibility_checks.get().status,
             ApplicationEligibilityCheck.Status.NEEDS_REVIEW,
         )
+        invite.assert_not_called()
+
+    def test_held_ai_progression_is_recorded_and_released_when_review_clears(self):
+        from jobs.models import HeldTransition
+        from jobs.transitions import retry_hold
+
+        self.job.eligibility_requirements = [
+            {"code": "right-to-work", "label": "Right to work", "description": "x", "required": True}
+        ]
+        self.job.save(update_fields=["eligibility_requirements"])
+        self._run(85)
+        hold = HeldTransition.objects.get(application=self.application)
+        self.assertEqual(hold.source, "ai_interview")
+        self.assertEqual(hold.status, HeldTransition.Status.OPEN)
+        self.assertEqual(retry_hold(hold), "blocked")
+
+        self.application.eligibility_checks.update(
+            status=ApplicationEligibilityCheck.Status.PASS, reviewed_at=timezone.now()
+        )
+        with patch("jobs.tasks.send_interview_slot_invite.delay") as invite, self.captureOnCommitCallbacks(execute=True):
+            self.assertEqual(retry_hold(hold), "resolved")
+        self.application.refresh_from_db()
+        self.assertEqual(self.application.status, JobApplication.JobApplicationStatus.INTERVIEW_SCHEDULED)
+        invite.assert_called_once_with(self.application.id)
+
+    def test_ai_result_respects_a_workflow_without_an_interview_stage(self):
+        from jobs.models import HeldTransition
+
+        self.job.hiring_engine = Job.HiringEngine.CONFIGURABLE
+        self.job.workflow_configuration = {"version": 1, "stages": ["application", "screen", "decision"]}
+        self.job.save(update_fields=["hiring_engine", "workflow_configuration"])
+        invite = self._run(90)
+        self.assertEqual(self.application.status, JobApplication.JobApplicationStatus.AI_INTERVIEW)
+        invite.assert_not_called()
+        self.assertTrue(HeldTransition.objects.filter(application=self.application, source="ai_interview").exists())
+
+    def test_late_ai_result_does_not_overwrite_a_closed_application(self):
+        JobApplication.objects.filter(id=self.application.id).update(
+            status=JobApplication.JobApplicationStatus.REJECTED
+        )
+        invite = self._run(95)
+        self.assertEqual(self.application.status, JobApplication.JobApplicationStatus.REJECTED)
         invite.assert_not_called()
 
     def test_below_the_mark_holds_for_recruiter_review(self):
@@ -672,9 +714,16 @@ class EligibilityReviewFoundationTests(TestCase):
         return Job.objects.get(public_id=response.data["public_id"])
 
     def _apply_as_guest(self, job, *, email, declarations, work_sample=None, scenario_response=None):
-        with patch("jobs.views.emails.application_received_mail"), patch(
-            "jobs.views.carry_out_resume_analysis.delay"
-        ):
+        from jobs.tasks import scan_application_work_sample
+
+        # Scanning is fail-closed in production; tests run the scan task
+        # inline with the explicit "disabled" backend so uploads clear.
+        with self.settings(MALWARE_SCAN_BACKEND="disabled"), patch(
+            "jobs.tasks.scan_application_work_sample.delay",
+            side_effect=lambda sample_id: scan_application_work_sample(sample_id),
+        ), self.captureOnCommitCallbacks(execute=True), patch(
+            "jobs.views.emails.application_received_mail"
+        ), patch("jobs.views.carry_out_resume_analysis.delay"):
             payload = {
                 "full_name": "Eligible Driver",
                 "email": email,
@@ -1290,12 +1339,21 @@ class PracticalAssessmentFoundationTests(TestCase):
         self.assertIsNone(response.data["weighted_score"])
 
         retry_slot = self._create_slot(job, timezone.now() + timedelta(days=3))
+        # A critical safety failure needs a documented decision to retest.
         response = self.client.post(
             f"/api/jobs/job-applications/{application.id}/practical-assessments/",
             {"slot_id": retry_slot["id"]},
             format="json",
         )
+        self.assertEqual(response.status_code, 400, response.data)
+        self.assertIn("critical safety failure", str(response.data))
+        response = self.client.post(
+            f"/api/jobs/job-applications/{application.id}/practical-assessments/",
+            {"slot_id": retry_slot["id"], "override_reason": "Safety retraining completed."},
+            format="json",
+        )
         self.assertEqual(response.status_code, 201, response.data)
+        self.assertEqual(response.data["policy_override_reason"], "Safety retraining completed.")
         retry_id = response.data["id"]
         self.assertEqual(response.data["attempt_number"], 2)
 
@@ -1479,3 +1537,1175 @@ class ReadinessFoundationTests(TestCase):
         self.assertEqual(application.status, JobApplication.JobApplicationStatus.OFFER_ACCEPTED)
         self.assertEqual(application.readiness_status, JobApplication.ReadinessStatus.CHECKS_OUTSTANDING)
         self.assertEqual(current_workflow_stage(application), "readiness")
+
+
+
+class WorkSampleMalwareScanTests(TestCase):
+    """Uploads are untrusted until scanned; the gate must fail closed."""
+
+    # Reuse the profile/job/client fixtures without re-running that suite.
+    setUp = EligibilityReviewFoundationTests.setUp
+    _job_data = EligibilityReviewFoundationTests._job_data
+    _publish_job = EligibilityReviewFoundationTests._publish_job
+
+    def _sample_job(self):
+        job = self._publish_job()
+        job.work_sample_configuration = {
+            "enabled": True, "required": False,
+            "prompt": "Upload a redacted route plan.", "instructions": "CSV only.",
+        }
+        job.save(update_fields=["work_sample_configuration"])
+        return job
+
+    def _apply_unscanned(self, job, email, upload):
+        with patch("jobs.tasks.scan_application_work_sample.delay"), self.captureOnCommitCallbacks(execute=True), patch(
+            "jobs.views.emails.application_received_mail"
+        ), patch("jobs.views.carry_out_resume_analysis.delay"):
+            response = self.client.post(
+                f"/api/jobs/apply/{job.apply_token}/guest/",
+                {
+                    "full_name": "Eligible Driver", "email": email,
+                    "phone_number": "+2348000000000",
+                    "additional_info": "Three years of last-mile delivery experience.",
+                    "eligibility_declarations": json.dumps({"right-to-work": True, "driving-licence": True}),
+                    "terms_accepted": True, "work_sample": upload,
+                },
+                format="multipart",
+            )
+        return response
+
+    def _csv(self):
+        return SimpleUploadedFile("route-plan.csv", b"route,minutes\nA,20\n", content_type="text/csv")
+
+    def test_unscanned_sample_is_blocked_from_download_and_acceptance(self):
+        job = self._sample_job()
+        response = self._apply_unscanned(job, "pending-scan@example.com", self._csv())
+        self.assertEqual(response.status_code, 201, response.data)
+        application = JobApplication.objects.get(id=response.data["id"])
+        sample = application.work_samples.get()
+        self.assertEqual(sample.scan_status, "PENDING")
+
+        base = f"/api/jobs/job-applications/{application.id}/work-samples/{sample.id}/"
+        self.assertEqual(self.client.get(base + "download/").status_code, 409)
+        accepted = self.client.patch(
+            base, {"status": "PASS", "reviewer_reason": "Looks fine."}, format="json"
+        )
+        self.assertEqual(accepted.status_code, 400, accepted.data)
+        self.assertIn("malware scan", str(accepted.data))
+
+    def test_clean_verdict_unlocks_download(self):
+        from jobs.tasks import scan_application_work_sample
+
+        job = self._sample_job()
+        application = JobApplication.objects.get(
+            id=self._apply_unscanned(job, "clean@example.com", self._csv()).data["id"]
+        )
+        sample = application.work_samples.get()
+        with patch("jobs.malware.scan_stream", return_value=("CLEAN", "")):
+            scan_application_work_sample(sample.id)
+        sample.refresh_from_db()
+        self.assertEqual(sample.scan_status, "CLEAN")
+        response = self.client.get(
+            f"/api/jobs/job-applications/{application.id}/work-samples/{sample.id}/download/"
+        )
+        self.assertEqual(response.status_code, 200)
+
+    def test_infected_sample_is_quarantined_and_file_removed(self):
+        from jobs.tasks import scan_application_work_sample
+
+        job = self._sample_job()
+        application = JobApplication.objects.get(
+            id=self._apply_unscanned(job, "bad@example.com", self._csv()).data["id"]
+        )
+        sample = application.work_samples.get()
+        stored = sample.file.name
+        with patch("jobs.malware.scan_stream", return_value=("INFECTED", "Eicar-Test-Signature")):
+            scan_application_work_sample(sample.id)
+        sample.refresh_from_db()
+        self.assertEqual(sample.scan_status, "INFECTED")
+        self.assertFalse(sample.file)
+        self.assertFalse(sample.file.storage.exists(stored))
+        response = self.client.get(
+            f"/api/jobs/job-applications/{application.id}/work-samples/{sample.id}/download/"
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_scanner_outage_retries_then_errors_but_never_clears(self):
+        from jobs.malware import ScannerUnavailable
+        from jobs.tasks import WORK_SAMPLE_MAX_SCAN_ATTEMPTS, scan_application_work_sample
+
+        job = self._sample_job()
+        application = JobApplication.objects.get(
+            id=self._apply_unscanned(job, "outage@example.com", self._csv()).data["id"]
+        )
+        sample = application.work_samples.get()
+        with patch("jobs.malware.scan_stream", side_effect=ScannerUnavailable("down")):
+            scan_application_work_sample(sample.id)
+            sample.refresh_from_db()
+            self.assertEqual(sample.scan_status, "PENDING")
+            for _ in range(WORK_SAMPLE_MAX_SCAN_ATTEMPTS):
+                scan_application_work_sample(sample.id)
+        sample.refresh_from_db()
+        self.assertEqual(sample.scan_status, "ERROR")
+
+    def test_sweeper_requeues_stale_pending_samples(self):
+        from jobs.models import ApplicationWorkSample
+        from jobs.tasks import sweep_unscanned_work_samples
+
+        job = self._sample_job()
+        application = JobApplication.objects.get(
+            id=self._apply_unscanned(job, "sweep@example.com", self._csv()).data["id"]
+        )
+        sample = application.work_samples.get()
+        ApplicationWorkSample.objects.filter(id=sample.id).update(
+            updated_at=timezone.now() - timedelta(minutes=10)
+        )
+        with patch("jobs.tasks.scan_application_work_sample.delay") as delay:
+            self.assertEqual(sweep_unscanned_work_samples(), 1)
+        delay.assert_called_once_with(sample.id)
+
+    def test_mislabelled_and_macro_uploads_are_rejected(self):
+        import io
+        import zipfile
+
+        job = self._sample_job()
+        fake_pdf = SimpleUploadedFile("plan.pdf", b"MZ\x90\x00 not a pdf", content_type="application/pdf")
+        response = self._apply_unscanned(job, "fake@example.com", fake_pdf)
+        self.assertEqual(response.status_code, 400, response.data)
+
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, "w") as archive:
+            archive.writestr("[Content_Types].xml", "<x/>")
+            archive.writestr("word/vbaProject.bin", b"macro")
+        macro_doc = SimpleUploadedFile("plan.docx", buffer.getvalue(), content_type="application/octet-stream")
+        response = self._apply_unscanned(job, "macro@example.com", macro_doc)
+        self.assertEqual(response.status_code, 400, response.data)
+
+    def test_clamd_instream_protocol_parses_verdicts(self):
+        import io
+        from jobs import malware
+
+        class FakeSocket:
+            def __init__(self, reply):
+                self.reply, self.sent = reply, b""
+            def __enter__(self): return self
+            def __exit__(self, *a): return False
+            def settimeout(self, t): pass
+            def sendall(self, data): self.sent += data
+            def recv(self, n):
+                reply, self.reply = self.reply, b""
+                return reply
+
+        for reply, expected in (
+            (b"stream: OK\0", ("CLEAN", "")),
+            (b"stream: Eicar-Test-Signature FOUND\0", ("INFECTED", "Eicar-Test-Signature")),
+        ):
+            sock = FakeSocket(reply)
+            with patch("jobs.malware.socket.create_connection", return_value=sock):
+                self.assertEqual(malware._clamd_scan(io.BytesIO(b"abc")), expected)
+            self.assertTrue(sock.sent.startswith(b"zINSTREAM\0"))
+            self.assertTrue(sock.sent.endswith(b"\x00\x00\x00\x00"))
+        with patch("jobs.malware.socket.create_connection", side_effect=OSError("refused")):
+            with self.assertRaises(malware.ScannerUnavailable):
+                malware._clamd_scan(io.BytesIO(b"abc"))
+
+
+class PracticalBookingPolicyTests(TestCase):
+    """Self-booking, attempt limits, retest waits, no-shows and late cancels."""
+
+    setUp = PracticalAssessmentFoundationTests.setUp
+    _publish_practical_job = PracticalAssessmentFoundationTests._publish_practical_job
+    _application = PracticalAssessmentFoundationTests._application
+    _create_slot = PracticalAssessmentFoundationTests._create_slot
+
+    def _job(self, **policy):
+        job = self._publish_practical_job()
+        configuration = job.get_practical_assessment_configuration()
+        configuration["policy"] = {"self_booking": True, **policy}
+        job.practical_assessment_configuration = configuration
+        job.save(update_fields=["practical_assessment_configuration"])
+        return job
+
+    def _link(self, application):
+        response = self.client.post(f"/api/jobs/job-applications/{application.id}/practical-booking-link/")
+        self.assertEqual(response.status_code, 200, response.data)
+        return response.data["token"]
+
+    def _guest(self):
+        from rest_framework.test import APIClient
+
+        return APIClient()  # unauthenticated: a guest holding only the signed link
+
+    def _clear_eligibility(self, application):
+        application.eligibility_checks.update(status="PASS", reviewed_at=timezone.now())
+
+    def test_policy_is_validated_and_link_requires_self_booking(self):
+        job = self._publish_practical_job()
+        application = self._application(job, "no-selfbook@example.com")
+        response = self.client.post(f"/api/jobs/job-applications/{application.id}/practical-booking-link/")
+        self.assertEqual(response.status_code, 400, response.data)
+
+        from jobs.practical import normalise_policy
+        from rest_framework.exceptions import ValidationError
+
+        for bad in ({"max_attempts": 0}, {"retest_wait_days": 400}, {"unknown": 1}, {"self_booking": "yes"}):
+            with self.assertRaises(ValidationError):
+                normalise_policy(bad)
+        self.assertEqual(normalise_policy(None)["max_attempts"], 2)
+
+    def test_guest_books_cancels_and_late_cancel_is_refused(self):
+        job = self._job(cancellation_cutoff_hours=24)
+        application = self._application(job, "guest-book@example.com")
+        token = self._link(application)
+        near = self._create_slot(job, timezone.now() + timedelta(hours=5))
+        far = self._create_slot(job, timezone.now() + timedelta(days=3))
+        guest = self._guest()
+
+        state = guest.get(f"/api/jobs/practical-booking/{token}/")
+        self.assertEqual(state.status_code, 200, state.data)
+        self.assertTrue(state.data["can_book"], state.data)
+        # Only slots beyond the cancellation cutoff are offered for self-booking.
+        self.assertEqual([slot["id"] for slot in state.data["slots"]], [far["id"]])
+
+        refused = guest.post(f"/api/jobs/practical-booking/{token}/slots/{near['id']}/book/")
+        self.assertEqual(refused.status_code, 400, refused.data)
+        booked = guest.post(f"/api/jobs/practical-booking/{token}/slots/{far['id']}/book/")
+        self.assertEqual(booked.status_code, 201, booked.data)
+        self.assertEqual(booked.data["booked_by"], "CANDIDATE")
+        # One active appointment at a time.
+        again = guest.post(f"/api/jobs/practical-booking/{token}/slots/{far['id']}/book/")
+        self.assertEqual(again.status_code, 400, again.data)
+
+        cancelled = guest.post(f"/api/jobs/practical-booking/{token}/cancel/", {"reason": "Illness"}, format="json")
+        self.assertEqual(cancelled.status_code, 200, cancelled.data)
+        self.assertEqual(cancelled.data["status"], "CANCELLED")
+        self.assertEqual(cancelled.data["status_changed_by"], "CANDIDATE")
+
+        # Late cancellation: move the booked slot inside the cutoff.
+        rebooked = guest.post(f"/api/jobs/practical-booking/{token}/slots/{far['id']}/book/")
+        self.assertEqual(rebooked.status_code, 201, rebooked.data)
+        ApplicationPracticalAssessment.objects.filter(id=rebooked.data["id"]).update()
+        from jobs.models import JobPracticalAssessmentSlot
+
+        JobPracticalAssessmentSlot.objects.filter(id=far["id"]).update(starts_at=timezone.now() + timedelta(hours=2))
+        late = guest.post(f"/api/jobs/practical-booking/{token}/cancel/")
+        self.assertEqual(late.status_code, 400, late.data)
+        self.assertIn("too late", str(late.data))
+
+    def test_booking_cancel_and_no_show_queue_durable_messages(self):
+        from jobs.models import ApplicationNotification as N, JobPracticalAssessmentSlot
+
+        job = self._job()
+        application = self._application(job, "notify@example.com")
+        slot = self._create_slot(job, timezone.now() + timedelta(days=3))
+        with patch("jobs.tasks.deliver_application_notification.delay"), self.captureOnCommitCallbacks(execute=True):
+            booked = self.client.post(
+                f"/api/jobs/job-applications/{application.id}/practical-assessments/", {"slot_id": slot["id"]}, format="json"
+            )
+            self.assertEqual(booked.status_code, 201, booked.data)
+            link = self.client.post(f"/api/jobs/job-applications/{application.id}/practical-booking-link/")
+            self.assertEqual(link.data["notification_status"], "PENDING")
+            url = f"/api/jobs/job-applications/{application.id}/practical-assessments/{booked.data['id']}/attendance/"
+            JobPracticalAssessmentSlot.objects.filter(id=slot["id"]).update(
+                starts_at=timezone.now() - timedelta(hours=2), ends_at=timezone.now() - timedelta(hours=1)
+            )
+            self.assertEqual(self.client.patch(url, {"status": "NO_SHOW"}, format="json").status_code, 200)
+        kinds = set(N.objects.filter(application=application).values_list("kind", flat=True))
+        self.assertEqual(kinds, {"practical_booked", "practical_booking_invite", "practical_no_show"})
+
+    def test_invalid_or_foreign_token_is_rejected(self):
+        job = self._job()
+        application = self._application(job, "tok@example.com")
+        guest = self._guest()
+        self.assertEqual(guest.get("/api/jobs/practical-booking/not-a-token/").status_code, 403)
+        self.assertEqual(guest.get(f"/api/jobs/job-applications/{application.id}/practical-booking/").status_code, 403)
+
+    def test_attempt_limit_no_show_and_retest_wait(self):
+        job = self._job(max_attempts=2, retest_wait_days=3, no_show_counts_as_attempt=True)
+        application = self._application(job, "noshow@example.com")
+        token = self._link(application)
+        guest = self._guest()
+        slot_one = self._create_slot(job, timezone.now() + timedelta(days=3))
+        booked = guest.post(f"/api/jobs/practical-booking/{token}/slots/{slot_one['id']}/book/")
+        self.assertEqual(booked.status_code, 201, booked.data)
+        appointment_id = booked.data["id"]
+
+        # A no-show cannot be recorded before the appointment starts.
+        url = f"/api/jobs/job-applications/{application.id}/practical-assessments/{appointment_id}/attendance/"
+        early = self.client.patch(url, {"status": "NO_SHOW", "reason": "x"}, format="json")
+        self.assertEqual(early.status_code, 400, early.data)
+
+        from jobs.models import JobPracticalAssessmentSlot
+
+        JobPracticalAssessmentSlot.objects.filter(id=slot_one["id"]).update(
+            starts_at=timezone.now() - timedelta(hours=2), ends_at=timezone.now() - timedelta(hours=1)
+        )
+        marked = self.client.patch(url, {"status": "NO_SHOW", "reason": "Did not arrive"}, format="json")
+        self.assertEqual(marked.status_code, 200, marked.data)
+        self.assertEqual(marked.data["status"], "NO_SHOW")
+        # Candidates cannot record attendance.
+        self.assertEqual(guest.patch(url, {"status": "NO_SHOW"}, format="json").status_code, 401)
+
+        slot_two = self._create_slot(job, timezone.now() + timedelta(days=5))
+        waiting = guest.get(f"/api/jobs/practical-booking/{token}/")
+        self.assertFalse(waiting.data["can_book"])
+        self.assertIn("wait", waiting.data["blocked_reason"])
+        self.assertEqual(
+            guest.post(f"/api/jobs/practical-booking/{token}/slots/{slot_two['id']}/book/").status_code, 400
+        )
+
+        # Once the wait has passed the no-show counts as attempt 1 of 2 and a retest opens.
+        JobPracticalAssessmentSlot.objects.filter(id=slot_one["id"]).update(
+            ends_at=timezone.now() - timedelta(days=4)
+        )
+        retest = guest.post(f"/api/jobs/practical-booking/{token}/slots/{slot_two['id']}/book/")
+        self.assertEqual(retest.status_code, 201, retest.data)
+        self.assertEqual(retest.data["attempt_number"], 2)
+
+        # Fail attempt 2: the limit is used up; self-booking stays closed.
+        complete = self.client.patch(
+            f"/api/jobs/job-applications/{application.id}/practical-assessments/{retest.data['id']}/",
+            {"outcome": "FAIL", "observations": "Did not meet the standard.", "scores": {"criterion-1": 1, "criterion-2": 1}},
+            format="json",
+        )
+        self.assertEqual(complete.status_code, 200, complete.data)
+        ApplicationPracticalAssessment.objects.filter(id=retest.data["id"]).update(
+            completed_at=timezone.now() - timedelta(days=10)
+        )
+        slot_three = self._create_slot(job, timezone.now() + timedelta(days=9))
+        state = guest.get(f"/api/jobs/practical-booking/{token}/")
+        self.assertFalse(state.data["can_book"])
+        self.assertIn("maximum of 2", state.data["blocked_reason"])
+        # The hiring team can exceed the limit only with a recorded reason.
+        no_reason = self.client.post(
+            f"/api/jobs/job-applications/{application.id}/practical-assessments/",
+            {"slot_id": slot_three["id"]},
+            format="json",
+        )
+        self.assertEqual(no_reason.status_code, 400, no_reason.data)
+        overridden = self.client.post(
+            f"/api/jobs/job-applications/{application.id}/practical-assessments/",
+            {"slot_id": slot_three["id"], "override_reason": "Manager approved a third attempt."},
+            format="json",
+        )
+        self.assertEqual(overridden.status_code, 201, overridden.data)
+        self.assertEqual(overridden.data["attempt_number"], 3)
+
+    def test_no_show_can_be_excluded_from_attempts(self):
+        job = self._job(max_attempts=1, no_show_counts_as_attempt=False)
+        application = self._application(job, "free-noshow@example.com")
+        slot = self._create_slot(job, timezone.now() + timedelta(days=3))
+        booked = self.client.post(
+            f"/api/jobs/job-applications/{application.id}/practical-assessments/",
+            {"slot_id": slot["id"]}, format="json",
+        )
+        from jobs.models import JobPracticalAssessmentSlot
+
+        JobPracticalAssessmentSlot.objects.filter(id=slot["id"]).update(
+            starts_at=timezone.now() - timedelta(hours=2), ends_at=timezone.now() - timedelta(hours=1)
+        )
+        self.client.patch(
+            f"/api/jobs/job-applications/{application.id}/practical-assessments/{booked.data['id']}/attendance/",
+            {"status": "NO_SHOW"}, format="json",
+        )
+        from jobs.practical import booking_block
+
+        application.refresh_from_db()
+        self.assertEqual(booking_block(application, candidate_facing=True), ("", False))
+
+    def test_account_holder_can_book_only_their_own_application(self):
+        job = self._job()
+        talent_user = CustomUser.objects.create_talent_user(
+            username="own-talent", email="own-talent@example.com", password="x"
+        )
+        profile = TalentProfile.objects.create(user=talent_user, full_name="Own Talent")
+        application = self._application(job, "owned@example.com")
+        JobApplication.objects.filter(id=application.id).update(applicant=profile)
+        slot = self._create_slot(job, timezone.now() + timedelta(days=4))
+
+        from rest_framework.test import APIClient
+
+        owner = APIClient()
+        owner.force_authenticate(user=talent_user)
+        response = owner.post(f"/api/jobs/job-applications/{application.id}/practical-booking/slots/{slot['id']}/book/")
+        self.assertEqual(response.status_code, 201, response.data)
+
+        stranger_user = CustomUser.objects.create_talent_user(
+            username="stranger", email="stranger@example.com", password="x"
+        )
+        stranger = APIClient()
+        stranger.force_authenticate(user=stranger_user)
+        self.assertEqual(
+            stranger.get(f"/api/jobs/job-applications/{application.id}/practical-booking/").status_code, 403
+        )
+
+
+class DurableNotificationAndRecoveryTests(TestCase):
+    """Failed messages are retried and surfaced; held progressions are released."""
+
+    setUp = EligibilityReviewFoundationTests.setUp
+    _job_data = EligibilityReviewFoundationTests._job_data
+    _publish_job = EligibilityReviewFoundationTests._publish_job
+    _apply_as_guest = EligibilityReviewFoundationTests._apply_as_guest
+
+    def _application(self, email="recover@example.com"):
+        job = self._publish_job()
+        return self._apply_as_guest(
+            job, email=email, declarations={"right-to-work": True, "driving-licence": True}
+        )
+
+    def test_delivery_retries_with_backoff_then_dies_and_can_be_retried(self):
+        from jobs.models import ApplicationNotification as N
+        from jobs.notifications import HANDLERS, MAX_ATTEMPTS, deliver, queue_notification, retry_dead
+
+        application = self._application()
+        with patch("jobs.tasks.deliver_application_notification.delay"):
+            notification = queue_notification(application, "manual_rejection", dedupe_key="t:1", payload={"reason": "x"})
+            # Idempotent on the dedupe key.
+            self.assertEqual(queue_notification(application, "manual_rejection", dedupe_key="t:1").id, notification.id)
+        self.assertEqual(N.objects.filter(application=application, kind="manual_rejection").count(), 1)
+
+        calls = {"n": 0}
+
+        def flaky(app, payload):
+            calls["n"] += 1
+            raise RuntimeError("smtp down")
+
+        with patch.dict(HANDLERS, {"manual_rejection": flaky}):
+            first = deliver(notification.id)
+            self.assertEqual(first.status, "PENDING")
+            self.assertEqual(first.attempts, 1)
+            self.assertGreater(first.next_attempt_at, timezone.now())
+            for _ in range(MAX_ATTEMPTS):
+                deliver(notification.id)
+        notification.refresh_from_db()
+        self.assertEqual(notification.status, "DEAD")
+        self.assertIn("smtp down", notification.last_error)
+        self.assertEqual(calls["n"], MAX_ATTEMPTS)
+
+        with patch("jobs.tasks.deliver_application_notification.delay"), patch.dict(HANDLERS, {"manual_rejection": lambda a, p: None}):
+            retry_dead(notification)
+            notification.refresh_from_db()
+            self.assertEqual(notification.status, "PENDING")
+            deliver(notification.id)
+        notification.refresh_from_db()
+        self.assertEqual(notification.status, "SENT")
+
+    def test_candidate_without_email_is_skipped_not_retried(self):
+        from jobs.models import ApplicationNotification as N
+        from jobs.notifications import deliver, queue_notification
+
+        application = self._application("phone-only@example.com")
+        JobApplication.objects.filter(id=application.id).update(guest_email="")
+        application.refresh_from_db()
+        with patch("jobs.tasks.deliver_application_notification.delay"):
+            notification = queue_notification(application, "practical_booked", dedupe_key="t:phone", payload={})
+        deliver(notification.id)
+        notification.refresh_from_db()
+        self.assertEqual(notification.status, N.Status.SKIPPED)
+        self.assertIn("phone", notification.last_error)
+
+    def test_held_transition_is_recorded_released_and_not_duplicated(self):
+        from jobs.models import HeldTransition
+        from jobs.tasks import retry_held_transitions
+        from jobs.transitions import record_held_transition
+
+        application = self._application("held@example.com")
+        hold = record_held_transition(
+            application, source="resume_screening", target_status="REVIEWED", reason="Eligibility review pending",
+        )
+        again = record_held_transition(
+            application, source="resume_screening", target_status="REVIEWED", reason="Still pending",
+        )
+        self.assertEqual(hold.id, again.id)
+        self.assertEqual(HeldTransition.objects.filter(application=application).count(), 1)
+
+        # Still blocked: eligibility not reviewed.
+        with patch("jobs.tasks.send_assessment_link.apply_async"):
+            self.assertEqual(retry_held_transitions(), 0)
+        application.refresh_from_db()
+        self.assertEqual(application.status, "APPLIED")
+
+        application.eligibility_checks.update(status="PASS", reviewed_at=timezone.now())
+        with patch("jobs.tasks.send_assessment_link.apply_async") as invite, self.captureOnCommitCallbacks(execute=True):
+            self.assertEqual(retry_held_transitions(), 1)
+        application.refresh_from_db()
+        hold.refresh_from_db()
+        self.assertEqual(application.status, "REVIEWED")
+        self.assertEqual(hold.status, "RESOLVED")
+        invite.assert_called_once()
+
+    def test_hold_is_superseded_when_application_already_moved(self):
+        from jobs.transitions import record_held_transition, retry_hold
+
+        application = self._application("moved@example.com")
+        hold = record_held_transition(application, source="assessment", target_status="INTERVIEW_SCHEDULED", reason="x")
+        JobApplication.objects.filter(id=application.id).update(status="REJECTED")
+        self.assertEqual(retry_hold(hold), "superseded")
+        application.refresh_from_db()
+        self.assertEqual(application.status, "REJECTED")
+
+    def test_recovery_queue_lists_scopes_and_acts(self):
+        from jobs.models import ApplicationNotification as N, HeldTransition
+        from jobs.transitions import record_held_transition
+
+        application = self._application("queue@example.com")
+        hold = record_held_transition(application, source="resume_screening", target_status="REVIEWED", reason="Awaiting review")
+        dead = N.objects.create(application=application, kind="practical_booked", dedupe_key="q:1", status=N.Status.DEAD, last_error="boom")
+
+        response = self.client.get("/api/jobs/recovery-queue/")
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual([item["id"] for item in response.data["holds"]], [hold.id])
+        self.assertEqual([item["id"] for item in response.data["notifications"]], [dead.id])
+
+        # Another company's rep sees nothing and cannot act.
+        from rest_framework.test import APIClient
+
+        other_rep = CustomUser.objects.create_company_user(username="other-rep", email="other-rep@example.com", password="x")
+        other_rep.verified = True
+        other_rep.save(update_fields=["verified"])
+        Company.objects.create(company_name="Other Co", company_rep=other_rep)
+        other = APIClient()
+        other.force_authenticate(user=other_rep)
+        self.assertEqual(other.get("/api/jobs/recovery-queue/").data["holds"], [])
+        self.assertEqual(other.post(f"/api/jobs/recovery-queue/holds/{hold.id}/dismiss/").status_code, 404)
+
+        self.assertEqual(self.client.post(f"/api/jobs/recovery-queue/holds/{hold.id}/retry/").data["result"], "blocked")
+        with patch("jobs.tasks.deliver_application_notification.delay"), self.captureOnCommitCallbacks(execute=True):
+            self.assertEqual(self.client.post(f"/api/jobs/recovery-queue/notifications/{dead.id}/retry/").data["result"], "queued")
+        dead.refresh_from_db()
+        self.assertEqual(dead.status, "PENDING")
+        self.assertEqual(self.client.post(f"/api/jobs/recovery-queue/holds/{hold.id}/dismiss/", {"note": "handled by phone"}, format="json").data["result"], "dismissed")
+        self.assertEqual(HeldTransition.objects.get(id=hold.id).status, "DISMISSED")
+
+
+class SignedInAndAssistedIntakeTests(TestCase):
+    """Every entry route enforces the same published journey (UPG-04)."""
+
+    setUp = EligibilityReviewFoundationTests.setUp
+    _job_data = EligibilityReviewFoundationTests._job_data
+    _publish_job = EligibilityReviewFoundationTests._publish_job
+
+    def _talent_client(self, name="signed-in", *, resume=False, linkedin=""):
+        from rest_framework.test import APIClient
+
+        user = CustomUser.objects.create_talent_user(
+            username=name, email=f"{name}@example.com", password="x"
+        )
+        user.is_verified = True
+        user.save(update_fields=["is_verified"])
+        profile = TalentProfile.objects.create(user=user, full_name=name.title(), linkedin_url=linkedin)
+        client = APIClient()
+        client.force_authenticate(user=user)
+        return client, profile
+
+    def _job(self, *, assisted=False, **overrides):
+        job = self._publish_job(**overrides)
+        configuration = job.get_application_configuration()
+        configuration["intake"] = {"assisted": assisted}
+        job.application_configuration = configuration
+        job.save(update_fields=["application_configuration"])
+        return job
+
+    def _declarations(self):
+        return json.dumps({"right-to-work": True, "driving-licence": True})
+
+    # ---------------- signed-in parity
+
+    def test_signed_in_application_enforces_extra_answer_and_records_eligibility(self):
+        job = self._publish_job()
+        configuration = job.get_application_configuration()
+        configuration["additional_info"]["required"] = True
+        job.application_configuration = configuration
+        job.save(update_fields=["application_configuration"])
+        client, profile = self._talent_client("parity")
+
+        missing = client.post(f"/api/jobs/apply/{job.apply_token}/apply/", {"eligibility_declarations": self._declarations()}, format="multipart")
+        self.assertEqual(missing.status_code, 400, missing.data)
+        self.assertIn("additional_info", str(missing.data))
+
+        with patch("jobs.views.carry_out_resume_analysis.delay"):
+            ok = client.post(
+                f"/api/jobs/apply/{job.apply_token}/apply/",
+                {"additional_info": "Three years delivering.", "eligibility_declarations": self._declarations()},
+                format="multipart",
+            )
+        self.assertEqual(ok.status_code, 201, ok.data)
+        application = JobApplication.objects.get(applicant=profile, job=job)
+        self.assertEqual(application.additional_info, "Three years delivering.")
+        self.assertEqual(application.eligibility_checks.count(), 2)  # declarations are not dropped
+
+    def test_signed_in_application_requires_published_work_sample_and_scenario(self):
+        job = self._publish_job()
+        job.work_sample_configuration = {"enabled": True, "required": True, "prompt": "Upload a plan.", "instructions": ""}
+        job.scenario_configuration = {"enabled": True, "required": True, "prompt": "What would you do?", "instructions": "", "response_label": "Answer"}
+        job.save(update_fields=["work_sample_configuration", "scenario_configuration"])
+        client, profile = self._talent_client("journey")
+        base = {"additional_info": "Experienced.", "eligibility_declarations": self._declarations()}
+
+        response = client.post(f"/api/jobs/apply/{job.apply_token}/apply/", base, format="multipart")
+        self.assertEqual(response.status_code, 400, response.data)
+        self.assertIn("work_sample", str(response.data))
+
+        sample = SimpleUploadedFile("plan.csv", b"a,b\n1,2\n", content_type="text/csv")
+        response = client.post(f"/api/jobs/apply/{job.apply_token}/apply/", {**base, "work_sample": sample}, format="multipart")
+        self.assertEqual(response.status_code, 400, response.data)
+        self.assertIn("scenario_response", str(response.data))
+
+        sample = SimpleUploadedFile("plan.csv", b"a,b\n1,2\n", content_type="text/csv")
+        with patch("jobs.tasks.scan_application_work_sample.delay"), self.captureOnCommitCallbacks(execute=True), patch(
+            "jobs.views.carry_out_resume_analysis.delay"
+        ):
+            response = client.post(
+                f"/api/jobs/apply/{job.apply_token}/apply/",
+                {**base, "work_sample": sample, "scenario_response_text": "I would call dispatch first."},
+                format="multipart",
+            )
+        self.assertEqual(response.status_code, 201, response.data)
+        application = JobApplication.objects.get(applicant=profile, job=job)
+        self.assertEqual(application.work_samples.get().scan_status, "PENDING")
+        self.assertEqual(application.scenario_response.response, "I would call dispatch first.")
+
+    def test_token_application_route_cannot_sidestep_requirements(self):
+        job = self._publish_job()
+        client, profile = self._talent_client("token-route")
+        # No eligibility declarations / extra answers were possible before; the
+        # token route now runs the same journey validation.
+        response = client.post(f"/api/jobs/apply/{job.apply_token}/apply/", {}, format="multipart")
+        self.assertEqual(response.status_code, 400, response.data)
+        self.assertIn("error", response.data)
+
+        with patch("jobs.views.carry_out_resume_analysis.delay"):
+            response = client.post(
+                f"/api/jobs/apply/{job.apply_token}/apply/",
+                {"additional_info": "Experienced.", "eligibility_declarations": self._declarations()},
+                format="multipart",
+            )
+        self.assertEqual(response.status_code, 201, response.data)
+        application = JobApplication.objects.get(applicant=profile, job=job)
+        self.assertTrue(application.is_external_application)
+        self.assertEqual(application.eligibility_checks.count(), 2)
+
+    # ---------------- assisted / phone intake
+
+    def _assisted(self, client, job, **overrides):
+        data = {
+            "full_name": "Phone Candidate",
+            "phone_number": "+234 801 234 5678",
+            "channel": "PHONE",
+            "consent_confirmed": True,
+            "additional_info": "Ten years driving.",
+            "eligibility_declarations": self._declarations(),
+        }
+        data.update(overrides)
+        with patch("jobs.views.carry_out_resume_analysis.delay"), patch("jobs.views.emails.application_received_mail"):
+            return client.post(f"/api/jobs/{job.public_id}/assisted-applications/", data, format="multipart")
+
+    def test_assisted_intake_is_off_by_default_and_requires_consent_and_role(self):
+        job = self._job(assisted=False)
+        response = self._assisted(self.client, job)
+        self.assertEqual(response.status_code, 400, response.data)
+        self.assertIn("not enabled", str(response.data))
+
+        job = self._job(assisted=True)
+        self.assertEqual(self._assisted(self.client, job, consent_confirmed=False).status_code, 400)
+        self.assertEqual(self._assisted(self.client, job, phone_number="0801234567").status_code, 400)
+        stranger, _profile = self._talent_client("outsider")
+        self.assertEqual(self._assisted(stranger, job).status_code, 403)
+
+    def test_phone_only_candidate_is_recorded_deduped_and_flagged_for_phone_follow_up(self):
+        from jobs.models import ApplicationNotification as N
+
+        job = self._job(assisted=True)
+        response = self._assisted(self.client, job)
+        self.assertEqual(response.status_code, 201, response.data)
+        application = JobApplication.objects.get(job=job)
+        self.assertEqual(application.guest_phone_number, "+2348012345678")
+        self.assertEqual(application.guest_email, "")
+        self.assertEqual(application.intake_channel, "PHONE")
+        self.assertEqual(application.intake_by_id, self.rep.id)
+        self.assertIsNotNone(application.intake_consent_at)
+        self.assertEqual(application.eligibility_checks.count(), 2)
+
+        with self.captureOnCommitCallbacks(execute=True):
+            pass
+        note = N.objects.get(application=application, kind="contact_by_phone")
+        from jobs.notifications import deliver
+
+        with patch("jobs.tasks.deliver_application_notification.delay"):
+            deliver(note.id)
+        note.refresh_from_db()
+        self.assertEqual(note.status, "SKIPPED")
+        queue = self.client.get("/api/jobs/recovery-queue/")
+        self.assertEqual([item["id"] for item in queue.data["notifications"]], [note.id])
+
+        # Same phone again, in a different format: rejected.
+        duplicate = self._assisted(self.client, job, phone_number="+2348012345678")
+        self.assertEqual(duplicate.status_code, 400, duplicate.data)
+        # A second phone-only candidate (blank email) must not collide on email.
+        second = self._assisted(self.client, job, full_name="Second Person", phone_number="+2348099999999")
+        self.assertEqual(second.status_code, 201, second.data)
+
+    def test_assisted_intake_enforces_published_requirements_and_daily_cap(self):
+        job = self._job(assisted=True)
+        job.scenario_configuration = {"enabled": True, "required": True, "prompt": "Scenario?", "instructions": "", "response_label": "Answer"}
+        job.save(update_fields=["scenario_configuration"])
+        response = self._assisted(self.client, job)
+        self.assertEqual(response.status_code, 400, response.data)
+        self.assertIn("scenario_response", str(response.data))
+
+        job.scenario_configuration = {}
+        job.save(update_fields=["scenario_configuration"])
+        with self.settings(ASSISTED_INTAKE_DAILY_LIMIT=1):
+            self.assertEqual(self._assisted(self.client, job).status_code, 201)
+            capped = self._assisted(self.client, job, full_name="Another", phone_number="+2348077777777")
+            self.assertEqual(capped.status_code, 400, capped.data)
+            self.assertIn("limit", str(capped.data))
+
+    def test_email_dependent_invitations_are_flagged_not_sent_for_phone_only(self):
+        from jobs.models import ApplicationNotification as N
+        from jobs.tasks import send_assessment_link
+
+        job = self._job(assisted=True)
+        self._assisted(self.client, job)
+        application = JobApplication.objects.get(job=job)
+        application.eligibility_checks.update(status="PASS", reviewed_at=timezone.now())
+        with patch("jobs.tasks.deliver_application_notification.delay"):
+            result = send_assessment_link(application.id)
+        self.assertIn("phone follow-up", result)
+        self.assertTrue(N.objects.filter(application=application, dedupe_key__startswith="contact_by_phone:assessment").exists())
+
+
+class TransitionRulesTests(TestCase):
+    """One definition of an allowed move, on every route that changes status."""
+
+    setUp = ReadinessFoundationTests.setUp
+    _application = ReadinessFoundationTests._application
+
+    S = JobApplication.JobApplicationStatus
+
+    def _patch(self, application, status, **extra):
+        with patch("jobs.views.send_assessment_link.apply_async"), patch(
+            "jobs.views.send_interview_slot_invite.delay", create=True
+        ), patch("jobs.tasks.send_interview_slot_invite.delay"), patch("jobs.tasks.send_offer_extended_notice_mail.delay", create=True):
+            return self.client.patch(
+                f"/api/jobs/job-applications/{application.id}/", {"status": status, **extra}, format="json"
+            )
+
+    def test_closed_applications_cannot_be_moved_or_revived(self):
+        for closed in (self.S.REJECTED, self.S.WITHDRAWN, self.S.OFFER_DECLINED):
+            application = self._application(status=closed)
+            response = self._patch(application, self.S.REVIEWED)
+            self.assertEqual(response.status_code, 400, (closed, response.data))
+            self.assertIn("no longer be moved", response.data["detail"])
+            application.refresh_from_db()
+            self.assertEqual(application.status, closed)
+
+    def test_offer_cannot_skip_the_interview_stage(self):
+        application = self._application(status=self.S.REVIEWED)
+        response = self._patch(application, self.S.OFFER_EXTENDED)
+        self.assertEqual(response.status_code, 400, response.data)
+        self.assertIn("after the interview", response.data["detail"])
+
+        interviewed = self._application(status=self.S.HUMAN_INTERVIEW)
+        self.assertEqual(self._patch(interviewed, self.S.OFFER_EXTENDED).status_code, 200)
+
+    def test_stale_expected_status_is_refused_with_409(self):
+        application = self._application(status=self.S.REVIEWED)
+        JobApplication.objects.filter(id=application.id).update(status=self.S.REJECTED)
+        response = self._patch(application, self.S.PENDING_DECISION, expected_status=self.S.REVIEWED)
+        self.assertEqual(response.status_code, 409, response.data)
+        self.assertEqual(response.data["current_status"], self.S.REJECTED)
+
+    def test_acceptance_creates_readiness_atomically(self):
+        from rest_framework.test import APIClient
+
+        application = self._application(status=self.S.OFFER_EXTENDED)
+        talent = APIClient()
+        talent.force_authenticate(user=self.talent_user)
+        response = talent.patch(
+            f"/api/jobs/job-applications/{application.id}/", {"status": "OFFER_ACCEPTED"}, format="json"
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        application.refresh_from_db()
+        self.assertEqual(application.readiness_status, JobApplication.ReadinessStatus.CHECKS_OUTSTANDING)
+
+        # Recruiters cannot accept on a candidate's behalf, and an accepted offer is final.
+        other = self._application(status=self.S.OFFER_EXTENDED)
+        self.assertEqual(self._patch(other, self.S.OFFER_ACCEPTED).status_code, 400)
+        self.assertEqual(self._patch(application, self.S.REVIEWED).status_code, 400)
+
+    def test_automation_never_moves_backwards_and_respects_closed(self):
+        from jobs.transitions import apply_transition
+
+        advanced = self._application(status=self.S.HUMAN_INTERVIEW)
+        result = apply_transition(advanced.id, self.S.INTERVIEW_SCHEDULED, actor="automation")
+        self.assertFalse(result)
+        self.assertIn("backwards", result.detail)
+
+        closed = self._application(status=self.S.REJECTED)
+        self.assertFalse(apply_transition(closed.id, self.S.INTERVIEW_SCHEDULED, actor="automation"))
+
+        stale = self._application(status=self.S.AI_INTERVIEW)
+        result = apply_transition(
+            stale.id, self.S.INTERVIEW_SCHEDULED, actor="automation", expected_status=self.S.REVIEWED
+        )
+        self.assertTrue(result.stale)
+
+    def test_workflow_without_an_interview_stage_blocks_every_automated_route(self):
+        from jobs.models import HeldTransition
+        from jobs.transitions import apply_transition
+
+        application = self._application(status=self.S.REVIEWED)
+        job = application.job
+        job.hiring_engine = Job.HiringEngine.CONFIGURABLE
+        job.workflow_configuration = {"version": 1, "stages": ["application", "screen", "decision"]}
+        job.save(update_fields=["hiring_engine", "workflow_configuration"])
+
+        for target in (self.S.INTERVIEW_SCHEDULED, self.S.AI_INTERVIEW, self.S.PENDING_DECISION, self.S.SECOND_INTERVIEW):
+            result = apply_transition(application.id, target, actor="automation", held_source="assessment")
+            self.assertFalse(result, target)
+            self.assertIn("interview stage", result.detail)
+        application.refresh_from_db()
+        self.assertEqual(application.status, self.S.REVIEWED)
+        self.assertTrue(HeldTransition.objects.filter(application=application).exists())
+
+        # With no interview stage, an offer may follow the screen directly.
+        self.assertTrue(apply_transition(application.id, self.S.OFFER_EXTENDED, actor="recruiter"))
+
+    def test_scheduler_recommendation_cannot_extend_offer_to_a_withdrawn_candidate(self):
+        from jobs.transitions import transition_block
+
+        withdrawn = self._application(status=self.S.WITHDRAWN)
+        self.assertIn("no longer", transition_block(withdrawn, self.S.OFFER_EXTENDED))
+
+    def test_reports_count_only_started_candidates_as_filled(self):
+        from reports.services import compute_role_data
+
+        accepted = self._application(status=self.S.OFFER_ACCEPTED)
+        job = accepted.job
+        today = timezone.now().date()
+
+        def filled():
+            data = compute_role_data(job, today - timedelta(days=30), today + timedelta(days=1))
+            return data["funnel"]["filled"], data["funnel"].get("offers_accepted")
+
+        self.assertEqual(filled()[0], 0)
+        JobApplication.objects.filter(id=accepted.id).update(
+            readiness_status=JobApplication.ReadinessStatus.STARTED
+        )
+        self.assertEqual(filled()[0], 1)
+
+    # ---- route-level: the review/decision endpoints use the same rules
+
+    def _interview(self, application):
+        return Scheduler.objects.create(
+            title="Interview", meeting_date=timezone.now().date(), start_time="10:00", end_time="11:00",
+            talent=self.talent, job_application=application, company=self.company,
+            description="Interview", status=Scheduler.Status.COMPLETED,
+        )
+
+    def _decide(self, interview, recommendation="YES", **extra):
+        with patch("jobs.tasks.send_offer_extended_notice_mail.delay"), patch(
+            "jobs.tasks.send_manual_rejection_mail.apply_async"
+        ):
+            return self.client.post(
+                f"/api/schedulers/{interview.id}/decision/",
+                {"recommendation": recommendation, "confidence": "HIGH", **extra},
+                format="json",
+            )
+
+    def test_interview_decision_cannot_extend_an_offer_to_a_withdrawn_candidate(self):
+        application = self._application(status=self.S.WITHDRAWN)
+        response = self._decide(self._interview(application), "YES")
+        self.assertEqual(response.status_code, 400, response.data)
+        application.refresh_from_db()
+        self.assertEqual(application.status, self.S.WITHDRAWN)
+
+    def test_interview_decision_extends_offer_atomically_for_a_valid_candidate(self):
+        application = self._application(status=self.S.HUMAN_INTERVIEW)
+        response = self._decide(self._interview(application), "YES")
+        self.assertEqual(response.status_code, 200, response.data)
+        application.refresh_from_db()
+        self.assertEqual(application.status, self.S.OFFER_EXTENDED)
+
+    def test_interview_decision_still_records_feedback_for_a_withdrawn_rejection(self):
+        application = self._application(status=self.S.WITHDRAWN)
+        response = self._decide(self._interview(application), "NO", rejection_reason="Not a fit")
+        self.assertEqual(response.status_code, 200, response.data)
+        application.refresh_from_db()
+        self.assertEqual(application.status, self.S.WITHDRAWN)  # never overwritten
+
+    def test_second_round_is_refused_when_the_workflow_has_no_interview_stage(self):
+        application = self._application(status=self.S.REVIEWED)
+        job = application.job
+        job.hiring_engine = Job.HiringEngine.CONFIGURABLE
+        job.workflow_configuration = {"version": 1, "stages": ["application", "screen", "decision"]}
+        job.save(update_fields=["hiring_engine", "workflow_configuration"])
+        interview = self._interview(application)
+        with patch("jobs.views._unclaimed_future_slots") as slots:
+            slots.return_value.exists.return_value = True
+            response = self.client.post(f"/api/schedulers/{interview.id}/advance-round/")
+        self.assertEqual(response.status_code, 400, response.data)
+        application.refresh_from_db()
+        self.assertEqual(application.status, self.S.REVIEWED)
+
+
+class OutboxSenderTests(TestCase):
+    """Legacy candidate senders on the outbox; strict delivery; AI-interview mail."""
+
+    setUp = EligibilityReviewFoundationTests.setUp
+    _job_data = EligibilityReviewFoundationTests._job_data
+    _publish_job = EligibilityReviewFoundationTests._publish_job
+    _apply_as_guest = EligibilityReviewFoundationTests._apply_as_guest
+    _application = DurableNotificationAndRecoveryTests._application
+
+
+    def _ai_interview(self, application, **extra):
+        return AIInterview.objects.create(
+            job=application.job, candidate=None, job_application=application,
+            organisation=self.company, livekit_room_name=f"room-{application.id}",
+            candidate_identity="cand", window_end_at=timezone.now() + timedelta(hours=48),
+            questions_total=5, **extra,
+        )
+
+    def test_strict_delivery_raises_when_no_provider_accepts_the_mail(self):
+        from utils.email_handler import EmailDeliveryError, EmailHandler, strict_delivery
+
+        context = {"heading": "Hello", "lines": ["x"]}
+        with patch("utils.email_handler.RESEND_API_KEY", ""), patch("utils.email_handler.MAILGUN_API_KEY", ""):
+            # Default behaviour is unchanged: a failed send is swallowed.
+            EmailHandler(["a@example.com"]).send_mail("Hi", dict(context), "emails/generic_notice.html")
+            with strict_delivery(), self.assertRaises(EmailDeliveryError):
+                EmailHandler(["a@example.com"]).send_mail("Hi", dict(context), "emails/generic_notice.html")
+
+    def test_outbox_treats_a_swallowed_email_failure_as_a_failure_and_retries(self):
+        from jobs.models import ApplicationNotification as N
+        from jobs.notifications import deliver, queue_notification
+
+        application = self._application("strict@example.com")
+        with patch("jobs.tasks.deliver_application_notification.delay"):
+            notification = queue_notification(application, "offer_extended", dedupe_key="strict:1")
+        with patch("utils.email_handler.RESEND_API_KEY", ""), patch("utils.email_handler.MAILGUN_API_KEY", ""):
+            result = deliver(notification.id)
+        self.assertEqual(result.status, N.Status.PENDING)
+        self.assertEqual(result.attempts, 1)
+        self.assertIn("No provider accepted", result.last_error)
+
+    def test_decision_notices_use_the_outbox_and_are_deduped(self):
+        from jobs.models import ApplicationNotification as N
+        from jobs.tasks import send_interview_scheduled_notice_mail, send_offer_extended_notice_mail
+
+        application = self._application("notices@example.com")
+        with patch("jobs.tasks.deliver_application_notification.delay"):
+            send_offer_extended_notice_mail(application.id)
+            send_offer_extended_notice_mail(application.id)  # re-delivered task
+            send_interview_scheduled_notice_mail(application.id)
+        kinds = list(N.objects.filter(application=application).exclude(kind="application_received").values_list("kind", flat=True))
+        self.assertCountEqual(kinds, ["offer_extended", "interview_scheduled_notice"])
+
+    def test_ai_interview_mail_is_durable_and_stamps_when_sent(self):
+        from jobs.models import ApplicationNotification as N
+        from jobs.notifications import deliver
+        from ai_interviews.tasks import send_ai_interview_reminder_task
+
+        application = self._application("ai-mail@example.com")
+        interview = self._ai_interview(application, status=AIInterview.Status.INVITED)
+        with patch("jobs.tasks.deliver_application_notification.delay"):
+            send_ai_interview_reminder_task(str(interview.id))
+        notification = N.objects.get(application=application, kind="ai_interview_reminder")
+        self.assertEqual(notification.payload["to"], "ai-mail@example.com")
+        interview.refresh_from_db()
+        self.assertIsNone(interview.reminder_sent_at)  # not claimed before it is really sent
+
+        with patch("utils.email_handler.EmailHandler.send_mail") as send:
+            deliver(notification.id)
+        send.assert_called_once()
+        notification.refresh_from_db()
+        interview.refresh_from_db()
+        self.assertEqual(notification.status, "SENT")
+        self.assertIsNotNone(interview.reminder_sent_at)
+
+    def test_ai_interview_mail_for_a_phone_only_candidate_is_flagged_for_a_call(self):
+        from jobs.models import ApplicationNotification as N
+        from ai_interviews.tasks import _send_invitation_email, send_ai_interview_no_show_followup_task
+
+        application = self._application("ai-phone@example.com")
+        JobApplication.objects.filter(id=application.id).update(guest_email="", guest_phone_number="+2348012345678")
+        application.refresh_from_db()
+        interview = self._ai_interview(application, status=AIInterview.Status.INVITED)
+        with patch("jobs.tasks.deliver_application_notification.delay"), patch.object(
+            AIInterview, "get_join_url", return_value="https://example.com/join"
+        ):
+            _send_invitation_email(interview, application.job)
+            send_ai_interview_no_show_followup_task(str(interview.id))
+        flagged = N.objects.filter(application=application, kind="contact_by_phone", dedupe_key__contains=str(interview.id))
+        self.assertEqual(flagged.count(), 2)
+        self.assertIn("+2348012345678", flagged.first().payload["reason"])
+        self.assertFalse(N.objects.filter(application=application, kind__startswith="ai_interview").exists())
+
+
+class IdempotencyTests(TestCase):
+    """A retried request with the same key must not repeat its side effects."""
+
+    setUp = TransitionRulesTests.setUp
+    _application = TransitionRulesTests._application
+    S = JobApplication.JobApplicationStatus
+
+    def _move(self, application, status, key=None, **extra):
+        headers = {"HTTP_IDEMPOTENCY_KEY": key} if key else {}
+        with patch("jobs.views.send_assessment_link.apply_async") as invite:
+            response = self.client.patch(
+                f"/api/jobs/job-applications/{application.id}/", {"status": status, **extra},
+                format="json", **headers,
+            )
+        return response, invite
+
+    def test_repeat_with_same_key_replays_and_does_not_re_run_side_effects(self):
+        application = self._application(status=self.S.APPLIED)
+        first, invite = self._move(application, self.S.REVIEWED, key="move-1")
+        self.assertEqual(first.status_code, 200, first.data)
+        invite.assert_called_once()
+
+        again, invite = self._move(application, self.S.REVIEWED, key="move-1")
+        self.assertEqual(again.status_code, 200)
+        self.assertEqual(again["Idempotent-Replayed"], "true")
+        invite.assert_not_called()  # the assessment invite is not sent twice
+        self.assertEqual(again.data["status"], first.data["status"])
+
+    def test_same_key_for_a_different_request_is_refused(self):
+        application = self._application(status=self.S.APPLIED)
+        self._move(application, self.S.REVIEWED, key="move-2")
+        other, _ = self._move(application, self.S.PENDING_DECISION, key="move-2")
+        self.assertEqual(other.status_code, 422, other.data)
+
+    def test_failed_requests_are_not_remembered_so_a_fix_can_reuse_the_key(self):
+        application = self._application(status=self.S.REVIEWED)
+        blocked, _ = self._move(application, self.S.OFFER_EXTENDED, key="move-3")
+        self.assertEqual(blocked.status_code, 400)
+        from jobs.models import IdempotencyRecord
+
+        self.assertFalse(IdempotencyRecord.objects.filter(key="move-3").exists())
+        JobApplication.objects.filter(id=application.id).update(status=self.S.HUMAN_INTERVIEW)
+        with patch("jobs.tasks.send_offer_extended_notice_mail.delay"):
+            ok, _ = self._move(application, self.S.OFFER_EXTENDED, key="move-3")
+        self.assertEqual(ok.status_code, 200, ok.data)
+
+    def test_in_flight_key_is_refused_and_keys_are_per_user(self):
+        from jobs.models import IdempotencyRecord
+
+        application = self._application(status=self.S.APPLIED)
+        IdempotencyRecord.objects.create(
+            owner=f"u:{self.rep.pk}", scope="application-status", key="move-4",
+            request_hash="", status_code=None,
+        )
+        # A different request hash while another is in flight: hash mismatch is reported first.
+        response, _ = self._move(application, self.S.REVIEWED, key="move-4")
+        self.assertIn(response.status_code, (409, 422))
+
+        other_rep = CustomUser.objects.create_company_user(username="idem-other", email="idem-other@example.com", password="x")
+        self.assertNotEqual(f"u:{other_rep.pk}", f"u:{self.rep.pk}")
+
+    def test_no_header_behaves_as_before_and_overlong_key_is_rejected(self):
+        application = self._application(status=self.S.APPLIED)
+        response, _ = self._move(application, self.S.REVIEWED)
+        self.assertEqual(response.status_code, 200)
+        long_key, _ = self._move(application, self.S.PENDING_DECISION, key="x" * 81)
+        self.assertEqual(long_key.status_code, 400)
+
+
+class IdempotentCreateTests(TestCase):
+    """Double submits of creating requests produce one record."""
+
+    setUp = SignedInAndAssistedIntakeTests.setUp
+    _job_data = SignedInAndAssistedIntakeTests._job_data
+    _publish_job = SignedInAndAssistedIntakeTests._publish_job
+    _job = SignedInAndAssistedIntakeTests._job
+    _declarations = SignedInAndAssistedIntakeTests._declarations
+
+    def test_assisted_intake_double_submit_creates_one_application(self):
+        job = self._job(assisted=True)
+        payload = {
+            "full_name": "Phone Candidate", "phone_number": "+2348012345678", "channel": "PHONE",
+            "consent_confirmed": True, "additional_info": "Ten years driving.",
+            "eligibility_declarations": self._declarations(),
+        }
+        responses = []
+        for _ in range(2):
+            with patch("jobs.views.carry_out_resume_analysis.delay"):
+                responses.append(self.client.post(
+                    f"/api/jobs/{job.public_id}/assisted-applications/", payload,
+                    format="multipart", HTTP_IDEMPOTENCY_KEY="intake-1",
+                ))
+        self.assertEqual([r.status_code for r in responses], [201, 201])
+        self.assertEqual(responses[0].data["id"], responses[1].data["id"])
+        self.assertEqual(JobApplication.objects.filter(job=job).count(), 1)
+        # Without a key the second submit is rejected as a duplicate candidate instead.
+        with patch("jobs.views.carry_out_resume_analysis.delay"):
+            plain = self.client.post(f"/api/jobs/{job.public_id}/assisted-applications/", payload, format="multipart")
+        self.assertEqual(plain.status_code, 400)
+
+
+class IdempotentBookingTests(TestCase):
+    """A guest's double-clicked 'Book' makes one appointment (token-scoped key)."""
+
+    setUp = PracticalAssessmentFoundationTests.setUp
+    _publish_practical_job = PracticalAssessmentFoundationTests._publish_practical_job
+    _application = PracticalAssessmentFoundationTests._application
+    _create_slot = PracticalAssessmentFoundationTests._create_slot
+    _job = PracticalBookingPolicyTests._job
+    _link = PracticalBookingPolicyTests._link
+    _guest = PracticalBookingPolicyTests._guest
+
+    def test_double_click_books_once_and_other_tokens_do_not_collide(self):
+        job = self._job()
+        first_app = self._application(job, "idem-guest-1@example.com")
+        second_app = self._application(job, "idem-guest-2@example.com")
+        slot = self._create_slot(job, timezone.now() + timedelta(days=3), capacity=2)
+        guest = self._guest()
+
+        token = self._link(first_app)
+        url = f"/api/jobs/practical-booking/{token}/slots/{slot['id']}/book/"
+        one = guest.post(url, HTTP_IDEMPOTENCY_KEY="book-1")
+        two = guest.post(url, HTTP_IDEMPOTENCY_KEY="book-1")
+        self.assertEqual((one.status_code, two.status_code), (201, 201), (one.data, two.data))
+        self.assertEqual(one.data["id"], two.data["id"])
+        self.assertEqual(first_app.practical_assessments.count(), 1)
+
+        # The same key text from a different candidate's link is a different request.
+        other_token = self._link(second_app)
+        other = guest.post(
+            f"/api/jobs/practical-booking/{other_token}/slots/{slot['id']}/book/", HTTP_IDEMPOTENCY_KEY="book-1"
+        )
+        self.assertEqual(other.status_code, 201, other.data)
+        self.assertNotEqual(other.data["id"], one.data["id"])
+
+
+class JobLinkHostTests(TestCase):
+    """A job's public links are built on the host the user is actually on."""
+
+    setUp = ReadinessFoundationTests.setUp
+
+    @override_settings(
+        FRONTEND_URL="https://www.tiaago.com/", FRONTEND_BASE_URL="https://www.tiaago.com",
+        CSRF_TRUSTED_ORIGINS=[], CORS_ALLOWED_ORIGINS=[], FRONTEND_EXTRA_ORIGINS=[],
+    )
+    def test_links_follow_the_trusted_host_and_ignore_forged_ones(self):
+        job = _make_job(self.company)
+        url = f"/api/jobs/{job.public_id}/"
+
+        def links(origin=None):
+            extra = {"HTTP_X_FRONTEND_ORIGIN": origin} if origin else {}
+            data = self.client.get(url, **extra).data
+            return data["get_apply_url"], data["detail_url"]
+
+        apply_url, detail_url = links()
+        self.assertEqual(apply_url, f"https://www.tiaago.com/jobs/{job.apply_token}/apply")
+        self.assertEqual(detail_url, f"https://www.tiaago.com/jobs/{job.apply_token}")
+
+        apply_url, detail_url = links("https://tiaago.com")
+        self.assertEqual(apply_url, f"https://tiaago.com/jobs/{job.apply_token}/apply")
+        self.assertEqual(detail_url, f"https://tiaago.com/jobs/{job.apply_token}")
+
+        apply_url, _ = links("https://evil.example.com")
+        self.assertTrue(apply_url.startswith("https://www.tiaago.com/"))

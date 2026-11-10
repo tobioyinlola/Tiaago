@@ -1,4 +1,5 @@
-from fastapi import APIRouter, HTTPException, Query, File, UploadFile
+from fastapi import APIRouter, Body, HTTPException, Query, File, UploadFile
+from pydantic import BaseModel, Field
 from fastapi.responses import JSONResponse
 from typing import List, Optional
 from app.services.assessment_service import assess_candidate, grade_coding_assessment, grade_single_coding_question, generate_culture_fit_questions, create_technical_multi_stage_assessment, create_non_technical_assessment, evaluate_stage_progression, get_assessment_by_id, get_current_stage_data, complete_assessment_stage, generate_overall_feedback, create_categorized_mcq_assessment, check_code_plagiarism, suggest_open_ended_grade
@@ -311,10 +312,25 @@ async def create_non_technical_assessment_endpoint(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error creating non-technical assessment: {str(e)}")
 
+class CategorizedAssessmentRequest(BaseModel):
+    """JSON body for /create-categorized-assessment.
+
+    The job description is free text (often long rich text); sending it in the
+    query string overran the server's request-line limit, so the API now takes
+    it in the body. The query parameters below remain for older callers.
+    """
+
+    job_description: str = Field(..., min_length=1)
+    categories: List[str] = Field(..., min_length=1)
+    questions_per_category: int = 10
+    role_type: Optional[str] = None
+
+
 @router.post("/create-categorized-assessment", response_model=CategorizedAssessmentResult, tags=["Assessment"])
 async def create_categorized_assessment_endpoint(
-    job_description: str = Query(..., description="Complete job description for AI analysis"),
-    categories: List[str] = Query(..., description="Question category labels, e.g. ['Role Knowledge', 'Practical Scenarios', 'Problem Solving']"),
+    body: Optional[CategorizedAssessmentRequest] = Body(None),
+    job_description: Optional[str] = Query(None, description="Complete job description for AI analysis (legacy; prefer the JSON body)"),
+    categories: Optional[List[str]] = Query(None, description="Question category labels, e.g. ['Role Knowledge', 'Practical Scenarios', 'Problem Solving'] (legacy; prefer the JSON body)"),
     questions_per_category: int = Query(10, description="Number of MCQ questions to generate per category"),
     role_type: Optional[str] = Query(None, description="Role type: technical or non-technical")
 ):
@@ -324,7 +340,7 @@ async def create_categorized_assessment_endpoint(
     Each category is generated as its own batch so results stay on-topic per category
     and avoid duplicate questions across categories.
 
-    Parameters:
+    Send the parameters as a JSON body (preferred) or, for older callers, as query parameters:
     - job_description: Complete job description including requirements, responsibilities, skills needed
     - categories: List of category labels to generate questions for
     - questions_per_category: How many MCQ questions to generate per category
@@ -337,6 +353,13 @@ async def create_categorized_assessment_endpoint(
     - role_type: The detected or specified role type
     - skills_assessed: List of skills being tested
     """
+    if body is not None:
+        job_description = body.job_description
+        categories = body.categories
+        questions_per_category = body.questions_per_category
+        role_type = body.role_type
+    if not job_description or not categories:
+        raise HTTPException(status_code=422, detail="job_description and categories are required")
     try:
         result = create_categorized_mcq_assessment(
             job_description=job_description,

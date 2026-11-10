@@ -562,12 +562,29 @@ export type ScenarioConfiguration = {
 };
 
 /** Immutable, job-level contract for an assessor-observed field assessment. */
+export type PracticalPolicy = {
+  self_booking: boolean;
+  max_attempts: number;
+  retest_wait_days: number;
+  no_show_counts_as_attempt: boolean;
+  cancellation_cutoff_hours: number;
+};
+
+export const DEFAULT_PRACTICAL_POLICY: PracticalPolicy = {
+  self_booking: false,
+  max_attempts: 2,
+  retest_wait_days: 0,
+  no_show_counts_as_attempt: true,
+  cancellation_cutoff_hours: 24,
+};
+
 export type PracticalAssessmentConfiguration = {
   enabled: boolean;
   required: boolean;
   title: string;
   instructions: string;
   rubric: WorkSampleRubric;
+  policy?: PracticalPolicy;
 };
 
 export type WorkflowStage = "application" | "eligibility" | "screen" | "work_sample" | "scenario" | "assessment" | "practical" | "interview" | "decision" | "readiness";
@@ -579,6 +596,7 @@ export type ApplicationConfiguration = {
   linkedin: ApplicationFieldConfiguration;
   cover_letter: ApplicationFieldConfiguration;
   additional_info: ApplicationFieldConfiguration & { label: string };
+  intake?: { assisted: boolean };
 };
 
 export type EligibilityRequirement = {
@@ -621,6 +639,7 @@ export type ApplicationWorkSample = {
   content_type: string;
   candidate_note: string;
   status: "SUBMITTED" | "PASS" | "NEEDS_REVIEW" | "FAIL";
+  scan_status: "PENDING" | "CLEAN" | "INFECTED" | "ERROR";
   reviewer_name: string | null;
   reviewer_reason: string;
   reviewed_at: string | null;
@@ -683,7 +702,58 @@ export type ApplicationPracticalAssessment = {
   critical_failure: boolean;
   critical_failure_reason: string;
   completed_at: string | null;
+  booked_by: "RECRUITER" | "CANDIDATE";
+  status_reason: string;
+  status_changed_by: "RECRUITER" | "CANDIDATE" | "";
+  status_changed_at: string | null;
+  policy_override_reason: string;
   created_at: string;
+};
+
+export type PracticalBookingState = {
+  job_title: string;
+  company_name: string;
+  title: string;
+  instructions: string;
+  policy: PracticalPolicy;
+  self_booking_enabled: boolean;
+  can_book: boolean;
+  blocked_reason: string;
+  scheduled: ApplicationPracticalAssessment | null;
+  history: ApplicationPracticalAssessment[];
+  slots: PracticalAssessmentSlot[];
+};
+
+export type RecoveryCandidate = {
+  application_id: ID;
+  candidate_name: string;
+  job_title: string;
+  status: string;
+};
+
+export type HeldTransitionItem = RecoveryCandidate & {
+  id: ID;
+  source: string;
+  from_status: string;
+  target_status: string;
+  reason: string;
+  attempts: number;
+  created_at: string;
+  last_checked_at: string | null;
+};
+
+export type UndeliveredNotificationItem = RecoveryCandidate & {
+  id: ID;
+  kind: string;
+  status: "DEAD" | "SKIPPED";
+  attempts: number;
+  last_error: string;
+  created_at: string;
+};
+
+export type RecoveryQueue = {
+  holds: HeldTransitionItem[];
+  notifications: UndeliveredNotificationItem[];
 };
 
 export type HiringProfile = {

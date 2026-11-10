@@ -13,7 +13,7 @@ import { ApplicationConfiguration, Job } from "@/app/common/types";
 import DaisyButton from "@/app/common/components/DaisyButton";
 import FormikField from "@/app/common/components/Forms/FormikField";
 import { VanillaFileInput } from "@/app/common/components/Forms/FileInput";
-import { submitGuestJobApplication } from "@/app/common/services/jobs";
+import { submitGuestJobApplication, submitSignedInJobApplication } from "@/app/common/services/jobs";
 
 const MAX_RESUME_SIZE = 5 * 1024 * 1024; // 5MB
 const MAX_WORK_SAMPLE_SIZE = 10 * 1024 * 1024;
@@ -30,11 +30,14 @@ const legacyApplicationConfiguration: ApplicationConfiguration = {
   },
 };
 
-const makeValidationSchema = (configuration: ApplicationConfiguration) =>
+export type SignedInApplicant = { name: string; email: string; hasResume: boolean };
+
+const makeValidationSchema = (configuration: ApplicationConfiguration, signedIn: boolean) =>
   Yup.object().shape({
-    full_name: Yup.string().trim().required().label("Full name"),
-    email: Yup.string().trim().email("Enter a valid email address").required().label("Email address"),
-    phone_number: Yup.string().trim().required().label("Phone number"),
+    // A signed-in talent's identity comes from their account.
+    full_name: signedIn ? Yup.string().notRequired() : Yup.string().trim().required().label("Full name"),
+    email: signedIn ? Yup.string().notRequired() : Yup.string().trim().email("Enter a valid email address").required().label("Email address"),
+    phone_number: signedIn ? Yup.string().notRequired() : Yup.string().trim().required().label("Phone number"),
     linkedin_url: configuration.linkedin.required
       ? Yup.string().trim().url("Enter a valid URL").required().label("LinkedIn profile URL")
       : Yup.string().trim().url("Enter a valid URL").notRequired().label("LinkedIn profile URL"),
@@ -69,7 +72,8 @@ const initialValues: FormValues = {
   terms_accepted: false,
 };
 
-const GuestApplyForm = ({ job }: { job: Job }) => {
+const GuestApplyForm = ({ job, signedIn }: { job: Job; signedIn?: SignedInApplicant }) => {
+  const resumeNeeded = (configuration: ApplicationConfiguration) => configuration.resume.required && !signedIn?.hasResume;
   const configuration = job.application_configuration || legacyApplicationConfiguration;
   const eligibilityRequirements = job.eligibility_requirements || [];
   const workSampleConfiguration = job.work_sample_configuration || {
@@ -87,7 +91,7 @@ const GuestApplyForm = ({ job }: { job: Job }) => {
     response_label: "Your response",
     rubric: { version: 1, passing_score: 60, criteria: [] },
   };
-  const validationSchema = useMemo(() => makeValidationSchema(configuration), [configuration]);
+  const validationSchema = useMemo(() => makeValidationSchema(configuration, !!signedIn), [configuration, signedIn]);
   const [resumeFile, setResumeFile] = useState<File>();
   const [resumeFileName, setResumeFileName] = useState<string>();
   const [workSampleFile, setWorkSampleFile] = useState<File>();
@@ -150,7 +154,7 @@ const GuestApplyForm = ({ job }: { job: Job }) => {
             initialValues={initialValues}
             validationSchema={validationSchema}
             onSubmit={async (values, { setSubmitting }) => {
-              if (configuration.resume.required && !resumeFile) {
+              if (resumeNeeded(configuration) && !resumeFile) {
                 toast.error("Please upload your CV / resume");
                 setSubmitting(false);
                 return;
@@ -170,7 +174,15 @@ const GuestApplyForm = ({ job }: { job: Job }) => {
                 setSubmitting(false);
                 return;
               }
-              const result = await submitGuestJobApplication(job.apply_token || "", {
+              const result = signedIn ? await submitSignedInJobApplication(job.apply_token || "", {
+                linkedin_url: values.linkedin_url.trim(),
+                cover_letter: values.cover_letter,
+                additional_info: values.additional_info,
+                ...(resumeFile ? { resume: resumeFile } : {}),
+                ...(workSampleFile ? { work_sample: workSampleFile } : {}),
+                scenario_response: values.scenario_response.trim(),
+                eligibility_declarations: eligibilityDeclarations,
+              }) : await submitGuestJobApplication(job.apply_token || "", {
                 ...values,
                 full_name: values.full_name.trim(),
                 email: values.email.trim(),
@@ -192,7 +204,7 @@ const GuestApplyForm = ({ job }: { job: Job }) => {
               const hasConfirmedRequiredEligibility = eligibilityRequirements.every(
                 requirement => !requirement.required || eligibilityDeclarations[requirement.code]
               );
-              const canSubmit = isValid && dirty && (!configuration.resume.required || !!resumeFile) && (!workSampleConfiguration.required || !!workSampleFile) && (!scenarioConfiguration.required || !!values.scenario_response.trim()) && hasConfirmedRequiredEligibility && !isSubmitting;
+              const canSubmit = isValid && dirty && (!resumeNeeded(configuration) || !!resumeFile) && (!workSampleConfiguration.required || !!workSampleFile) && (!scenarioConfiguration.required || !!values.scenario_response.trim()) && hasConfirmedRequiredEligibility && !isSubmitting;
               return (
                 <form onSubmit={handleSubmit} className='flex flex-col gap-6'>
                   <div className='flex flex-col gap-5'>
@@ -200,16 +212,18 @@ const GuestApplyForm = ({ job }: { job: Job }) => {
                       Your details
                     </p>
 
-                    <FormikField
+                    {signedIn && <p className='rounded-lg bg-[#F9FAFB] p-3 text-sm text-primary-black'>Applying as <span className='font-medium'>{signedIn.name}</span> ({signedIn.email}). {signedIn.hasResume ? "Your saved CV will be used unless you attach a new one." : ""}</p>}
+
+                    {!signedIn && <FormikField
                       name='full_name'
                       label='Full Name'
                       placeholder='Your full name'
                       value={values.full_name}
                       error={errors.full_name}
                       touched={touched.full_name}
-                    />
+                    />}
 
-                    <div className='grid grid-cols-1 sm:grid-cols-2 gap-5'>
+                    {!signedIn && <div className='grid grid-cols-1 sm:grid-cols-2 gap-5'>
                       <FormikField
                         name='email'
                         type='email'
@@ -229,7 +243,7 @@ const GuestApplyForm = ({ job }: { job: Job }) => {
                         error={errors.phone_number}
                         touched={touched.phone_number}
                       />
-                    </div>
+                    </div>}
 
                     {configuration.linkedin.enabled && (
                       <FormikField
@@ -252,7 +266,7 @@ const GuestApplyForm = ({ job }: { job: Job }) => {
                     {configuration.resume.enabled && <div>
                       <label className='label-text text-black font-medium font-onest mb-1 flex items-center gap-1.5'>
                         <FileText className='h-3.5 w-3.5 text-secondary-black' />
-                        CV / Resume {configuration.resume.required && <span className='text-error'>*</span>}
+                        CV / Resume {resumeNeeded(configuration) && <span className='text-error'>*</span>}
                       </label>
                       <VanillaFileInput
                         name='resume'

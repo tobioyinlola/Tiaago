@@ -10,6 +10,7 @@ import {
   ApplicationScenarioResponse,
   ApplicationPracticalAssessment,
   ApplicationReadiness,
+  RecoveryQueue,
   ReadinessStatus,
   PracticalAssessmentSlot,
   ID,
@@ -267,22 +268,36 @@ export const getAssessmentGenerationStatus = async (
   }
 };
 
-export const submitJobApplication = async (jobId: ID, cover_letter: string) => {
+export type SignedInJobApplicationPayload = Omit<GuestJobApplicationPayload, "full_name" | "email" | "phone_number" | "terms_accepted">;
+
+/** Signed-in talent application, through the same published journey as the
+ * guest form (CV, LinkedIn, extra answer, declarations, work sample, scenario). */
+export const submitSignedInJobApplication = async (
+  applyToken: string,
+  payload: SignedInJobApplicationPayload
+): Promise<ApiResponse<JobApplication>> => {
   try {
+    const formData = new FormData();
+    if (payload.linkedin_url) formData.set("linkedin_url", payload.linkedin_url);
+    if (payload.resume) formData.set("resume", payload.resume);
+    formData.set("cover_letter", payload.cover_letter || "");
+    formData.set("additional_info", payload.additional_info || "");
+    if (payload.work_sample) formData.set("work_sample", payload.work_sample);
+    formData.set("work_sample_note", payload.work_sample_note || "");
+    // The signed-in endpoint's response nests the stored scenario record under
+    // `scenario_response`, so the written answer is sent as scenario_response_text.
+    formData.set("scenario_response_text", payload.scenario_response || "");
+    if (payload.eligibility_declarations) {
+      formData.set("eligibility_declarations", JSON.stringify(payload.eligibility_declarations));
+    }
     const data = await serverKyInstance
-      .post(`jobs/${jobId}/apply/`, { json: { cover_letter } })
+      .post(`jobs/apply/${applyToken}/apply/`, { body: formData })
       .json<JobApplication>();
-    return {
-      success: true,
-      data,
-    };
+    return { success: true, data };
   } catch (error) {
     const errMsg = await handleServerApiCallError(error);
-    console.log("submitJobApplication Error: ", errMsg);
-    return {
-      success: false,
-      error: errMsg,
-    };
+    console.log("submitSignedInJobApplication Error: ", errMsg);
+    return { success: false, error: errMsg };
   }
 };
 
@@ -577,13 +592,20 @@ export const scheduleApplicationPracticalAssessment = async (
 export const updateJobApplicationStatus = async (
   id: ID,
   status: JobApplication["status"],
-  rejectionReason?: string
+  rejectionReason?: string,
+  /** The status the caller last saw. If the application has since moved, the
+   * server answers 409 instead of overwriting the newer decision. */
+  expectedStatus?: JobApplication["status"],
+  /** One key per user action; a retry of the same action replays its result. */
+  idempotencyKey?: string
 ): Promise<ApiResponse<JobApplication>> => {
   try {
     const data = await serverKyInstance
       .put(`jobs/job-applications/${id}/`, {
+        ...(idempotencyKey ? { headers: { "Idempotency-Key": idempotencyKey } } : {}),
         json: {
           status,
+          ...(expectedStatus ? { expected_status: expectedStatus } : {}),
           ...(rejectionReason ? { rejection_reason: rejectionReason } : {}),
         },
       })
@@ -662,5 +684,99 @@ export const deleteJob = async (publicId: string) => {
       success: false,
       error: errMsg,
     };
+  }
+};
+
+
+// ---- Recovery queue (held transitions + undelivered candidate messages) ----
+
+export const getRecoveryQueue = async (): Promise<RecoveryQueue> => {
+  try {
+    return await serverKyInstance.get<RecoveryQueue>("jobs/recovery-queue/").json();
+  } catch (error) {
+    throw Error(await handleServerApiCallError(error));
+  }
+};
+
+export const runRecoveryAction = async (
+  kind: "holds" | "notifications",
+  id: ID,
+  action: "retry" | "dismiss",
+  note?: string
+): Promise<ApiResponse<{ result: string }>> => {
+  try {
+    const data = await serverKyInstance
+      .post(`jobs/recovery-queue/${kind}/${id}/${action}/`, { json: note ? { note } : {} })
+      .json<{ result: string }>();
+    return { success: true, data };
+  } catch (error) {
+    return { success: false, error: await handleServerApiCallError(error) };
+  }
+};
+
+// ---- Practical assessments: attendance and candidate self-booking link ----
+
+export const recordPracticalAttendance = async (
+  applicationId: ID,
+  assessmentId: ID,
+  status: "NO_SHOW" | "CANCELLED",
+  reason: string
+): Promise<ApiResponse<ApplicationPracticalAssessment>> => {
+  try {
+    const data = await serverKyInstance
+      .patch(`jobs/job-applications/${applicationId}/practical-assessments/${assessmentId}/attendance/`, {
+        json: { status, reason },
+      })
+      .json<ApplicationPracticalAssessment>();
+    return { success: true, data };
+  } catch (error) {
+    return { success: false, error: await handleServerApiCallError(error) };
+  }
+};
+
+export const createPracticalBookingLink = async (
+  applicationId: ID
+): Promise<ApiResponse<{ url: string; notification_status: string }>> => {
+  try {
+    const data = await serverKyInstance
+      .post(`jobs/job-applications/${applicationId}/practical-booking-link/`)
+      .json<{ url: string; notification_status: string }>();
+    return { success: true, data };
+  } catch (error) {
+    return { success: false, error: await handleServerApiCallError(error) };
+  }
+};
+
+// ---- Assisted (phone / walk-in) intake ----
+
+export type AssistedIntakePayload = {
+  full_name: string;
+  phone_number: string;
+  email?: string;
+  channel: "PHONE" | "IN_PERSON" | "AGENT";
+  consent_confirmed: boolean;
+  intake_notes?: string;
+  additional_info?: string;
+  cover_letter?: string;
+  linkedin_url?: string;
+  scenario_response?: string;
+  eligibility_declarations?: Record<string, boolean>;
+};
+
+export const submitAssistedApplication = async (
+  jobPublicId: string,
+  payload: AssistedIntakePayload,
+  idempotencyKey?: string
+): Promise<ApiResponse<{ id: ID }>> => {
+  try {
+    const data = await serverKyInstance
+      .post(`jobs/${jobPublicId}/assisted-applications/`, {
+        json: payload,
+        ...(idempotencyKey ? { headers: { "Idempotency-Key": idempotencyKey } } : {}),
+      })
+      .json<{ id: ID }>();
+    return { success: true, data };
+  } catch (error) {
+    return { success: false, error: await handleServerApiCallError(error) };
   }
 };

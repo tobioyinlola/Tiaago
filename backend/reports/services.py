@@ -106,7 +106,13 @@ def compute_role_data(job: Job, date_from: date, date_to: date):
     interviewed_count = ai_completed.count() + human_completed.count()
 
     # ---- Placements / filled ----
-    filled_count = applications.filter(status=JobApplication.JobApplicationStatus.OFFER_ACCEPTED).count()
+    # An accepted offer is not a placement: only a candidate the hiring team
+    # has confirmed as started counts as filled (see the readiness record).
+    offers_accepted_count = applications.filter(status=JobApplication.JobApplicationStatus.OFFER_ACCEPTED).count()
+    filled_count = applications.filter(
+        status=JobApplication.JobApplicationStatus.OFFER_ACCEPTED,
+        readiness_status=JobApplication.ReadinessStatus.STARTED,
+    ).count()
     # No job-status change-history table exists -- job_status=HIRED + last_updated
     # is the closest available signal for "when this role was filled".
     is_filled = job.job_status == Job.JobStatus.HIRED
@@ -177,6 +183,7 @@ def compute_role_data(job: Job, date_from: date, date_to: date):
             "assessment_completed": assessment_completed_count,
             "interviewed": interviewed_count,
             "filled": filled_count,
+            "offers_accepted": offers_accepted_count,
         },
         "time": {
             "days_posted_to_first_applicant": days_posted_to_first_applicant,

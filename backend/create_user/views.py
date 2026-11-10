@@ -1,4 +1,4 @@
-from datetime import datetime, timezone as dt_timezone
+from datetime import datetime, timedelta, timezone as dt_timezone
 
 from urllib import request
 from django.conf import settings
@@ -326,9 +326,17 @@ class ConfirmEmailView(APIView):
         otp_code = serializer.validated_data["otp"]
 
         try:
+            # A live code, or one that verified the account moments ago (a
+            # retry after a lost response must succeed, not look invalid).
+            grace_start = now() - timedelta(seconds=OneTimePassword.REPLAY_GRACE_SECONDS)
             otp_entry = (
                 OneTimePassword.objects.select_related("user")
-                .filter(user__email=email, otp_expires__gte=now())
+                .filter(user__email=email)
+                .filter(
+                    Q(used_at__isnull=True, otp_expires__gte=now())
+                    | Q(used_at__gte=grace_start)
+                )
+                .order_by("-id")
                 .first()
             )
             if otp_entry is None:
@@ -357,22 +365,26 @@ class ConfirmEmailView(APIView):
                 )
 
             user = otp_entry.user
-            user.is_verified = True
-            user.verified = True
-            update_fields = ["is_verified", "verified"]
-            # pending_password is currently never set (the guest-account
-            # claim signup path that used to set it has been removed) --
-            # this branch is dead in practice, kept harmless rather than
-            # ripped out along with the OneTimePassword field itself.
-            if otp_entry.pending_password:
-                user.password = otp_entry.pending_password
-                user.is_guest_provisioned = False
-                update_fields += ["password", "is_guest_provisioned"]
-            user.save(update_fields=update_fields)
+            if otp_entry.used_at is None:
+                user.is_verified = True
+                user.verified = True
+                update_fields = ["is_verified", "verified"]
+                # pending_password is currently never set (the guest-account
+                # claim signup path that used to set it has been removed) --
+                # this branch is dead in practice, kept harmless rather than
+                # ripped out along with the OneTimePassword field itself.
+                if otp_entry.pending_password:
+                    user.password = otp_entry.pending_password
+                    user.is_guest_provisioned = False
+                    update_fields += ["password", "is_guest_provisioned"]
+                user.save(update_fields=update_fields)
 
-            send_after_commit(send_welcome_mail, user_pk=user.pk)
+                send_after_commit(send_welcome_mail, user_pk=user.pk)
 
-            otp_entry.delete()
+                # Kept (not deleted) for the replay grace window; a new code
+                # request overwrites it, and expired rows never match above.
+                otp_entry.used_at = now()
+                otp_entry.save(update_fields=["used_at"])
 
             # Issue JWTs so the frontend can log the user in right after
             # verification (same payload shape as the login endpoint).

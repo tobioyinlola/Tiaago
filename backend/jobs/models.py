@@ -423,12 +423,14 @@ class Job(models.Model):
     def __str__(self):
         return f"{self.role or 'Unknown Role'} - {self.job_type}"
 
-    def get_apply_url(self):
-        base = str(settings.FRONTEND_URL).rstrip("/")
+    def get_apply_url(self, base=None):
+        """Public apply link. ``base`` lets a request pick the frontend host it
+        was served from (see utils.frontend_origin); default is FRONTEND_URL."""
+        base = (base or str(settings.FRONTEND_URL)).rstrip("/")
         return f"{base}/jobs/{self.apply_token}/apply"
 
-    def get_detail_url(self):
-        base = str(settings.FRONTEND_URL).rstrip("/")
+    def get_detail_url(self, base=None):
+        base = (base or str(settings.FRONTEND_URL)).rstrip("/")
         return f"{base}/jobs/{self.apply_token}"
 
     
@@ -450,6 +452,9 @@ class Job(models.Model):
         requirements without needing a disruptive data migration.
         """
         return deepcopy(self.application_configuration or self.LEGACY_APPLICATION_CONFIGURATION)
+
+    def allows_assisted_intake(self):
+        return bool(self.get_application_configuration().get("intake", {}).get("assisted"))
 
     def requires_resume(self):
         return bool(self.get_application_configuration().get("resume", {}).get("required"))
@@ -782,6 +787,12 @@ class ApplicationWorkSample(TimeStampedModel):
         NEEDS_REVIEW = "NEEDS_REVIEW", _("Needs changes")
         FAIL = "FAIL", _("Not accepted")
 
+    class ScanStatus(models.TextChoices):
+        PENDING = "PENDING", _("Awaiting malware scan")
+        CLEAN = "CLEAN", _("Scanned clean")
+        INFECTED = "INFECTED", _("Blocked: malware detected")
+        ERROR = "ERROR", _("Scan could not be completed")
+
     application = models.ForeignKey(
         "jobs.JobApplication", on_delete=models.CASCADE, related_name="work_samples"
     )
@@ -801,11 +812,20 @@ class ApplicationWorkSample(TimeStampedModel):
     )
     reviewer_reason = models.TextField(max_length=1000, blank=True, default="")
     reviewed_at = models.DateTimeField(null=True, blank=True)
+    # Uploads are untrusted until scanned; see jobs.malware. Anything other
+    # than CLEAN can be neither downloaded nor accepted.
+    scan_status = models.CharField(
+        max_length=10, choices=ScanStatus.choices, default=ScanStatus.PENDING
+    )
+    scan_detail = models.CharField(max_length=255, blank=True, default="")
+    scan_attempts = models.PositiveSmallIntegerField(default=0)
+    scanned_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         indexes = [
             models.Index(fields=("status", "updated_at")),
             models.Index(fields=("application", "status")),
+            models.Index(fields=("scan_status", "updated_at")),
         ]
         ordering = ("-created_at",)
 
@@ -968,6 +988,18 @@ class ApplicationPracticalAssessment(TimeStampedModel):
     critical_failure_reason = models.TextField(max_length=1000, blank=True, default="")
     completed_at = models.DateTimeField(null=True, blank=True)
 
+    class BookedBy(models.TextChoices):
+        RECRUITER = "RECRUITER", _("Hiring team")
+        CANDIDATE = "CANDIDATE", _("Candidate")
+
+    booked_by = models.CharField(max_length=10, choices=BookedBy.choices, default=BookedBy.RECRUITER)
+    # Why an appointment was cancelled / marked no-show, who did it, and why a
+    # booking exceeded the job's attempt or retest policy.
+    status_reason = models.CharField(max_length=500, blank=True, default="")
+    status_changed_by = models.CharField(max_length=10, choices=BookedBy.choices, blank=True, default="")
+    status_changed_at = models.DateTimeField(null=True, blank=True)
+    policy_override_reason = models.CharField(max_length=500, blank=True, default="")
+
     class Meta:
         constraints = [
             models.UniqueConstraint(
@@ -983,6 +1015,113 @@ class ApplicationPracticalAssessment(TimeStampedModel):
 
     def __str__(self):
         return f"{self.application_id}: practical attempt {self.attempt_number} ({self.status})"
+
+
+class IdempotencyRecord(models.Model):
+    """Remembers the outcome of a state-changing request by client-supplied key.
+
+    A client that retries (double click, timeout, flaky network) sends the same
+    ``Idempotency-Key`` and gets the original response back instead of a second
+    side effect. The owner is the signed-in user or a hash of the signed link.
+    """
+
+    owner = models.CharField(max_length=80)
+    scope = models.CharField(max_length=40)
+    key = models.CharField(max_length=80)
+    request_hash = models.CharField(max_length=64)
+    status_code = models.PositiveSmallIntegerField(null=True, blank=True)  # null while in flight
+    response_body = models.JSONField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=("owner", "scope", "key"), name="unique_idempotency_key")
+        ]
+        indexes = [models.Index(fields=("created_at",))]
+
+    def __str__(self):
+        return f"{self.scope}:{self.key} ({self.status_code})"
+
+
+class ApplicationNotification(TimeStampedModel):
+    """Durable outbox for candidate-facing messages.
+
+    Sending inline and swallowing the exception leaves a candidate silently
+    uninformed. A row here survives worker crashes, is retried with backoff,
+    and ends in DEAD/SKIPPED where the hiring team's recovery queue shows it.
+    """
+
+    class Status(models.TextChoices):
+        PENDING = "PENDING", _("Pending")
+        SENT = "SENT", _("Sent")
+        DEAD = "DEAD", _("Delivery failed")
+        SKIPPED = "SKIPPED", _("Cannot be delivered")
+        DISMISSED = "DISMISSED", _("Dismissed")
+
+    application = models.ForeignKey(
+        "jobs.JobApplication", on_delete=models.CASCADE, related_name="notifications"
+    )
+    kind = models.CharField(max_length=50)
+    dedupe_key = models.CharField(max_length=160, unique=True)
+    payload = models.JSONField(default=dict, blank=True)
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.PENDING)
+    attempts = models.PositiveSmallIntegerField(default=0)
+    next_attempt_at = models.DateTimeField(default=timezone.now)
+    last_error = models.CharField(max_length=500, blank=True, default="")
+    sent_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=("status", "next_attempt_at")),
+            models.Index(fields=("application", "status")),
+        ]
+        ordering = ("-created_at",)
+
+    def __str__(self):
+        return f"{self.kind} -> application {self.application_id} ({self.status})"
+
+
+class HeldTransition(TimeStampedModel):
+    """An automated progression that a guard blocked, kept until resolved.
+
+    Previously a held transition was only logged, so a candidate who passed
+    an assessment while an eligibility review was outstanding simply stalled.
+    """
+
+    class Status(models.TextChoices):
+        OPEN = "OPEN", _("Open")
+        RESOLVED = "RESOLVED", _("Resolved")
+        DISMISSED = "DISMISSED", _("Dismissed")
+
+    application = models.ForeignKey(
+        "jobs.JobApplication", on_delete=models.CASCADE, related_name="held_transitions"
+    )
+    source = models.CharField(max_length=30)
+    from_status = models.CharField(max_length=30)
+    target_status = models.CharField(max_length=30)
+    reason = models.TextField(max_length=1000)
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.OPEN)
+    attempts = models.PositiveSmallIntegerField(default=0)
+    last_checked_at = models.DateTimeField(null=True, blank=True)
+    resolved_at = models.DateTimeField(null=True, blank=True)
+    resolved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+    resolution_note = models.CharField(max_length=300, blank=True, default="")
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=("application", "source", "target_status"),
+                condition=models.Q(status="OPEN"),
+                name="unique_open_held_transition",
+            )
+        ]
+        indexes = [models.Index(fields=("status", "created_at"))]
+        ordering = ("-created_at",)
+
+    def __str__(self):
+        return f"{self.application_id}: {self.source} -> {self.target_status} ({self.status})"
 
 
 class JobApplication(models.Model):
@@ -1116,6 +1255,23 @@ class JobApplication(models.Model):
         default=False,
         help_text="Whether verification was completed for this application")
 
+    class IntakeChannel(models.TextChoices):
+        SELF = "SELF", _("Candidate applied online")
+        PHONE = "PHONE", _("Entered by hiring team after a phone call")
+        IN_PERSON = "IN_PERSON", _("Entered by hiring team in person")
+        AGENT = "AGENT", _("Entered by a recruiting agent")
+
+    # Assisted intake: a signed-in hiring-team member enters the application
+    # on the candidate's behalf (phone / walk-in). The member attests that the
+    # candidate consented; that is the verification route for candidates who
+    # have no email address, so no unauthenticated phone-only door exists.
+    intake_channel = models.CharField(max_length=10, choices=IntakeChannel.choices, default=IntakeChannel.SELF)
+    intake_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+    intake_consent_at = models.DateTimeField(null=True, blank=True)
+    intake_notes = models.TextField(max_length=1000, blank=True, default="")
+
     created = models.DateTimeField(auto_now_add=True)
     last_updated = models.DateTimeField(auto_now=True)
 
@@ -1132,7 +1288,10 @@ class JobApplication(models.Model):
                 name="unique_real_applicant_per_job",
             ),
             models.UniqueConstraint(
-                fields=["job", "guest_email"], condition=models.Q(applicant__isnull=True),
+                # Phone-only (assisted) candidates have no email, so the blank
+                # value must not collide across different people.
+                fields=["job", "guest_email"],
+                condition=models.Q(applicant__isnull=True) & ~models.Q(guest_email=""),
                 name="unique_guest_email_per_job",
             ),
         ]

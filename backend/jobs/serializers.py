@@ -1,3 +1,6 @@
+import json
+import re
+from django.db.models import Q
 from rest_framework import serializers
 from django.utils import timezone
 from django.conf import settings
@@ -36,6 +39,8 @@ from .models import (
     JobAssessmentTemplateQuestion,
     JobInterviewAvailabilitySlot,
 )
+from .malware import validate_upload_content
+from .practical import book_slot, normalise_policy
 from .services import (
     current_workflow_stage,
     normalise_eligibility_declarations,
@@ -153,7 +158,7 @@ def _normalise_application_configuration(value):
     if not isinstance(value, dict):
         raise serializers.ValidationError("Application configuration must be an object.")
 
-    allowed_top_level = {"version", *APPLICATION_CONFIGURATION_FIELDS}
+    allowed_top_level = {"version", "intake", *APPLICATION_CONFIGURATION_FIELDS}
     unknown = set(value) - allowed_top_level
     if unknown:
         raise serializers.ValidationError(
@@ -193,6 +198,15 @@ def _normalise_application_configuration(value):
                     {field: f"The question label must be {APPLICATION_CONFIGURATION_LABEL_MAX_LENGTH} characters or fewer."}
                 )
             normalised[field]["label"] = label.strip()
+    # Only stored when supplied, so existing published shapes are unchanged.
+    if "intake" in value:
+        intake = value["intake"]
+        if not isinstance(intake, dict) or set(intake) - {"assisted"}:
+            raise serializers.ValidationError({"intake": "Only the assisted setting is supported."})
+        assisted = intake.get("assisted", False)
+        if not isinstance(assisted, bool):
+            raise serializers.ValidationError({"intake": "Assisted intake must be true or false."})
+        normalised["intake"] = {"assisted": assisted}
     return normalised
 
 
@@ -256,7 +270,7 @@ def _normalise_practical_assessment_configuration(value):
     """Validate a human-observed practical assessment published with a job."""
     if not isinstance(value, dict):
         raise serializers.ValidationError("Practical assessment configuration must be an object.")
-    unknown = set(value) - {"enabled", "required", "title", "instructions", "rubric"}
+    unknown = set(value) - {"enabled", "required", "title", "instructions", "rubric", "policy"}
     if unknown:
         raise serializers.ValidationError(
             {key: "This practical-assessment setting is not supported." for key in sorted(unknown)}
@@ -287,6 +301,7 @@ def _normalise_practical_assessment_configuration(value):
         "title": title,
         "instructions": instructions,
         "rubric": rubric,
+        "policy": normalise_policy(value.get("policy")),
     }
 
 
@@ -440,6 +455,9 @@ def _validate_work_sample_file(value):
     extension = value.name.rsplit(".", 1)[-1].lower() if "." in value.name else ""
     if extension not in WORK_SAMPLE_ALLOWED_EXTENSIONS:
         raise serializers.ValidationError("Work samples must be PDF, DOCX, XLSX, or CSV files.")
+    content_error = validate_upload_content(value, extension)
+    if content_error:
+        raise serializers.ValidationError(content_error)
     return value
 
 
@@ -704,15 +722,22 @@ class JobSerializer(serializers.ModelSerializer):
         return obj.title
 
 
+    def _frontend_base(self):
+        """Frontend host the caller was served from (validated; see
+        utils.frontend_origin), so links match the site the user is on."""
+        from utils.frontend_origin import frontend_base_url
+
+        return frontend_base_url(self.context.get("request"))
+
     def get_get_apply_url(self, obj):
         try:
-            return obj.get_apply_url()
+            return obj.get_apply_url(self._frontend_base())
         except Exception:
             return None
         
     def get_detail_url(self, obj):
         try:
-            return obj.get_detail_url()
+            return obj.get_detail_url(self._frontend_base())
         except:
             return None
 
@@ -1228,6 +1253,7 @@ class ApplicationWorkSampleSerializer(serializers.ModelSerializer):
             "content_type",
             "candidate_note",
             "status",
+            "scan_status",
             "reviewer_name",
             "reviewer_reason",
             "reviewed_at",
@@ -1264,6 +1290,14 @@ class ApplicationWorkSampleReviewSerializer(serializers.Serializer):
     def validate(self, attrs):
         status = attrs["status"]
         reason = (attrs.get("reviewer_reason") or "").strip()
+        if (
+            isinstance(self.instance, ApplicationWorkSample)
+            and status == ApplicationWorkSample.Status.PASS
+            and self.instance.scan_status != ApplicationWorkSample.ScanStatus.CLEAN
+        ):
+            raise serializers.ValidationError({
+                "status": "This work sample cannot be accepted until it has passed the malware scan."
+            })
         if status in {ApplicationWorkSample.Status.FAIL, ApplicationWorkSample.Status.NEEDS_REVIEW} and not reason:
             raise serializers.ValidationError({"reviewer_reason": "Add a reason for this review decision."})
 
@@ -1489,17 +1523,27 @@ class ApplicationPracticalAssessmentSerializer(serializers.ModelSerializer):
             "critical_failure",
             "critical_failure_reason",
             "completed_at",
+            "booked_by",
+            "status_reason",
+            "status_changed_by",
+            "status_changed_at",
+            "policy_override_reason",
             "created_at",
         )
         read_only_fields = fields
 
 
 class ApplicationPracticalAssessmentAssignSerializer(serializers.Serializer):
-    """Books a candidate into one of the job's practical-assessment slots."""
+    """Books a candidate into one of the job's practical-assessment slots.
+
+    The hiring team is held to the job's attempt and retest policy unless it
+    records an ``override_reason``, which is stored on the appointment.
+    """
 
     slot_id = serializers.PrimaryKeyRelatedField(
         queryset=JobPracticalAssessmentSlot.objects.select_related("job")
     )
+    override_reason = serializers.CharField(max_length=500, required=False, allow_blank=True)
 
     def validate(self, attrs):
         application = self.context["application"]
@@ -1514,36 +1558,12 @@ class ApplicationPracticalAssessmentAssignSerializer(serializers.Serializer):
         return attrs
 
     def create(self, validated_data):
-        application_id = self.context["application"].id
-        requested_slot_id = validated_data["slot_id"].id
-        with transaction.atomic():
-            application = JobApplication.objects.select_for_update().select_related("job").get(id=application_id)
-            slot = JobPracticalAssessmentSlot.objects.select_for_update().get(id=requested_slot_id)
-            configuration = application.job.get_practical_assessment_configuration()
-            if not configuration["enabled"] or slot.job_id != application.job_id:
-                raise serializers.ValidationError({"slot_id": "This practical-assessment slot is no longer available for this job."})
-            if not slot.is_active or slot.starts_at <= timezone.now():
-                raise serializers.ValidationError({"slot_id": "This practical-assessment slot is no longer available."})
-            if ApplicationPracticalAssessment.objects.filter(
-                application=application,
-                status=ApplicationPracticalAssessment.Status.SCHEDULED,
-            ).exists():
-                raise serializers.ValidationError({"slot_id": "This candidate already has a scheduled practical assessment."})
-            scheduled_count = ApplicationPracticalAssessment.objects.filter(
-                slot=slot,
-                status=ApplicationPracticalAssessment.Status.SCHEDULED,
-            ).count()
-            if scheduled_count >= slot.capacity:
-                raise serializers.ValidationError({"slot_id": "This practical-assessment slot is full."})
-            latest_attempt = ApplicationPracticalAssessment.objects.filter(
-                application=application
-            ).order_by("-attempt_number").values_list("attempt_number", flat=True).first() or 0
-            return ApplicationPracticalAssessment.objects.create(
-                application=application,
-                slot=slot,
-                attempt_number=latest_attempt + 1,
-                rubric_snapshot=configuration["rubric"],
-            )
+        return book_slot(
+            self.context["application"].id,
+            validated_data["slot_id"].id,
+            booked_by=ApplicationPracticalAssessment.BookedBy.RECRUITER,
+            override_reason=validated_data.get("override_reason", ""),
+        )
 
 
 class ApplicationPracticalAssessmentReviewSerializer(serializers.Serializer):
@@ -1788,6 +1808,15 @@ class JobApplicationSerializer(serializers.ModelSerializer):
     company_logo = serializers.ReadOnlyField(source="job.company.get_logo_url")
     resume = serializers.FileField(required=False, write_only=True)
     cover_letter = serializers.CharField(required=False, allow_blank=True, max_length=3000)
+    additional_info = serializers.CharField(required=False, allow_blank=True, max_length=3000)
+    linkedin_url = serializers.URLField(required=False, allow_blank=True, write_only=True)
+    # `scenario_response` is the nested read-only record below, so the
+    # signed-in form submits its written answer under a distinct name.
+    scenario_response_text = serializers.CharField(
+        required=False, allow_blank=True, max_length=SCENARIO_RESPONSE_MAX_LENGTH, write_only=True
+    )
+    work_sample = serializers.FileField(required=False, allow_null=True, write_only=True)
+    work_sample_note = serializers.CharField(required=False, allow_blank=True, max_length=1000, write_only=True)
     eligibility_declarations = serializers.JSONField(required=False, write_only=True)
     eligibility_checks = ApplicationEligibilityCheckSerializer(many=True, read_only=True)
     work_samples = ApplicationWorkSampleSerializer(many=True, read_only=True)
@@ -1808,6 +1837,11 @@ class JobApplicationSerializer(serializers.ModelSerializer):
             "company_logo",
             "applied_date",
             "cover_letter",
+            "additional_info",
+            "linkedin_url",
+            "scenario_response_text",
+            "work_sample",
+            "work_sample_note",
             "status",
             "readiness_status",
             "readiness_target_start_date",
@@ -1874,9 +1908,17 @@ class JobApplicationSerializer(serializers.ModelSerializer):
         return value
 
     def validate_eligibility_declarations(self, value):
+        if isinstance(value, str):  # multipart forms send JSON as a string
+            try:
+                value = json.loads(value or "{}")
+            except ValueError:
+                raise serializers.ValidationError("Eligibility declarations must be valid JSON.")
         if not isinstance(value, dict) or any(not isinstance(declaration, bool) for declaration in value.values()):
             raise serializers.ValidationError("Eligibility declarations must be a map of requirement codes to true or false.")
         return value
+
+    def validate_work_sample(self, value):
+        return _validate_work_sample_file(value)
 
     def validate(self, attrs):
         job = self.context.get('job')
@@ -1886,35 +1928,124 @@ class JobApplicationSerializer(serializers.ModelSerializer):
                 f"This job is currently {status_display.lower()} and not accepting applications"
             )
         if job:
-            try:
-                attrs["eligibility_declarations"] = normalise_eligibility_declarations(
-                    job.get_eligibility_requirements(),
-                    attrs.get("eligibility_declarations", {}),
-                )
-            except ValueError as error:
-                raise serializers.ValidationError({"eligibility_declarations": str(error)})
+            request = self.context.get("request")
+            profile = getattr(getattr(request, "user", None), "profile", None)
+            attrs["scenario_response_text"], attrs["eligibility_declarations"] = validate_application_journey(
+                job,
+                resume_present=bool(attrs.get("resume") or (profile and profile.resume)),
+                linkedin_present=bool(
+                    (attrs.get("linkedin_url") or "").strip() or (profile and profile.linkedin_url)
+                ),
+                cover_letter=attrs.get("cover_letter"),
+                additional_info=attrs.get("additional_info"),
+                work_sample=attrs.get("work_sample"),
+                scenario_response=attrs.get("scenario_response_text"),
+                declarations=attrs.get("eligibility_declarations"),
+            )
         return attrs
 
     def create(self, validated_data):
         resume = validated_data.pop('resume', None)
         cover_letter = validated_data.get('cover_letter', '')
         eligibility_declarations = validated_data.pop("eligibility_declarations", {})
-        # Set is_external_application to False for normal applications
-        validated_data['is_external_application'] = False
-        application = super().create(validated_data)
-        
-        # Update talent's resume if provided
-        if resume:
+        work_sample = validated_data.pop("work_sample", None)
+        work_sample_note = validated_data.pop("work_sample_note", "")
+        scenario_response = validated_data.pop("scenario_response_text", "")
+        linkedin_url = (validated_data.pop("linkedin_url", "") or "").strip()
+        validated_data.setdefault('is_external_application', False)
+        with transaction.atomic():
+            application = super().create(validated_data)
+
+            # Update the talent profile's resume / LinkedIn if provided
             talent_profile = application.applicant
-            talent_profile.resume = resume
-            talent_profile.save()
+            profile_fields = []
+            if resume:
+                talent_profile.resume = resume
+                profile_fields.append("resume")
+            if linkedin_url and not talent_profile.linkedin_url:
+                talent_profile.linkedin_url = linkedin_url
+                profile_fields.append("linkedin_url")
+            if profile_fields:
+                talent_profile.save()
 
-        # Update cover letter
-        application.cover_letter = cover_letter
-        application.save()
-        sync_application_eligibility_checks(application, eligibility_declarations)
-
+            application.cover_letter = cover_letter
+            application.save()
+            create_application_journey_records(
+                application,
+                declarations=eligibility_declarations,
+                work_sample=work_sample,
+                work_sample_note=work_sample_note,
+                scenario_response=scenario_response,
+            )
         return application
+
+
+def validate_application_journey(job, *, resume_present, linkedin_present, cover_letter="",
+                                 additional_info="", work_sample=None, scenario_response="",
+                                 declarations=None):
+    """Validate the published application journey for ANY entry route.
+
+    Guest, signed-in, token and assisted intake all call this so a candidate
+    cannot reach a different outcome by choosing a different door. Returns
+    ``(scenario_response, normalised_declarations)``; raises ValidationError.
+    """
+    configuration = job.get_application_configuration()
+    required_values = {
+        "resume": resume_present,
+        "linkedin": linkedin_present,
+        "cover_letter": bool((cover_letter or "").strip()),
+        "additional_info": bool((additional_info or "").strip()),
+    }
+    errors = {}
+    for field, present in required_values.items():
+        if configuration[field]["required"] and not present:
+            label = {
+                "resume": "CV / resume",
+                "linkedin": "LinkedIn profile URL",
+                "cover_letter": "Cover letter",
+                "additional_info": configuration["additional_info"]["label"],
+            }[field]
+            errors["linkedin_url" if field == "linkedin" else field] = f"{label} is required for this job."
+    if errors:
+        raise serializers.ValidationError(errors)
+
+    work_sample_configuration = job.get_work_sample_configuration()
+    if work_sample_configuration["enabled"] and work_sample_configuration["required"] and not work_sample:
+        raise serializers.ValidationError({"work_sample": "A work sample is required for this job."})
+    if work_sample and not work_sample_configuration["enabled"]:
+        raise serializers.ValidationError({"work_sample": "This job is not accepting work samples."})
+
+    scenario_configuration = job.get_scenario_configuration()
+    scenario_response = (scenario_response or "").strip()
+    if scenario_configuration["enabled"] and scenario_configuration["required"] and not scenario_response:
+        raise serializers.ValidationError({"scenario_response": "A response to this scenario is required for this job."})
+    if scenario_response and not scenario_configuration["enabled"]:
+        raise serializers.ValidationError({"scenario_response": "This job is not accepting scenario responses."})
+
+    try:
+        normalised = normalise_eligibility_declarations(job.get_eligibility_requirements(), declarations or {})
+    except ValueError as error:
+        raise serializers.ValidationError({"eligibility_declarations": str(error)})
+    return scenario_response, normalised
+
+
+def create_application_journey_records(application, *, declarations, work_sample=None,
+                                       work_sample_note="", scenario_response=""):
+    """Persist eligibility declarations, work sample and scenario answer."""
+    sync_application_eligibility_checks(application, declarations)
+    if work_sample:
+        sample = ApplicationWorkSample.objects.create(
+            application=application,
+            file=work_sample,
+            original_filename=work_sample.name[:255],
+            content_type=(getattr(work_sample, "content_type", "") or "")[:120],
+            candidate_note=(work_sample_note or "").strip(),
+        )
+        from .tasks import scan_application_work_sample
+
+        transaction.on_commit(lambda sample_id=sample.id: scan_application_work_sample.delay(sample_id))
+    if scenario_response:
+        ApplicationScenarioResponse.objects.create(application=application, response=scenario_response)
 
 
 GUEST_APPLY_MAX_RESUME_SIZE = 5 * 1024 * 1024  # 5MB, per the no-login application form's own limit
@@ -1992,48 +2123,16 @@ class GuestJobApplicationSerializer(serializers.Serializer):
                 "You've already applied to this job with an account. Please log in to view your application."
             )
 
-        configuration = job.get_application_configuration()
-        required_values = {
-            "resume": attrs.get("resume"),
-            "linkedin": (attrs.get("linkedin_url") or "").strip(),
-            "cover_letter": (attrs.get("cover_letter") or "").strip(),
-            "additional_info": (attrs.get("additional_info") or "").strip(),
-        }
-        errors = {}
-        for field, value in required_values.items():
-            if configuration[field]["required"] and not value:
-                label = {
-                    "resume": "CV / resume",
-                    "linkedin": "LinkedIn profile URL",
-                    "cover_letter": "Cover letter",
-                    "additional_info": configuration["additional_info"]["label"],
-                }[field]
-                errors["linkedin_url" if field == "linkedin" else field] = f"{label} is required for this job."
-        if errors:
-            raise serializers.ValidationError(errors)
-
-        work_sample_configuration = job.get_work_sample_configuration()
-        work_sample = attrs.get("work_sample")
-        if work_sample_configuration["enabled"] and work_sample_configuration["required"] and not work_sample:
-            raise serializers.ValidationError({"work_sample": "A work sample is required for this job."})
-        if work_sample and not work_sample_configuration["enabled"]:
-            raise serializers.ValidationError({"work_sample": "This job is not accepting work samples."})
-
-        scenario_configuration = job.get_scenario_configuration()
-        scenario_response = (attrs.get("scenario_response") or "").strip()
-        if scenario_configuration["enabled"] and scenario_configuration["required"] and not scenario_response:
-            raise serializers.ValidationError({"scenario_response": "A response to this scenario is required for this job."})
-        if scenario_response and not scenario_configuration["enabled"]:
-            raise serializers.ValidationError({"scenario_response": "This job is not accepting scenario responses."})
-        attrs["scenario_response"] = scenario_response
-
-        try:
-            attrs["eligibility_declarations"] = normalise_eligibility_declarations(
-                job.get_eligibility_requirements(),
-                attrs.get("eligibility_declarations", {}),
-            )
-        except ValueError as error:
-            raise serializers.ValidationError({"eligibility_declarations": str(error)})
+        attrs["scenario_response"], attrs["eligibility_declarations"] = validate_application_journey(
+            job,
+            resume_present=bool(attrs.get("resume")),
+            linkedin_present=bool((attrs.get("linkedin_url") or "").strip()),
+            cover_letter=attrs.get("cover_letter"),
+            additional_info=attrs.get("additional_info"),
+            work_sample=attrs.get("work_sample"),
+            scenario_response=attrs.get("scenario_response"),
+            declarations=attrs.get("eligibility_declarations"),
+        )
 
         return attrs
 
@@ -2055,19 +2154,153 @@ class GuestJobApplicationSerializer(serializers.Serializer):
             additional_info=validated_data.get("additional_info", ""),
             is_external_application=False,
         )
-        sync_application_eligibility_checks(application, eligibility_declarations)
-        if work_sample:
-            ApplicationWorkSample.objects.create(
-                application=application,
-                file=work_sample,
-                original_filename=work_sample.name[:255],
-                content_type=(getattr(work_sample, "content_type", "") or "")[:120],
-                candidate_note=work_sample_note.strip(),
+        create_application_journey_records(
+            application,
+            declarations=eligibility_declarations,
+            work_sample=work_sample,
+            work_sample_note=work_sample_note,
+            scenario_response=scenario_response,
+        )
+        return application
+
+
+ASSISTED_PHONE_PATTERN = re.compile(r"^\+[1-9]\d{7,14}$")
+
+
+def normalise_phone_number(value):
+    """Strip formatting; require an explicit +country-code number."""
+    cleaned = re.sub(r"[\s\-().]", "", value or "")
+    if not ASSISTED_PHONE_PATTERN.match(cleaned):
+        raise serializers.ValidationError("Enter the number with its country code, e.g. +2348012345678.")
+    return cleaned
+
+
+class AssistedApplicationSerializer(serializers.Serializer):
+    """A hiring-team member enters an application on a candidate's behalf.
+
+    Email is optional (phone-only candidates). The member must attest that the
+    candidate consented; the attestation and the member are recorded on the
+    application. Every published requirement is enforced exactly as for a
+    self-service application.
+    """
+
+    full_name = serializers.CharField(max_length=255, trim_whitespace=True)
+    phone_number = serializers.CharField(max_length=30)
+    email = serializers.EmailField(required=False, allow_blank=True)
+    channel = serializers.ChoiceField(choices=[
+        JobApplication.IntakeChannel.PHONE,
+        JobApplication.IntakeChannel.IN_PERSON,
+        JobApplication.IntakeChannel.AGENT,
+    ])
+    consent_confirmed = serializers.BooleanField()
+    intake_notes = serializers.CharField(required=False, allow_blank=True, max_length=1000)
+    linkedin_url = serializers.URLField(required=False, allow_blank=True)
+    resume = serializers.FileField(required=False, allow_null=True)
+    cover_letter = serializers.CharField(required=False, allow_blank=True, max_length=3000)
+    additional_info = serializers.CharField(required=False, allow_blank=True, max_length=3000)
+    work_sample = serializers.FileField(required=False, allow_null=True, write_only=True)
+    work_sample_note = serializers.CharField(required=False, allow_blank=True, max_length=1000, write_only=True)
+    scenario_response = serializers.CharField(required=False, allow_blank=True, max_length=SCENARIO_RESPONSE_MAX_LENGTH, write_only=True)
+    eligibility_declarations = serializers.JSONField(required=False, write_only=True)
+
+    def validate_phone_number(self, value):
+        return normalise_phone_number(value)
+
+    def validate_email(self, value):
+        return (value or "").strip().lower()
+
+    def validate_consent_confirmed(self, value):
+        if not value:
+            raise serializers.ValidationError("Confirm that the candidate agreed to this application and to being contacted.")
+        return value
+
+    def validate_eligibility_declarations(self, value):
+        if isinstance(value, str):
+            try:
+                value = json.loads(value or "{}")
+            except ValueError:
+                raise serializers.ValidationError("Eligibility declarations must be valid JSON.")
+        if not isinstance(value, dict) or any(not isinstance(d, bool) for d in value.values()):
+            raise serializers.ValidationError("Eligibility declarations must be a map of requirement codes to true or false.")
+        return value
+
+    def validate_resume(self, value):
+        if value and value.size > GUEST_APPLY_MAX_RESUME_SIZE:
+            raise serializers.ValidationError("Resume file size too large. Max size is 5MB.")
+        if value:
+            extension = value.name.split(".")[-1].lower()
+            if extension not in settings.WHITELISTED_RESUME_FORMAT.keys():
+                raise serializers.ValidationError(f"Only {', '.join(settings.WHITELISTED_RESUME_FORMAT.keys())} files are allowed.")
+        return value
+
+    def validate_work_sample(self, value):
+        return _validate_work_sample_file(value)
+
+    def validate(self, attrs):
+        job = self.context["job"]
+        if job.job_status != Job.JobStatus.ACTIVE:
+            raise serializers.ValidationError("This job is not accepting applications.")
+        if job.hiring_engine != Job.HiringEngine.CONFIGURABLE or not job.allows_assisted_intake():
+            raise serializers.ValidationError("Assisted intake is not enabled for this job.")
+
+        phone, email = attrs["phone_number"], attrs.get("email", "")
+        duplicates = Q(guest_phone_number=phone) | Q(applicant__user__phone_number=phone)
+        if email:
+            duplicates |= Q(guest_email__iexact=email) | Q(applicant__user__email__iexact=email)
+        if JobApplication.objects.filter(duplicates, job=job).exists():
+            raise serializers.ValidationError("This candidate has already applied to this job.")
+
+        limit = getattr(settings, "ASSISTED_INTAKE_DAILY_LIMIT", 100)
+        from datetime import timedelta
+
+        recent = JobApplication.objects.filter(
+            intake_by=self.context["request"].user, created__gte=timezone.now() - timedelta(days=1)
+        ).count()
+        if recent >= limit:
+            raise serializers.ValidationError(f"Daily assisted-intake limit of {limit} reached.")
+
+        attrs["scenario_response"], attrs["eligibility_declarations"] = validate_application_journey(
+            job,
+            resume_present=bool(attrs.get("resume")),
+            linkedin_present=bool((attrs.get("linkedin_url") or "").strip()),
+            cover_letter=attrs.get("cover_letter"),
+            additional_info=attrs.get("additional_info"),
+            work_sample=attrs.get("work_sample"),
+            scenario_response=attrs.get("scenario_response"),
+            declarations=attrs.get("eligibility_declarations"),
+        )
+        return attrs
+
+    def create(self, validated_data):
+        job = self.context["job"]
+        user = self.context["request"].user
+        declarations = validated_data.pop("eligibility_declarations", {})
+        work_sample = validated_data.pop("work_sample", None)
+        work_sample_note = validated_data.pop("work_sample_note", "")
+        scenario_response = validated_data.pop("scenario_response", "")
+        with transaction.atomic():
+            application = JobApplication.objects.create(
+                applicant=None,
+                job=job,
+                guest_full_name=validated_data["full_name"].strip(),
+                guest_email=validated_data.get("email", ""),
+                guest_phone_number=validated_data["phone_number"],
+                guest_linkedin_url=validated_data.get("linkedin_url", ""),
+                guest_resume=validated_data.get("resume"),
+                cover_letter=validated_data.get("cover_letter", ""),
+                additional_info=validated_data.get("additional_info", ""),
+                is_external_application=False,
+                intake_channel=validated_data["channel"],
+                intake_by=user,
+                intake_consent_at=timezone.now(),
+                intake_notes=validated_data.get("intake_notes", ""),
             )
-        if scenario_response:
-            ApplicationScenarioResponse.objects.create(
-                application=application,
-                response=scenario_response,
+            create_application_journey_records(
+                application,
+                declarations=declarations,
+                work_sample=work_sample,
+                work_sample_note=work_sample_note,
+                scenario_response=scenario_response,
             )
         return application
 
@@ -2575,9 +2808,16 @@ class GenericJobSerializer(serializers.ModelSerializer):
         """Get title from role for backward compatibility"""
         return obj.title
 
+    def _frontend_base(self):
+        """Frontend host the caller was served from (validated; see
+        utils.frontend_origin), so links match the site the user is on."""
+        from utils.frontend_origin import frontend_base_url
+
+        return frontend_base_url(self.context.get("request"))
+
     def get_get_apply_url(self, obj):
         try:
-            return obj.get_apply_url()
+            return obj.get_apply_url(self._frontend_base())
         except Exception:
             return None
         

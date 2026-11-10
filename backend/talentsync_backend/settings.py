@@ -330,6 +330,7 @@ REST_FRAMEWORK = {
         # whatever blanket anon/user rate prod/staging apply. See
         # prod_settings.py/staging_settings.py for why these are repeated there.
         "job_apply": "20/hour",
+        "assisted_intake": "60/hour",
         "assessment_generation": "10/hour",
         "question_bank_generation": "10/hour",
     },
@@ -421,6 +422,14 @@ LIVEKIT_API_SECRET = env("LIVEKIT_API_SECRET", default="")
 # segment, status, complete) -- see ai_interviews.permissions.HasInternalServiceKey.
 INTERNAL_API_KEY = env("INTERNAL_API_KEY", default="")
 
+# Malware scanning of private candidate uploads (jobs.malware). Fail-closed:
+# an unscanned upload cannot be downloaded or accepted. Set
+# MALWARE_SCAN_BACKEND=disabled only for local development.
+MALWARE_SCAN_BACKEND = env("MALWARE_SCAN_BACKEND", default="clamav")
+CLAMD_HOST = env("CLAMD_HOST", default="clamav")
+CLAMD_PORT = env.int("CLAMD_PORT", default=3310)
+CLAMD_TIMEOUT = env.int("CLAMD_TIMEOUT", default=30)
+
 # How many AI interview sessions the deployed interview_agent/ worker
 # fleet can run at once. AIInterviewStartSessionView checks this before
 # creating a LiveKit room -- past this, a candidate is asked to wait
@@ -508,6 +517,9 @@ TIAAGO_STARTUP_LOGIN_URL = _required_url_in_prod(
 )
 FRONTEND_URL = _required_url_in_prod("FRONTEND_URL", "https://www.tiaago.com/")
 FRONTEND_BASE_URL = _required_url_in_prod("FRONTEND_BASE_URL", "https://www.tiaago.com")
+# Extra frontend origins (e.g. a second domain or a preview host) whose
+# X-Frontend-Origin may be used when building links; see utils/frontend_origin.py.
+FRONTEND_EXTRA_ORIGINS = env.list("FRONTEND_EXTRA_ORIGINS", default=[])
 TIAAGO_MAIL_SUPPORT = "mailto:support@Tiaago.com"
 
 IS_PRODUCTION = ENV == "production"

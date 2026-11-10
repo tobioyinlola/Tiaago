@@ -37,6 +37,7 @@ from rest_framework.status import (
     HTTP_401_UNAUTHORIZED,
     HTTP_403_FORBIDDEN,
     HTTP_402_PAYMENT_REQUIRED,
+    HTTP_409_CONFLICT,
     HTTP_500_INTERNAL_SERVER_ERROR,
 )
 from django.db.models import Count, Q, F
@@ -55,6 +56,8 @@ from .models import (
     ApplicationEligibilityCheck,
     ApplicationWorkSample,
     ApplicationScenarioResponse,
+    ApplicationNotification,
+    HeldTransition,
     ApplicationPracticalAssessment,
     JobPracticalAssessmentSlot,
     Portfolio,
@@ -84,6 +87,7 @@ from .serializers import (
     JobTokenValidationSerializer,
     GuestJobApplicationSerializer,
     GuestJobApplicationResponseSerializer,
+    AssistedApplicationSerializer,
     PortfolioSerializer,
     ToolSerializer,
     ExperienceSerializer,
@@ -116,7 +120,11 @@ from .tasks import (
     send_manual_rejection_mail,
     send_offer_extended_notice_mail,
 )
-from .services import eligibility_progression_block_detail, workflow_transition_block_detail
+from django.conf import settings
+from . import practical
+from .idempotency import idempotent
+from .notifications import retry_dead
+from .transitions import guard_block, retry_hold, transition_block
 from emails import emails
 from rest_framework.permissions import AllowAny
 from payments.models import PaymentMethod
@@ -662,9 +670,13 @@ def _claim_interview_slot(job, job_application, slot_id):
     profile = job_application.applicant
 
     with transaction.atomic():
-        eligibility_hold = eligibility_progression_block_detail(job_application)
-        if eligibility_hold:
-            return {"detail": eligibility_hold}, HTTP_400_BAD_REQUEST
+        job_application = JobApplication.objects.select_for_update().select_related("job").get(id=job_application.id)
+        target = JobApplication.JobApplicationStatus.HUMAN_INTERVIEW
+        # A second-round booking keeps its SECOND_INTERVIEW status, so the
+        # guards are evaluated for the stage being entered either way.
+        hold = transition_block(job_application, target, actor="candidate") or guard_block(job_application, target)
+        if hold:
+            return {"detail": hold}, HTTP_400_BAD_REQUEST
 
         slot = (
             JobInterviewAvailabilitySlot.objects.select_for_update()
@@ -1069,6 +1081,7 @@ class JobApplicationRetrieveUpdateView(RetrieveUpdateAPIView):
     def patch(self, request, *args, **kwargs):
         return self._update_status(request, *args, **kwargs)
 
+    @idempotent("application-status")
     def _update_status(self, request, *args, **kwargs):
         user = request.user
         instance = self.get_object()
@@ -1133,20 +1146,26 @@ class JobApplicationRetrieveUpdateView(RetrieveUpdateAPIView):
         # UI, so direct API callers and future clients cannot bypass it.
         # Rejection, withdrawal and declining an offer remain available while
         # an application is on hold.
-        non_progressing_statuses = {
-            JobApplication.JobApplicationStatus.APPLIED,
-            JobApplication.JobApplicationStatus.REJECTED,
-            JobApplication.JobApplicationStatus.WITHDRAWN,
-            JobApplication.JobApplicationStatus.OFFER_DECLINED,
-            JobApplication.JobApplicationStatus.OFFER_ACCEPTED,
-        }
-        if status_value != previous_status and status_value not in non_progressing_statuses:
-            workflow_hold = workflow_transition_block_detail(instance, status_value)
-            if workflow_hold:
-                return Response({"detail": workflow_hold}, status=HTTP_400_BAD_REQUEST)
-            eligibility_hold = eligibility_progression_block_detail(instance)
-            if eligibility_hold:
-                return Response({"detail": eligibility_hold}, status=HTTP_400_BAD_REQUEST)
+        # Optimistic concurrency: a client that supplies the status it loaded
+        # is refused (409) if the application has moved since, instead of
+        # silently overwriting a newer decision.
+        expected_status = request.data.get("expected_status")
+        if expected_status and expected_status != previous_status:
+            return Response(
+                {"detail": "This application changed since it was loaded; refresh and try again.",
+                 "current_status": previous_status},
+                status=HTTP_409_CONFLICT,
+            )
+
+        # One definition of an allowed move for every route (closed statuses
+        # are immutable, an offer needs an interview first, the published
+        # workflow and eligibility/evidence gates apply). Checked for PUT and
+        # PATCH alike so direct API callers cannot bypass the board UI.
+        if status_value != previous_status:
+            actor = "candidate" if user.user_type == User.USER_TYPE.TALENT else "recruiter"
+            transition_hold = transition_block(instance, status_value, actor=actor)
+            if transition_hold:
+                return Response({"detail": transition_hold}, status=HTTP_400_BAD_REQUEST)
 
         # Moving a candidate to interview on a non-AI-interview job silently
         # no-ops (send_interview_slot_invite just logs a warning and returns)
@@ -1179,16 +1198,26 @@ class JobApplicationRetrieveUpdateView(RetrieveUpdateAPIView):
                 status=HTTP_400_BAD_REQUEST,
             )
 
-        self.perform_update(serializer)
-        if (
-            status_value == JobApplication.JobApplicationStatus.OFFER_ACCEPTED
-            and status_value != previous_status
-            and instance.readiness_status == JobApplication.ReadinessStatus.NOT_STARTED
-        ):
-            instance.readiness_status = JobApplication.ReadinessStatus.CHECKS_OUTSTANDING
-            instance.readiness_updated_at = timezone.now()
-            instance.save(update_fields=("readiness_status", "readiness_updated_at", "last_updated"))
-
+        with transaction.atomic():
+            # Re-check under a row lock: the guards above ran on a snapshot.
+            locked = JobApplication.objects.select_for_update().get(pk=instance.pk)
+            if locked.status != previous_status:
+                return Response(
+                    {"detail": "This application changed since it was loaded; refresh and try again.",
+                     "current_status": locked.status},
+                    status=HTTP_409_CONFLICT,
+                )
+            self.perform_update(serializer)
+            # Acceptance and its readiness record are one unit: a crash between
+            # them must not leave an accepted offer with no readiness state.
+            if (
+                status_value == JobApplication.JobApplicationStatus.OFFER_ACCEPTED
+                and status_value != previous_status
+                and instance.readiness_status == JobApplication.ReadinessStatus.NOT_STARTED
+            ):
+                instance.readiness_status = JobApplication.ReadinessStatus.CHECKS_OUTSTANDING
+                instance.readiness_updated_at = timezone.now()
+                instance.save(update_fields=("readiness_status", "readiness_updated_at", "last_updated"))
         # A recruiter manually advancing a candidate should trigger the same
         # candidate-facing signal the automatic pipeline sends for that same
         # transition (see jobs.tasks.carry_out_resume_analysis for REVIEWED,
@@ -1481,6 +1510,257 @@ class JobApplicationPracticalAssessmentCreateView(APIView):
         )
 
 
+def _recruiter_can_manage(user, company):
+    return user.is_staff or user_is_company_role(
+        user, company, (CompanyTeamMember.ROLE.ADMIN, CompanyTeamMember.ROLE.RECRUITER)
+    )
+
+
+class ApplicationPracticalAssessmentAttendanceView(APIView):
+    """Hiring team cancels an appointment or records a candidate no-show."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def patch(self, request, pk, assessment_pk):
+        appointment = get_object_or_404(
+            ApplicationPracticalAssessment.objects.select_related("application__job__company", "slot"),
+            id=assessment_pk,
+            application_id=pk,
+        )
+        if not _recruiter_can_manage(request.user, appointment.application.job.company):
+            return Response(
+                {"detail": "You are not authorized to manage this practical assessment."},
+                status=HTTP_403_FORBIDDEN,
+            )
+        target = request.data.get("status")
+        reason = str(request.data.get("reason") or "").strip()
+        if target not in (ApplicationPracticalAssessment.Status.NO_SHOW, ApplicationPracticalAssessment.Status.CANCELLED):
+            return Response({"detail": "Status must be NO_SHOW or CANCELLED."}, status=HTTP_400_BAD_REQUEST)
+        if target == ApplicationPracticalAssessment.Status.CANCELLED:
+            appointment = practical.cancel_appointment(
+                appointment, by=ApplicationPracticalAssessment.BookedBy.RECRUITER, reason=reason
+            )
+        else:
+            appointment = practical.mark_no_show(appointment, reason=reason)
+        return Response(ApplicationPracticalAssessmentSerializer(appointment, context={"request": request}).data)
+
+
+class PracticalBookingLinkView(APIView):
+    """Hiring team gets the candidate's self-booking link for an application."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, pk):
+        application = get_object_or_404(JobApplication.objects.select_related("job__company"), id=pk)
+        if not _recruiter_can_manage(request.user, application.job.company):
+            return Response({"detail": "You are not authorized for this application."}, status=HTTP_403_FORBIDDEN)
+        if not practical.job_policy(application.job)["self_booking"]:
+            return Response(
+                {"detail": "Enable self-booking in this job's practical assessment policy first."},
+                status=HTTP_400_BAD_REQUEST,
+            )
+        token = practical.make_booking_token(application)
+        base = str(settings.FRONTEND_URL).rstrip("/")
+        url = f"{base}/jobs/practical-booking/{token}"
+        from .notifications import queue_notification
+
+        notification = queue_notification(
+            application,
+            "practical_booking_invite",
+            dedupe_key=f"practical_invite:{application.id}:{timezone.now():%Y%m%d%H}",
+            payload={"title": application.job.get_practical_assessment_configuration()["title"], "url": url},
+        )
+        return Response({"token": token, "url": url, "notification_status": notification.status})
+
+
+class _PracticalBookingBase(APIView):
+    """Candidate access by signed link (guests) or by owning account."""
+
+    permission_classes = [AllowAny]
+
+    def _application(self, request, token=None, pk=None):
+        if token:
+            return practical.application_from_token(token)
+        if request.user.is_authenticated:
+            return JobApplication.objects.select_related("job__company").filter(
+                id=pk, applicant__user=request.user
+            ).first()
+        return None
+
+    @staticmethod
+    def _denied():
+        return Response(
+            {"detail": "This booking link is invalid or has expired."}, status=HTTP_403_FORBIDDEN
+        )
+
+    @staticmethod
+    def _state(application):
+        job = application.job
+        policy = practical.job_policy(job)
+        configuration = job.get_practical_assessment_configuration()
+        block, _overridable = practical.booking_block(application, candidate_facing=True)
+        scheduled = application.practical_assessments.filter(
+            status=ApplicationPracticalAssessment.Status.SCHEDULED
+        ).select_related("slot").first()
+        can_book = policy["self_booking"] and not block
+        return {
+            "job_title": job.title,
+            "company_name": job.company.company_name,
+            "title": configuration["title"],
+            "instructions": configuration["instructions"],
+            "policy": policy,
+            "self_booking_enabled": policy["self_booking"],
+            "can_book": bool(can_book),
+            "blocked_reason": "" if can_book else (block or "Self-booking is not enabled for this job."),
+            "scheduled": (
+                ApplicationPracticalAssessmentSerializer(scheduled).data if scheduled else None
+            ),
+            "history": ApplicationPracticalAssessmentSerializer(
+                application.practical_assessments.exclude(
+                    status=ApplicationPracticalAssessment.Status.SCHEDULED
+                ).select_related("slot"),
+                many=True,
+            ).data,
+            "slots": (
+                JobPracticalAssessmentSlotSerializer(
+                    practical.available_slots(job, candidate_facing=True), many=True
+                ).data
+                if can_book else []
+            ),
+        }
+
+
+class PracticalBookingView(_PracticalBookingBase):
+    def get(self, request, token=None, pk=None):
+        application = self._application(request, token, pk)
+        if not application:
+            return self._denied()
+        return Response(self._state(application))
+
+
+class PracticalBookingBookView(_PracticalBookingBase):
+    @idempotent("practical-book")
+    def post(self, request, slot_id, token=None, pk=None):
+        application = self._application(request, token, pk)
+        if not application:
+            return self._denied()
+        appointment = practical.book_slot(
+            application.id, slot_id, booked_by=ApplicationPracticalAssessment.BookedBy.CANDIDATE
+        )
+        return Response(
+            ApplicationPracticalAssessmentSerializer(appointment).data, status=HTTP_201_CREATED
+        )
+
+
+class PracticalBookingCancelView(_PracticalBookingBase):
+    def post(self, request, token=None, pk=None):
+        application = self._application(request, token, pk)
+        if not application:
+            return self._denied()
+        appointment = application.practical_assessments.filter(
+            status=ApplicationPracticalAssessment.Status.SCHEDULED
+        ).first()
+        if not appointment:
+            return Response({"detail": "You have no scheduled appointment to cancel."}, status=HTTP_400_BAD_REQUEST)
+        appointment = practical.cancel_appointment(
+            appointment,
+            by=ApplicationPracticalAssessment.BookedBy.CANDIDATE,
+            reason=str(request.data.get("reason") or ""),
+        )
+        return Response(ApplicationPracticalAssessmentSerializer(appointment).data)
+
+
+def _recovery_scope(user):
+    """Company filter for the recovery queue; ``None`` means no access."""
+    if user.is_staff:
+        return Q()
+    company = get_user_company(user)
+    if not company or not _recruiter_can_manage(user, company):
+        return None
+    return Q(application__job__company=company)
+
+
+def _recovery_candidate(application):
+    return {
+        "application_id": application.id,
+        "candidate_name": application.candidate_full_name,
+        "job_title": application.job.title,
+        "status": application.status,
+    }
+
+
+class RecoveryQueueView(APIView):
+    """Everything automated that stalled and needs a human: held progressions
+    and candidate messages that could not be delivered."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        scope = _recovery_scope(request.user)
+        if scope is None:
+            return Response({"detail": "You are not authorized to view the recovery queue."}, status=HTTP_403_FORBIDDEN)
+        holds = HeldTransition.objects.filter(scope, status=HeldTransition.Status.OPEN).select_related(
+            "application__job", "application__applicant__user"
+        )[:100]
+        notifications = ApplicationNotification.objects.filter(
+            scope,
+            status__in=(ApplicationNotification.Status.DEAD, ApplicationNotification.Status.SKIPPED),
+        ).select_related("application__job", "application__applicant__user")[:100]
+        return Response({
+            "holds": [
+                {
+                    "id": hold.id, "source": hold.source, "from_status": hold.from_status,
+                    "target_status": hold.target_status, "reason": hold.reason,
+                    "attempts": hold.attempts, "created_at": hold.created_at,
+                    "last_checked_at": hold.last_checked_at,
+                    **_recovery_candidate(hold.application),
+                }
+                for hold in holds
+            ],
+            "notifications": [
+                {
+                    "id": item.id, "kind": item.kind, "status": item.status,
+                    "attempts": item.attempts, "last_error": item.last_error,
+                    "created_at": item.created_at, **_recovery_candidate(item.application),
+                }
+                for item in notifications
+            ],
+        })
+
+
+class RecoveryActionView(APIView):
+    """retry / dismiss one held transition or undelivered notification."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, kind, pk, action):
+        scope = _recovery_scope(request.user)
+        if scope is None:
+            return Response({"detail": "You are not authorized."}, status=HTTP_403_FORBIDDEN)
+        if action not in ("retry", "dismiss") or kind not in ("holds", "notifications"):
+            return Response({"detail": "Unknown recovery action."}, status=HTTP_404_NOT_FOUND)
+        model = HeldTransition if kind == "holds" else ApplicationNotification
+        item = get_object_or_404(model.objects.filter(scope).select_related("application__job"), id=pk)
+
+        if kind == "holds":
+            if action == "retry":
+                result = retry_hold(item, user=request.user)
+                return Response({"result": result})
+            item.status = HeldTransition.Status.DISMISSED
+            item.resolved_at = timezone.now()
+            item.resolved_by = request.user
+            item.resolution_note = str(request.data.get("note") or "")[:300]
+            item.save(update_fields=("status", "resolved_at", "resolved_by", "resolution_note", "updated_at"))
+            return Response({"result": "dismissed"})
+
+        if action == "retry":
+            retry_dead(item)
+            return Response({"result": "queued"})
+        item.status = ApplicationNotification.Status.DISMISSED
+        item.save(update_fields=("status", "updated_at"))
+        return Response({"result": "dismissed"})
+
+
 class JobApplicationPracticalAssessmentReviewQueueView(ListAPIView):
     """Company-scoped roster of candidates awaiting an observed assessment."""
 
@@ -1685,6 +1965,16 @@ class ApplicationWorkSampleDownloadView(APIView):
         )
         if not (request.user.is_staff or talent_owns_application or recruiter_can_review):
             return Response({"detail": "You are not authorized to access this work sample."}, status=HTTP_403_FORBIDDEN)
+        if sample.scan_status == ApplicationWorkSample.ScanStatus.INFECTED:
+            return Response(
+                {"detail": "This file was blocked because malware was detected."},
+                status=HTTP_403_FORBIDDEN,
+            )
+        if sample.scan_status != ApplicationWorkSample.ScanStatus.CLEAN:
+            return Response(
+                {"detail": "This file is still being scanned for malware. Try again shortly."},
+                status=HTTP_409_CONFLICT,
+            )
         if not sample.file:
             return Response({"detail": "Work sample file not found."}, status=HTTP_404_NOT_FOUND)
         return FileResponse(
@@ -2046,6 +2336,59 @@ class JobTrackViewAPIView(APIView):
         return Response(status=204)
 
 
+class AssistedApplicationCreateView(APIView):
+    """A hiring-team member enters an application for a phone / walk-in candidate."""
+
+    permission_classes = [permissions.IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "assisted_intake"
+
+    @idempotent("assisted-intake")
+    def post(self, request, public_id):
+        job = get_object_or_404(Job.objects.select_related("company"), public_id=public_id)
+        if not _recruiter_can_manage(request.user, job.company):
+            return Response(
+                {"detail": "You are not authorized to enter applications for this job."},
+                status=HTTP_403_FORBIDDEN,
+            )
+        serializer = AssistedApplicationSerializer(
+            data=request.data, context={"job": job, "request": request}
+        )
+        serializer.is_valid(raise_exception=True)
+        try:
+            application = serializer.save()
+        except IntegrityError:
+            return Response(
+                {"detail": "This candidate has already applied to this job."}, status=HTTP_400_BAD_REQUEST
+            )
+
+        from .notifications import queue_notification
+
+        if application.candidate_email:
+            queue_notification(
+                application, "application_received", dedupe_key=f"application_received:{application.id}"
+            )
+        else:
+            queue_notification(
+                application,
+                "contact_by_phone",
+                dedupe_key=f"contact_by_phone:received:{application.id}",
+                payload={"reason": (
+                    f"Phone-only candidate {application.candidate_full_name} ({application.candidate_phone_number}): "
+                    "confirm receipt of the application by phone. Emailed invitations cannot reach them."
+                )},
+            )
+
+        if job.hires_with_ai and application.candidate_resume:
+            try:
+                carry_out_resume_analysis.delay(application.id)
+            except Exception:
+                logger.exception("Failed to dispatch resume analysis for application %s", application.id)
+
+        return Response(GuestJobApplicationResponseSerializer(application).data, status=HTTP_201_CREATED)
+
+
 class JobApplyByIdView(APIView):
     """No-login job application: any visitor can apply directly with their own
     name/email/phone/LinkedIn/resume -- no Tiaago account required, and none
@@ -2081,10 +2424,11 @@ class JobApplyByIdView(APIView):
 
         job_owner = job.company
 
-        try:
-            emails.application_received_mail(application.as_email_recipient(), job)
-        except Exception:
-            logger.exception("Failed to send application-received email for application %s", application.id)
+        from .notifications import queue_notification
+
+        queue_notification(
+            application, "application_received", dedupe_key=f"application_received:{application.id}"
+        )
 
         # If job uses AI hiring, trigger resume analysis. Dispatch failures
         # (e.g. AI service unreachable, or CELERY_TASK_ALWAYS_EAGER running the
@@ -2136,36 +2480,30 @@ class JobApplyByTokenView(APIView):
         if JobApplication.objects.filter(applicant=user.profile, job=job).exists():
             return Response({'error': 'Already applied to this job'}, status=HTTP_400_BAD_REQUEST)
         
-        # A profile can deliberately permit a no-CV application; legacy jobs
-        # still use the original resume requirement.
-        if job.requires_resume() and not user.profile.resume:
-            return Response(
-                {'error': 'A resume is required for this job application'},
-                status=HTTP_400_BAD_REQUEST
-            )
-        
-        # Get cover letter from request data
-        cover_letter = request.data.get('cover_letter', '')
-        if job.get_application_configuration()["cover_letter"]["required"] and not cover_letter.strip():
-            return Response(
-                {'error': 'A cover letter is required for this job application'},
-                status=HTTP_400_BAD_REQUEST,
-            )
-        
-        application = JobApplication.objects.create(
-            applicant=user.profile, 
-            job=job, 
-            cover_letter=cover_letter,
-            additional_info=request.data.get('additional_info', ''),
-            is_external_application=True
+        # Same journey validation as every other entry route (CV/LinkedIn/cover
+        # letter/extra answer, eligibility declarations, work sample, scenario)
+        # so the external link cannot sidestep a published requirement.
+        serializer = JobApplicationSerializer(
+            data=request.data,
+            context={"request": request, "job": job},
         )
-        
+        if not serializer.is_valid():
+            detail = serializer.errors
+            first = next(iter(detail.values()), "Invalid application")
+            message = first[0] if isinstance(first, (list, tuple)) and first else first
+            return Response({"error": str(message), "errors": detail}, status=HTTP_400_BAD_REQUEST)
+        try:
+            application = serializer.save(
+                applicant=user.profile, job=job, is_external_application=True
+            )
+        except IntegrityError:
+            return Response({'error': 'Already applied to this job'}, status=HTTP_400_BAD_REQUEST)
+
         # If job uses AI hiring, trigger resume analysis
         if job.hires_with_ai and application.candidate_resume:
             carry_out_resume_analysis.delay(application.id)
-        
-        serializer = JobApplicationSerializer(application)
-        return Response(serializer.data, status=HTTP_201_CREATED)
+
+        return Response(JobApplicationSerializer(application).data, status=HTTP_201_CREATED)
 
 
 class JobApplicationOtpVerificationView(APIView):
@@ -2194,7 +2532,8 @@ class JobApplicationOtpVerificationView(APIView):
             otp_entry = OneTimePassword.objects.select_related("user").get(
                 user__email=email, 
                 code=otp_code, 
-                otp_expires__gte=timezone.now()
+                otp_expires__gte=timezone.now(),
+                used_at__isnull=True,
             )
             
             otp_entry.user.is_verified = True

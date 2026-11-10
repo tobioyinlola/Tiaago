@@ -403,6 +403,13 @@ class OneTimePassword(models.Model):
     otp_expires = models.DateTimeField(blank=True, null=True)
     # Wrong guesses so far; the OTP is invalidated at MAX_ATTEMPTS.
     attempts = models.PositiveSmallIntegerField(default=0)
+    # Set when the code verified the account. The same code is accepted again
+    # for REPLAY_GRACE_SECONDS so a retry after a lost response (timeout,
+    # gateway error, dropped connection -- the first request can succeed
+    # without the browser ever hearing about it) signs the user in instead of
+    # reporting an invalid code.
+    used_at = models.DateTimeField(null=True, blank=True)
+    REPLAY_GRACE_SECONDS = 120
     # Currently unused -- was set by a guest-account "claim" signup path
     # (reusing an existing is_guest_provisioned shadow account instead of
     # blocking signup) that has since been removed in favor of always

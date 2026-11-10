@@ -17,6 +17,7 @@ import DisplayErrorMessages, {
 } from "@/app/common/components/DisplayErrorMessages";
 import { handleServerApiCallError } from "@/app/common/utils";
 import { ISearchParams } from "@/app/common/types";
+import Link from "next/link";
 import PracticalAssessmentScheduler from "./_components/PracticalAssessmentScheduler";
 
 export const metadata = {
@@ -124,6 +125,14 @@ const ViewTalentApplicationsPage = async ({
         </h4>
       </div>
       <UpdateJobStatus job={job} />
+      {job.application_configuration?.intake?.assisted && (
+        <Link
+          href={`/recruiter/dashboard/jobs/jobs-posted/${job_id}/assisted-intake`}
+          className='mb-6 inline-flex h-10 items-center rounded-lg border border-primary px-4 text-sm font-medium text-primary'
+        >
+          Enter a phone or walk-in application
+        </Link>
+      )}
       {job.practical_assessment_configuration?.enabled && (
         <PracticalAssessmentScheduler job={job} applications={applications} />
       )}
