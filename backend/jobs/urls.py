@@ -50,6 +50,7 @@ from .views import (
     JobApplicationScenarioReviewQueueView,
     ApplicationScenarioResponseReviewView,
     JobPracticalAssessmentSlotListCreateView,
+    AssistedApplicationCreateView,
     RecoveryQueueView,
     RecoveryActionView,
     ApplicationPracticalAssessmentAttendanceView,
@@ -141,6 +142,11 @@ urlpatterns = [
         "job-applications/<int:pk>/practical-assessments/<int:assessment_pk>/",
         ApplicationPracticalAssessmentReviewView.as_view(),
         name="job-application-practical-assessment-review",
+    ),
+    path(
+        "<str:public_id>/assisted-applications/",
+        AssistedApplicationCreateView.as_view(),
+        name="assisted-application-create",
     ),
     path("recovery-queue/", RecoveryQueueView.as_view(), name="recovery-queue"),
     path(

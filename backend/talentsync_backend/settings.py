@@ -330,6 +330,7 @@ REST_FRAMEWORK = {
         # whatever blanket anon/user rate prod/staging apply. See
         # prod_settings.py/staging_settings.py for why these are repeated there.
         "job_apply": "20/hour",
+        "assisted_intake": "60/hour",
         "assessment_generation": "10/hour",
         "question_bank_generation": "10/hour",
     },

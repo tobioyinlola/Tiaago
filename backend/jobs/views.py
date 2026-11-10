@@ -87,6 +87,7 @@ from .serializers import (
     JobTokenValidationSerializer,
     GuestJobApplicationSerializer,
     GuestJobApplicationResponseSerializer,
+    AssistedApplicationSerializer,
     PortfolioSerializer,
     ToolSerializer,
     ExperienceSerializer,
@@ -2313,6 +2314,59 @@ class JobTrackViewAPIView(APIView):
         return Response(status=204)
 
 
+class AssistedApplicationCreateView(APIView):
+    """A hiring-team member enters an application for a phone / walk-in candidate."""
+
+    permission_classes = [permissions.IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "assisted_intake"
+
+    def post(self, request, public_id):
+        job = get_object_or_404(Job.objects.select_related("company"), public_id=public_id)
+        if not _recruiter_can_manage(request.user, job.company):
+            return Response(
+                {"detail": "You are not authorized to enter applications for this job."},
+                status=HTTP_403_FORBIDDEN,
+            )
+        serializer = AssistedApplicationSerializer(
+            data=request.data, context={"job": job, "request": request}
+        )
+        serializer.is_valid(raise_exception=True)
+        try:
+            application = serializer.save()
+        except IntegrityError:
+            return Response(
+                {"detail": "This candidate has already applied to this job."}, status=HTTP_400_BAD_REQUEST
+            )
+
+        if application.candidate_email:
+            try:
+                emails.application_received_mail(application.as_email_recipient(), job)
+            except Exception:
+                logger.exception("Failed to send application-received email for application %s", application.id)
+        else:
+            from .notifications import queue_notification
+
+            queue_notification(
+                application,
+                "contact_by_phone",
+                dedupe_key=f"contact_by_phone:received:{application.id}",
+                payload={"reason": (
+                    f"Phone-only candidate {application.candidate_full_name} ({application.candidate_phone_number}): "
+                    "confirm receipt of the application by phone. Emailed invitations cannot reach them."
+                )},
+            )
+
+        if job.hires_with_ai and application.candidate_resume:
+            try:
+                carry_out_resume_analysis.delay(application.id)
+            except Exception:
+                logger.exception("Failed to dispatch resume analysis for application %s", application.id)
+
+        return Response(GuestJobApplicationResponseSerializer(application).data, status=HTTP_201_CREATED)
+
+
 class JobApplyByIdView(APIView):
     """No-login job application: any visitor can apply directly with their own
     name/email/phone/LinkedIn/resume -- no Tiaago account required, and none
@@ -2403,36 +2457,30 @@ class JobApplyByTokenView(APIView):
         if JobApplication.objects.filter(applicant=user.profile, job=job).exists():
             return Response({'error': 'Already applied to this job'}, status=HTTP_400_BAD_REQUEST)
         
-        # A profile can deliberately permit a no-CV application; legacy jobs
-        # still use the original resume requirement.
-        if job.requires_resume() and not user.profile.resume:
-            return Response(
-                {'error': 'A resume is required for this job application'},
-                status=HTTP_400_BAD_REQUEST
-            )
-        
-        # Get cover letter from request data
-        cover_letter = request.data.get('cover_letter', '')
-        if job.get_application_configuration()["cover_letter"]["required"] and not cover_letter.strip():
-            return Response(
-                {'error': 'A cover letter is required for this job application'},
-                status=HTTP_400_BAD_REQUEST,
-            )
-        
-        application = JobApplication.objects.create(
-            applicant=user.profile, 
-            job=job, 
-            cover_letter=cover_letter,
-            additional_info=request.data.get('additional_info', ''),
-            is_external_application=True
+        # Same journey validation as every other entry route (CV/LinkedIn/cover
+        # letter/extra answer, eligibility declarations, work sample, scenario)
+        # so the external link cannot sidestep a published requirement.
+        serializer = JobApplicationSerializer(
+            data=request.data,
+            context={"request": request, "job": job},
         )
-        
+        if not serializer.is_valid():
+            detail = serializer.errors
+            first = next(iter(detail.values()), "Invalid application")
+            message = first[0] if isinstance(first, (list, tuple)) and first else first
+            return Response({"error": str(message), "errors": detail}, status=HTTP_400_BAD_REQUEST)
+        try:
+            application = serializer.save(
+                applicant=user.profile, job=job, is_external_application=True
+            )
+        except IntegrityError:
+            return Response({'error': 'Already applied to this job'}, status=HTTP_400_BAD_REQUEST)
+
         # If job uses AI hiring, trigger resume analysis
         if job.hires_with_ai and application.candidate_resume:
             carry_out_resume_analysis.delay(application.id)
-        
-        serializer = JobApplicationSerializer(application)
-        return Response(serializer.data, status=HTTP_201_CREATED)
+
+        return Response(JobApplicationSerializer(application).data, status=HTTP_201_CREATED)
 
 
 class JobApplicationOtpVerificationView(APIView):

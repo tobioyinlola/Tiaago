@@ -2058,3 +2058,200 @@ class DurableNotificationAndRecoveryTests(TestCase):
         self.assertEqual(dead.status, "PENDING")
         self.assertEqual(self.client.post(f"/api/jobs/recovery-queue/holds/{hold.id}/dismiss/", {"note": "handled by phone"}, format="json").data["result"], "dismissed")
         self.assertEqual(HeldTransition.objects.get(id=hold.id).status, "DISMISSED")
+
+
+class SignedInAndAssistedIntakeTests(TestCase):
+    """Every entry route enforces the same published journey (UPG-04)."""
+
+    setUp = EligibilityReviewFoundationTests.setUp
+    _job_data = EligibilityReviewFoundationTests._job_data
+    _publish_job = EligibilityReviewFoundationTests._publish_job
+
+    def _talent_client(self, name="signed-in", *, resume=False, linkedin=""):
+        from rest_framework.test import APIClient
+
+        user = CustomUser.objects.create_talent_user(
+            username=name, email=f"{name}@example.com", password="x"
+        )
+        user.is_verified = True
+        user.save(update_fields=["is_verified"])
+        profile = TalentProfile.objects.create(user=user, full_name=name.title(), linkedin_url=linkedin)
+        client = APIClient()
+        client.force_authenticate(user=user)
+        return client, profile
+
+    def _job(self, *, assisted=False, **overrides):
+        job = self._publish_job(**overrides)
+        configuration = job.get_application_configuration()
+        configuration["intake"] = {"assisted": assisted}
+        job.application_configuration = configuration
+        job.save(update_fields=["application_configuration"])
+        return job
+
+    def _declarations(self):
+        return json.dumps({"right-to-work": True, "driving-licence": True})
+
+    # ---------------- signed-in parity
+
+    def test_signed_in_application_enforces_extra_answer_and_records_eligibility(self):
+        job = self._publish_job()
+        configuration = job.get_application_configuration()
+        configuration["additional_info"]["required"] = True
+        job.application_configuration = configuration
+        job.save(update_fields=["application_configuration"])
+        client, profile = self._talent_client("parity")
+
+        missing = client.post(f"/api/jobs/apply/{job.apply_token}/apply/", {"eligibility_declarations": self._declarations()}, format="multipart")
+        self.assertEqual(missing.status_code, 400, missing.data)
+        self.assertIn("additional_info", str(missing.data))
+
+        with patch("jobs.views.carry_out_resume_analysis.delay"):
+            ok = client.post(
+                f"/api/jobs/apply/{job.apply_token}/apply/",
+                {"additional_info": "Three years delivering.", "eligibility_declarations": self._declarations()},
+                format="multipart",
+            )
+        self.assertEqual(ok.status_code, 201, ok.data)
+        application = JobApplication.objects.get(applicant=profile, job=job)
+        self.assertEqual(application.additional_info, "Three years delivering.")
+        self.assertEqual(application.eligibility_checks.count(), 2)  # declarations are not dropped
+
+    def test_signed_in_application_requires_published_work_sample_and_scenario(self):
+        job = self._publish_job()
+        job.work_sample_configuration = {"enabled": True, "required": True, "prompt": "Upload a plan.", "instructions": ""}
+        job.scenario_configuration = {"enabled": True, "required": True, "prompt": "What would you do?", "instructions": "", "response_label": "Answer"}
+        job.save(update_fields=["work_sample_configuration", "scenario_configuration"])
+        client, profile = self._talent_client("journey")
+        base = {"additional_info": "Experienced.", "eligibility_declarations": self._declarations()}
+
+        response = client.post(f"/api/jobs/apply/{job.apply_token}/apply/", base, format="multipart")
+        self.assertEqual(response.status_code, 400, response.data)
+        self.assertIn("work_sample", str(response.data))
+
+        sample = SimpleUploadedFile("plan.csv", b"a,b\n1,2\n", content_type="text/csv")
+        response = client.post(f"/api/jobs/apply/{job.apply_token}/apply/", {**base, "work_sample": sample}, format="multipart")
+        self.assertEqual(response.status_code, 400, response.data)
+        self.assertIn("scenario_response", str(response.data))
+
+        sample = SimpleUploadedFile("plan.csv", b"a,b\n1,2\n", content_type="text/csv")
+        with patch("jobs.tasks.scan_application_work_sample.delay"), self.captureOnCommitCallbacks(execute=True), patch(
+            "jobs.views.carry_out_resume_analysis.delay"
+        ):
+            response = client.post(
+                f"/api/jobs/apply/{job.apply_token}/apply/",
+                {**base, "work_sample": sample, "scenario_response_text": "I would call dispatch first."},
+                format="multipart",
+            )
+        self.assertEqual(response.status_code, 201, response.data)
+        application = JobApplication.objects.get(applicant=profile, job=job)
+        self.assertEqual(application.work_samples.get().scan_status, "PENDING")
+        self.assertEqual(application.scenario_response.response, "I would call dispatch first.")
+
+    def test_token_application_route_cannot_sidestep_requirements(self):
+        job = self._publish_job()
+        client, profile = self._talent_client("token-route")
+        # No eligibility declarations / extra answers were possible before; the
+        # token route now runs the same journey validation.
+        response = client.post(f"/api/jobs/apply/{job.apply_token}/apply/", {}, format="multipart")
+        self.assertEqual(response.status_code, 400, response.data)
+        self.assertIn("error", response.data)
+
+        with patch("jobs.views.carry_out_resume_analysis.delay"):
+            response = client.post(
+                f"/api/jobs/apply/{job.apply_token}/apply/",
+                {"additional_info": "Experienced.", "eligibility_declarations": self._declarations()},
+                format="multipart",
+            )
+        self.assertEqual(response.status_code, 201, response.data)
+        application = JobApplication.objects.get(applicant=profile, job=job)
+        self.assertTrue(application.is_external_application)
+        self.assertEqual(application.eligibility_checks.count(), 2)
+
+    # ---------------- assisted / phone intake
+
+    def _assisted(self, client, job, **overrides):
+        data = {
+            "full_name": "Phone Candidate",
+            "phone_number": "+234 801 234 5678",
+            "channel": "PHONE",
+            "consent_confirmed": True,
+            "additional_info": "Ten years driving.",
+            "eligibility_declarations": self._declarations(),
+        }
+        data.update(overrides)
+        with patch("jobs.views.carry_out_resume_analysis.delay"), patch("jobs.views.emails.application_received_mail"):
+            return client.post(f"/api/jobs/{job.public_id}/assisted-applications/", data, format="multipart")
+
+    def test_assisted_intake_is_off_by_default_and_requires_consent_and_role(self):
+        job = self._job(assisted=False)
+        response = self._assisted(self.client, job)
+        self.assertEqual(response.status_code, 400, response.data)
+        self.assertIn("not enabled", str(response.data))
+
+        job = self._job(assisted=True)
+        self.assertEqual(self._assisted(self.client, job, consent_confirmed=False).status_code, 400)
+        self.assertEqual(self._assisted(self.client, job, phone_number="0801234567").status_code, 400)
+        stranger, _profile = self._talent_client("outsider")
+        self.assertEqual(self._assisted(stranger, job).status_code, 403)
+
+    def test_phone_only_candidate_is_recorded_deduped_and_flagged_for_phone_follow_up(self):
+        from jobs.models import ApplicationNotification as N
+
+        job = self._job(assisted=True)
+        response = self._assisted(self.client, job)
+        self.assertEqual(response.status_code, 201, response.data)
+        application = JobApplication.objects.get(job=job)
+        self.assertEqual(application.guest_phone_number, "+2348012345678")
+        self.assertEqual(application.guest_email, "")
+        self.assertEqual(application.intake_channel, "PHONE")
+        self.assertEqual(application.intake_by_id, self.rep.id)
+        self.assertIsNotNone(application.intake_consent_at)
+        self.assertEqual(application.eligibility_checks.count(), 2)
+
+        with self.captureOnCommitCallbacks(execute=True):
+            pass
+        note = N.objects.get(application=application, kind="contact_by_phone")
+        from jobs.notifications import deliver
+
+        with patch("jobs.tasks.deliver_application_notification.delay"):
+            deliver(note.id)
+        note.refresh_from_db()
+        self.assertEqual(note.status, "SKIPPED")
+        queue = self.client.get("/api/jobs/recovery-queue/")
+        self.assertEqual([item["id"] for item in queue.data["notifications"]], [note.id])
+
+        # Same phone again, in a different format: rejected.
+        duplicate = self._assisted(self.client, job, phone_number="+2348012345678")
+        self.assertEqual(duplicate.status_code, 400, duplicate.data)
+        # A second phone-only candidate (blank email) must not collide on email.
+        second = self._assisted(self.client, job, full_name="Second Person", phone_number="+2348099999999")
+        self.assertEqual(second.status_code, 201, second.data)
+
+    def test_assisted_intake_enforces_published_requirements_and_daily_cap(self):
+        job = self._job(assisted=True)
+        job.scenario_configuration = {"enabled": True, "required": True, "prompt": "Scenario?", "instructions": "", "response_label": "Answer"}
+        job.save(update_fields=["scenario_configuration"])
+        response = self._assisted(self.client, job)
+        self.assertEqual(response.status_code, 400, response.data)
+        self.assertIn("scenario_response", str(response.data))
+
+        job.scenario_configuration = {}
+        job.save(update_fields=["scenario_configuration"])
+        with self.settings(ASSISTED_INTAKE_DAILY_LIMIT=1):
+            self.assertEqual(self._assisted(self.client, job).status_code, 201)
+            capped = self._assisted(self.client, job, full_name="Another", phone_number="+2348077777777")
+            self.assertEqual(capped.status_code, 400, capped.data)
+            self.assertIn("limit", str(capped.data))
+
+    def test_email_dependent_invitations_are_flagged_not_sent_for_phone_only(self):
+        from jobs.models import ApplicationNotification as N
+        from jobs.tasks import send_assessment_link
+
+        job = self._job(assisted=True)
+        self._assisted(self.client, job)
+        application = JobApplication.objects.get(job=job)
+        application.eligibility_checks.update(status="PASS", reviewed_at=timezone.now())
+        with patch("jobs.tasks.deliver_application_notification.delay"):
+            result = send_assessment_link(application.id)
+        self.assertIn("phone follow-up", result)
+        self.assertTrue(N.objects.filter(application=application, dedupe_key__startswith="contact_by_phone:assessment").exists())

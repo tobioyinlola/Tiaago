@@ -109,7 +109,13 @@ def _manual_rejection(application, payload):
     )
 
 
+def _contact_by_phone(application, payload):
+    """A message that has no electronic channel: surface it for a phone call."""
+    raise CannotDeliver(payload.get("reason") or "This candidate has no email address; contact them by phone.")
+
+
 HANDLERS = {
+    "contact_by_phone": _contact_by_phone,
     "practical_booked": _practical_booked,
     "practical_cancelled": _practical_cancelled,
     "practical_no_show": _practical_no_show,

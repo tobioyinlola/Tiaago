@@ -451,6 +451,9 @@ class Job(models.Model):
         """
         return deepcopy(self.application_configuration or self.LEGACY_APPLICATION_CONFIGURATION)
 
+    def allows_assisted_intake(self):
+        return bool(self.get_application_configuration().get("intake", {}).get("assisted"))
+
     def requires_resume(self):
         return bool(self.get_application_configuration().get("resume", {}).get("required"))
 
@@ -1224,6 +1227,23 @@ class JobApplication(models.Model):
         default=False,
         help_text="Whether verification was completed for this application")
 
+    class IntakeChannel(models.TextChoices):
+        SELF = "SELF", _("Candidate applied online")
+        PHONE = "PHONE", _("Entered by hiring team after a phone call")
+        IN_PERSON = "IN_PERSON", _("Entered by hiring team in person")
+        AGENT = "AGENT", _("Entered by a recruiting agent")
+
+    # Assisted intake: a signed-in hiring-team member enters the application
+    # on the candidate's behalf (phone / walk-in). The member attests that the
+    # candidate consented; that is the verification route for candidates who
+    # have no email address, so no unauthenticated phone-only door exists.
+    intake_channel = models.CharField(max_length=10, choices=IntakeChannel.choices, default=IntakeChannel.SELF)
+    intake_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+    intake_consent_at = models.DateTimeField(null=True, blank=True)
+    intake_notes = models.TextField(max_length=1000, blank=True, default="")
+
     created = models.DateTimeField(auto_now_add=True)
     last_updated = models.DateTimeField(auto_now=True)
 
@@ -1240,7 +1260,10 @@ class JobApplication(models.Model):
                 name="unique_real_applicant_per_job",
             ),
             models.UniqueConstraint(
-                fields=["job", "guest_email"], condition=models.Q(applicant__isnull=True),
+                # Phone-only (assisted) candidates have no email, so the blank
+                # value must not collide across different people.
+                fields=["job", "guest_email"],
+                condition=models.Q(applicant__isnull=True) & ~models.Q(guest_email=""),
                 name="unique_guest_email_per_job",
             ),
         ]

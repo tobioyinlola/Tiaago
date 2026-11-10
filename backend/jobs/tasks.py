@@ -395,6 +395,21 @@ def send_assessment_link(job_application_id, trials=0):
         )
         return eligibility_hold
 
+    if not job_application.candidate_email:
+        # Phone-only (assisted) candidate: there is no inbox for the link.
+        from .notifications import queue_notification
+
+        queue_notification(
+            job_application,
+            "contact_by_phone",
+            dedupe_key=f"contact_by_phone:assessment:{job_application.id}",
+            payload={"reason": (
+                f"{job_application.candidate_full_name} has no email address, so the online "
+                "assessment invitation could not be sent. Contact them by phone."
+            )},
+        )
+        return "No email address; flagged for phone follow-up"
+
     # Idempotency guard: GeneralSkillAssessment.job_application is a plain FK
     # (not unique), and this task can be re-delivered by Celery (worker crash/
     # visibility-timeout redelivery) or invoked twice from an upstream trigger.
@@ -1114,6 +1129,20 @@ def send_interview_slot_invite(job_application_id):
     # move or scheduler.review_views.AdvanceInterviewRoundView) is for their
     # second round.
     is_second_round = Scheduler.objects.filter(job_application=job_application).exists()
+
+    if not job_application.candidate_email:
+        from .notifications import queue_notification
+
+        queue_notification(
+            job_application,
+            "contact_by_phone",
+            dedupe_key=f"contact_by_phone:interview:{job_application.id}:{'2' if is_second_round else '1'}",
+            payload={"reason": (
+                f"{job_application.candidate_full_name} has no email address, so the interview "
+                "slot invitation could not be sent. Contact them by phone."
+            )},
+        )
+        return
 
     if not job.interview_availability_slots.filter(is_claimed=False).exists():
         logger.warning(
