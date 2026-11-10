@@ -1012,6 +1012,87 @@ class ApplicationPracticalAssessment(TimeStampedModel):
         return f"{self.application_id}: practical attempt {self.attempt_number} ({self.status})"
 
 
+class ApplicationNotification(TimeStampedModel):
+    """Durable outbox for candidate-facing messages.
+
+    Sending inline and swallowing the exception leaves a candidate silently
+    uninformed. A row here survives worker crashes, is retried with backoff,
+    and ends in DEAD/SKIPPED where the hiring team's recovery queue shows it.
+    """
+
+    class Status(models.TextChoices):
+        PENDING = "PENDING", _("Pending")
+        SENT = "SENT", _("Sent")
+        DEAD = "DEAD", _("Delivery failed")
+        SKIPPED = "SKIPPED", _("Cannot be delivered")
+        DISMISSED = "DISMISSED", _("Dismissed")
+
+    application = models.ForeignKey(
+        "jobs.JobApplication", on_delete=models.CASCADE, related_name="notifications"
+    )
+    kind = models.CharField(max_length=50)
+    dedupe_key = models.CharField(max_length=160, unique=True)
+    payload = models.JSONField(default=dict, blank=True)
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.PENDING)
+    attempts = models.PositiveSmallIntegerField(default=0)
+    next_attempt_at = models.DateTimeField(default=timezone.now)
+    last_error = models.CharField(max_length=500, blank=True, default="")
+    sent_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=("status", "next_attempt_at")),
+            models.Index(fields=("application", "status")),
+        ]
+        ordering = ("-created_at",)
+
+    def __str__(self):
+        return f"{self.kind} -> application {self.application_id} ({self.status})"
+
+
+class HeldTransition(TimeStampedModel):
+    """An automated progression that a guard blocked, kept until resolved.
+
+    Previously a held transition was only logged, so a candidate who passed
+    an assessment while an eligibility review was outstanding simply stalled.
+    """
+
+    class Status(models.TextChoices):
+        OPEN = "OPEN", _("Open")
+        RESOLVED = "RESOLVED", _("Resolved")
+        DISMISSED = "DISMISSED", _("Dismissed")
+
+    application = models.ForeignKey(
+        "jobs.JobApplication", on_delete=models.CASCADE, related_name="held_transitions"
+    )
+    source = models.CharField(max_length=30)
+    from_status = models.CharField(max_length=30)
+    target_status = models.CharField(max_length=30)
+    reason = models.TextField(max_length=1000)
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.OPEN)
+    attempts = models.PositiveSmallIntegerField(default=0)
+    last_checked_at = models.DateTimeField(null=True, blank=True)
+    resolved_at = models.DateTimeField(null=True, blank=True)
+    resolved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+    resolution_note = models.CharField(max_length=300, blank=True, default="")
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=("application", "source", "target_status"),
+                condition=models.Q(status="OPEN"),
+                name="unique_open_held_transition",
+            )
+        ]
+        indexes = [models.Index(fields=("status", "created_at"))]
+        ordering = ("-created_at",)
+
+    def __str__(self):
+        return f"{self.application_id}: {self.source} -> {self.target_status} ({self.status})"
+
+
 class JobApplication(models.Model):
     """Job Application Model"""
 

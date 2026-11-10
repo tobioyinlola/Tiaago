@@ -156,6 +156,25 @@ def available_slots(job, *, candidate_facing):
 
 # ------------------------------------------------------------------ actions
 
+def _notify(kind, appointment, note=""):
+    """Queue the candidate message for an appointment event (durable outbox)."""
+    from .notifications import queue_notification
+
+    application = appointment.application
+    slot = appointment.slot
+    queue_notification(
+        application,
+        kind,
+        dedupe_key=f"{kind}:{appointment.id}",
+        payload={
+            "title": application.job.get_practical_assessment_configuration()["title"],
+            "starts_at": timezone.localtime(slot.starts_at).strftime("%A %d %B %Y, %H:%M"),
+            "location": slot.location,
+            "instructions": slot.instructions,
+            "note": note,
+        },
+    )
+
 def book_slot(application_id, slot_id, *, booked_by, override_reason=""):
     """Atomically book ``slot_id``; raises a DRF ValidationError on any rule."""
     from .models import (
@@ -193,7 +212,7 @@ def book_slot(application_id, slot_id, *, booked_by, override_reason=""):
         latest = A.objects.filter(application=application).order_by("-attempt_number").values_list(
             "attempt_number", flat=True
         ).first() or 0
-        return A.objects.create(
+        appointment = A.objects.create(
             application=application,
             slot=slot,
             attempt_number=latest + 1,
@@ -201,6 +220,8 @@ def book_slot(application_id, slot_id, *, booked_by, override_reason=""):
             booked_by=booked_by,
             policy_override_reason=applied_override,
         )
+        _notify("practical_booked", appointment)
+        return appointment
 
 
 def cancel_appointment(appointment, *, by, reason=""):
@@ -227,6 +248,7 @@ def cancel_appointment(appointment, *, by, reason=""):
         appointment.save(update_fields=(
             "status", "status_changed_by", "status_changed_at", "status_reason", "updated_at",
         ))
+        _notify("practical_cancelled", appointment, note=appointment.status_reason and f"Reason: {appointment.status_reason}")
     return appointment
 
 
@@ -247,4 +269,5 @@ def mark_no_show(appointment, *, reason=""):
         appointment.save(update_fields=(
             "status", "status_changed_by", "status_changed_at", "status_reason", "updated_at",
         ))
+        _notify("practical_no_show", appointment)
     return appointment

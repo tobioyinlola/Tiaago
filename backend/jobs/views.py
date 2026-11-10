@@ -56,6 +56,8 @@ from .models import (
     ApplicationEligibilityCheck,
     ApplicationWorkSample,
     ApplicationScenarioResponse,
+    ApplicationNotification,
+    HeldTransition,
     ApplicationPracticalAssessment,
     JobPracticalAssessmentSlot,
     Portfolio,
@@ -119,6 +121,8 @@ from .tasks import (
 )
 from django.conf import settings
 from . import practical
+from .notifications import retry_dead
+from .transitions import retry_hold
 from .services import eligibility_progression_block_detail, workflow_transition_block_detail
 from emails import emails
 from rest_framework.permissions import AllowAny
@@ -1535,7 +1539,16 @@ class PracticalBookingLinkView(APIView):
             )
         token = practical.make_booking_token(application)
         base = str(settings.FRONTEND_URL).rstrip("/")
-        return Response({"token": token, "url": f"{base}/jobs/practical-booking/{token}"})
+        url = f"{base}/jobs/practical-booking/{token}"
+        from .notifications import queue_notification
+
+        notification = queue_notification(
+            application,
+            "practical_booking_invite",
+            dedupe_key=f"practical_invite:{application.id}:{timezone.now():%Y%m%d%H}",
+            payload={"title": application.job.get_practical_assessment_configuration()["title"], "url": url},
+        )
+        return Response({"token": token, "url": url, "notification_status": notification.status})
 
 
 class _PracticalBookingBase(APIView):
@@ -1632,6 +1645,97 @@ class PracticalBookingCancelView(_PracticalBookingBase):
             reason=str(request.data.get("reason") or ""),
         )
         return Response(ApplicationPracticalAssessmentSerializer(appointment).data)
+
+
+def _recovery_scope(user):
+    """Company filter for the recovery queue; ``None`` means no access."""
+    if user.is_staff:
+        return Q()
+    company = get_user_company(user)
+    if not company or not _recruiter_can_manage(user, company):
+        return None
+    return Q(application__job__company=company)
+
+
+def _recovery_candidate(application):
+    return {
+        "application_id": application.id,
+        "candidate_name": application.candidate_full_name,
+        "job_title": application.job.title,
+        "status": application.status,
+    }
+
+
+class RecoveryQueueView(APIView):
+    """Everything automated that stalled and needs a human: held progressions
+    and candidate messages that could not be delivered."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        scope = _recovery_scope(request.user)
+        if scope is None:
+            return Response({"detail": "You are not authorized to view the recovery queue."}, status=HTTP_403_FORBIDDEN)
+        holds = HeldTransition.objects.filter(scope, status=HeldTransition.Status.OPEN).select_related(
+            "application__job", "application__applicant__user"
+        )[:100]
+        notifications = ApplicationNotification.objects.filter(
+            scope,
+            status__in=(ApplicationNotification.Status.DEAD, ApplicationNotification.Status.SKIPPED),
+        ).select_related("application__job", "application__applicant__user")[:100]
+        return Response({
+            "holds": [
+                {
+                    "id": hold.id, "source": hold.source, "from_status": hold.from_status,
+                    "target_status": hold.target_status, "reason": hold.reason,
+                    "attempts": hold.attempts, "created_at": hold.created_at,
+                    "last_checked_at": hold.last_checked_at,
+                    **_recovery_candidate(hold.application),
+                }
+                for hold in holds
+            ],
+            "notifications": [
+                {
+                    "id": item.id, "kind": item.kind, "status": item.status,
+                    "attempts": item.attempts, "last_error": item.last_error,
+                    "created_at": item.created_at, **_recovery_candidate(item.application),
+                }
+                for item in notifications
+            ],
+        })
+
+
+class RecoveryActionView(APIView):
+    """retry / dismiss one held transition or undelivered notification."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, kind, pk, action):
+        scope = _recovery_scope(request.user)
+        if scope is None:
+            return Response({"detail": "You are not authorized."}, status=HTTP_403_FORBIDDEN)
+        if action not in ("retry", "dismiss") or kind not in ("holds", "notifications"):
+            return Response({"detail": "Unknown recovery action."}, status=HTTP_404_NOT_FOUND)
+        model = HeldTransition if kind == "holds" else ApplicationNotification
+        item = get_object_or_404(model.objects.filter(scope).select_related("application__job"), id=pk)
+
+        if kind == "holds":
+            if action == "retry":
+                result = retry_hold(item, user=request.user)
+                return Response({"result": result})
+            item.status = HeldTransition.Status.DISMISSED
+            item.resolved_at = timezone.now()
+            item.resolved_by = request.user
+            item.resolution_note = str(request.data.get("note") or "")[:300]
+            item.save(update_fields=("status", "resolved_at", "resolved_by", "resolution_note", "updated_at"))
+            return Response({"result": "dismissed"})
+
+        if action == "retry":
+            retry_dead(item)
+            return Response({"result": "queued"})
+        item.status = ApplicationNotification.Status.DISMISSED
+        item.save(update_fields=("status", "updated_at"))
+        return Response({"result": "dismissed"})
 
 
 class JobApplicationPracticalAssessmentReviewQueueView(ListAPIView):

@@ -228,6 +228,7 @@ def _finalize_submission_score(submission, assessment, total_score, is_passed, p
     finishes) or from the grade-open-ended endpoint's finalize step (after a
     recruiter has scored every open-ended answer on an AWAITING_MANUAL_REVIEW
     submission -- see skill_assessment/views.py's GradeOpenEndedAPIView)."""
+    progression_held = False
     with transaction.atomic():
         submission.total_score = total_score
         submission.is_passed = is_passed
@@ -295,6 +296,15 @@ def _finalize_submission_score(submission, assessment, total_score, is_passed, p
                         assessment.job_application_id,
                         eligibility_hold,
                     )
+                    from jobs.transitions import record_held_transition
+
+                    record_held_transition(
+                        assessment.job_application,
+                        source="assessment",
+                        target_status=next_status,
+                        reason=eligibility_hold,
+                    )
+                    progression_held = True
                 else:
                     JobApplication.objects.filter(id=assessment.job_application_id).update(
                         status=next_status
@@ -445,7 +455,9 @@ def _finalize_submission_score(submission, assessment, total_score, is_passed, p
                 pk=submission.candidate_id, has_passed_tiaago_assessment=False
             ).update(has_passed_tiaago_assessment=True)
 
-        if assessment.job_application_id and assessment.company_id:
+        # A held progression must not still invite the candidate to an
+        # interview; the recovery sweep sends the invite once the hold clears.
+        if assessment.job_application_id and assessment.company_id and not progression_held:
             job = assessment.job_application.job
             if job.ai_interview_enabled:
                 try:

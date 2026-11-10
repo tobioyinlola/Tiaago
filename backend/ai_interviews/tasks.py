@@ -404,6 +404,14 @@ def _advance_on_ai_interview_result(interview, job):
             application.id,
             eligibility_hold,
         )
+        from jobs.transitions import record_held_transition
+
+        record_held_transition(
+            application,
+            source="ai_interview",
+            target_status=JobApplication.JobApplicationStatus.INTERVIEW_SCHEDULED,
+            reason=eligibility_hold,
+        )
         return
 
     # Only advance forward. A recruiter who has already moved this candidate

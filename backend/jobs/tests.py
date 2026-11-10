@@ -117,6 +117,29 @@ class AIInterviewPassMarkGateTests(TestCase):
         )
         invite.assert_not_called()
 
+    def test_held_ai_progression_is_recorded_and_released_when_review_clears(self):
+        from jobs.models import HeldTransition
+        from jobs.transitions import retry_hold
+
+        self.job.eligibility_requirements = [
+            {"code": "right-to-work", "label": "Right to work", "description": "x", "required": True}
+        ]
+        self.job.save(update_fields=["eligibility_requirements"])
+        self._run(85)
+        hold = HeldTransition.objects.get(application=self.application)
+        self.assertEqual(hold.source, "ai_interview")
+        self.assertEqual(hold.status, HeldTransition.Status.OPEN)
+        self.assertEqual(retry_hold(hold), "blocked")
+
+        self.application.eligibility_checks.update(
+            status=ApplicationEligibilityCheck.Status.PASS, reviewed_at=timezone.now()
+        )
+        with patch("jobs.tasks.send_interview_slot_invite.delay") as invite, self.captureOnCommitCallbacks(execute=True):
+            self.assertEqual(retry_hold(hold), "resolved")
+        self.application.refresh_from_db()
+        self.assertEqual(self.application.status, JobApplication.JobApplicationStatus.INTERVIEW_SCHEDULED)
+        invite.assert_called_once_with(self.application.id)
+
     def test_below_the_mark_holds_for_recruiter_review(self):
         """Deliberately not an auto-rejection -- the recruiter still decides."""
         invite = self._run(69)
@@ -1750,6 +1773,27 @@ class PracticalBookingPolicyTests(TestCase):
         self.assertEqual(late.status_code, 400, late.data)
         self.assertIn("too late", str(late.data))
 
+    def test_booking_cancel_and_no_show_queue_durable_messages(self):
+        from jobs.models import ApplicationNotification as N, JobPracticalAssessmentSlot
+
+        job = self._job()
+        application = self._application(job, "notify@example.com")
+        slot = self._create_slot(job, timezone.now() + timedelta(days=3))
+        with patch("jobs.tasks.deliver_application_notification.delay"), self.captureOnCommitCallbacks(execute=True):
+            booked = self.client.post(
+                f"/api/jobs/job-applications/{application.id}/practical-assessments/", {"slot_id": slot["id"]}, format="json"
+            )
+            self.assertEqual(booked.status_code, 201, booked.data)
+            link = self.client.post(f"/api/jobs/job-applications/{application.id}/practical-booking-link/")
+            self.assertEqual(link.data["notification_status"], "PENDING")
+            url = f"/api/jobs/job-applications/{application.id}/practical-assessments/{booked.data['id']}/attendance/"
+            JobPracticalAssessmentSlot.objects.filter(id=slot["id"]).update(
+                starts_at=timezone.now() - timedelta(hours=2), ends_at=timezone.now() - timedelta(hours=1)
+            )
+            self.assertEqual(self.client.patch(url, {"status": "NO_SHOW"}, format="json").status_code, 200)
+        kinds = set(N.objects.filter(application=application).values_list("kind", flat=True))
+        self.assertEqual(kinds, {"practical_booked", "practical_booking_invite", "practical_no_show"})
+
     def test_invalid_or_foreign_token_is_rejected(self):
         job = self._job()
         application = self._application(job, "tok@example.com")
@@ -1875,3 +1919,142 @@ class PracticalBookingPolicyTests(TestCase):
         self.assertEqual(
             stranger.get(f"/api/jobs/job-applications/{application.id}/practical-booking/").status_code, 403
         )
+
+
+class DurableNotificationAndRecoveryTests(TestCase):
+    """Failed messages are retried and surfaced; held progressions are released."""
+
+    setUp = EligibilityReviewFoundationTests.setUp
+    _job_data = EligibilityReviewFoundationTests._job_data
+    _publish_job = EligibilityReviewFoundationTests._publish_job
+    _apply_as_guest = EligibilityReviewFoundationTests._apply_as_guest
+
+    def _application(self, email="recover@example.com"):
+        job = self._publish_job()
+        return self._apply_as_guest(
+            job, email=email, declarations={"right-to-work": True, "driving-licence": True}
+        )
+
+    def test_delivery_retries_with_backoff_then_dies_and_can_be_retried(self):
+        from jobs.models import ApplicationNotification as N
+        from jobs.notifications import HANDLERS, MAX_ATTEMPTS, deliver, queue_notification, retry_dead
+
+        application = self._application()
+        with patch("jobs.tasks.deliver_application_notification.delay"):
+            notification = queue_notification(application, "manual_rejection", dedupe_key="t:1", payload={"reason": "x"})
+            # Idempotent on the dedupe key.
+            self.assertEqual(queue_notification(application, "manual_rejection", dedupe_key="t:1").id, notification.id)
+        self.assertEqual(N.objects.filter(application=application).count(), 1)
+
+        calls = {"n": 0}
+
+        def flaky(app, payload):
+            calls["n"] += 1
+            raise RuntimeError("smtp down")
+
+        with patch.dict(HANDLERS, {"manual_rejection": flaky}):
+            first = deliver(notification.id)
+            self.assertEqual(first.status, "PENDING")
+            self.assertEqual(first.attempts, 1)
+            self.assertGreater(first.next_attempt_at, timezone.now())
+            for _ in range(MAX_ATTEMPTS):
+                deliver(notification.id)
+        notification.refresh_from_db()
+        self.assertEqual(notification.status, "DEAD")
+        self.assertIn("smtp down", notification.last_error)
+        self.assertEqual(calls["n"], MAX_ATTEMPTS)
+
+        with patch("jobs.tasks.deliver_application_notification.delay"), patch.dict(HANDLERS, {"manual_rejection": lambda a, p: None}):
+            retry_dead(notification)
+            notification.refresh_from_db()
+            self.assertEqual(notification.status, "PENDING")
+            deliver(notification.id)
+        notification.refresh_from_db()
+        self.assertEqual(notification.status, "SENT")
+
+    def test_candidate_without_email_is_skipped_not_retried(self):
+        from jobs.models import ApplicationNotification as N
+        from jobs.notifications import deliver, queue_notification
+
+        application = self._application("phone-only@example.com")
+        JobApplication.objects.filter(id=application.id).update(guest_email="")
+        application.refresh_from_db()
+        with patch("jobs.tasks.deliver_application_notification.delay"):
+            notification = queue_notification(application, "practical_booked", dedupe_key="t:phone", payload={})
+        deliver(notification.id)
+        notification.refresh_from_db()
+        self.assertEqual(notification.status, N.Status.SKIPPED)
+        self.assertIn("phone", notification.last_error)
+
+    def test_held_transition_is_recorded_released_and_not_duplicated(self):
+        from jobs.models import HeldTransition
+        from jobs.tasks import retry_held_transitions
+        from jobs.transitions import record_held_transition
+
+        application = self._application("held@example.com")
+        hold = record_held_transition(
+            application, source="resume_screening", target_status="REVIEWED", reason="Eligibility review pending",
+        )
+        again = record_held_transition(
+            application, source="resume_screening", target_status="REVIEWED", reason="Still pending",
+        )
+        self.assertEqual(hold.id, again.id)
+        self.assertEqual(HeldTransition.objects.filter(application=application).count(), 1)
+
+        # Still blocked: eligibility not reviewed.
+        with patch("jobs.tasks.send_assessment_link.apply_async"):
+            self.assertEqual(retry_held_transitions(), 0)
+        application.refresh_from_db()
+        self.assertEqual(application.status, "APPLIED")
+
+        application.eligibility_checks.update(status="PASS", reviewed_at=timezone.now())
+        with patch("jobs.tasks.send_assessment_link.apply_async") as invite, self.captureOnCommitCallbacks(execute=True):
+            self.assertEqual(retry_held_transitions(), 1)
+        application.refresh_from_db()
+        hold.refresh_from_db()
+        self.assertEqual(application.status, "REVIEWED")
+        self.assertEqual(hold.status, "RESOLVED")
+        invite.assert_called_once()
+
+    def test_hold_is_superseded_when_application_already_moved(self):
+        from jobs.transitions import record_held_transition, retry_hold
+
+        application = self._application("moved@example.com")
+        hold = record_held_transition(application, source="assessment", target_status="INTERVIEW_SCHEDULED", reason="x")
+        JobApplication.objects.filter(id=application.id).update(status="REJECTED")
+        self.assertEqual(retry_hold(hold), "superseded")
+        application.refresh_from_db()
+        self.assertEqual(application.status, "REJECTED")
+
+    def test_recovery_queue_lists_scopes_and_acts(self):
+        from jobs.models import ApplicationNotification as N, HeldTransition
+        from jobs.transitions import record_held_transition
+
+        application = self._application("queue@example.com")
+        hold = record_held_transition(application, source="resume_screening", target_status="REVIEWED", reason="Awaiting review")
+        dead = N.objects.create(application=application, kind="practical_booked", dedupe_key="q:1", status=N.Status.DEAD, last_error="boom")
+
+        response = self.client.get("/api/jobs/recovery-queue/")
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual([item["id"] for item in response.data["holds"]], [hold.id])
+        self.assertEqual([item["id"] for item in response.data["notifications"]], [dead.id])
+
+        # Another company's rep sees nothing and cannot act.
+        from rest_framework.test import APIClient
+
+        other_rep = CustomUser.objects.create_company_user(username="other-rep", email="other-rep@example.com", password="x")
+        other_rep.verified = True
+        other_rep.save(update_fields=["verified"])
+        Company.objects.create(company_name="Other Co", company_rep=other_rep)
+        other = APIClient()
+        other.force_authenticate(user=other_rep)
+        self.assertEqual(other.get("/api/jobs/recovery-queue/").data["holds"], [])
+        self.assertEqual(other.post(f"/api/jobs/recovery-queue/holds/{hold.id}/dismiss/").status_code, 404)
+
+        self.assertEqual(self.client.post(f"/api/jobs/recovery-queue/holds/{hold.id}/retry/").data["result"], "blocked")
+        with patch("jobs.tasks.deliver_application_notification.delay"), self.captureOnCommitCallbacks(execute=True):
+            self.assertEqual(self.client.post(f"/api/jobs/recovery-queue/notifications/{dead.id}/retry/").data["result"], "queued")
+        dead.refresh_from_db()
+        self.assertEqual(dead.status, "PENDING")
+        self.assertEqual(self.client.post(f"/api/jobs/recovery-queue/holds/{hold.id}/dismiss/", {"note": "handled by phone"}, format="json").data["result"], "dismissed")
+        self.assertEqual(HeldTransition.objects.get(id=hold.id).status, "DISMISSED")

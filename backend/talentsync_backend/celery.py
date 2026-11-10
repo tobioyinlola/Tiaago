@@ -46,6 +46,14 @@ app.conf.beat_schedule = {
         "task": "jobs.tasks.sweep_unscanned_work_samples",
         "schedule": crontab(minute="*/5"),  # Retry uploads the scanner could not clear
     },
+    "sweep_due_notifications": {
+        "task": "jobs.tasks.sweep_due_notifications",
+        "schedule": crontab(minute="*"),  # Outbox retries with backoff
+    },
+    "retry_held_transitions": {
+        "task": "jobs.tasks.retry_held_transitions",
+        "schedule": crontab(minute="*/5"),  # Release holds once eligibility etc. clears
+    },
     "advance_sequence_steps": {
         "task": "campaigns.tasks.advance_sequence_steps",
         "schedule": crontab(minute="*/5"),  # Fire step 2+ of drip sequences every 5 min

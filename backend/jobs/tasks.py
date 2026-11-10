@@ -831,6 +831,14 @@ def carry_out_resume_analysis(job_application_id):
                             job_application_id,
                             workflow_hold or eligibility_hold,
                         )
+                        from .transitions import record_held_transition
+
+                        record_held_transition(
+                            job_application,
+                            source="resume_screening",
+                            target_status=JobApplication.JobApplicationStatus.REVIEWED,
+                            reason=workflow_hold or eligibility_hold,
+                        )
                     else:
                         JobApplication.objects.filter(id=job_application_id).update(
                             status=JobApplication.JobApplicationStatus.REVIEWED
@@ -1177,15 +1185,16 @@ def send_manual_rejection_mail(job_application_id, reason):
     ).first()
     if not job_application:
         return
-    try:
-        emails.applicant_vetting_mail(
-            job_application.as_email_recipient(),
-            job_application.job,
-            "unconsider",
-            areas_for_improvement=reason,
-        )
-    except Exception:
-        logger.exception("Failed to send manual rejection mail for job_application %s", job_application_id)
+    # Durable: delivery is retried with backoff and a final failure shows up
+    # in the hiring team's recovery queue instead of only in a log line.
+    from .notifications import queue_notification
+
+    queue_notification(
+        job_application,
+        "manual_rejection",
+        dedupe_key=f"manual_rejection:{job_application.id}",
+        payload={"reason": reason},
+    )
 
 
 @shared_task(name="send_interview_scheduled_notice_mail")
@@ -1302,3 +1311,41 @@ def sweep_unscanned_work_samples():
     for sample_id in ids:
         scan_application_work_sample.delay(sample_id)
     return len(ids)
+
+
+@shared_task(name="jobs.tasks.deliver_application_notification", ignore_result=True)
+def deliver_application_notification(notification_id):
+    from .notifications import deliver
+
+    deliver(notification_id)
+
+
+@shared_task(name="jobs.tasks.sweep_due_notifications", ignore_result=True)
+def sweep_due_notifications():
+    """Pick up outbox rows whose retry time has come (or whose task was lost)."""
+    from django.utils import timezone
+    from .models import ApplicationNotification as N
+
+    ids = list(
+        N.objects.filter(status=N.Status.PENDING, next_attempt_at__lte=timezone.now())
+        .order_by("next_attempt_at").values_list("id", flat=True)[:200]
+    )
+    for notification_id in ids:
+        deliver_application_notification.delay(notification_id)
+    return len(ids)
+
+
+@shared_task(name="jobs.tasks.retry_held_transitions", ignore_result=True)
+def retry_held_transitions():
+    """Re-check open holds; release those whose guards have cleared."""
+    from .models import HeldTransition
+    from .transitions import retry_hold
+
+    released = 0
+    for hold in HeldTransition.objects.filter(status=HeldTransition.Status.OPEN).order_by("created_at")[:200]:
+        try:
+            if retry_hold(hold) == "resolved":
+                released += 1
+        except Exception:  # noqa: BLE001 - one bad row must not stall the sweep
+            logger.exception("Retrying held transition %s failed", hold.id)
+    return released
