@@ -44,7 +44,7 @@ def generate_otp(user, pending_password=None):
     otp_code = get_random_string(length=6, allowed_chars="0123456789")
     otp_expires = timezone.now() + timedelta(seconds=settings.OTP_EXPIRY_TIME)
 
-    defaults = {"code": otp_code, "otp_expires": otp_expires, "attempts": 0}
+    defaults = {"code": otp_code, "otp_expires": otp_expires, "attempts": 0, "used_at": None}
     if pending_password is not None:
         defaults["pending_password"] = pending_password
 

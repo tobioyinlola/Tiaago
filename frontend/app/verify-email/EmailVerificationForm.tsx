@@ -1,5 +1,6 @@
 ﻿"use client";
 
+import { HTTPError } from "ky";
 import { toast } from "sonner";
 import Button from "@/app/common/components/DaisyButton";
 import { useCountdown } from "usehooks-ts";
@@ -23,6 +24,30 @@ type Props = {
    */
   autoLoginRedirect?: string;
   resendDelayInMinutes?: number;
+};
+
+const TRANSIENT_STATUSES = new Set([408, 502, 503, 504]);
+
+/** POSTs the code, retrying only failures where the server never gave an
+ * answer (offline, timeout, cold start, gateway error). A real answer from the
+ * API -- including "invalid code" -- is returned to the caller immediately. The
+ * API accepts a repeat of the same code for a short time after it verified the
+ * account, so a retry after a lost response signs the user in. */
+const postVerification = async (email: string, otp: string) => {
+  const attempts = 3;
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await publicKyInstance
+        .post("auth/account-confirm-email/", { json: { email, otp }, retry: 0 })
+        .json<Partial<TokensInput>>();
+    } catch (error) {
+      const transient = error instanceof HTTPError
+        ? TRANSIENT_STATUSES.has(error.response.status)
+        : true; // network failure or timeout: no response was received
+      if (!transient || attempt >= attempts) throw error;
+      await new Promise(resolve => setTimeout(resolve, 1200 * attempt));
+    }
+  }
 };
 
 const EmailVerificationForm = ({
@@ -73,39 +98,57 @@ const EmailVerificationForm = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canResend]);
 
-  const verifyEmail = (_code = code) => {
+  // The digits are read from the inputs themselves, never from `code` state:
+  // the last digit auto-submits from inside the same event that typed it (or
+  // from an autofill/paste burst), when the state captured by this render can
+  // still be a digit or two behind. Submitting that stale value showed an
+  // "Invalid OTP" error on the first attempt, and the second click -- by then
+  // with up-to-date state -- succeeded.
+  const readOtp = () => inputRefs.current.map(input => input?.value ?? "").join("");
+  // A ref, not state: state would not update before a second trigger (the
+  // auto-submit plus a click) in the same tick.
+  const submittingRef = useRef(false);
+
+  const verifyEmail = () => {
     if (!email) {
       toast.error("No valid email was provided");
       return;
     }
-    if (isLoading) return;
-    const otp = _code.join("");
+    if (submittingRef.current) return;
+    const otp = readOtp();
     if (otp.length !== OTP_LENGTH) {
-      toast.error("Invalid OTP");
+      toast.error("Enter all 6 digits of the code");
       return;
     }
+    submittingRef.current = true;
     setIsLoading(true);
     toast.dismiss();
-    publicKyInstance
-      .post("auth/account-confirm-email/", {
-        json: { email, otp },
-      })
-      .json<Partial<TokensInput>>()
-      .then(async data => {
-        toast.success("Email verified successfully");
-        if (autoLoginRedirect && data?.access) {
-          // log the user straight in and hand off (e.g. onboarding cards)
-          await setAuthCookies(data as TokensInput);
-          window.location.href = autoLoginRedirect;
-          return;
+    postVerification(email, otp)
+      .then(
+        async data => {
+          // From here the email IS verified (the code is single-use), so a
+          // problem signing in must fall back to the login page rather than
+          // be reported as a verification failure.
+          toast.success("Email verified successfully");
+          try {
+            if (autoLoginRedirect && data?.access) {
+              // log the user straight in and hand off (e.g. onboarding cards)
+              await setAuthCookies(data as TokensInput);
+              window.location.href = autoLoginRedirect;
+              return;
+            }
+          } catch (signInError) {
+            console.error("Auto sign-in after verification failed", signInError);
+          }
+          router.push(loginUrl);
+        },
+        e => {
+          submittingRef.current = false;
+          setTimeout(() => {
+            handleFormSubmissionError(e, undefined, setAlert);
+          }, 500);
         }
-        router.push(loginUrl);
-      })
-      .catch(e => {
-        setTimeout(() => {
-          handleFormSubmissionError(e, undefined, setAlert);
-        }, 500);
-      })
+      )
       .finally(() => {
         setIsLoading(false);
       });
@@ -132,11 +175,7 @@ const EmailVerificationForm = ({
       });
       const focusIndex = Math.min(index + digits.length, OTP_LENGTH - 1);
       inputRefs.current[focusIndex]?.focus();
-      if (index + digits.length >= OTP_LENGTH) {
-        const filled = [...code];
-        digits.forEach((d, i) => { filled[index + i] = d; });
-        verifyEmail(filled);
-      }
+      if (index + digits.length >= OTP_LENGTH) verifyEmail();
       return;
     }
     e.target.value = raw;
@@ -148,7 +187,7 @@ const EmailVerificationForm = ({
     if (index < inputRefs.current.length - 1) {
       inputRefs.current[index + 1]?.focus();
     } else {
-      verifyEmail(code.length === OTP_LENGTH - 1 ? [...code, raw] : code);
+      verifyEmail();
     }
   };
 
@@ -177,7 +216,7 @@ const EmailVerificationForm = ({
     });
     const focusIndex = Math.min(newCode.length, OTP_LENGTH - 1);
     inputRefs.current[focusIndex]?.focus();
-    if (newCode.length === OTP_LENGTH) verifyEmail(newCode);
+    if (newCode.length === OTP_LENGTH) verifyEmail();
   };
 
   const resendEmail = () => {
