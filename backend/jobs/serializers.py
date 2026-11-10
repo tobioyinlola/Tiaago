@@ -43,6 +43,7 @@ from .services import (
     profile_eligibility_requirements,
     review_application_eligibility_check,
     sync_application_eligibility_checks,
+    eligibility_progression_block_detail,
 )
 
 
@@ -1663,6 +1664,123 @@ class ApplicationPracticalAssessmentReviewSerializer(serializers.Serializer):
         return instance
 
 
+class ApplicationReadinessSerializer(serializers.ModelSerializer):
+    """Company-only readiness record for a candidate who accepted an offer."""
+
+    candidate_name = serializers.ReadOnlyField(source="candidate_full_name")
+    candidate_email = serializers.ReadOnlyField()
+    job_title = serializers.ReadOnlyField(source="job.title")
+    updated_by_name = serializers.SerializerMethodField()
+    blocker_detail = serializers.SerializerMethodField()
+
+    def get_updated_by_name(self, obj):
+        if not obj.readiness_updated_by_id:
+            return None
+        return obj.readiness_updated_by.get_full_name().strip() or obj.readiness_updated_by.email
+
+    def get_blocker_detail(self, obj):
+        if obj.readiness_status in {
+            JobApplication.ReadinessStatus.READY_TO_START,
+            JobApplication.ReadinessStatus.STARTED,
+        }:
+            return ""
+        return eligibility_progression_block_detail(obj)
+
+    class Meta:
+        model = JobApplication
+        fields = (
+            "id",
+            "candidate_name",
+            "candidate_email",
+            "job_title",
+            "readiness_status",
+            "readiness_target_start_date",
+            "readiness_note",
+            "readiness_updated_at",
+            "readiness_started_at",
+            "updated_by_name",
+            "blocker_detail",
+        )
+        read_only_fields = fields
+
+
+class ApplicationReadinessUpdateSerializer(serializers.Serializer):
+    """Moves an accepted candidate through company-controlled readiness."""
+
+    readiness_status = serializers.ChoiceField(
+        choices=(
+            JobApplication.ReadinessStatus.CHECKS_OUTSTANDING,
+            JobApplication.ReadinessStatus.READY_TO_START,
+            JobApplication.ReadinessStatus.STARTED,
+        )
+    )
+    readiness_target_start_date = serializers.DateField(required=False, allow_null=True)
+    readiness_note = serializers.CharField(max_length=1200, required=False, allow_blank=True)
+
+    def validate(self, attrs):
+        application = self.instance
+        status = attrs["readiness_status"]
+        if application.status != JobApplication.JobApplicationStatus.OFFER_ACCEPTED:
+            raise serializers.ValidationError(
+                "Only a candidate who has accepted an offer can enter the readiness process."
+            )
+        if application.readiness_status == JobApplication.ReadinessStatus.STARTED:
+            raise serializers.ValidationError("A recorded start is final in this workflow.")
+
+        target_start_date = attrs.get(
+            "readiness_target_start_date", application.readiness_target_start_date
+        )
+        note = (attrs.get("readiness_note") or "").strip()
+        if status in {
+            JobApplication.ReadinessStatus.READY_TO_START,
+            JobApplication.ReadinessStatus.STARTED,
+        } and not target_start_date:
+            raise serializers.ValidationError({
+                "readiness_target_start_date": "Set the agreed start date before marking this candidate ready or started."
+            })
+        if status == JobApplication.ReadinessStatus.CHECKS_OUTSTANDING and not (note or application.readiness_note):
+            raise serializers.ValidationError({
+                "readiness_note": "Record the next readiness action or outstanding item."
+            })
+        if status == JobApplication.ReadinessStatus.READY_TO_START:
+            blocker = eligibility_progression_block_detail(application)
+            if blocker:
+                raise serializers.ValidationError({"readiness_status": blocker})
+        if status == JobApplication.ReadinessStatus.STARTED:
+            if application.readiness_status != JobApplication.ReadinessStatus.READY_TO_START:
+                raise serializers.ValidationError({
+                    "readiness_status": "Mark the candidate ready to start before recording an actual start."
+                })
+            blocker = eligibility_progression_block_detail(application)
+            if blocker:
+                raise serializers.ValidationError({"readiness_status": blocker})
+        return attrs
+
+    def update(self, instance, validated_data):
+        next_status = validated_data["readiness_status"]
+        instance.readiness_status = next_status
+        if "readiness_target_start_date" in validated_data:
+            instance.readiness_target_start_date = validated_data["readiness_target_start_date"]
+        if "readiness_note" in validated_data:
+            instance.readiness_note = (validated_data["readiness_note"] or "").strip()
+        instance.readiness_updated_by = self.context["request"].user
+        instance.readiness_updated_at = timezone.now()
+        if next_status == JobApplication.ReadinessStatus.STARTED:
+            instance.readiness_started_at = instance.readiness_started_at or timezone.now()
+        instance.save(
+            update_fields=(
+                "readiness_status",
+                "readiness_target_start_date",
+                "readiness_note",
+                "readiness_updated_by",
+                "readiness_updated_at",
+                "readiness_started_at",
+                "last_updated",
+            )
+        )
+        return instance
+
+
 class JobApplicationSerializer(serializers.ModelSerializer):
     job = JobSerializer(read_only=True)
     applicant = serializers.SerializerMethodField()
@@ -1691,6 +1809,10 @@ class JobApplicationSerializer(serializers.ModelSerializer):
             "applied_date",
             "cover_letter",
             "status",
+            "readiness_status",
+            "readiness_target_start_date",
+            "readiness_updated_at",
+            "readiness_started_at",
             "created",
             "last_updated",
             "resume",

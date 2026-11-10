@@ -653,6 +653,22 @@ export type PracticalAssessmentSlot = {
   created_at: string;
 };
 
+export type ReadinessStatus = "NOT_STARTED" | "CHECKS_OUTSTANDING" | "READY_TO_START" | "STARTED";
+
+export type ApplicationReadiness = {
+  id: ID;
+  candidate_name: string;
+  candidate_email: string;
+  job_title: string;
+  readiness_status: ReadinessStatus;
+  readiness_target_start_date: string | null;
+  readiness_note: string;
+  readiness_updated_at: string | null;
+  readiness_started_at: string | null;
+  updated_by_name: string | null;
+  blocker_detail: string;
+};
+
 export type ApplicationPracticalAssessment = {
   id: ID;
   attempt_number: number;
@@ -840,6 +856,10 @@ export type JobApplication = {
   scenario_response?: ApplicationScenarioResponse | null;
   practical_assessments?: ApplicationPracticalAssessment[];
   workflow_stage?: WorkflowStage;
+  readiness_status?: ReadinessStatus;
+  readiness_target_start_date?: string | null;
+  readiness_updated_at?: string | null;
+  readiness_started_at?: string | null;
   status:
     | "APPLIED"
     | "REVIEWED"

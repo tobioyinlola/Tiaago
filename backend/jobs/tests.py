@@ -7,7 +7,7 @@ actually booked.
 """
 
 import json
-from datetime import timedelta
+from datetime import date, timedelta
 from unittest.mock import patch
 
 from django.test import TestCase
@@ -1353,3 +1353,129 @@ class PracticalAssessmentFoundationTests(TestCase):
         response = self.client.post("/api/jobs/", payload, format="json")
         self.assertEqual(response.status_code, 400, response.data)
         self.assertIn("workflow_configuration", response.data["errors"])
+
+
+class ReadinessFoundationTests(TestCase):
+    """An accepted offer only becomes a start after an auditable readiness gate."""
+
+    def setUp(self):
+        from rest_framework.test import APIClient
+
+        self.rep = CustomUser.objects.create_company_user(
+            username="readiness-rep", email="readiness-rep@example.com", password="x"
+        )
+        self.company = Company.objects.create(company_name="Readiness Co", company_rep=self.rep)
+        self.talent_user = CustomUser.objects.create_talent_user(
+            username="readiness-talent", email="readiness-talent@example.com", password="x"
+        )
+        self.talent = TalentProfile.objects.create(user=self.talent_user, full_name="Ready Candidate")
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.rep)
+
+    def _application(self, *, requirements=None, status=JobApplication.JobApplicationStatus.OFFER_ACCEPTED):
+        job = _make_job(self.company, eligibility_requirements=requirements or [])
+        return JobApplication.objects.create(applicant=self.talent, job=job, status=status)
+
+    def test_readiness_requires_cleared_requirements_before_ready_and_started(self):
+        application = self._application(requirements=[{
+            "code": "right-to-work",
+            "label": "Right to work",
+            "description": "I am authorised to work in the role's stated location.",
+            "required": True,
+        }])
+
+        queue = self.client.get("/api/jobs/job-applications/readiness/")
+        self.assertEqual(queue.status_code, 200, queue.data)
+        self.assertEqual(queue.data["count"], 1)
+        self.assertIn("eligibility reviews", queue.data["results"][0]["blocker_detail"])
+
+        response = self.client.patch(
+            f"/api/jobs/job-applications/{application.id}/readiness/",
+            {
+                "readiness_status": "CHECKS_OUTSTANDING",
+                "readiness_note": "Awaiting manual right-to-work review.",
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data["readiness_status"], "CHECKS_OUTSTANDING")
+
+        response = self.client.patch(
+            f"/api/jobs/job-applications/{application.id}/readiness/",
+            {
+                "readiness_status": "READY_TO_START",
+                "readiness_target_start_date": date.today().isoformat(),
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400, response.data)
+        self.assertIn("eligibility", str(response.data).lower())
+
+        check = application.eligibility_checks.get(requirement_code="right-to-work")
+        response = self.client.patch(
+            f"/api/jobs/job-applications/{application.id}/eligibility/{check.id}/",
+            {"status": "PASS"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+
+        response = self.client.patch(
+            f"/api/jobs/job-applications/{application.id}/readiness/",
+            {
+                "readiness_status": "READY_TO_START",
+                "readiness_target_start_date": date.today().isoformat(),
+                "readiness_note": "All current hiring checks are complete.",
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data["readiness_status"], "READY_TO_START")
+        self.assertEqual(response.data["updated_by_name"], self.rep.email)
+
+        response = self.client.patch(
+            f"/api/jobs/job-applications/{application.id}/readiness/",
+            {"readiness_status": "STARTED"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data["readiness_status"], "STARTED")
+        self.assertIsNotNone(response.data["readiness_started_at"])
+
+        response = self.client.patch(
+            f"/api/jobs/job-applications/{application.id}/readiness/",
+            {"readiness_status": "CHECKS_OUTSTANDING", "readiness_note": "Attempt to reopen."},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400, response.data)
+        self.assertIn("final", str(response.data).lower())
+
+    def test_candidate_offer_acceptance_enters_readiness_without_bypassing_the_gate(self):
+        from rest_framework.test import APIClient
+
+        application = self._application(status=JobApplication.JobApplicationStatus.OFFER_EXTENDED)
+        application.job.hiring_engine = Job.HiringEngine.CONFIGURABLE
+        application.job.workflow_configuration = {
+            "version": 1,
+            "stages": ["application", "screen", "interview", "decision", "readiness"],
+        }
+        application.job.save(update_fields=["hiring_engine", "workflow_configuration"])
+        talent_client = APIClient()
+        talent_client.force_authenticate(user=self.talent_user)
+        not_offered = self._application(status=JobApplication.JobApplicationStatus.APPLIED)
+        blocked = talent_client.patch(
+            f"/api/jobs/job-applications/{not_offered.id}/",
+            {"status": "OFFER_ACCEPTED"},
+            format="json",
+        )
+        self.assertEqual(blocked.status_code, 400, blocked.data)
+
+        response = talent_client.patch(
+            f"/api/jobs/job-applications/{application.id}/",
+            {"status": "OFFER_ACCEPTED"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        application.refresh_from_db()
+        self.assertEqual(application.status, JobApplication.JobApplicationStatus.OFFER_ACCEPTED)
+        self.assertEqual(application.readiness_status, JobApplication.ReadinessStatus.CHECKS_OUTSTANDING)
+        self.assertEqual(current_workflow_stage(application), "readiness")

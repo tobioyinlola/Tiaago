@@ -12,6 +12,7 @@ Prepared 9 November 2026. This plan supersedes the agency-first ordering in the 
 - UPG-06 now supports structured work-sample and written-scenario review: supported profiles can request immutable, role-specific file or mobile-friendly written prompts; guest candidates submit constrained files or a text response; recruiters use a job-level weighted scorecard with an explicit passing threshold; completed reviews retain the criterion, weight, score and evidence note used; private permission-checked download is available for files; and required evidence must be accepted before progression. Malware/quarantine integrations and richer reviewer calibration remain scheduled work.
 - UPG-08 now has an immutable per-job workflow snapshot, recruiter stage editor, workflow-aware application-board controls, and server-enforced screen, assessment, interview and decision transitions. `REVIEWED` is correctly treated as either initial screening or an assessment invitation according to the published workflow, so it cannot send a hidden assessment for a screen-only role. Optimistic concurrency/idempotency records, durable notifications and recovery queues remain scheduled work.
 - UPG-12 now has its first observed-practical foundation: supported profiles can publish a pinned title, instructions and weighted assessor rubric; recruiters create capacity-controlled physical slots, assign candidates, and record a scorecard or explicit critical failure; a required assessment blocks progression until a human records a completed pass. The system records a company assessor account but does not claim that person is occupationally qualified, does not verify a licence/certificate, and does not yet collect practical evidence files, candidate self-booking, no-show/retest policy, or customer protocol sign-off.
+- UPG-13 now distinguishes offer accepted, checks outstanding, ready to start and started. A candidate can accept only an extended offer; acceptance creates a company-owned readiness record; only recruiters/admins can mark ready or started; and readiness reuses the existing human eligibility, work-sample, scenario and practical-assessment gates. The current gate cannot represent verified credential evidence until UPG-11 is completed.
 
 ## Product objective
 
@@ -116,7 +117,9 @@ Output: practical evidence for one driver or field role, with an approved custom
 
 ### UPG-13 — Readiness and confirmed start
 
-Distinguish selected, offered, accepted, checks outstanding, ready-to-start and started. Connect the requirement lifecycle to a readiness view and auditable transition. Add agreed follow-ups and onboarding/HRIS export or handoff.
+Current foundation: `OFFER_ACCEPTED` now maps to the readiness workflow stage when one was published and creates a `CHECKS_OUTSTANDING` record. Recruiters/admins use the readiness queue to set the agreed start date, capture a next action, mark `READY_TO_START`, and finally record `STARTED`. Each change records actor and timestamp. A completed human-review gate is required to mark ready or started; `STARTED` is final.
+
+Next work: agreed follow-ups, onboarding/HRIS handoff, assignment-specific document/evidence expiry enforcement, role/site policy approval and payroll/roster integrations. The current gate reuses human-reviewed declarations and assessment results; it must not be described as a credential-verification or clearance system before UPG-11 provides that evidence lifecycle.
 
 Output: a candidate is cleared for the specific assignment through an approved policy. Gate: required expired/failed evidence blocks clearance; the system never assumes an accepted offer equals an actual start. Full payroll/rostering/fleet management is separate scope.
 

@@ -1039,6 +1039,12 @@ class JobApplication(models.Model):
             "Withdrawn"
         )  # The candidate has withdrawn their application
 
+    class ReadinessStatus(models.TextChoices):
+        NOT_STARTED = "NOT_STARTED", _("Not started")
+        CHECKS_OUTSTANDING = "CHECKS_OUTSTANDING", _("Checks outstanding")
+        READY_TO_START = "READY_TO_START", _("Ready to start")
+        STARTED = "STARTED", _("Started")
+
     applicant = models.ForeignKey(
         TalentProfile, on_delete=models.CASCADE, related_name="applicants",
         null=True, blank=True,
@@ -1075,6 +1081,24 @@ class JobApplication(models.Model):
         choices=JobApplicationStatus.choices,
         default=JobApplicationStatus.APPLIED,
     )
+    # An accepted offer is not an authorization to start. These fields give
+    # the hiring team an auditable, assignment-specific readiness record.
+    readiness_status = models.CharField(
+        max_length=24,
+        choices=ReadinessStatus.choices,
+        default=ReadinessStatus.NOT_STARTED,
+    )
+    readiness_target_start_date = models.DateField(null=True, blank=True)
+    readiness_note = models.TextField(max_length=1200, blank=True, default="")
+    readiness_updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="updated_application_readiness",
+    )
+    readiness_updated_at = models.DateTimeField(null=True, blank=True)
+    readiness_started_at = models.DateTimeField(null=True, blank=True)
 
     was_verified_at_application = models.BooleanField(
         default=False,

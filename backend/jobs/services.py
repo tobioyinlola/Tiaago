@@ -35,9 +35,10 @@ def workflow_stage_for_status(application, status):
         JobApplication.JobApplicationStatus.SECOND_INTERVIEW,
     }:
         return "interview"
+    if status == JobApplication.JobApplicationStatus.OFFER_ACCEPTED:
+        return "readiness" if "readiness" in workflow_stages else "decision"
     if status in {
         JobApplication.JobApplicationStatus.OFFER_EXTENDED,
-        JobApplication.JobApplicationStatus.OFFER_ACCEPTED,
         JobApplication.JobApplicationStatus.OFFER_DECLINED,
     }:
         return "decision"

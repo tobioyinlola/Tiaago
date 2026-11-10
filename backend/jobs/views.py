@@ -102,6 +102,8 @@ from .serializers import (
     ApplicationPracticalAssessmentSerializer,
     ApplicationPracticalAssessmentAssignSerializer,
     ApplicationPracticalAssessmentReviewSerializer,
+    ApplicationReadinessSerializer,
+    ApplicationReadinessUpdateSerializer,
 )
 from .tasks import (
     ACCEPTANCE_MAIL_DELAY_SECONDS,
@@ -1057,8 +1059,7 @@ class JobApplicationRetrieveUpdateView(RetrieveUpdateAPIView):
     serializer_class = JobApplicationUpdateStatusSerializer
     permission_classes = [
         permissions.IsAuthenticated,
-        IsJobApplicationCompany,
-        # IsJobApplicationCompanyOrTalentApplicant,
+        IsJobApplicationCompanyOrTalentApplicant,
     ]
 
 
@@ -1079,6 +1080,7 @@ class JobApplicationRetrieveUpdateView(RetrieveUpdateAPIView):
         serializer = self.get_serializer(instance, data=request.data)
         serializer.is_valid(raise_exception=True)
         status_value = serializer.validated_data.get("status")
+        previous_status = instance.status
 
         TALENT_ONLY_STATUS_UPDATE = [
             JobApplication.JobApplicationStatus.OFFER_ACCEPTED,
@@ -1104,8 +1106,19 @@ class JobApplicationRetrieveUpdateView(RetrieveUpdateAPIView):
         # Company-side actors must NOT set talent-only statuses
         if user_is_company_role(user, job_company, [CompanyTeamMember.ROLE.ADMIN, CompanyTeamMember.ROLE.RECRUITER]) and status_value in TALENT_ONLY_STATUS_UPDATE:
             return Response({"detail": "Invalid status update"}, status=HTTP_400_BAD_REQUEST)
+        if (
+            user.user_type == User.USER_TYPE.TALENT
+            and status_value in {
+                JobApplication.JobApplicationStatus.OFFER_ACCEPTED,
+                JobApplication.JobApplicationStatus.OFFER_DECLINED,
+            }
+            and previous_status != JobApplication.JobApplicationStatus.OFFER_EXTENDED
+        ):
+            return Response(
+                {"detail": "Only an extended offer can be accepted or declined."},
+                status=HTTP_400_BAD_REQUEST,
+            )
 
-        previous_status = instance.status
         rejection_reason = (request.data.get("rejection_reason") or "").strip()
         # A manual reject needs a reason so it can be relayed to the
         # candidate (see send_manual_rejection_mail below) -- same "reason
@@ -1125,6 +1138,7 @@ class JobApplicationRetrieveUpdateView(RetrieveUpdateAPIView):
             JobApplication.JobApplicationStatus.REJECTED,
             JobApplication.JobApplicationStatus.WITHDRAWN,
             JobApplication.JobApplicationStatus.OFFER_DECLINED,
+            JobApplication.JobApplicationStatus.OFFER_ACCEPTED,
         }
         if status_value != previous_status and status_value not in non_progressing_statuses:
             workflow_hold = workflow_transition_block_detail(instance, status_value)
@@ -1166,6 +1180,14 @@ class JobApplicationRetrieveUpdateView(RetrieveUpdateAPIView):
             )
 
         self.perform_update(serializer)
+        if (
+            status_value == JobApplication.JobApplicationStatus.OFFER_ACCEPTED
+            and status_value != previous_status
+            and instance.readiness_status == JobApplication.ReadinessStatus.NOT_STARTED
+        ):
+            instance.readiness_status = JobApplication.ReadinessStatus.CHECKS_OUTSTANDING
+            instance.readiness_updated_at = timezone.now()
+            instance.save(update_fields=("readiness_status", "readiness_updated_at", "last_updated"))
 
         # A recruiter manually advancing a candidate should trigger the same
         # candidate-facing signal the automatic pipeline sends for that same
@@ -1320,6 +1342,63 @@ class JobApplicationEligibilityCheckReviewView(APIView):
         serializer.is_valid(raise_exception=True)
         check = serializer.save()
         return Response(ApplicationEligibilityCheckSerializer(check, context={"request": request}).data)
+
+
+class JobApplicationReadinessQueueView(ListAPIView):
+    """Company-scoped accepted-offer queue; acceptance never equals start."""
+
+    serializer_class = ApplicationReadinessSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    pagination_class = JobPagination
+
+    def get_queryset(self):
+        queryset = JobApplication.objects.filter(
+            status=JobApplication.JobApplicationStatus.OFFER_ACCEPTED,
+        ).select_related(
+            "job", "job__company", "applicant", "applicant__user", "readiness_updated_by"
+        ).order_by("readiness_target_start_date", "-last_updated")
+        if self.request.user.is_staff:
+            return queryset
+        company = get_user_company(self.request.user)
+        if not company or not user_is_company_role(
+            self.request.user,
+            company,
+            (CompanyTeamMember.ROLE.ADMIN, CompanyTeamMember.ROLE.RECRUITER),
+        ):
+            return JobApplication.objects.none()
+        return queryset.filter(job__company=company)
+
+
+class ApplicationReadinessUpdateView(APIView):
+    """Records company-owned readiness decisions after offer acceptance."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def patch(self, request, pk):
+        application = get_object_or_404(
+            JobApplication.objects.select_related(
+                "job__company", "applicant__user", "readiness_updated_by"
+            ),
+            id=pk,
+        )
+        company = application.job.company
+        if not request.user.is_staff and not user_is_company_role(
+            request.user,
+            company,
+            (CompanyTeamMember.ROLE.ADMIN, CompanyTeamMember.ROLE.RECRUITER),
+        ):
+            return Response(
+                {"detail": "You are not authorized to update this candidate's readiness."},
+                status=HTTP_403_FORBIDDEN,
+            )
+        serializer = ApplicationReadinessUpdateSerializer(
+            application,
+            data=request.data,
+            context={"request": request},
+        )
+        serializer.is_valid(raise_exception=True)
+        application = serializer.save()
+        return Response(ApplicationReadinessSerializer(application, context={"request": request}).data)
 
 
 class JobPracticalAssessmentSlotListCreateView(APIView):

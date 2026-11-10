@@ -53,6 +53,8 @@ from .views import (
     JobApplicationPracticalAssessmentCreateView,
     JobApplicationPracticalAssessmentReviewQueueView,
     ApplicationPracticalAssessmentReviewView,
+    JobApplicationReadinessQueueView,
+    ApplicationReadinessUpdateView,
 )
 
 urlpatterns = [
@@ -112,6 +114,16 @@ urlpatterns = [
         "job-applications/practical-assessment-review/",
         JobApplicationPracticalAssessmentReviewQueueView.as_view(),
         name="job-application-practical-assessment-review-queue",
+    ),
+    path(
+        "job-applications/readiness/",
+        JobApplicationReadinessQueueView.as_view(),
+        name="job-application-readiness-queue",
+    ),
+    path(
+        "job-applications/<int:pk>/readiness/",
+        ApplicationReadinessUpdateView.as_view(),
+        name="job-application-readiness-update",
     ),
     path(
         "job-applications/<int:pk>/practical-assessments/",

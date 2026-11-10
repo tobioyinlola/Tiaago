@@ -9,6 +9,8 @@ import {
   ApplicationWorkSample,
   ApplicationScenarioResponse,
   ApplicationPracticalAssessment,
+  ApplicationReadiness,
+  ReadinessStatus,
   PracticalAssessmentSlot,
   ID,
   InterviewSlotInput,
@@ -454,6 +456,40 @@ export const reviewApplicationScenarioResponse = async (
         json: { status, reviewer_reason, ...(scores ? { scores } : {}), ...(score_notes ? { score_notes } : {}) },
       })
       .json<ApplicationScenarioResponse>();
+    return { success: true, data };
+  } catch (error) {
+    const errMsg = await handleServerApiCallError(error);
+    return { success: false, error: errMsg };
+  }
+};
+
+export const getReadinessQueue = async (page = 1, page_size = 50) => {
+  try {
+    return await serverKyInstance
+      .get<PagedResource<ApplicationReadiness>>("jobs/job-applications/readiness/", {
+        searchParams: { page, page_size },
+      })
+      .json();
+  } catch (error) {
+    const errMsg = await handleServerApiCallError(error);
+    throw Error(errMsg);
+  }
+};
+
+export type ReadinessUpdateInput = {
+  readiness_status: Exclude<ReadinessStatus, "NOT_STARTED">;
+  readiness_target_start_date?: string | null;
+  readiness_note?: string;
+};
+
+export const updateApplicationReadiness = async (
+  applicationId: ID,
+  input: ReadinessUpdateInput
+): Promise<ApiResponse<ApplicationReadiness>> => {
+  try {
+    const data = await serverKyInstance
+      .patch(`jobs/job-applications/${applicationId}/readiness/`, { json: input })
+      .json<ApplicationReadiness>();
     return { success: true, data };
   } catch (error) {
     const errMsg = await handleServerApiCallError(error);
