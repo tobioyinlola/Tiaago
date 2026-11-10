@@ -421,6 +421,14 @@ LIVEKIT_API_SECRET = env("LIVEKIT_API_SECRET", default="")
 # segment, status, complete) -- see ai_interviews.permissions.HasInternalServiceKey.
 INTERNAL_API_KEY = env("INTERNAL_API_KEY", default="")
 
+# Malware scanning of private candidate uploads (jobs.malware). Fail-closed:
+# an unscanned upload cannot be downloaded or accepted. Set
+# MALWARE_SCAN_BACKEND=disabled only for local development.
+MALWARE_SCAN_BACKEND = env("MALWARE_SCAN_BACKEND", default="clamav")
+CLAMD_HOST = env("CLAMD_HOST", default="clamav")
+CLAMD_PORT = env.int("CLAMD_PORT", default=3310)
+CLAMD_TIMEOUT = env.int("CLAMD_TIMEOUT", default=30)
+
 # How many AI interview sessions the deployed interview_agent/ worker
 # fleet can run at once. AIInterviewStartSessionView checks this before
 # creating a LiveKit room -- past this, a candidate is asked to wait

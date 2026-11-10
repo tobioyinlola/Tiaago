@@ -782,6 +782,12 @@ class ApplicationWorkSample(TimeStampedModel):
         NEEDS_REVIEW = "NEEDS_REVIEW", _("Needs changes")
         FAIL = "FAIL", _("Not accepted")
 
+    class ScanStatus(models.TextChoices):
+        PENDING = "PENDING", _("Awaiting malware scan")
+        CLEAN = "CLEAN", _("Scanned clean")
+        INFECTED = "INFECTED", _("Blocked: malware detected")
+        ERROR = "ERROR", _("Scan could not be completed")
+
     application = models.ForeignKey(
         "jobs.JobApplication", on_delete=models.CASCADE, related_name="work_samples"
     )
@@ -801,11 +807,20 @@ class ApplicationWorkSample(TimeStampedModel):
     )
     reviewer_reason = models.TextField(max_length=1000, blank=True, default="")
     reviewed_at = models.DateTimeField(null=True, blank=True)
+    # Uploads are untrusted until scanned; see jobs.malware. Anything other
+    # than CLEAN can be neither downloaded nor accepted.
+    scan_status = models.CharField(
+        max_length=10, choices=ScanStatus.choices, default=ScanStatus.PENDING
+    )
+    scan_detail = models.CharField(max_length=255, blank=True, default="")
+    scan_attempts = models.PositiveSmallIntegerField(default=0)
+    scanned_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         indexes = [
             models.Index(fields=("status", "updated_at")),
             models.Index(fields=("application", "status")),
+            models.Index(fields=("scan_status", "updated_at")),
         ]
         ordering = ("-created_at",)
 

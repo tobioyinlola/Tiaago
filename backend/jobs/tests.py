@@ -672,9 +672,16 @@ class EligibilityReviewFoundationTests(TestCase):
         return Job.objects.get(public_id=response.data["public_id"])
 
     def _apply_as_guest(self, job, *, email, declarations, work_sample=None, scenario_response=None):
-        with patch("jobs.views.emails.application_received_mail"), patch(
-            "jobs.views.carry_out_resume_analysis.delay"
-        ):
+        from jobs.tasks import scan_application_work_sample
+
+        # Scanning is fail-closed in production; tests run the scan task
+        # inline with the explicit "disabled" backend so uploads clear.
+        with self.settings(MALWARE_SCAN_BACKEND="disabled"), patch(
+            "jobs.tasks.scan_application_work_sample.delay",
+            side_effect=lambda sample_id: scan_application_work_sample(sample_id),
+        ), self.captureOnCommitCallbacks(execute=True), patch(
+            "jobs.views.emails.application_received_mail"
+        ), patch("jobs.views.carry_out_resume_analysis.delay"):
             payload = {
                 "full_name": "Eligible Driver",
                 "email": email,
@@ -1479,3 +1486,174 @@ class ReadinessFoundationTests(TestCase):
         self.assertEqual(application.status, JobApplication.JobApplicationStatus.OFFER_ACCEPTED)
         self.assertEqual(application.readiness_status, JobApplication.ReadinessStatus.CHECKS_OUTSTANDING)
         self.assertEqual(current_workflow_stage(application), "readiness")
+
+
+
+class WorkSampleMalwareScanTests(TestCase):
+    """Uploads are untrusted until scanned; the gate must fail closed."""
+
+    # Reuse the profile/job/client fixtures without re-running that suite.
+    setUp = EligibilityReviewFoundationTests.setUp
+    _job_data = EligibilityReviewFoundationTests._job_data
+    _publish_job = EligibilityReviewFoundationTests._publish_job
+
+    def _sample_job(self):
+        job = self._publish_job()
+        job.work_sample_configuration = {
+            "enabled": True, "required": False,
+            "prompt": "Upload a redacted route plan.", "instructions": "CSV only.",
+        }
+        job.save(update_fields=["work_sample_configuration"])
+        return job
+
+    def _apply_unscanned(self, job, email, upload):
+        with patch("jobs.tasks.scan_application_work_sample.delay"), self.captureOnCommitCallbacks(execute=True), patch(
+            "jobs.views.emails.application_received_mail"
+        ), patch("jobs.views.carry_out_resume_analysis.delay"):
+            response = self.client.post(
+                f"/api/jobs/apply/{job.apply_token}/guest/",
+                {
+                    "full_name": "Eligible Driver", "email": email,
+                    "phone_number": "+2348000000000",
+                    "additional_info": "Three years of last-mile delivery experience.",
+                    "eligibility_declarations": json.dumps({"right-to-work": True, "driving-licence": True}),
+                    "terms_accepted": True, "work_sample": upload,
+                },
+                format="multipart",
+            )
+        return response
+
+    def _csv(self):
+        return SimpleUploadedFile("route-plan.csv", b"route,minutes\nA,20\n", content_type="text/csv")
+
+    def test_unscanned_sample_is_blocked_from_download_and_acceptance(self):
+        job = self._sample_job()
+        response = self._apply_unscanned(job, "pending-scan@example.com", self._csv())
+        self.assertEqual(response.status_code, 201, response.data)
+        application = JobApplication.objects.get(id=response.data["id"])
+        sample = application.work_samples.get()
+        self.assertEqual(sample.scan_status, "PENDING")
+
+        base = f"/api/jobs/job-applications/{application.id}/work-samples/{sample.id}/"
+        self.assertEqual(self.client.get(base + "download/").status_code, 409)
+        accepted = self.client.patch(
+            base, {"status": "PASS", "reviewer_reason": "Looks fine."}, format="json"
+        )
+        self.assertEqual(accepted.status_code, 400, accepted.data)
+        self.assertIn("malware scan", str(accepted.data))
+
+    def test_clean_verdict_unlocks_download(self):
+        from jobs.tasks import scan_application_work_sample
+
+        job = self._sample_job()
+        application = JobApplication.objects.get(
+            id=self._apply_unscanned(job, "clean@example.com", self._csv()).data["id"]
+        )
+        sample = application.work_samples.get()
+        with patch("jobs.malware.scan_stream", return_value=("CLEAN", "")):
+            scan_application_work_sample(sample.id)
+        sample.refresh_from_db()
+        self.assertEqual(sample.scan_status, "CLEAN")
+        response = self.client.get(
+            f"/api/jobs/job-applications/{application.id}/work-samples/{sample.id}/download/"
+        )
+        self.assertEqual(response.status_code, 200)
+
+    def test_infected_sample_is_quarantined_and_file_removed(self):
+        from jobs.tasks import scan_application_work_sample
+
+        job = self._sample_job()
+        application = JobApplication.objects.get(
+            id=self._apply_unscanned(job, "bad@example.com", self._csv()).data["id"]
+        )
+        sample = application.work_samples.get()
+        stored = sample.file.name
+        with patch("jobs.malware.scan_stream", return_value=("INFECTED", "Eicar-Test-Signature")):
+            scan_application_work_sample(sample.id)
+        sample.refresh_from_db()
+        self.assertEqual(sample.scan_status, "INFECTED")
+        self.assertFalse(sample.file)
+        self.assertFalse(sample.file.storage.exists(stored))
+        response = self.client.get(
+            f"/api/jobs/job-applications/{application.id}/work-samples/{sample.id}/download/"
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_scanner_outage_retries_then_errors_but_never_clears(self):
+        from jobs.malware import ScannerUnavailable
+        from jobs.tasks import WORK_SAMPLE_MAX_SCAN_ATTEMPTS, scan_application_work_sample
+
+        job = self._sample_job()
+        application = JobApplication.objects.get(
+            id=self._apply_unscanned(job, "outage@example.com", self._csv()).data["id"]
+        )
+        sample = application.work_samples.get()
+        with patch("jobs.malware.scan_stream", side_effect=ScannerUnavailable("down")):
+            scan_application_work_sample(sample.id)
+            sample.refresh_from_db()
+            self.assertEqual(sample.scan_status, "PENDING")
+            for _ in range(WORK_SAMPLE_MAX_SCAN_ATTEMPTS):
+                scan_application_work_sample(sample.id)
+        sample.refresh_from_db()
+        self.assertEqual(sample.scan_status, "ERROR")
+
+    def test_sweeper_requeues_stale_pending_samples(self):
+        from jobs.models import ApplicationWorkSample
+        from jobs.tasks import sweep_unscanned_work_samples
+
+        job = self._sample_job()
+        application = JobApplication.objects.get(
+            id=self._apply_unscanned(job, "sweep@example.com", self._csv()).data["id"]
+        )
+        sample = application.work_samples.get()
+        ApplicationWorkSample.objects.filter(id=sample.id).update(
+            updated_at=timezone.now() - timedelta(minutes=10)
+        )
+        with patch("jobs.tasks.scan_application_work_sample.delay") as delay:
+            self.assertEqual(sweep_unscanned_work_samples(), 1)
+        delay.assert_called_once_with(sample.id)
+
+    def test_mislabelled_and_macro_uploads_are_rejected(self):
+        import io
+        import zipfile
+
+        job = self._sample_job()
+        fake_pdf = SimpleUploadedFile("plan.pdf", b"MZ\x90\x00 not a pdf", content_type="application/pdf")
+        response = self._apply_unscanned(job, "fake@example.com", fake_pdf)
+        self.assertEqual(response.status_code, 400, response.data)
+
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, "w") as archive:
+            archive.writestr("[Content_Types].xml", "<x/>")
+            archive.writestr("word/vbaProject.bin", b"macro")
+        macro_doc = SimpleUploadedFile("plan.docx", buffer.getvalue(), content_type="application/octet-stream")
+        response = self._apply_unscanned(job, "macro@example.com", macro_doc)
+        self.assertEqual(response.status_code, 400, response.data)
+
+    def test_clamd_instream_protocol_parses_verdicts(self):
+        import io
+        from jobs import malware
+
+        class FakeSocket:
+            def __init__(self, reply):
+                self.reply, self.sent = reply, b""
+            def __enter__(self): return self
+            def __exit__(self, *a): return False
+            def settimeout(self, t): pass
+            def sendall(self, data): self.sent += data
+            def recv(self, n):
+                reply, self.reply = self.reply, b""
+                return reply
+
+        for reply, expected in (
+            (b"stream: OK\0", ("CLEAN", "")),
+            (b"stream: Eicar-Test-Signature FOUND\0", ("INFECTED", "Eicar-Test-Signature")),
+        ):
+            sock = FakeSocket(reply)
+            with patch("jobs.malware.socket.create_connection", return_value=sock):
+                self.assertEqual(malware._clamd_scan(io.BytesIO(b"abc")), expected)
+            self.assertTrue(sock.sent.startswith(b"zINSTREAM\0"))
+            self.assertTrue(sock.sent.endswith(b"\x00\x00\x00\x00"))
+        with patch("jobs.malware.socket.create_connection", side_effect=OSError("refused")):
+            with self.assertRaises(malware.ScannerUnavailable):
+                malware._clamd_scan(io.BytesIO(b"abc"))

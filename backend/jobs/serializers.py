@@ -36,6 +36,7 @@ from .models import (
     JobAssessmentTemplateQuestion,
     JobInterviewAvailabilitySlot,
 )
+from .malware import validate_upload_content
 from .services import (
     current_workflow_stage,
     normalise_eligibility_declarations,
@@ -440,6 +441,9 @@ def _validate_work_sample_file(value):
     extension = value.name.rsplit(".", 1)[-1].lower() if "." in value.name else ""
     if extension not in WORK_SAMPLE_ALLOWED_EXTENSIONS:
         raise serializers.ValidationError("Work samples must be PDF, DOCX, XLSX, or CSV files.")
+    content_error = validate_upload_content(value, extension)
+    if content_error:
+        raise serializers.ValidationError(content_error)
     return value
 
 
@@ -1228,6 +1232,7 @@ class ApplicationWorkSampleSerializer(serializers.ModelSerializer):
             "content_type",
             "candidate_note",
             "status",
+            "scan_status",
             "reviewer_name",
             "reviewer_reason",
             "reviewed_at",
@@ -1264,6 +1269,14 @@ class ApplicationWorkSampleReviewSerializer(serializers.Serializer):
     def validate(self, attrs):
         status = attrs["status"]
         reason = (attrs.get("reviewer_reason") or "").strip()
+        if (
+            isinstance(self.instance, ApplicationWorkSample)
+            and status == ApplicationWorkSample.Status.PASS
+            and self.instance.scan_status != ApplicationWorkSample.ScanStatus.CLEAN
+        ):
+            raise serializers.ValidationError({
+                "status": "This work sample cannot be accepted until it has passed the malware scan."
+            })
         if status in {ApplicationWorkSample.Status.FAIL, ApplicationWorkSample.Status.NEEDS_REVIEW} and not reason:
             raise serializers.ValidationError({"reviewer_reason": "Add a reason for this review decision."})
 
@@ -2057,13 +2070,16 @@ class GuestJobApplicationSerializer(serializers.Serializer):
         )
         sync_application_eligibility_checks(application, eligibility_declarations)
         if work_sample:
-            ApplicationWorkSample.objects.create(
+            sample = ApplicationWorkSample.objects.create(
                 application=application,
                 file=work_sample,
                 original_filename=work_sample.name[:255],
                 content_type=(getattr(work_sample, "content_type", "") or "")[:120],
                 candidate_note=work_sample_note.strip(),
             )
+            from .tasks import scan_application_work_sample
+
+            transaction.on_commit(lambda sample_id=sample.id: scan_application_work_sample.delay(sample_id))
         if scenario_response:
             ApplicationScenarioResponse.objects.create(
                 application=application,

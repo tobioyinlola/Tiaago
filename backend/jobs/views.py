@@ -37,6 +37,7 @@ from rest_framework.status import (
     HTTP_401_UNAUTHORIZED,
     HTTP_403_FORBIDDEN,
     HTTP_402_PAYMENT_REQUIRED,
+    HTTP_409_CONFLICT,
     HTTP_500_INTERNAL_SERVER_ERROR,
 )
 from django.db.models import Count, Q, F
@@ -1685,6 +1686,16 @@ class ApplicationWorkSampleDownloadView(APIView):
         )
         if not (request.user.is_staff or talent_owns_application or recruiter_can_review):
             return Response({"detail": "You are not authorized to access this work sample."}, status=HTTP_403_FORBIDDEN)
+        if sample.scan_status == ApplicationWorkSample.ScanStatus.INFECTED:
+            return Response(
+                {"detail": "This file was blocked because malware was detected."},
+                status=HTTP_403_FORBIDDEN,
+            )
+        if sample.scan_status != ApplicationWorkSample.ScanStatus.CLEAN:
+            return Response(
+                {"detail": "This file is still being scanned for malware. Try again shortly."},
+                status=HTTP_409_CONFLICT,
+            )
         if not sample.file:
             return Response({"detail": "Work sample file not found."}, status=HTTP_404_NOT_FOUND)
         return FileResponse(

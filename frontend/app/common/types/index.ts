@@ -621,6 +621,7 @@ export type ApplicationWorkSample = {
   content_type: string;
   candidate_note: string;
   status: "SUBMITTED" | "PASS" | "NEEDS_REVIEW" | "FAIL";
+  scan_status: "PENDING" | "CLEAN" | "INFECTED" | "ERROR";
   reviewer_name: string | null;
   reviewer_reason: string;
   reviewed_at: string | null;

@@ -1230,3 +1230,75 @@ def send_offer_extended_notice_mail(job_application_id):
     except Exception:
         logger.exception("Failed to send offer extended notice for job_application %s", job_application_id)
 
+
+
+WORK_SAMPLE_MAX_SCAN_ATTEMPTS = 5
+
+
+@shared_task(name="jobs.tasks.scan_application_work_sample", ignore_result=True)
+def scan_application_work_sample(sample_id):
+    """Scan one uploaded work sample and record a verdict.
+
+    A scanner outage leaves the sample PENDING so the beat sweeper retries it;
+    after WORK_SAMPLE_MAX_SCAN_ATTEMPTS it is marked ERROR (still blocked) so a
+    recruiter sees that it needs attention rather than waiting indefinitely.
+    Infected files are removed from storage immediately.
+    """
+    from django.utils import timezone
+    from jobs.malware import INFECTED, ScannerUnavailable, scan_stream
+    from jobs.models import ApplicationWorkSample
+
+    sample = ApplicationWorkSample.objects.filter(id=sample_id).first()
+    if not sample or sample.scan_status in (
+        ApplicationWorkSample.ScanStatus.CLEAN,
+        ApplicationWorkSample.ScanStatus.INFECTED,
+    ):
+        return
+    if not sample.file:
+        sample.scan_status = ApplicationWorkSample.ScanStatus.ERROR
+        sample.scan_detail = "file missing from storage"
+        sample.save(update_fields=("scan_status", "scan_detail", "updated_at"))
+        return
+
+    sample.scan_attempts += 1
+    try:
+        with sample.file.open("rb") as stream:
+            verdict, detail = scan_stream(stream)
+    except (ScannerUnavailable, OSError) as exc:
+        sample.scan_detail = str(exc)[:255]
+        if sample.scan_attempts >= WORK_SAMPLE_MAX_SCAN_ATTEMPTS:
+            sample.scan_status = ApplicationWorkSample.ScanStatus.ERROR
+        sample.save(update_fields=("scan_status", "scan_detail", "scan_attempts", "updated_at"))
+        logger.warning("Work sample %s scan unavailable (attempt %s): %s", sample_id, sample.scan_attempts, exc)
+        return
+
+    sample.scanned_at = timezone.now()
+    sample.scan_detail = detail
+    if verdict == INFECTED:
+        sample.scan_status = ApplicationWorkSample.ScanStatus.INFECTED
+        sample.file.delete(save=False)
+        logger.warning("Work sample %s blocked: %s", sample_id, detail)
+    else:
+        sample.scan_status = ApplicationWorkSample.ScanStatus.CLEAN
+    sample.save(update_fields=(
+        "scan_status", "scan_detail", "scan_attempts", "scanned_at", "file", "updated_at",
+    ))
+
+
+@shared_task(name="jobs.tasks.sweep_unscanned_work_samples", ignore_result=True)
+def sweep_unscanned_work_samples():
+    """Re-queue samples stuck unscanned (lost task, scanner outage)."""
+    from datetime import timedelta
+    from django.utils import timezone
+    from jobs.models import ApplicationWorkSample
+
+    stale_before = timezone.now() - timedelta(minutes=2)
+    ids = list(
+        ApplicationWorkSample.objects.filter(
+            scan_status=ApplicationWorkSample.ScanStatus.PENDING,
+            updated_at__lt=stale_before,
+        ).values_list("id", flat=True)[:200]
+    )
+    for sample_id in ids:
+        scan_application_work_sample.delay(sample_id)
+    return len(ids)
